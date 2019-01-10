@@ -1,0 +1,9 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    compile 'com.palantir.conjure.java.api:errors'
+
+    testCompile 'junit:junit'
+    testCompile 'org.assertj:assertj-core'
+    testCompile 'org.mockito:mockito-core'
+}
