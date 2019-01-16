@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.api;
 
 import com.palantir.conjure.java.api.errors.RemoteException;
 

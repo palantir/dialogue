@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue;
 
+import com.palantir.dialogue.api.Observer;
 import java.io.IOException;
 import java.io.InputStream;
 import javax.annotation.Nonnull;

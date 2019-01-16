@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.dialogue.api.Observer;
 import java.util.concurrent.Future;
 import javax.annotation.Nullable;
 

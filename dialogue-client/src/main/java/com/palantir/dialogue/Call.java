@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue;
 
+import com.palantir.dialogue.api.Observer;
+
 /**
  * Represents an active RPC call between a client and a server. Call instances are transient objects in the sense that
  * they are created by a {@link Channel} when a client initiates a new call to an {@link Endpoint}, and disposed when
