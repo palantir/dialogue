@@ -1,3 +1,5 @@
 rootProject.name = 'dialogue'
 include 'dialogue-api'
 include 'dialogue-client'
+include 'dialogue-target'
+include 'dialogue-example'

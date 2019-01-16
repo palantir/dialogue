@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.example;
 
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface SampleService {
-    // TODO(rfink): Also need to generate docs.
     String stringToString(String objectId, String header, String body);
     void voidToVoid();
 }

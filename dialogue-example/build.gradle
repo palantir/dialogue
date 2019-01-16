@@ -1,0 +1,5 @@
+// note: no publish
+
+dependencies {
+    compile project(':dialogue-target')
+}

@@ -23,6 +23,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
+// TODO(rfink): This class lacks test coverage
 public final class Serializers {
 
     private Serializers() {}

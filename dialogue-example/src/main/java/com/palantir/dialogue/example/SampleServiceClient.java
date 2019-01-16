@@ -14,17 +14,31 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.example;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Call;
+import com.palantir.dialogue.Calls;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.Deserializers;
+import com.palantir.dialogue.DialogueOkHttpErrorDecoder;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Exceptions;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.OkHttpErrorDecoder;
+import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Serializer;
+import com.palantir.dialogue.Serializers;
 import com.palantir.logsafe.Preconditions;
 import java.util.Map;
 
 // Example of the implementation code conjure would generate for a simple SampleService.
-final class SampleServiceClient {
+public final class SampleServiceClient {
 
     private SampleServiceClient() {}
 
@@ -46,6 +60,7 @@ final class SampleServiceClient {
 
         @Override
         public Serializer<String> requestSerializer() {
+            // TODO(rfink): Inject "SerializerFactory" or similar, avoid concrete dependency on Jackson or JSON
             return Serializers.jackson("stringToString", new ObjectMapper());
         }
 
@@ -91,7 +106,7 @@ final class SampleServiceClient {
     };
 
     /** Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel. */
-    static SampleService blocking(Channel channel) {
+    public static SampleService blocking(Channel channel) {
         return new SampleService() {
 
             @Override
@@ -132,7 +147,7 @@ final class SampleServiceClient {
      * Returns a new asynchronous {@link AsyncSampleService} implementation whose calls are executed on the given
      * channel.
      */
-    static AsyncSampleService async(Channel channel) {
+    public static AsyncSampleService async(Channel channel) {
         return new AsyncSampleService() {
             @Override
             public Call<String> stringToString(String objectId, String header, String body) {
