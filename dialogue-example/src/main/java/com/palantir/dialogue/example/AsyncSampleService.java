@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.example;
+
+import com.palantir.dialogue.Call;
 
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface AsyncSampleService {
-    // TODO(rfink): Also need to generate docs.
     Call<String> stringToString(String objectId, String header, String body);
     Call<Void> voidToVoid();
 }

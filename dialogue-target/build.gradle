@@ -1,0 +1,21 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    compile project(':dialogue-api')
+    compile 'com.fasterxml.jackson.core:jackson-databind'
+    compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.api:errors'
+    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    compile 'com.palantir.safe-logging:preconditions'
+    compile 'com.squareup.okhttp3:okhttp'
+    compile 'org.slf4j:slf4j-api'
+
+    testCompile 'javax.ws.rs:javax.ws.rs-api'
+    testCompile 'junit:junit'
+    testCompile 'org.assertj:assertj-core'
+    testCompile 'org.immutables:value::annotations'
+    testCompile 'org.mockito:mockito-core'
+
+    annotationProcessor 'org.immutables:value'
+    compile 'org.immutables:value::annotations'
+}
