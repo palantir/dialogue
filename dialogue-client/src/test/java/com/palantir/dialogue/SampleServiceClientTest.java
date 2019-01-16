@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verifyZeroInteractions;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.api.Observer;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URL;

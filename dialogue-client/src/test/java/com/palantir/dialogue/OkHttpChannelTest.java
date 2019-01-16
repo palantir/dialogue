@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.palantir.dialogue.api.Observer;
 import com.palantir.logsafe.SafeLoggable;
 import java.nio.charset.StandardCharsets;
 import java.util.List;

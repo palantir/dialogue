@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.api;
 
 // TODO(rfink): Docs.
 public final class Status {
