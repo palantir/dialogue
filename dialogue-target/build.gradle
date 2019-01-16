@@ -3,7 +3,6 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 dependencies {
     compile project(':dialogue-api')
     compile 'com.fasterxml.jackson.core:jackson-databind'
-//    compile 'com.google.code.findbugs:jsr305'
     compile 'com.google.guava:guava'
     compile 'com.palantir.conjure.java.api:errors'
     compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
