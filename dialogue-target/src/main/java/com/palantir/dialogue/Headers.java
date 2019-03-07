@@ -16,11 +16,10 @@
 
 package com.palantir.dialogue;
 
-import java.io.IOException;
+public final class Headers {
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
+    private Headers() {}
 
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    public static final String ACCEPT = "Accept";
+    public static final String CONTENT_TYPE = "Content-Type";
 }

@@ -19,7 +19,6 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.AbstractFuture;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.errors.RemoteException;
-import com.palantir.dialogue.api.Observer;
 import java.util.concurrent.Future;
 import javax.annotation.Nullable;
 
@@ -28,15 +27,15 @@ public final class Calls {
 
     /**
      * Converts the given {@link Call} to a {@link Future} by {@link Call#execute executing} the Call and capturing its
-     * {@link RespT}-typed result. If the call fails with an {@link Observer#exception} or {@link Observer#failure}, the
+     * result. If the call fails with an {@link Observer#exception} or {@link Observer#failure}, the
      * corresponding exception is captured by the Future and will be rethrown by {@link Future#get}. Cancelling the
      * future cancels the underlying call.
      */
-    public static <RespT> ListenableFuture<RespT> toFuture(Call<RespT> call) {
-        ExceptionAwareFuture<RespT> future = new ExceptionAwareFuture<>(call);
-        call.execute(new Observer<RespT>() {
+    public static ListenableFuture<Response> toFuture(Call call) {
+        ExceptionAwareFuture<Response> future = new ExceptionAwareFuture<>(call);
+        call.execute(new Observer() {
             @Override
-            public void success(RespT value) {
+            public void success(Response value) {
                 future.set(value);
             }
 
@@ -54,9 +53,9 @@ public final class Calls {
     }
 
     private static final class ExceptionAwareFuture<RespT> extends AbstractFuture<RespT> {
-        private final Call<RespT> call;
+        private final Call call;
 
-        private ExceptionAwareFuture(Call<RespT> call) {
+        private ExceptionAwareFuture(Call call) {
             this.call = call;
         }
 

@@ -29,10 +29,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
-import java.util.Collection;
-import okhttp3.Response;
 
-public enum DialogueOkHttpErrorDecoder implements OkHttpErrorDecoder {
+public enum OkHttpErrorDecoder implements ErrorDecoder {
     INSTANCE;
 
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
@@ -42,11 +40,10 @@ public enum DialogueOkHttpErrorDecoder implements OkHttpErrorDecoder {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
-        Collection<String> contentTypes = response.headers("Content-Type");
-        if (contentTypes.contains("application/json")) {
+        if (response.contentType().isPresent() && response.contentType().get().equals("application/json")) {
             final String body;
             try {
-                body = toString(response.body().byteStream());
+                body = toString(response.body());
             } catch (NullPointerException | IOException e) {
                 throw new SafeRuntimeException(
                         "Failed to read response body, could not deserialize SerializableError", e);

@@ -16,11 +16,14 @@
 
 package com.palantir.dialogue;
 
-import java.io.IOException;
+import com.palantir.conjure.java.api.errors.RemoteException;
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
-
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+/**
+ * Extracts and returns a {@link RemoteException} from an {@link Response}.
+ * The extracted {@link RemoteException} is returned rather than thrown. Decoders may throw exceptions (other than
+ * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
+ * Response} does not adhere to an expected format.
+ */
+public interface ErrorDecoder {
+    RemoteException decode(Response response);
 }

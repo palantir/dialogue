@@ -16,9 +16,9 @@
 
 package com.palantir.dialogue;
 
-/**
- * Serializes a request object of type {@link ReqT} into a {@code byte[]} representation.
- */
-public interface Serializer<ReqT> {
-    byte[] serialize(ReqT value);
+/** Writes objects to a request. */
+public interface Serializer<T> {
+
+    /** Serializes a value to a provided request using the Conjure wire format. */
+    RequestBody serialize(T value);
 }

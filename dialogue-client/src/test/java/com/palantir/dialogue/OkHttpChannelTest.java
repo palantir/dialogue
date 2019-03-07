@@ -24,13 +24,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
-import com.palantir.dialogue.api.Observer;
-import com.palantir.logsafe.SafeLoggable;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.util.Optional;
 import java.util.Set;
 import okhttp3.Headers;
@@ -56,26 +52,26 @@ public final class OkHttpChannelTest {
     @Mock
     private OkHttpClient client;
     @Mock
-    private Request<String> request;
+    private Request request;
     @Mock
-    private Observer<String> observer;
+    private Observer observer;
     @Mock
     private okhttp3.Call okCall;
     @Mock
     private OkHttpCallback.Factory callFactory;
     @Mock
-    private Endpoint<String, String> getEndpoint;
+    private Endpoint getEndpoint;
     @Mock
-    private Endpoint<String, String> endpoint;
+    private Endpoint endpoint;
     @Mock
-    private Serializer<String> serializer;
+    private RequestBody body;
 
     private OkHttpChannel channel;
 
     @SuppressWarnings("unchecked")
     @Before
     public void before() {
-        when(callFactory.create(any(), any())).thenReturn(callback);
+        when(callFactory.create(any())).thenReturn(callback);
         when(client.newCall(any())).thenReturn(okCall);
         channel = OkHttpChannel.of(client, Urls.https("localhost", server.getPort()), callFactory);
 
@@ -85,9 +81,6 @@ public final class OkHttpChannelTest {
         when(getEndpoint.httpMethod()).thenReturn(HttpMethod.GET);
         when(getEndpoint.renderPath(any())).thenReturn("/a");
         when(endpoint.renderPath(any())).thenReturn("/a");
-
-        when(endpoint.requestSerializer()).thenReturn(serializer);
-        when(serializer.serialize("bodyString")).thenReturn("serializedBodyString".getBytes(StandardCharsets.UTF_8));
     }
 
     @Test
@@ -100,21 +93,22 @@ public final class OkHttpChannelTest {
 
     @Test
     public void respectsBasePath_emptyBasePath() {
-        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), ""));
+        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), ""), callFactory);
         channel.createCall(getEndpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/a")));
     }
 
     @Test
     public void respectsBasePath_slashBasePath() {
-        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), "/"));
+        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), "/"), callFactory);
         channel.createCall(getEndpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/a")));
     }
 
     @Test
     public void respectsBasePath_nonEmptyBasePath() {
-        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"));
+        channel = OkHttpChannel.of(
+                client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"), callFactory);
         channel.createCall(getEndpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(
                 HttpUrl.get(Urls.https("localhost", server.getPort(), "/foo/bar/a")));
@@ -122,7 +116,8 @@ public final class OkHttpChannelTest {
 
     @Test
     public void respectsBasePath_emptyEndpointPath() {
-        channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"));
+        channel = OkHttpChannel.of(
+                client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"), callFactory);
         when(getEndpoint.renderPath(any())).thenReturn("/");
         channel.createCall(getEndpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(
@@ -168,30 +163,10 @@ public final class OkHttpChannelTest {
     @Test
     public void testGet_failsWhenBodyIsGiven() throws Exception {
         when(endpoint.httpMethod()).thenReturn(HttpMethod.GET);
-        when(request.body()).thenReturn(Optional.of("bodyString"));
+        when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
-                .isInstanceOf(RuntimeException.class)
+                .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessage("GET endpoints must not have a request body");
-    }
-
-    @Test
-    public void testGet_doesNotUseSerializerWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.GET);
-        when(request.body()).thenReturn(Optional.empty());
-        channel.createCall(endpoint, request).execute(observer);
-
-        verify(serializer, never()).serialize(any());
-        assertThat(captureOkRequest().body()).isNull();
-    }
-
-    @Test
-    public void testPost_usesSerializerForBody() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.POST);
-        when(request.body()).thenReturn(Optional.of("bodyString"));
-        channel.createCall(endpoint, request).execute(observer);
-
-        verify(serializer).serialize("bodyString");
-        assertThat(captureOkRequest().body().contentLength()).isEqualTo("serializedBodyString".length());
     }
 
     @Test
@@ -199,19 +174,8 @@ public final class OkHttpChannelTest {
         when(endpoint.httpMethod()).thenReturn(HttpMethod.POST);
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
-                .isInstanceOf(RuntimeException.class)
-                .isInstanceOf(SafeLoggable.class)
-                .hasMessage("Endpoint must have a request body: {method=POST}");
-    }
-
-    @Test
-    public void testPut_usesSerializerForBody() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.PUT);
-        when(request.body()).thenReturn(Optional.of("bodyString"));
-        channel.createCall(endpoint, request).execute(observer);
-
-        verify(serializer).serialize("bodyString");
-        assertThat(captureOkRequest().body().contentLength()).isEqualTo("serializedBodyString".length());
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessage("POST endpoints must have a request body");
     }
 
     @Test
@@ -219,28 +183,8 @@ public final class OkHttpChannelTest {
         when(endpoint.httpMethod()).thenReturn(HttpMethod.PUT);
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Endpoint must have a request body: {method=PUT}");
-    }
-
-    @Test
-    public void testDelete_usesSerializerForBody() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.DELETE);
-        when(request.body()).thenReturn(Optional.of("bodyString"));
-        channel.createCall(endpoint, request).execute(observer);
-
-        verify(serializer).serialize("bodyString");
-        assertThat(captureOkRequest().body().contentLength()).isEqualTo("serializedBodyString".length());
-    }
-
-    @Test
-    public void testDelete_doesNotUseSerializerWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.DELETE);
-        when(request.body()).thenReturn(Optional.empty());
-        channel.createCall(endpoint, request).execute(observer);
-
-        verify(serializer, never()).serialize(any());
-        assertThat(captureOkRequest().body().contentLength()).isEqualTo(0);
+                .isInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessage("PUT endpoints must have a request body");
     }
 
     @Test
@@ -252,7 +196,7 @@ public final class OkHttpChannelTest {
     @Test
     public void testExecuteCreatesCallObjectAndEnqueuesCall() {
         channel.createCall(getEndpoint, request).execute(observer);
-        verify(callFactory).create(getEndpoint, observer);
+        verify(callFactory).create(observer);
         verify(okCall).enqueue(callback);
         verify(okCall, never()).cancel();
     }
@@ -260,14 +204,14 @@ public final class OkHttpChannelTest {
     @Test
     public void testCancelDelegatesToOkHttpCall() {
         channel.createCall(getEndpoint, request).cancel();
-        verify(callFactory, never()).create(getEndpoint, observer);
+        verify(callFactory, never()).create(observer);
         verify(okCall, never()).enqueue(callback);
         verify(okCall).cancel();
     }
 
     @Test
     public void testCanCancelMultipleTimes() {
-        Call<?> call = channel.createCall(getEndpoint, request);
+        Call call = channel.createCall(getEndpoint, request);
         call.cancel();
         call.cancel();
         verify(okCall, times(2)).cancel();
@@ -275,7 +219,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testExecuteThrowsWhenExecutedTwice() {
-        Call<String> call = channel.createCall(getEndpoint, request);
+        Call call = channel.createCall(getEndpoint, request);
         call.execute(observer);
         when(okCall.isExecuted()).thenReturn(true);
         assertThatThrownBy(() -> call.execute(observer))
@@ -287,10 +231,5 @@ public final class OkHttpChannelTest {
         ArgumentCaptor<okhttp3.Request> okRequest = ArgumentCaptor.forClass(okhttp3.Request.class);
         verify(client).newCall(okRequest.capture());
         return okRequest.getValue();
-    }
-
-    @SafeVarargs
-    private static <T> List<T> list(T... objects) {
-        return ImmutableList.copyOf(objects);
     }
 }

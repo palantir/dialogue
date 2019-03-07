@@ -7,6 +7,7 @@ dependencies {
     compile 'com.squareup.okhttp3:okhttp'
 
     testCompile project(':dialogue-example')
+    testCompile project(':dialogue-serde')
     testCompile 'com.squareup.okhttp3:mockwebserver'
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'

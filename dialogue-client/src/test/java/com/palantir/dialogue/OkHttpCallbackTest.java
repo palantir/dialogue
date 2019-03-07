@@ -17,8 +17,7 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -28,14 +27,12 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
-import com.palantir.dialogue.api.Observer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import okhttp3.MediaType;
 import okhttp3.Protocol;
 import okhttp3.Request;
-import okhttp3.Response;
 import okhttp3.ResponseBody;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,21 +45,15 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class OkHttpCallbackTest {
 
     @Mock
-    private Endpoint<String, String> endpoint;
+    private Observer observer;
     @Mock
-    private Observer<String> observer;
-    @Mock
-    private Deserializer<String> deserializer;
-    @Mock
-    private OkHttpErrorDecoder errorDecoder;
+    private ErrorDecoder errorDecoder;
 
-    private OkHttpCallback<String, String> callback;
+    private OkHttpCallback callback;
 
     @Before
     public void before() {
-        callback = new OkHttpCallback<>(endpoint, observer);
-        when(endpoint.responseDeserializer()).thenReturn(deserializer);
-        when(endpoint.errorDecoder()).thenReturn(errorDecoder);
+        callback = new OkHttpCallback(observer, errorDecoder);
     }
 
     @Test
@@ -74,44 +65,31 @@ public class OkHttpCallbackTest {
 
     @Test
     public void testDelegatesSuccessfulResponse() throws Exception {
-        when(deserializer.deserialize(any())).thenReturn("result");
-        callback.onResponse(mock(okhttp3.Call.class), response(200, "body"));
+        callback.onResponse(mock(okhttp3.Call.class), okHttpResponse(200, "body"));
 
         // Deserializer is invoked with request body.
-        ArgumentCaptor<InputStream> inputStream = ArgumentCaptor.forClass(InputStream.class);
-        verify(deserializer).deserialize(inputStream.capture());
-        assertThat(streamToString(inputStream.getValue())).isEqualTo("body");
-
-        // Observer sees deserialized result.
-        verify(observer).success("result");
+        ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
+        verify(observer).success(response.capture());
+        assertThat(streamToString(response.getValue().body())).isEqualTo("body");
     }
 
     @Test
     public void testDelegatesUnsuccessfulResponse() throws Exception {
-        Response response = response(400, "body");
+        okhttp3.Response response = okHttpResponse(400, "body");
         RemoteException exception = new RemoteException(
                 SerializableError.forException(new ServiceException(ErrorType.INTERNAL)), 500);
-        when(errorDecoder.decode(eq(response))).thenReturn(exception);
+        when(errorDecoder.decode(any())).thenReturn(exception);
         callback.onResponse(mock(okhttp3.Call.class), response);
 
-        verify(errorDecoder).decode(response);
+        verify(errorDecoder).decode(any());
         verify(observer).failure(exception);
-    }
-
-    @Test
-    public void testResponseDeserializerErrorIsObservedAsException() throws Exception {
-        Exception exception = new RuntimeException("foo");
-        when(deserializer.deserialize(any())).thenThrow(exception);
-        callback.onResponse(mock(okhttp3.Call.class), response(200, "body"));
-
-        verify(observer).exception(exception);
     }
 
     @Test
     public void testWhenErrorDecoderThrows_thenExceptionIsObservedAsException() throws Exception {
         Exception exception = new RuntimeException("foo");
-        Response response = response(400, "body");
-        when(errorDecoder.decode(eq(response))).thenThrow(exception);
+        okhttp3.Response response = okHttpResponse(400, "body");
+        when(errorDecoder.decode(any())).thenThrow(exception);
         callback.onResponse(mock(okhttp3.Call.class), response);
 
         verify(observer).exception(exception);
@@ -121,10 +99,10 @@ public class OkHttpCallbackTest {
         return new String(ByteStreams.toByteArray(stream), StandardCharsets.UTF_8);
     }
 
-    private static Response response(int code, String bodyText) {
+    private static okhttp3.Response okHttpResponse(int code, String bodyText) {
         ResponseBody body = ResponseBody.create(MediaType.parse("APPLICATION_JSON"), bodyText);
         Request request = new Request.Builder().url("http://localhost").build();
-        return new Response.Builder()
+        return new okhttp3.Response.Builder()
                 .protocol(Protocol.HTTP_1_1)
                 .message("unused")
                 .request(request)

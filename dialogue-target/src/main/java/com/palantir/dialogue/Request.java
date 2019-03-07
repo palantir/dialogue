@@ -24,7 +24,7 @@ import org.immutables.value.Value;
 /** Defines the parameters of a single {@link Call} to an {@link Endpoint}. */
 @DialogueImmutablesStyle
 @Value.Immutable
-public interface Request<ReqT> {
+public interface Request {
     /** The HTTP headers for this request, encoded as a map of {@code header-name: header-value}. */
     Map<String, String> headerParams();
 
@@ -36,17 +36,17 @@ public interface Request<ReqT> {
 
     /**
      * The HTTP path parameters for this request, encoded as a map of {@code param-name: param-value}. There is a
-     * one-to-one correspondence between {@link com.palantir.dialogue.PathTemplate.Segment#variable variable} {@link
-     * PathTemplate#segments path segments} of a {@link PathTemplate} and the request's {@link #pathParams}.
+     * one-to-one correspondence between variable {@link PathTemplate.Segment path segments} of a {@link PathTemplate}
+     * and the request's {@link #pathParams}.
      */
     Map<String, String> pathParams();
 
-    /** The HTTP request body for this request, or {@link Optional#empty} if this request has no body. */
-    Optional<ReqT> body();
+    /** The HTTP request body for this request or empty if this request does not contain a body. */
+    Optional<RequestBody> body();
 
-    static <ReqT> Builder<ReqT> builder() {
-        return new Builder<>();
+    static Builder builder() {
+        return new Builder();
     }
 
-    class Builder<ReqT> extends ImmutableRequest.Builder<ReqT> {}
+    class Builder extends ImmutableRequest.Builder {}
 }

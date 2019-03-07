@@ -16,11 +16,17 @@
 
 package com.palantir.dialogue;
 
-import java.io.IOException;
+/**
+ * {@link ConjureRuntime} is the anchor for all non-generated logic used by generated clients.
+ * <p>
+ * The {@link ConjureRuntime} and provided interfaces {@link BodySerDe}, {@link PlainSerDe}, and
+ * are internal API, no guarantees are made for custom implementations.
+ */
+public interface ConjureRuntime {
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
+    /** Provides the {@link BodySerDe} used to deserialize and serialize request and response bodies respectively. */
+    BodySerDe bodySerDe();
 
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    /** Provides the {@link PlainSerDe} used to parse request path, query, and header parameters. */
+    PlainSerDe plainSerDe();
 }

@@ -16,15 +16,16 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.api.errors.RemoteException;
-import okhttp3.Response;
+import java.io.InputStream;
+import java.util.Optional;
 
-/**
- * Extracts and returns a {@link RemoteException} from a {@link Response#isSuccessful failed} HTTP {@link Response}.
- * The extracted {@link RemoteException} is returned rather than thrown. Decoders may throw exceptions (other than
- * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link Response}
- * does not adhere to an expected format.
- */
-public interface OkHttpErrorDecoder {
-    RemoteException decode(okhttp3.Response response);
+public interface Response {
+    /** The HTTP body for this response. */
+    InputStream body();
+
+    /** The HTTP response code for this response. */
+    int code();
+
+    /** The content-type HTTP header of the response if it exists. */
+    Optional<String> contentType();
 }

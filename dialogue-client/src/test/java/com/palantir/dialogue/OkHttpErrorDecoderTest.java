@@ -32,9 +32,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import javax.annotation.CheckForNull;
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
 import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.ResponseBody;
@@ -43,7 +40,7 @@ import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class DialogueOkHttpErrorDecoderTest {
+public final class OkHttpErrorDecoderTest {
 
     private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
 
@@ -61,12 +58,12 @@ public final class DialogueOkHttpErrorDecoderTest {
         }
     }
 
-    private static final DialogueOkHttpErrorDecoder decoder = DialogueOkHttpErrorDecoder.INSTANCE;
+    private static final OkHttpErrorDecoder decoder = OkHttpErrorDecoder.INSTANCE;
 
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {
         for (int code : ImmutableList.of(300, 400, 404, 500)) {
-            RemoteException exception = decode(MediaType.APPLICATION_JSON, code, SERIALIZED_EXCEPTION);
+            RemoteException exception = decode("application/json", code, SERIALIZED_EXCEPTION);
             assertThat(exception.getCause()).isNull();
             assertThat(exception.getStatus()).isEqualTo(code);
             assertThat(exception.getError().errorCode()).isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
@@ -87,22 +84,21 @@ public final class DialogueOkHttpErrorDecoderTest {
 
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
-        assertThatThrownBy(() -> decode(MediaType.TEXT_PLAIN, 500, SERIALIZED_EXCEPTION))
+        assertThatThrownBy(() -> decode("text/plain", 500, SERIALIZED_EXCEPTION))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("Failed to interpret response body as SerializableError: {code=500}");
     }
 
     @Test
     public void doesNotHandleUnparseableBody() {
-        assertThatThrownBy(() -> decode(MediaType.APPLICATION_JSON, 500, "not json"))
+        assertThatThrownBy(() -> decode("application/json/", 500, "not json"))
                 .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Failed to deserialize response body as JSON, "
-                        + "could not deserialize SerializableError: {code=500, body=not json}");
+                .hasMessageStartingWith("Failed to interpret response body as SerializableError:");
     }
 
     @Test
     public void doesNotHandleNullBody() {
-        assertThatThrownBy(() -> decode(MediaType.APPLICATION_JSON, 500, null))
+        assertThatThrownBy(() -> decode("application/json", 500, null))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("Failed to read response body, could not deserialize SerializableError");
     }
@@ -120,26 +116,28 @@ public final class DialogueOkHttpErrorDecoderTest {
             throw new RuntimeException(e);
         }
 
-        int status = (exception instanceof WebApplicationException)
-                ? ((WebApplicationException) exception).getResponse().getStatus()
-                : 400;
-        return decode(MediaType.APPLICATION_JSON, status, json);
+        // TODO(rfink): Resurrect
+        // int status = (exception instanceof WebApplicationException)
+        //         ? ((WebApplicationException) exception).getResponse().getStatus()
+        //         : 400;
+        int status = 400;
+        return decode("application/json", status, json);
     }
 
     private static RemoteException decode(String contentType, int status, @CheckForNull String body) {
         return decoder.decode(response(status, contentType, body));
     }
 
-    private static okhttp3.Response response(int code, String mediaType, @CheckForNull String body) {
+    private static Response response(int code, String mediaType, @CheckForNull String body) {
         okhttp3.Response.Builder response = new okhttp3.Response.Builder()
                 .request(request)
                 .protocol(Protocol.HTTP_1_1)
                 .code(code)
                 .message("unused")
-                .header(HttpHeaders.CONTENT_TYPE, mediaType);
+                .header("Content-Type", mediaType);
         if (body != null) {
             response.body(ResponseBody.create(okhttp3.MediaType.parse(mediaType), body));
         }
-        return response.build();
+        return OkHttpResponse.wrap(response.build());
     }
 }

@@ -18,34 +18,38 @@ package com.palantir.dialogue;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
-import com.palantir.dialogue.api.Observer;
+import com.google.common.io.ByteStreams;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
+import javax.annotation.Nullable;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
+import okio.BufferedSink;
 
-// TODO(rfink): Consider moving the okhttp implementation into a separate project.
 public final class OkHttpChannel implements Channel {
-
-    private static final MediaType JSON = MediaType.parse("application/json");
 
     private final OkHttpClient client;
     private final URL baseUrl;
     private final OkHttpCallback.Factory callbackFactory;
 
-    private OkHttpChannel(OkHttpClient client, URL baseUrl, OkHttpCallback.Factory callbackFactory) {
+    private OkHttpChannel(
+            OkHttpClient client,
+            URL baseUrl,
+            OkHttpCallback.Factory callbackFactory) {
         this.client = client;
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
                 "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getRef()),
                 "baseUrl ref must be empty", UnsafeArg.of("ref", baseUrl.getRef()));
-        Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getUserInfo()),
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getUserInfo()),
                 "baseUrl user info must be empty");
         String basePath = baseUrl.getPath().endsWith("/")
                 ? baseUrl.getPath().substring(0, baseUrl.getPath().length() - 1)
@@ -54,8 +58,8 @@ public final class OkHttpChannel implements Channel {
         this.callbackFactory = callbackFactory;
     }
 
-    public static OkHttpChannel of(OkHttpClient client, URL baseUrl) {
-        return new OkHttpChannel(client, baseUrl, OkHttpCallback::new);
+    public static OkHttpChannel of(OkHttpClient client, URL baseUrl, OkHttpErrorDecoder errorDecoder) {
+        return new OkHttpChannel(client, baseUrl, observer -> new OkHttpCallback(observer, errorDecoder));
     }
 
     @VisibleForTesting
@@ -63,15 +67,23 @@ public final class OkHttpChannel implements Channel {
         return new OkHttpChannel(client, baseUrl, callbackFactory);
     }
 
-    private static <ReqT> RequestBody extractBodyOrFail(Endpoint<ReqT, ?> endpoint, Request<ReqT> request) {
-        Preconditions.checkArgument(request.body().isPresent(),
-                "Endpoint must have a request body", SafeArg.of("method", endpoint.httpMethod()));
-        byte[] bodyBytes = endpoint.requestSerializer().serialize(request.body().get());
-        return RequestBody.create(JSON, bodyBytes);
+    private RequestBody toOkHttpBody(com.palantir.dialogue.RequestBody body) {
+        return new RequestBody() {
+            @Nullable
+            @Override
+            public MediaType contentType() {
+                return MediaType.parse(body.contentType());
+            }
+
+            @Override
+            public void writeTo(BufferedSink sink) throws IOException {
+                ByteStreams.copy(body.content(), sink.outputStream());
+            }
+        };
     }
 
     @Override
-    public <ReqT, RespT> Call<RespT> createCall(Endpoint<ReqT, RespT> endpoint, Request<ReqT> request) {
+    public Call createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
         String endpointPath = endpoint.renderPath(request.pathParams());
         Preconditions.checkArgument(endpointPath.startsWith("/"), "endpoint path must start with /");
@@ -90,22 +102,21 @@ public final class OkHttpChannel implements Channel {
         // Fill request body and set HTTP method
         switch (endpoint.httpMethod()) {
             case GET:
-                Preconditions.checkArgument(!request.body().isPresent(),
-                        "GET endpoints must not have a request body");
+                Preconditions.checkArgument(!request.body().isPresent(), "GET endpoints must not have a request body");
                 okRequest = okRequest.get();
                 break;
             case POST:
-                okRequest = okRequest.post(extractBodyOrFail(endpoint, request));
+                okRequest = okRequest.post(toOkHttpBody(
+                        request.body().orElseThrow(() ->
+                                new SafeIllegalArgumentException("POST endpoints must have a request body"))));
                 break;
             case PUT:
-                okRequest = okRequest.put(extractBodyOrFail(endpoint, request));
+                okRequest = okRequest.put(toOkHttpBody(
+                        request.body().orElseThrow(()
+                                -> new SafeIllegalArgumentException("PUT endpoints must have a request body"))));
                 break;
             case DELETE:
-                if (request.body().isPresent()) {
-                    okRequest = okRequest.delete(extractBodyOrFail(endpoint, request));
-                } else {
-                    okRequest = okRequest.delete();
-                }
+                okRequest = okRequest.delete(request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
                 break;
         }
 
@@ -114,13 +125,13 @@ public final class OkHttpChannel implements Channel {
             okRequest.header(header.getKey(), header.getValue());
         }
 
-        // Create Dialogue call that delegates to an okhttp Call.
+        // Create Dialogue call that delegates to an OkHttp Call.
         okhttp3.Call okCall = client.newCall(okRequest.build());
-        return new Call<RespT>() {
+        return new Call() {
             @Override
-            public void execute(Observer<RespT> observer) {
+            public void execute(Observer observer) {
                 Preconditions.checkState(!okCall.isExecuted(), "Calls must only be executed once.");
-                okCall.enqueue(callbackFactory.create(endpoint, observer));
+                okCall.enqueue(callbackFactory.create(observer));
             }
 
             @Override
