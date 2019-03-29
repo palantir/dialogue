@@ -14,13 +14,15 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.CharStreams;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.serialization.ObjectMappers;
+import com.palantir.dialogue.ErrorDecoder;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -30,7 +32,7 @@ import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 
-public enum OkHttpErrorDecoder implements ErrorDecoder {
+public enum DefaultErrorDecoder implements ErrorDecoder {
     INSTANCE;
 
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
