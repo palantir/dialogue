@@ -3,6 +3,7 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 dependencies {
     compile project(':dialogue-target')
     compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.squareup.okhttp3:okhttp'
 

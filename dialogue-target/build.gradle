@@ -1,10 +1,8 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 
 dependencies {
-    compile 'com.fasterxml.jackson.core:jackson-databind'
-    compile 'com.palantir.conjure.java.api:errors'
-    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.conjure.java:conjure-lib'
+    compile 'com.google.guava:guava'
     compile 'com.palantir.ri:resource-identifier'
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.palantir.tokens:auth-tokens'
