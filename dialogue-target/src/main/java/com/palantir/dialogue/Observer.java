@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.api;
+package com.palantir.dialogue;
 
 import com.palantir.conjure.java.api.errors.RemoteException;
 
@@ -31,8 +31,8 @@ import com.palantir.conjure.java.api.errors.RemoteException;
  * configuration problem or a bug.</li>
  * </ul>
  */
-public interface Observer<RespT> {
-    void success(RespT value);
+public interface Observer {
+    void success(Response value);
     void failure(RemoteException error);
     void exception(Throwable throwable);
 }

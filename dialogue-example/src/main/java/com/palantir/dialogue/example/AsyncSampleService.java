@@ -16,10 +16,10 @@
 
 package com.palantir.dialogue.example;
 
-import com.palantir.dialogue.Call;
+import com.google.common.util.concurrent.ListenableFuture;
 
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface AsyncSampleService {
-    Call<String> stringToString(String objectId, String header, String body);
-    Call<Void> voidToVoid();
+    ListenableFuture<String> stringToString(String objectId, String header, String body);
+    ListenableFuture<Void> voidToVoid();
 }

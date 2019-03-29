@@ -20,5 +20,5 @@ package com.palantir.dialogue;
  * A channel is an abstraction of a transport layer (e.g., HTTP) that is consumed by server and client stubs.
  */
 public interface Channel {
-    <ReqT, RespT> Call<RespT> createCall(Endpoint<ReqT, RespT> endpoint, Request<ReqT> request);
+    Call createCall(Endpoint endpoint, Request request);
 }

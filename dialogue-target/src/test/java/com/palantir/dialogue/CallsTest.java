@@ -23,24 +23,24 @@ import com.google.common.util.concurrent.ListenableFuture;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.runners.MockitoJUnitRunner;
+import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class CallsTest {
 
     @Mock
-    private Call<String> call;
+    private Call call;
 
     @Test
     public void toFuture_cancelsCallWhenCancellingWithInterrupt() {
-        ListenableFuture<String> future = Calls.toFuture(call);
+        ListenableFuture<Response> future = Calls.toFuture(call);
         future.cancel(true);
         verify(call).cancel();
     }
 
     @Test
     public void toFuture_doesNotCancelCallWhenNotAllowedToInterrupt() {
-        ListenableFuture<String> future = Calls.toFuture(call);
+        ListenableFuture<Response> future = Calls.toFuture(call);
         future.cancel(false);
         verify(call, never()).cancel();
     }

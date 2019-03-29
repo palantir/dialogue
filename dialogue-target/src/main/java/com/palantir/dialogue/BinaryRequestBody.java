@@ -17,10 +17,15 @@
 package com.palantir.dialogue;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
+/**
+ * Streamed binary response data with Content-Type <code>application/octet-stream</code>.
+ */
+public interface BinaryRequestBody {
 
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    /**
+     * Invoked to write data to the response stream. Called exactly once.
+     */
+    void write(OutputStream responseBody) throws IOException;
 }

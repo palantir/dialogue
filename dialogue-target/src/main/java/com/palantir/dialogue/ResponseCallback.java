@@ -18,9 +18,13 @@ package com.palantir.dialogue;
 
 import java.io.IOException;
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
+public interface ResponseCallback {
+    /** Called when a request could not be completed due to cancellation, connection problems, or timeouts. */
+    void onFailure(IOException error);
 
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    /**
+     * Called when the {@link Response} was successfully received. The callback is responsible for closing the
+     * {@link Response#body response body}.
+     */
+    void onResponse(Response response);
 }

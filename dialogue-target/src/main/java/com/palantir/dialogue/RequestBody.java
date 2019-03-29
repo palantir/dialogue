@@ -16,11 +16,16 @@
 
 package com.palantir.dialogue;
 
-import java.io.IOException;
+import java.io.InputStream;
+import java.util.Optional;
 
-/** Reads objects from a response. */
-public interface Deserializer<T> {
+public interface RequestBody {
+    /** The number of bytes in the {@link #content}, or absent if unknown. */
+    Optional<Long> length();
 
-    /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    /** The content of this request body, possibly empty. */
+    InputStream content();
+
+    /** A HTTP/Conjure content type (e.g., "application/json") indicating the type of content. */
+    String contentType();
 }

@@ -18,23 +18,17 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.api.Observer;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.example.AsyncSampleService;
 import com.palantir.dialogue.example.SampleService;
 import com.palantir.dialogue.example.SampleServiceClient;
-import java.io.IOException;
-import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
@@ -46,20 +40,15 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class SampleServiceClientTest {
 
+    private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+
     @Rule
     public final MockWebServer server = new MockWebServer();
-
-    @Mock
-    private Observer<String> stringObserver;
-    @Mock
-    private Observer<Void> voidObserver;
 
     private URL baseUrl;
     private SampleService blockingClient;
@@ -69,8 +58,8 @@ public final class SampleServiceClientTest {
     public void before() {
         baseUrl = Urls.http("localhost", server.getPort());
         Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
-        blockingClient = SampleServiceClient.blocking(channel);
-        asyncClient = SampleServiceClient.async(channel);
+        blockingClient = SampleServiceClient.blocking(channel, runtime);
+        asyncClient = SampleServiceClient.async(channel, runtime);
     }
 
     private OkHttpChannel createChannel(URL url, Duration timeout) {
@@ -78,7 +67,8 @@ public final class SampleServiceClientTest {
     }
 
     private OkHttpChannel createChannel(URL url, Duration timeout, ExecutorService executor) {
-        return OkHttpChannel.of(new OkHttpClient.Builder()
+        return OkHttpChannel.of(
+                new OkHttpClient.Builder()
                         .protocols(ImmutableList.of(Protocol.HTTP_1_1))
                         // Execute calls on same thread so that async tests are deterministic.
                         .dispatcher(new Dispatcher(executor))
@@ -86,12 +76,14 @@ public final class SampleServiceClientTest {
                         .readTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                         .writeTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                         .build(),
-                url);
+                url,
+                OkHttpErrorDecoder.INSTANCE);
     }
 
     @Test
     public void testBlocking_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody("\"myResponse\""));
+        server.enqueue(
+                new MockResponse().setBody("\"myResponse\"").addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThat(blockingClient.stringToString("myObject", "myHeader", "myBody")).isEqualTo("myResponse");
         RecordedRequest request = server.takeRequest();
         assertThat(request.getPath()).isEqualTo("/stringToString/objects/myObject");
@@ -108,32 +100,29 @@ public final class SampleServiceClientTest {
 
     @Test
     public void testAsync_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody("\"myResponse\""));
-        asyncClient.stringToString("myObject", "myHeader", "myBody").execute(stringObserver);
-        verify(stringObserver).success("myResponse");
-        verifyNoMoreInteractions(stringObserver);
+        server.enqueue(
+                new MockResponse().setBody("\"myResponse\"").addHeader(Headers.CONTENT_TYPE, "application/json"));
+        assertThat(asyncClient.stringToString("myObject", "myHeader", "myBody").get()).isEqualTo("myResponse");
     }
 
     @Test
     public void testBlocking_stringToString_throwsWhenResponseBodyIsEmpty() throws Exception {
-        server.enqueue(new MockResponse());
+        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() -> blockingClient.stringToString("myObject", "myHeader", "myBody"))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Failed to deserialize response stream to class java.lang.String in method stringToString");
+                .hasMessageContaining("Failed to deserialize response stream. Syntax error?");
     }
 
     @Test
     public void testAsync_stringToString_throwsWhenResponseBodyIsEmpty() throws Exception {
-        server.enqueue(new MockResponse());
-        asyncClient.stringToString("myObject", "myHeader", "myBody").execute(stringObserver);
-        verifyObservesException(stringObserver, RuntimeException.class,
-                "Failed to deserialize response stream to class java.lang.String in method stringToString");
-        verifyNoMoreInteractions(stringObserver);
+        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
+        assertThatThrownBy(() -> asyncClient.stringToString("myObject", "myHeader", "myBody").get())
+                .hasMessageContaining("Failed to deserialize response");
     }
 
     @Test
     public void testAsync_stringToString_nullRequestBody() throws Exception {
-        assertThatThrownBy(() -> asyncClient.stringToString("myObject", "myHeader", null).execute(stringObserver))
+        assertThatThrownBy(() -> asyncClient.stringToString("myObject", "myHeader", null).get())
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("body parameter must not be null");
     }
@@ -149,9 +138,7 @@ public final class SampleServiceClientTest {
     @Test
     public void testAsync_voidToVoid_expectedCase() throws Exception {
         server.enqueue(new MockResponse());
-        asyncClient.voidToVoid().execute(voidObserver);
-        verify(voidObserver).success(null);
-        verifyNoMoreInteractions(voidObserver);
+        assertThat(asyncClient.voidToVoid().get()).isNull();
     }
 
     @Test
@@ -159,21 +146,19 @@ public final class SampleServiceClientTest {
         server.enqueue(new MockResponse().setBody("Unexpected response"));
         assertThatThrownBy(() -> blockingClient.voidToVoid())
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("voidToVoid expects null or empty response stream");
+                .hasMessage("Expected empty response body");
     }
 
     @Test
-    public void testAsync_voidToVoid_throwsWhenResponseBodyIsEmpty() throws Exception {
+    public void testAsync_voidToVoid_throwsWhenResponseBodyIsNonEmpty() throws Exception {
         server.enqueue(new MockResponse().setBody("Unexpected response"));
-        asyncClient.voidToVoid().execute(voidObserver);
-        verifyObservesException(voidObserver, RuntimeException.class,
-                "voidToVoid expects null or empty response stream");
-        verifyNoMoreInteractions(voidObserver);
+        assertThatThrownBy(() -> asyncClient.voidToVoid().get())
+                .hasMessageContaining("Expected empty response body");
     }
 
     @Test
     public void testBlocking_throwsOnConnectError() throws Exception {
-        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofSeconds(0)));
+        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofSeconds(0)), runtime);
         server.shutdown();
         assertThatThrownBy(() -> blockingClient.stringToString("", "", ""))
                 .isInstanceOf(RuntimeException.class)
@@ -182,61 +167,30 @@ public final class SampleServiceClientTest {
 
     @Test(timeout = 60_000)
     public void testBlocking_throwsOnTimeout() throws Exception {
-        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofMillis(500)));
-        server.enqueue(new MockResponse().setBody("\"response\"").setBodyDelay(60, TimeUnit.SECONDS));
+        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofMillis(500)), runtime);
+        server.enqueue(new MockResponse()
+                .setBody("\"response\"")
+                .addHeader(Headers.CONTENT_TYPE, "application/json")
+                .setBodyDelay(60, TimeUnit.SECONDS));
         assertThatThrownBy(() -> blockingClient.stringToString("", "", ""))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessage("Failed to deserialize response stream to class java.lang.String in method stringToString");
+                .hasMessageContaining("Failed to deserialize response");
     }
 
     @Test
     public void testAsync_throwsOnConnectError() throws Exception {
-        asyncClient = SampleServiceClient.async(createChannel(baseUrl, Duration.ofSeconds(0)));
+        asyncClient = SampleServiceClient.async(createChannel(baseUrl, Duration.ofSeconds(0)), runtime);
         server.shutdown();
 
-        asyncClient.voidToVoid().execute(voidObserver);
-        verifyObservesException(voidObserver, ConnectException.class, "Failed to connect to localhost");
-        verifyZeroInteractions(voidObserver);
+        assertThatThrownBy(() -> asyncClient.voidToVoid().get()).hasMessageContaining("Failed to connect to localhost");
     }
 
     @Test
     public void testAsync_throwsOnTimeout() throws Exception {
-        asyncClient = SampleServiceClient.async(createChannel(baseUrl, Duration.ofMillis(500)));
+        asyncClient = SampleServiceClient.async(createChannel(baseUrl, Duration.ofMillis(500)), runtime);
         server.enqueue(new MockResponse().setBody("\"response\"").setBodyDelay(60, TimeUnit.SECONDS));
 
-        asyncClient.voidToVoid().execute(voidObserver);
-        verifyObservesException(voidObserver, RuntimeException.class,
-                "Failed to consume response stream in method voidToVoid");
-        verifyNoMoreInteractions(voidObserver);
-    }
-
-    @Test
-    public void testAsync_canCancelCalls() throws Exception {
-        asyncClient = SampleServiceClient.async(
-                createChannel(baseUrl, Duration.ofSeconds(1), Executors.newSingleThreadExecutor()));
-
-        server.enqueue(new MockResponse().setBody("\"response\"").setBodyDelay(60, TimeUnit.SECONDS));
-        Call<Void> voidCall = asyncClient.voidToVoid();
-        voidCall.execute(voidObserver);
-        voidCall.cancel();
-
-        server.enqueue(new MockResponse().setBody("\"response\"").setBodyDelay(60, TimeUnit.SECONDS));
-        Call<String> stringCall = asyncClient.stringToString("", "", "");
-        stringCall.execute(stringObserver);
-        stringCall.cancel();
-
-        Thread.sleep(100); // let cancellation propagate to observers
-        verifyObservesException(voidObserver, IOException.class, "Canceled");
-        verifyNoMoreInteractions(voidObserver);
-        verifyObservesException(stringObserver, IOException.class, "Canceled");
-        verifyNoMoreInteractions(stringObserver);
-    }
-
-    private static void verifyObservesException(Observer<?> observer, Class<?> clazz, String message) {
-        ArgumentCaptor<Throwable> throwable = ArgumentCaptor.forClass(Throwable.class);
-        verify(observer).exception(throwable.capture());
-        assertThat(throwable.getValue())
-                .isInstanceOf(clazz)
-                .hasMessageStartingWith(message);
+        assertThatThrownBy(() -> asyncClient.voidToVoid().get())
+                .hasMessageContaining("Failed to deserialize response");
     }
 }

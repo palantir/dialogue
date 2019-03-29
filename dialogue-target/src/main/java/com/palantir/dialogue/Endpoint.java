@@ -19,23 +19,10 @@ package com.palantir.dialogue;
 import java.util.Map;
 
 /**
- * Defines a single HTTP-based RPC endpoint in terms of a {@link #renderPath path rendering} and {@link
- * #responseDeserializer response} and {@link #errorDecoder error} decoders.
+ * Defines a single HTTP-based RPC endpoint in terms of a {@link #renderPath path} and {@link #httpMethod HTTP method},
+ * as well as the types of the request and response body.
  */
-public interface Endpoint<ReqT, RespT> {
+public interface Endpoint {
     String renderPath(Map<String, String> params);
     HttpMethod httpMethod();
-
-    /**
-     * The serializer used to render Java objects into HTTP body byte arrays. The serializer is typically invoked by
-     * {@link Channel}s for any Request with non-empty {@link Request#body}.
-     */
-    Serializer<ReqT> requestSerializer();
-
-    /**
-     * The deserializer used to materialize Java objects from HTTP response body byte arrays. The deserializer is
-     * typically invoked by {@link Channel}s on the body of any successful response, even if the response is empty.
-     */
-    Deserializer<RespT> responseDeserializer();
-    OkHttpErrorDecoder errorDecoder();
 }

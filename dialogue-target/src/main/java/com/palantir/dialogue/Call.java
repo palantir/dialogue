@@ -16,20 +16,18 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.dialogue.api.Observer;
-
 /**
  * Represents an active RPC call between a client and a server. Call instances are transient objects in the sense that
  * they are created by a {@link Channel} when a client initiates a new call to an {@link Endpoint}, and disposed when
  * the call terminates (successfully, with failure, or due to explicit {@link #cancel cancellation}).
  */
-public interface Call<RespT> {
+public interface Call {
 
     /**
      * Executes this call and presents the success or failure result to the given observer. A call may only be executed
      * once, repeated calls yield a {@link IllegalStateException}.
      */
-    void execute(Observer<RespT> observer);
+    void execute(Observer observer);
 
     /** Cancels this call. Call implementations should support multiple, idempotent cancellation. */
     void cancel();

@@ -18,12 +18,16 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
 import org.junit.Test;
 
 public final class EmptyBodyTest {
 
     @Test
-    public void testSerialization() {
-        assertThat(EmptyBody.serializer().serialize(EmptyBody.INSTANCE)).isEmpty();
+    public void testSerialization() throws IOException {
+        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).content()).hasContent("");
+        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).length()).contains(0L);
+        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).contentType())
+                .isEqualTo("application/json");
     }
 }
