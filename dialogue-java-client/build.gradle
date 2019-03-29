@@ -1,0 +1,15 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    compile project(':dialogue-target')
+    compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    compile 'com.palantir.safe-logging:preconditions'
+
+    testCompile project(':dialogue-example')
+    testCompile project(':dialogue-serde')
+    testCompile 'com.squareup.okhttp3:mockwebserver'
+    testCompile 'junit:junit'
+    testCompile 'org.assertj:assertj-core'
+    testCompile 'org.mockito:mockito-core'
+}
