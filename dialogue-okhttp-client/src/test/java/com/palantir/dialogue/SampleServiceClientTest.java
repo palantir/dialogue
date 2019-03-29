@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import com.palantir.dialogue.example.AsyncSampleService;
 import com.palantir.dialogue.example.SampleService;
 import com.palantir.dialogue.example.SampleServiceClient;
@@ -77,7 +78,7 @@ public final class SampleServiceClientTest {
                         .writeTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                         .build(),
                 url,
-                OkHttpErrorDecoder.INSTANCE);
+                DefaultErrorDecoder.INSTANCE);
     }
 
     @Test

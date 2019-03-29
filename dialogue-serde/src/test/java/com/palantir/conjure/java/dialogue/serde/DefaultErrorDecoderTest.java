@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -28,23 +28,25 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
+import com.palantir.dialogue.ErrorDecoder;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import javax.annotation.CheckForNull;
-import okhttp3.Protocol;
-import okhttp3.Request;
-import okhttp3.ResponseBody;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class OkHttpErrorDecoderTest {
+public final class DefaultErrorDecoderTest {
 
     private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
 
-    private static final Request request = new Request.Builder().url("http://url").build();
     private static final ServiceException SERVICE_EXCEPTION =
             new ServiceException(ErrorType.FAILED_PRECONDITION, SafeArg.of("key", "value"));
     private static final String SERIALIZED_EXCEPTION = createServiceException(SERVICE_EXCEPTION);
@@ -58,7 +60,7 @@ public final class OkHttpErrorDecoderTest {
         }
     }
 
-    private static final OkHttpErrorDecoder decoder = OkHttpErrorDecoder.INSTANCE;
+    private static final ErrorDecoder decoder = DefaultErrorDecoder.INSTANCE;
 
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {
@@ -100,7 +102,8 @@ public final class OkHttpErrorDecoderTest {
     public void doesNotHandleNullBody() {
         assertThatThrownBy(() -> decode("application/json", 500, null))
                 .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Failed to read response body, could not deserialize SerializableError");
+                .hasMessageStartingWith(
+                        "Failed to deserialize response body as JSON, could not deserialize SerializableError:");
     }
 
     private static RemoteException encodeAndDecode(Exception exception) {
@@ -129,15 +132,25 @@ public final class OkHttpErrorDecoderTest {
     }
 
     private static Response response(int code, String mediaType, @CheckForNull String body) {
-        okhttp3.Response.Builder response = new okhttp3.Response.Builder()
-                .request(request)
-                .protocol(Protocol.HTTP_1_1)
-                .code(code)
-                .message("unused")
-                .header("Content-Type", mediaType);
-        if (body != null) {
-            response.body(ResponseBody.create(okhttp3.MediaType.parse(mediaType), body));
-        }
-        return OkHttpResponse.wrap(response.build());
+        return new Response() {
+            @Override
+            public InputStream body() {
+                if (body == null) {
+                    return new ByteArrayInputStream(new byte[] {});
+                } else {
+                    return new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
+                }
+            }
+
+            @Override
+            public int code() {
+                return code;
+            }
+
+            @Override
+            public Optional<String> contentType() {
+                return Optional.of(mediaType);
+            }
+        };
     }
 }

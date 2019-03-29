@@ -33,7 +33,7 @@ import okhttp3.Callback;
  * <p>
  * A non-successful {@link okhttp3.Response}, i.e., one with {@code response.isSuccessful() == false}, is converted to
  * a {@link com.palantir.conjure.java.api.errors.RemoteException} using the given
- * {@link OkHttpErrorDecoder error decoder} and presented to {@link Observer#failure}.
+ * {@link ErrorDecoder error decoder} and presented to {@link Observer#failure}.
  * <p>
  * Any other failure condition, e.g., OkHttp connection-level errors, deserialization errors, etc., are presented to
  * {@link Observer#exception}.

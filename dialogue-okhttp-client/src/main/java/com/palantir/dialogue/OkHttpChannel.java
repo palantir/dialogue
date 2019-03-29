@@ -58,7 +58,7 @@ public final class OkHttpChannel implements Channel {
         this.callbackFactory = callbackFactory;
     }
 
-    public static OkHttpChannel of(OkHttpClient client, URL baseUrl, OkHttpErrorDecoder errorDecoder) {
+    public static OkHttpChannel of(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
         return new OkHttpChannel(client, baseUrl, observer -> new OkHttpCallback(observer, errorDecoder));
     }
 
