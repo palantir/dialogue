@@ -2,8 +2,8 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 
 dependencies {
     compile project(':dialogue-target')
-    compile 'com.fasterxml.jackson.core:jackson-databind'
     compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
     compile 'org.slf4j:slf4j-api'
 
