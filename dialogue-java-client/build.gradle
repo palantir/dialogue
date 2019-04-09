@@ -1,13 +1,17 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 
+targetCompatibility = 11
+
 dependencies {
     compile project(':dialogue-target')
     compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
 
     testCompile project(':dialogue-example')
     testCompile project(':dialogue-serde')
+    testCompile 'com.palantir.conjure.java.runtime:keystores'
     testCompile 'com.squareup.okhttp3:mockwebserver'
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'
