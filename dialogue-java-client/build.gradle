@@ -1,6 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 
-targetCompatibility = 11
+sourceCompatibility = 11
 
 dependencies {
     compile project(':dialogue-target')
