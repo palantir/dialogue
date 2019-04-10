@@ -8,7 +8,7 @@ com.palantir.conjure.java:* = 3.2.0
 com.palantir.ri:resource-identifier = 1.0.1
 com.palantir.safe-logging:* = 1.8.2
 com.palantir.tokens:auth-tokens = 3.5.2
-com.squareup.okhttp3:* = 3.14.0
+com.squareup.okhttp3:* = 3.14.1
 org.immutables:* = 2.7.5
 org.slf4j:* = 1.7.25
 
@@ -16,7 +16,7 @@ org.slf4j:* = 1.7.25
 junit:junit = 4.12
 org.assertj:assertj-core = 3.12.2
 org.hamcrest:hamcrest-core = 2.1
-org.mockito:mockito-core = 2.26.0
+org.mockito:mockito-core = 2.27.0
 javax.ws.rs:javax.ws.rs-api = 2.0
 
 # conflicts
