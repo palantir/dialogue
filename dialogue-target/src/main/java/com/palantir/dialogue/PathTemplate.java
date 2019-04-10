@@ -47,7 +47,7 @@ public final class PathTemplate {
         return new PathTemplate(segments);
     }
 
-    public static PathTemplateBuilder newBuilder() {
+    public static PathTemplateBuilder builder() {
         return new PathTemplateBuilder();
     }
 
