@@ -44,6 +44,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class OkHttpChannelTest {
 
+    // TODO(rfink): We're not actually using the server, kill it.
     @Rule
     public final MockWebServer server = new MockWebServer();
 
