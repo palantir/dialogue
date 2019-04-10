@@ -21,6 +21,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -45,6 +47,10 @@ public final class PathTemplate {
         return new PathTemplate(segments);
     }
 
+    public static PathTemplateBuilder newBuilder() {
+        return new PathTemplateBuilder();
+    }
+
     /** Populates this template with the given named parameters. */
     public String fill(Map<String, String> parameters) {
         StringBuilder builder = new StringBuilder();
@@ -64,6 +70,24 @@ public final class PathTemplate {
         Verify.verify(numVariableSegments == parameters.size(), "Too many parameters supplied, this is a bug");
         String path = builder.toString();
         return path.isEmpty() ? "/" : path;
+    }
+
+    public static final class PathTemplateBuilder {
+        private final List<Segment> segments = new ArrayList<>();
+
+        public PathTemplateBuilder fixed(String fixed) {
+            segments.add(Segment.fixed(fixed));
+            return this;
+        }
+
+        public PathTemplateBuilder variable(String variable) {
+            segments.add(Segment.variable(variable));
+            return this;
+        }
+
+        public PathTemplate build() {
+            return PathTemplate.of(segments);
+        }
     }
 
     public static final class Segment {
