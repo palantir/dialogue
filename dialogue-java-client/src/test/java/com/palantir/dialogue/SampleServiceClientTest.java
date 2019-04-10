@@ -19,6 +19,9 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import com.palantir.dialogue.example.AsyncSampleService;
@@ -27,8 +30,10 @@ import com.palantir.dialogue.example.SampleServiceClient;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLParameters;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -43,6 +48,10 @@ import org.mockito.junit.MockitoJUnitRunner;
 public final class SampleServiceClientTest {
 
     private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
+            Paths.get("src/test/resources/trustStore.jks"),
+            Paths.get("src/test/resources/keyStore.jks"),
+            "keystore");
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -51,21 +60,58 @@ public final class SampleServiceClientTest {
     private SampleService blockingClient;
     private AsyncSampleService asyncClient;
 
+    private static final ImmutableList<String> FAST_CIPHER_SUITES = ImmutableList.of(
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384",
+            "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_RSA_WITH_AES_128_CBC_SHA256",
+            "TLS_RSA_WITH_AES_256_CBC_SHA256",
+            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA",
+            "TLS_RSA_WITH_AES_256_CBC_SHA",
+            "TLS_RSA_WITH_AES_128_CBC_SHA",
+            // TODO(rfink): These don't work with Java11, see https://bugs.openjdk.java.net/browse/JDK-8204192
+            // "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
+            // "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
+            "TLS_EMPTY_RENEGOTIATION_INFO_SCSV");
+
+    private static final ImmutableList<String> GCM_CIPHER_SUITES = ImmutableList.of(
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256",
+            "TLS_RSA_WITH_AES_256_GCM_SHA384",
+            "TLS_RSA_WITH_AES_128_GCM_SHA256");
+
+    private static final String[] ALL_CIPHER_SUITES = ImmutableList.builder()
+            .addAll(FAST_CIPHER_SUITES)
+            .addAll(GCM_CIPHER_SUITES)
+            .build()
+            .toArray(new String[0]);
+
     @Before
     public void before() {
-        baseUrl = Urls.http("localhost", server.getPort());
+        server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
+        baseUrl = Urls.https("localhost", server.getPort());
         Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
         blockingClient = SampleServiceClient.blocking(channel, runtime);
         asyncClient = SampleServiceClient.async(channel, runtime);
     }
 
     private HttpChannel createChannel(URL url, Duration timeout) {
+        SSLParameters sslConfig = new SSLParameters(
+                ALL_CIPHER_SUITES,
+                new String[] {"TLSv1.2"});
         return HttpChannel.of(
                 // TODO(rfink): Read timeout
                 // TODO(rfink): Write timeout
-                // TODO(rfink): Protocols
                 HttpClient.newBuilder()
                         .connectTimeout(timeout)
+                        .sslParameters(sslConfig)
+                        .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
                 url,
                 DefaultErrorDecoder.INSTANCE);

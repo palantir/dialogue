@@ -98,6 +98,7 @@ public final class SampleServiceClient {
                 Call call = channel.createCall(STRING_TO_STRING, request);
                 ListenableFuture<Response> response = Calls.toFuture(call);
                 try {
+                    // TODO(rfink): Figure out how to inject read/write timeouts
                     return stringToStringDeserializer.deserialize(response.get());
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
