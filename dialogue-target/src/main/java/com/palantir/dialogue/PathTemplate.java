@@ -43,10 +43,6 @@ public final class PathTemplate {
         }
     }
 
-    public static PathTemplate of(Iterable<Segment> segments) {
-        return new PathTemplate(segments);
-    }
-
     public static PathTemplateBuilder builder() {
         return new PathTemplateBuilder();
     }
@@ -86,7 +82,7 @@ public final class PathTemplate {
         }
 
         public PathTemplate build() {
-            return PathTemplate.of(segments);
+            return new PathTemplate(segments);
         }
     }
 

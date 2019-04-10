@@ -34,51 +34,43 @@ public final class PathTemplateTest {
     private static final ImmutableMap<String, String> B_C = ImmutableMap.of("b", "B", "c", "C");
 
     @Test
-    public void testEmptyPath() throws Exception {
-        assertThat(PathTemplate.of(list()).fill(ImmutableMap.of())).isEqualTo("/");
+    public void testEmptyPath() {
+        PathTemplate template = PathTemplate.builder().build();
+        assertThat(template.fill(ImmutableMap.of())).isEqualTo("/");
     }
 
     @Test
-    public void testNoParameters() throws Exception {
-        assertThat(PathTemplate.of(list(fixed("a"), fixed("b"))).fill(ImmutableMap.of())).isEqualTo("/a/b");
+    public void testNoParameters() {
+        PathTemplate template = PathTemplate.builder().fixed("a").fixed("b").build();
+        assertThat(template.fill(ImmutableMap.of())).isEqualTo("/a/b");
     }
 
     @Test
-    public void testVariableSegments() throws Exception {
-        assertThat(PathTemplate.of(list(variable("a"), variable("b"))).fill(A_B)).isEqualTo("/A/B");
+    public void testVariableSegments() {
+        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        assertThat(template.fill(A_B)).isEqualTo("/A/B");
     }
 
     @Test
-    public void testFixedAndVariableSegments() throws Exception {
-        assertThat(PathTemplate.of(list(fixed("a"), variable("b"), variable("c"), fixed("d"))).fill(B_C))
-                .isEqualTo("/a/B/C/d");
+    public void testFixedAndVariableSegments() {
+        PathTemplate template = PathTemplate.builder().fixed("a").variable("b").variable("c").fixed("d").build();
+        assertThat(template.fill(B_C)).isEqualTo("/a/B/C/d");
     }
 
     @Test
-    public void testTooFewParameters() throws Exception {
-        assertThatThrownBy(() -> PathTemplate.of(list(variable("a"), variable("b"))).fill(A))
+    public void testTooFewParameters() {
+        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        assertThatThrownBy(() -> template.fill(A))
                 .isInstanceOf(IllegalArgumentException.class)
                 .isInstanceOf(SafeLoggable.class)
                 .hasMessage("Provided parameter map does not contain segment variable name: {variable=b}");
     }
 
     @Test
-    public void testTooManyParameters() throws Exception {
-        assertThatThrownBy(() -> PathTemplate.of(list(variable("a"), variable("b"))).fill(A_B_C))
+    public void testTooManyParameters() {
+        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        assertThatThrownBy(() -> template.fill(A_B_C))
                 .isInstanceOf(VerifyException.class)
                 .hasMessage("Too many parameters supplied, this is a bug");
-    }
-
-    private PathTemplate.Segment fixed(String name) {
-        return PathTemplate.Segment.fixed(name);
-    }
-
-    private PathTemplate.Segment variable(String variable) {
-        return PathTemplate.Segment.variable(variable);
-    }
-
-    @SafeVarargs
-    private static <T> List<T> list(T... objects) {
-        return ImmutableList.copyOf(objects);
     }
 }

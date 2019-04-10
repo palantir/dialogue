@@ -43,10 +43,11 @@ public final class SampleServiceClient {
     private SampleServiceClient() {}
 
     private static final Endpoint STRING_TO_STRING = new Endpoint() {
-        private final PathTemplate pathTemplate = PathTemplate.of(ImmutableList.of(
-                PathTemplate.Segment.fixed("stringToString"),
-                PathTemplate.Segment.fixed("objects"),
-                PathTemplate.Segment.variable("objectId")));
+        private final PathTemplate pathTemplate = PathTemplate.builder()
+                .fixed("stringToString")
+                .fixed("objects")
+                .variable("objectId")
+                .build();
 
         @Override
         public String renderPath(Map<String, String> params) {
@@ -60,8 +61,9 @@ public final class SampleServiceClient {
     };
 
     private static final Endpoint VOID_TO_VOID = new Endpoint() {
-        private final PathTemplate pathTemplate = PathTemplate.of(ImmutableList.of(
-                PathTemplate.Segment.fixed("voidToVoid")));
+        private final PathTemplate pathTemplate = PathTemplate.builder()
+                .fixed("voidToVoid")
+                .build();
 
         @Override
         public String renderPath(Map<String, String> params) {
