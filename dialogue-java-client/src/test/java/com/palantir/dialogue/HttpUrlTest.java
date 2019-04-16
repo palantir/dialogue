@@ -57,8 +57,7 @@ public final class HttpUrlTest {
         assertThat(minimalUrl().pathSegment("foo/bar").build().toUrl().toString())
                 .isEqualTo("http://host:80/foo%2Fbar");
         assertThat(minimalUrl().pathSegment("!@#$%^&*()_+{}[]|\\|\"':;/?.>,<~`").build().toUrl().toString())
-                .isEqualTo("http://host:80/%21%40%23%24%25%5E%26*%28%29_%2B%7B%7D%5B%5D%7C%5C"
-                        + "%7C%22%27%3A%3B%2F%3F.%3E%2C%3C%7E%60");
+                .isEqualTo("http://host:80/!%40%23$%25%5E&*()_+%7B%7D%5B%5D%7C%5C%7C%22'%3A;%2F%3F.%3E,%3C~%60");
     }
 
     @Test
@@ -66,7 +65,7 @@ public final class HttpUrlTest {
         assertThat(minimalUrl().queryParam("foo", "bar").build().toUrl().toString())
                 .isEqualTo("http://host:80?foo=bar");
         assertThat(minimalUrl().queryParam("question?&", "answer!&").build().toUrl().toString())
-                .isEqualTo("http://host:80?question%3F%26=answer%21%26");
+                .isEqualTo("http://host:80?question?%26=answer!%26");
     }
 
     @Test
@@ -86,6 +85,34 @@ public final class HttpUrlTest {
                 .queryParam("question", "answer")
                 .build().toUrl().toString())
                 .isEqualTo("https://host:80/foo/bar?boom=baz&question=answer");
+    }
+
+    @Test
+    public void urlEncoder_isHost_acceptsHostsPerRfc() {
+        assertThat(HttpUrl.UrlEncoder.isHost("aAzZ09!$&'()*+,;=")).isTrue();
+        assertThat(HttpUrl.UrlEncoder.isHost("192.168.0.1")).isTrue();
+        assertThat(HttpUrl.UrlEncoder.isHost("[2010:836B:4179::836B:4179]")).isTrue();
+
+        assertThat(HttpUrl.UrlEncoder.isHost("ö")).isFalse();
+        assertThat(HttpUrl.UrlEncoder.isHost("#")).isFalse();
+        assertThat(HttpUrl.UrlEncoder.isHost("@")).isFalse();
+        assertThat(HttpUrl.UrlEncoder.isHost("2010:836B:4179::836B:4179")).isFalse();
+    }
+
+    @Test
+    public void urlEncoder_encodePathSegment_onlyEncodesNonReservedChars() {
+        String nonReserved = "aAzZ09!$&'()*+,;=";
+        assertThat(HttpUrl.UrlEncoder.encodePathSegment(nonReserved)).isEqualTo(nonReserved);
+        assertThat(HttpUrl.UrlEncoder.encodePathSegment("/")).isEqualTo("%2F");
+    }
+
+    @Test
+    public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
+        String nonReserved = "aAzZ09!$'()*+,;?/";
+        assertThat(HttpUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
+        assertThat(HttpUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
+                .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
+        assertThat(HttpUrl.UrlEncoder.encodeQueryNameOrValue("&=")).isEqualTo("%26%3D");
     }
 
     private static HttpUrl.Builder minimalUrl() {

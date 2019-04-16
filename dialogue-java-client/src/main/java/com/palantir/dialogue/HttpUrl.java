@@ -16,10 +16,14 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.CharMatcher;
+import com.google.common.net.InetAddresses;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.UnsafeArg;
+import java.io.ByteArrayOutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,40 +41,41 @@ public final class HttpUrl {
         Preconditions.checkNotNull(builder.host, "host must be set");
         Preconditions.checkArgument(builder.port != -1, "port must be set");
 
-        String path = encodePath(builder.pathSegments);
-        String query = encodeQuery(builder.queryNamesAndValues);
-        String file = path + (query.isEmpty() ? "" : ("?" + query));
-        file = path.isEmpty() ? file : "/" + file;
+        Preconditions.checkArgument(UrlEncoder.isHost(builder.host),
+                "invalid host format", UnsafeArg.of("host", builder.host));
 
-        this.url = new URL(builder.protocol, builder.host, builder.port, file);
+        StringBuilder file = new StringBuilder();
+        encodePath(builder.pathSegments, file);
+        encodeQuery(builder.queryNamesAndValues, file);
+
+        this.url = new URL(builder.protocol, builder.host, builder.port, file.toString());
     }
 
-    private static String encode(String string) {
-        return URLEncoder.encode(string, StandardCharsets.UTF_8);
-    }
+    private static void encodePath(List<String> segments, StringBuilder result) {
+        if (!segments.isEmpty()) {
+            result.append('/');
+        }
 
-    private static String encodePath(List<String> pairs) {
-        StringBuilder result = new StringBuilder();
-        for (int i = 0; i < pairs.size(); i += 1) {
-            result.append(encode(pairs.get(i)));
-            if (i < pairs.size() - 1) {
+        for (int i = 0; i < segments.size(); i += 1) {
+            result.append(UrlEncoder.encodePathSegment(segments.get(i)));
+            if (i < segments.size() - 1) {
                 result.append('/');
             }
         }
-        return result.toString();
     }
 
-    private static String encodeQuery(List<String> pairs) {
-        StringBuilder result = new StringBuilder();
+    private static void encodeQuery(List<String> pairs, StringBuilder result) {
+        if (!pairs.isEmpty()) {
+            result.append('?');
+        }
         for (int i = 0; i < pairs.size(); i += 2) {
-            result.append(encode(pairs.get(i)));
+            result.append(UrlEncoder.encodeQueryNameOrValue(pairs.get(i)));
             result.append('=');
-            result.append(encode(pairs.get(i + 1)));
+            result.append(UrlEncoder.encodeQueryNameOrValue(pairs.get(i + 1)));
             if (i < pairs.size() - 2) {
                 result.append('&');
             }
         }
-        return result.toString();
     }
 
     public static Builder http() {
@@ -92,6 +97,11 @@ public final class HttpUrl {
             this.protocol = protocol;
         }
 
+        /**
+         * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g.,
+         * {@code 192.168.0.1}), and IPv6 addresses of the form
+         * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
+         */
         public Builder host(String theHost) {
             this.host = theHost;
             return this;
@@ -102,11 +112,13 @@ public final class HttpUrl {
             return this;
         }
 
+        /** URL-encodes the given path segment and adds it to the list of segments. */
         public Builder pathSegment(String thePath) {
             this.pathSegments.add(thePath);
             return this;
         }
 
+        /** URL-encodes the given query parameter name and value and adds them to the list of query parameters. */
         public Builder queryParam(String name, String value) {
             this.queryNamesAndValues.add(name);
             this.queryNamesAndValues.add(value);
@@ -118,6 +130,72 @@ public final class HttpUrl {
                 return new HttpUrl(this);
             } catch (MalformedURLException e) {
                 throw new IllegalArgumentException("Malformed URL", e);
+            }
+        }
+    }
+
+    /** Encodes URL components per https://tools.ietf.org/html/rfc3986 . */
+    @VisibleForTesting
+    static class UrlEncoder {
+        private static final CharMatcher DIGIT = CharMatcher.inRange('0', '9');
+        private static final CharMatcher ALPHA = CharMatcher.inRange('a', 'z').or(CharMatcher.inRange('A', 'Z'));
+        private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~"));
+        private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=");
+        private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
+        private static final CharMatcher IS_P_CHAR = UNRESERVED.or(SUB_DELIMS);
+        private static final CharMatcher IS_QUERY_CHAR =
+                CharMatcher.anyOf("=&").negate().and(IS_P_CHAR.or(CharMatcher.anyOf("?/")));
+
+        static boolean isHost(String maybeHost) {
+            return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);
+        }
+
+        static boolean isIpv6Host(String maybeHost) {
+            int length = maybeHost.length();
+            return length > 2
+                    && maybeHost.codePointAt(0) == '['
+                    && maybeHost.codePointAt(length - 1) == ']'
+                    && InetAddresses.isInetAddress(maybeHost.substring(1, length - 1));
+        }
+
+        static String encodePathSegment(String pathComponent) {
+            return encode(pathComponent, IS_P_CHAR);
+        }
+
+        static String encodeQueryNameOrValue(String nameOrValue) {
+            return encode(nameOrValue, IS_QUERY_CHAR);
+        }
+
+        // percent-encodes every byte in the source string with it's percent-encoded representation, except for bytes
+        // that (in their unsigned char sense) are matched by charactersToKeep
+        @VisibleForTesting
+        static String encode(String source, CharMatcher charactersToKeep) {
+            byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(source.length());  // approx sizing
+            boolean wasChanged = false;
+            for (byte b : bytes) {
+                if (charactersToKeep.matches(toChar(b))) {
+                    bos.write(b);
+                } else {
+                    bos.write('%');
+                    char hex1 = Character.toUpperCase(Character.forDigit((b >> 4) & 0xF, 16));
+                    char hex2 = Character.toUpperCase(Character.forDigit(b & 0xF, 16));
+                    bos.write(hex1);
+                    bos.write(hex2);
+                    wasChanged = true;
+                }
+            }
+            return wasChanged
+                    ? new String(bos.toByteArray(), StandardCharsets.UTF_8)
+                    : source;
+        }
+
+        // converts the given (signed) byte into an (unsigned) char
+        private static char toChar(byte theByte) {
+            if (theByte < 0) {
+                return (char) (256 + theByte);
+            } else {
+                return (char) theByte;
             }
         }
     }
