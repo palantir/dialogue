@@ -18,6 +18,8 @@ package com.palantir.dialogue;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
+import com.google.common.base.Joiner;
+import com.google.common.collect.Iterables;
 import com.google.common.net.InetAddresses;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
@@ -29,39 +31,80 @@ import java.util.ArrayList;
 import java.util.List;
 
 /** A simplistic URL builder, not tuned for performance. */
-public final class HttpUrl {
-    private final URL url;
+public final class UrlBuilder {
 
-    public URL toUrl() {
-        return url;
+    private static final Joiner SLASH_JOINER = Joiner.on('/');
+
+    private final String protocol;
+    private String host;
+    private int port = -1;
+    private List<String> pathSegments = new ArrayList<>();
+    private List<String> queryNamesAndValues = new ArrayList<>(); // alternating (name, value) pairs
+
+    public static UrlBuilder http() {
+        return new UrlBuilder("http");
     }
 
-    private HttpUrl(Builder builder) throws MalformedURLException {
-        Preconditions.checkNotNull(builder.protocol, "protocol must be set");
-        Preconditions.checkNotNull(builder.host, "host must be set");
-        Preconditions.checkArgument(builder.port != -1, "port must be set");
+    public static UrlBuilder https() {
+        return new UrlBuilder("https");
+    }
 
-        Preconditions.checkArgument(UrlEncoder.isHost(builder.host),
-                "invalid host format", UnsafeArg.of("host", builder.host));
+    private UrlBuilder(String protocol) {
+        this.protocol = protocol;
+    }
 
-        StringBuilder file = new StringBuilder();
-        encodePath(builder.pathSegments, file);
-        encodeQuery(builder.queryNamesAndValues, file);
+    /**
+     * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g.,
+     * {@code 192.168.0.1}), and IPv6 addresses of the form
+     * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
+     */
+    public UrlBuilder host(String theHost) {
+        this.host = theHost;
+        return this;
+    }
 
-        this.url = new URL(builder.protocol, builder.host, builder.port, file.toString());
+    public UrlBuilder port(int thePort) {
+        this.port = thePort;
+        return this;
+    }
+
+    /** URL-encodes the given path segment and adds it to the list of segments. */
+    public UrlBuilder pathSegment(String thePath) {
+        this.pathSegments.add(thePath);
+        return this;
+    }
+
+    /** URL-encodes the given query parameter name and value and adds them to the list of query parameters. */
+    public UrlBuilder queryParam(String name, String value) {
+        this.queryNamesAndValues.add(name);
+        this.queryNamesAndValues.add(value);
+        return this;
+    }
+
+    public URL build() {
+        try {
+            Preconditions.checkNotNull(protocol, "protocol must be set");
+            Preconditions.checkNotNull(host, "host must be set");
+            Preconditions.checkArgument(port != -1, "port must be set");
+
+            Preconditions.checkArgument(UrlEncoder.isHost(host),
+                    "invalid host format", UnsafeArg.of("host", host));
+
+            StringBuilder file = new StringBuilder();
+            encodePath(pathSegments, file);
+            encodeQuery(queryNamesAndValues, file);
+
+            return new URL(protocol, host, port, file.toString());
+        } catch (MalformedURLException e) {
+            throw new IllegalArgumentException("Malformed URL", e);
+        }
     }
 
     private static void encodePath(List<String> segments, StringBuilder result) {
         if (!segments.isEmpty()) {
             result.append('/');
         }
-
-        for (int i = 0; i < segments.size(); i += 1) {
-            result.append(UrlEncoder.encodePathSegment(segments.get(i)));
-            if (i < segments.size() - 1) {
-                result.append('/');
-            }
-        }
+        SLASH_JOINER.appendTo(result, Iterables.transform(segments, UrlEncoder::encodePathSegment));
     }
 
     private static void encodeQuery(List<String> pairs, StringBuilder result) {
@@ -74,62 +117,6 @@ public final class HttpUrl {
             result.append(UrlEncoder.encodeQueryNameOrValue(pairs.get(i + 1)));
             if (i < pairs.size() - 2) {
                 result.append('&');
-            }
-        }
-    }
-
-    public static Builder http() {
-        return new Builder("http");
-    }
-
-    public static Builder https() {
-        return new Builder("https");
-    }
-
-    static class Builder {
-        private final String protocol;
-        private String host;
-        private int port = -1;
-        private List<String> pathSegments = new ArrayList<>();
-        private List<String> queryNamesAndValues = new ArrayList<>(); // alternating (name, value) pairs
-
-        Builder(String protocol) {
-            this.protocol = protocol;
-        }
-
-        /**
-         * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g.,
-         * {@code 192.168.0.1}), and IPv6 addresses of the form
-         * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
-         */
-        public Builder host(String theHost) {
-            this.host = theHost;
-            return this;
-        }
-
-        public Builder port(int thePort) {
-            this.port = thePort;
-            return this;
-        }
-
-        /** URL-encodes the given path segment and adds it to the list of segments. */
-        public Builder pathSegment(String thePath) {
-            this.pathSegments.add(thePath);
-            return this;
-        }
-
-        /** URL-encodes the given query parameter name and value and adds them to the list of query parameters. */
-        public Builder queryParam(String name, String value) {
-            this.queryNamesAndValues.add(name);
-            this.queryNamesAndValues.add(value);
-            return this;
-        }
-
-        public HttpUrl build() {
-            try {
-                return new HttpUrl(this);
-            } catch (MalformedURLException e) {
-                throw new IllegalArgumentException("Malformed URL", e);
             }
         }
     }
