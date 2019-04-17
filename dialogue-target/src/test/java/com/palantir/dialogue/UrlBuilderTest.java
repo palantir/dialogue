@@ -73,6 +73,26 @@ public final class UrlBuilderTest {
     }
 
     @Test
+    public void handlesEmptyPathSegments() {
+        assertThat(minimalUrl().pathSegment("").pathSegment("").pathSegment("bar").build().toString())
+                .isEqualTo("http://host:80///bar");
+    }
+
+    @Test
+    public void handlesPreEncodedPathSegments() {
+        assertThat(minimalUrl().encodedPathSegments("foo").pathSegment("baz").build().toString())
+                .isEqualTo("http://host:80/foo/baz");
+        assertThat(minimalUrl().encodedPathSegments("foo/bar").pathSegment("baz").build().toString())
+                .isEqualTo("http://host:80/foo/bar/baz");
+        assertThat(minimalUrl().encodedPathSegments("foo/").pathSegment("baz").build().toString())
+                .isEqualTo("http://host:80/foo//baz");
+        assertThat(minimalUrl().encodedPathSegments("/foo").pathSegment("baz").build().toString())
+                .isEqualTo("http://host:80//foo/baz");
+        assertThatThrownBy(() -> minimalUrl().encodedPathSegments("ö"))
+                .hasMessage("invalid characters in encoded path segments: {segments=ö}");
+    }
+
+    @Test
     public void encodesQueryParams() {
         assertThat(minimalUrl().queryParam("foo", "bar").build().toString())
                 .isEqualTo("http://host:80?foo=bar");
@@ -96,7 +116,7 @@ public final class UrlBuilderTest {
                 .queryParam("boom", "baz")
                 .queryParam("question", "answer")
                 .build().toString())
-                .isEqualTo("https://host:80/foo/bar?boom=baz&question=answer");
+                .isEqualTo("https://host:80/foo/bar?question=answer&boom=baz");
     }
 
     @Test
