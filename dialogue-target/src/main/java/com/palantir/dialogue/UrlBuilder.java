@@ -19,7 +19,8 @@ package com.palantir.dialogue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
-import com.google.common.collect.Iterables;
+import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.Multimap;
 import com.google.common.net.InetAddresses;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
@@ -33,13 +34,14 @@ import java.util.List;
 /** A simplistic URL builder, not tuned for performance. */
 public final class UrlBuilder {
 
-    private static final Joiner SLASH_JOINER = Joiner.on('/');
+    private static final Joiner PATH_JOINER = Joiner.on('/');
+    private static final Joiner.MapJoiner QUERY_JOINER = Joiner.on('&').withKeyValueSeparator('=');
 
     private final String protocol;
     private String host;
     private int port = -1;
     private List<String> pathSegments = new ArrayList<>();
-    private List<String> queryNamesAndValues = new ArrayList<>(); // alternating (name, value) pairs
+    private Multimap<String, String> queryNamesAndValues = ArrayListMultimap.create();
 
     public static UrlBuilder http() {
         return new UrlBuilder("http");
@@ -68,16 +70,28 @@ public final class UrlBuilder {
         return this;
     }
 
+    /**
+     * Adds the given URL-encoded path segment (one or more) to the list of segments, or fails if the given segments
+     * contain forbidden characters. Note that leading or trailing slashes are preserved, for instance {@code url
+     * .pathSegment("foo").encodedPathSegments{"/bar/"}.pathSegment("baz")} yields a URL with path
+     * {@code foo//bar//baz} (note the empty segments).
+     */
+    public UrlBuilder encodedPathSegments(String segments) {
+        Preconditions.checkArgument(UrlEncoder.isPath(segments), "invalid characters in encoded path segments",
+                UnsafeArg.of("segments", segments));
+        this.pathSegments.add(segments);
+        return this;
+    }
+
     /** URL-encodes the given path segment and adds it to the list of segments. */
     public UrlBuilder pathSegment(String thePath) {
-        this.pathSegments.add(thePath);
+        this.pathSegments.add(UrlEncoder.encodePathSegment(thePath));
         return this;
     }
 
     /** URL-encodes the given query parameter name and value and adds them to the list of query parameters. */
     public UrlBuilder queryParam(String name, String value) {
-        this.queryNamesAndValues.add(name);
-        this.queryNamesAndValues.add(value);
+        this.queryNamesAndValues.put(UrlEncoder.encodeQueryNameOrValue(name), UrlEncoder.encodeQueryNameOrValue(value));
         return this;
     }
 
@@ -103,21 +117,14 @@ public final class UrlBuilder {
         if (!segments.isEmpty()) {
             result.append('/');
         }
-        SLASH_JOINER.appendTo(result, Iterables.transform(segments, UrlEncoder::encodePathSegment));
+        PATH_JOINER.appendTo(result, segments);
     }
 
-    private static void encodeQuery(List<String> pairs, StringBuilder result) {
-        if (!pairs.isEmpty()) {
+    private static void encodeQuery(Multimap<String, String> queryParams, StringBuilder result) {
+        if (!queryParams.isEmpty()) {
             result.append('?');
         }
-        for (int i = 0; i < pairs.size(); i += 2) {
-            result.append(UrlEncoder.encodeQueryNameOrValue(pairs.get(i)));
-            result.append('=');
-            result.append(UrlEncoder.encodeQueryNameOrValue(pairs.get(i + 1)));
-            if (i < pairs.size() - 2) {
-                result.append('&');
-            }
-        }
+        QUERY_JOINER.appendTo(result, queryParams.entries());
     }
 
     /** Encodes URL components per https://tools.ietf.org/html/rfc3986 . */
@@ -129,6 +136,7 @@ public final class UrlBuilder {
         private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=");
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
         private static final CharMatcher IS_P_CHAR = UNRESERVED.or(SUB_DELIMS);
+        private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
         private static final CharMatcher IS_QUERY_CHAR =
                 CharMatcher.anyOf("=&").negate().and(IS_P_CHAR.or(CharMatcher.anyOf("?/")));
 
@@ -142,6 +150,14 @@ public final class UrlBuilder {
                     && maybeHost.codePointAt(0) == '['
                     && maybeHost.codePointAt(length - 1) == ']'
                     && InetAddresses.isInetAddress(maybeHost.substring(1, length - 1));
+        }
+
+        /**
+         * Returns true if the given path contains only characters allowed in URL paths (including the segment
+         * {@code /}.
+         */
+        static boolean isPath(String path) {
+            return IS_PATH.matchesAllOf(path);
         }
 
         static String encodePathSegment(String pathComponent) {
