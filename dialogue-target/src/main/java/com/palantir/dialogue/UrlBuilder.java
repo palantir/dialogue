@@ -61,11 +61,13 @@ public final class UrlBuilder {
      * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
      */
     public UrlBuilder host(String theHost) {
+        Preconditions.checkArgument(UrlEncoder.isHost(theHost), "invalid host format", UnsafeArg.of("host", theHost));
         this.host = theHost;
         return this;
     }
 
     public UrlBuilder port(int thePort) {
+        Preconditions.checkArgument(thePort >= 0 && thePort <= 65535, "port must be in range [0, 65535]");
         this.port = thePort;
         return this;
     }
@@ -89,7 +91,10 @@ public final class UrlBuilder {
         return this;
     }
 
-    /** URL-encodes the given query parameter name and value and adds them to the list of query parameters. */
+    /**
+     * URL-encodes the given query parameter name and value and adds them to the list of query parameters. Note that
+     * no guarantee is made regarding the ordering of query parameters in the resulting URL.
+     */
     public UrlBuilder queryParam(String name, String value) {
         this.queryNamesAndValues.put(UrlEncoder.encodeQueryNameOrValue(name), UrlEncoder.encodeQueryNameOrValue(value));
         return this;
@@ -99,9 +104,7 @@ public final class UrlBuilder {
         try {
             Preconditions.checkNotNull(protocol, "protocol must be set");
             Preconditions.checkNotNull(host, "host must be set");
-            Preconditions.checkArgument(UrlEncoder.isHost(host), "invalid host format", UnsafeArg.of("host", host));
             Preconditions.checkArgument(port != -1, "port must be set");
-            Preconditions.checkArgument(port >= 0 && port <= 65535, "port must be in range [0, 65535]");
 
             StringBuilder file = new StringBuilder();
             encodePath(pathSegments, file);
