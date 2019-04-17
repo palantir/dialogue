@@ -41,11 +41,23 @@ public final class UrlBuilderTest {
     }
 
     @Test
+    public void validatesHost() {
+        assertThatThrownBy(() -> UrlBuilder.http().host("ø").port(80).build())
+                .hasMessage("invalid host format: {host=ø}");
+    }
+
+    @Test
     public void differentPorts() {
         assertThat(UrlBuilder.http().host("host").port(80).build().toString()).isEqualTo("http://host:80");
         assertThat(UrlBuilder.http().host("host").port(8080).build().toString()).isEqualTo("http://host:8080");
+    }
+
+    @Test
+    public void validatesPort() {
         assertThatThrownBy(() -> UrlBuilder.http().host("host").build())
                 .hasMessage("port must be set");
+        assertThatThrownBy(() -> UrlBuilder.http().host("host").port(65535 + 1).build())
+                .hasMessage("port must be in range [0, 65535]");
     }
 
     @Test

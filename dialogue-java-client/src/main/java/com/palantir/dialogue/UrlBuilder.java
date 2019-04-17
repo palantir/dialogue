@@ -85,10 +85,9 @@ public final class UrlBuilder {
         try {
             Preconditions.checkNotNull(protocol, "protocol must be set");
             Preconditions.checkNotNull(host, "host must be set");
+            Preconditions.checkArgument(UrlEncoder.isHost(host), "invalid host format", UnsafeArg.of("host", host));
             Preconditions.checkArgument(port != -1, "port must be set");
-
-            Preconditions.checkArgument(UrlEncoder.isHost(host),
-                    "invalid host format", UnsafeArg.of("host", host));
+            Preconditions.checkArgument(port >= 0 && port <= 65535, "port must be in range [0, 65535]");
 
             StringBuilder file = new StringBuilder();
             encodePath(pathSegments, file);
