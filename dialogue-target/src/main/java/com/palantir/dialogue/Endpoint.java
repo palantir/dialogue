@@ -23,6 +23,6 @@ import java.util.Map;
  * as well as the types of the request and response body.
  */
 public interface Endpoint {
-    String renderPath(Map<String, String> params);
+    void renderPath(Map<String, String> params, UrlBuilder url);
     HttpMethod httpMethod();
 }

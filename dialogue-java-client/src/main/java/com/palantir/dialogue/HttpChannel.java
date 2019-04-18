@@ -22,7 +22,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -35,7 +34,7 @@ import java.util.concurrent.CompletableFuture;
 public final class HttpChannel implements Channel {
 
     private final HttpClient client;
-    private final URL baseUrl;
+    private final UrlBuilder baseUrl;
     private final ErrorDecoder errorDecoder;
 
     private HttpChannel(HttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
@@ -48,10 +47,13 @@ public final class HttpChannel implements Channel {
         Preconditions.checkArgument(
                 null == Strings.emptyToNull(baseUrl.getUserInfo()),
                 "baseUrl user info must be empty");
-        String basePath = baseUrl.getPath().endsWith("/")
-                ? baseUrl.getPath().substring(0, baseUrl.getPath().length() - 1)
-                : baseUrl.getPath();
-        this.baseUrl = Urls.create(baseUrl.getProtocol(), baseUrl.getHost(), baseUrl.getPort(), basePath);
+        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
+                .host(baseUrl.getHost())
+                .port(baseUrl.getPort());
+        String strippedBasePath = stripSlashes(baseUrl.getPath());
+        if (!strippedBasePath.isEmpty()) {
+            this.baseUrl.encodedPathSegments(strippedBasePath);
+        }
         this.errorDecoder = errorDecoder;
     }
 
@@ -63,23 +65,14 @@ public final class HttpChannel implements Channel {
     @Override
     public Call createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
-        String endpointPath = endpoint.renderPath(request.pathParams());
-        Preconditions.checkArgument(endpointPath.startsWith("/"), "endpoint path must start with /");
-        // Concatenation is OK since base path is empty or starts with / and does not end with / ,
-        // and endpoint path starts with /
-        String effectivePath = baseUrl.getPath() + endpointPath;
-
-        // TODO(rfink): URL-encode
-        final URI uri;
+        UrlBuilder url = baseUrl.newBuilder();
+        endpoint.renderPath(request.pathParams(), url);
+        final HttpRequest.Builder httpRequest;
         try {
-            uri = new URI(baseUrl.getProtocol(), null, baseUrl.getHost(), baseUrl.getPort(), effectivePath, null, null);
+            httpRequest = HttpRequest.newBuilder().uri(url.build().toURI());
         } catch (URISyntaxException e) {
-            throw new RuntimeException("Failed to construct URL", e);
+            throw new RuntimeException("Failed to construct URI, this is a bug", e);
         }
-        HttpRequest.Builder httpRequest = HttpRequest.newBuilder().uri(uri);
-
-        // TODO(rfink): Query params
-        // request.queryParams().entries().forEach(entry -> url.addQueryParameter(entry.getKey(), entry.getValue()));
 
         // Fill request body and set HTTP method
         switch (endpoint.httpMethod()) {
@@ -164,5 +157,17 @@ public final class HttpChannel implements Channel {
                 "Endpoint must have a request body", SafeArg.of("method", method)));
         // TODO(rfink): Throw if accessed multiple times?
         return HttpRequest.BodyPublishers.ofInputStream(body::content);
+    }
+
+    private String stripSlashes(String path) {
+        if (path.isEmpty()) {
+            return path;
+        } else if (path.equals("/")) {
+            return "";
+        } else {
+            int stripStart = path.startsWith("/") ? 1 : 0;
+            int stripEnd = path.endsWith("/") ? 1 : 0;
+            return path.substring(stripStart, path.length() - stripEnd);
+        }
     }
 }

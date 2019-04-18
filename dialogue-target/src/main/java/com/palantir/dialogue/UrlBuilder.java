@@ -23,6 +23,7 @@ import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.net.InetAddresses;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.ByteArrayOutputStream;
 import java.net.MalformedURLException;
@@ -51,8 +52,26 @@ public final class UrlBuilder {
         return new UrlBuilder("https");
     }
 
+    public static UrlBuilder withProtocol(String protocol) {
+        return new UrlBuilder(protocol.toLowerCase());
+    }
+
+    public UrlBuilder newBuilder() {
+        return new UrlBuilder(this);
+    }
+
     private UrlBuilder(String protocol) {
+        Preconditions.checkArgument(protocol.equals("http") || protocol.equals("https"),
+                "unsupported protocol", SafeArg.of("protocol", protocol));
         this.protocol = protocol;
+    }
+
+    private UrlBuilder(UrlBuilder builder) {
+        this.protocol = builder.protocol;
+        this.host = builder.host;
+        this.port = builder.port;
+        this.pathSegments = new ArrayList<>(builder.pathSegments);
+        this.queryNamesAndValues = ArrayListMultimap.create(builder.queryNamesAndValues);
     }
 
     /**

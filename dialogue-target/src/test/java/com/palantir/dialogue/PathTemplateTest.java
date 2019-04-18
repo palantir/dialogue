@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.SafeLoggable;
+import java.util.Map;
 import org.junit.Test;
 
 public final class PathTemplateTest {
@@ -34,31 +35,31 @@ public final class PathTemplateTest {
     @Test
     public void testEmptyPath() {
         PathTemplate template = PathTemplate.builder().build();
-        assertThat(template.fill(ImmutableMap.of())).isEqualTo("/");
+        assertThat(fill(template, ImmutableMap.of())).isEqualTo("");
     }
 
     @Test
     public void testNoParameters() {
         PathTemplate template = PathTemplate.builder().fixed("a").fixed("b").build();
-        assertThat(template.fill(ImmutableMap.of())).isEqualTo("/a/b");
+        assertThat(fill(template, ImmutableMap.of())).isEqualTo("/a/b");
     }
 
     @Test
     public void testVariableSegments() {
         PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
-        assertThat(template.fill(A_B)).isEqualTo("/A/B");
+        assertThat(fill(template, A_B)).isEqualTo("/A/B");
     }
 
     @Test
     public void testFixedAndVariableSegments() {
         PathTemplate template = PathTemplate.builder().fixed("a").variable("b").variable("c").fixed("d").build();
-        assertThat(template.fill(B_C)).isEqualTo("/a/B/C/d");
+        assertThat(fill(template, B_C)).isEqualTo("/a/B/C/d");
     }
 
     @Test
     public void testTooFewParameters() {
         PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
-        assertThatThrownBy(() -> template.fill(A))
+        assertThatThrownBy(() -> fill(template, A))
                 .isInstanceOf(IllegalArgumentException.class)
                 .isInstanceOf(SafeLoggable.class)
                 .hasMessage("Provided parameter map does not contain segment variable name: {variable=b}");
@@ -67,8 +68,14 @@ public final class PathTemplateTest {
     @Test
     public void testTooManyParameters() {
         PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
-        assertThatThrownBy(() -> template.fill(A_B_C))
+        assertThatThrownBy(() -> fill(template, A_B_C))
                 .isInstanceOf(VerifyException.class)
                 .hasMessage("Too many parameters supplied, this is a bug");
+    }
+
+    private static String fill(PathTemplate template, Map<String, String> params) {
+        UrlBuilder url = UrlBuilder.http().host("unused").port(1);
+        template.fill(params, url);
+        return url.build().getPath();
     }
 }

@@ -27,13 +27,16 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import okhttp3.Headers;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -44,7 +47,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class OkHttpChannelTest {
 
-    // TODO(rfink): We're not actually using the server, kill it.
+    // TODO(rfink): We're not actually using the server, kill it. Or use the the server to capture the URLs?
     @Rule
     public final MockWebServer server = new MockWebServer();
 
@@ -60,10 +63,7 @@ public final class OkHttpChannelTest {
     private okhttp3.Call okCall;
     @Mock
     private OkHttpCallback.Factory callFactory;
-    @Mock
-    private Endpoint getEndpoint;
-    @Mock
-    private Endpoint endpoint;
+    private FakeEndpoint endpoint;
     @Mock
     private RequestBody body;
 
@@ -79,30 +79,22 @@ public final class OkHttpChannelTest {
         when(request.body()).thenReturn(Optional.empty());
         when(request.queryParams()).thenReturn(ImmutableMultimap.of());
 
-        when(getEndpoint.httpMethod()).thenReturn(HttpMethod.GET);
-        when(getEndpoint.renderPath(any())).thenReturn("/a");
-        when(endpoint.renderPath(any())).thenReturn("/a");
-    }
-
-    @Test
-    public void endpointPathMustStartWithSlash() {
-        when(endpoint.renderPath(any())).thenReturn("");
-        assertThatThrownBy(() -> channel.createCall(endpoint, request))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("endpoint path must start with /");
+        endpoint = new FakeEndpoint();
+        endpoint.method = HttpMethod.GET;
+        endpoint.renderPath = (params, url) -> url.pathSegment("a");
     }
 
     @Test
     public void respectsBasePath_emptyBasePath() {
         channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), ""), callFactory);
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/a")));
     }
 
     @Test
     public void respectsBasePath_slashBasePath() {
         channel = OkHttpChannel.of(client, Urls.create("https", "localhost", server.getPort(), "/"), callFactory);
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/a")));
     }
 
@@ -110,17 +102,27 @@ public final class OkHttpChannelTest {
     public void respectsBasePath_nonEmptyBasePath() {
         channel = OkHttpChannel.of(
                 client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"), callFactory);
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(
                 HttpUrl.get(Urls.https("localhost", server.getPort(), "/foo/bar/a")));
     }
 
     @Test
-    public void respectsBasePath_emptyEndpointPath() {
+    public void respectsBasePath_noSegments() {
         channel = OkHttpChannel.of(
                 client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"), callFactory);
-        when(getEndpoint.renderPath(any())).thenReturn("/");
-        channel.createCall(getEndpoint, request).execute(observer);
+        endpoint.renderPath = (params, url) -> { };
+        channel.createCall(endpoint, request).execute(observer);
+        assertThat(captureOkRequest().url()).isEqualTo(
+                HttpUrl.get(Urls.https("localhost", server.getPort(), "/foo/bar")));
+    }
+
+    @Test
+    public void respectsBasePath_emptySegment() {
+        channel = OkHttpChannel.of(
+                client, Urls.create("https", "localhost", server.getPort(), "/foo/bar"), callFactory);
+        endpoint.renderPath = (params, url) -> url.pathSegment("");
+        channel.createCall(endpoint, request).execute(observer);
         assertThat(captureOkRequest().url()).isEqualTo(
                 HttpUrl.get(Urls.https("localhost", server.getPort(), "/foo/bar/")));
     }
@@ -128,21 +130,31 @@ public final class OkHttpChannelTest {
     @Test
     public void testUsesRequestParametersToFillPathTemplate() {
         when(request.pathParams()).thenReturn(ImmutableMap.of("a", "A"));
-        channel.createCall(getEndpoint, request).execute(observer);
+        endpoint.renderPath = (params, url) -> url.pathSegment(params.get("a"));
+        channel.createCall(endpoint, request).execute(observer);
 
-        verify(getEndpoint).renderPath(request.pathParams());
-        assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/a")));
+        assertThat(captureOkRequest().url()).isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/A")));
     }
 
     @Test
     public void testFillsHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableMap.of("a", "A", "b", "B"));
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
 
         Headers headers = captureOkRequest().headers();
         assertThat(headers.size()).isEqualTo(2);
         assertThat(headers.get("a")).isEqualTo("A");
         assertThat(headers.get("b")).isEqualTo("B");
+    }
+
+    @Ignore("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
+    @Test
+    public void encodesHeaders() throws Exception {
+        when(request.headerParams()).thenReturn(ImmutableMap.of("a", "ø\nü"));
+        channel.createCall(endpoint, request).execute(observer);
+
+        Headers headers = captureOkRequest().headers();
+        assertThat(headers.get("a")).isEqualTo("ø\nü");
     }
 
     @Test
@@ -151,7 +163,7 @@ public final class OkHttpChannelTest {
         // Edge cases tested: multiple parameters with same name, URL encoding
         when(request.queryParams()).thenReturn(
                 ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B", mustEncode, mustEncode));
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
 
         HttpUrl url = captureOkRequest().url();
         Set<String> queryParameters = url.queryParameterNames();
@@ -163,7 +175,6 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testGet_failsWhenBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.GET);
         when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -172,7 +183,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testPost_failsWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.POST);
+        endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -181,7 +192,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testPut_failsWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.PUT);
+        endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -190,13 +201,13 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testGetMethodYieldsGetHttpCall() {
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
         assertThat(captureOkRequest().method()).isEqualTo("GET");
     }
 
     @Test
     public void testExecuteCreatesCallObjectAndEnqueuesCall() {
-        channel.createCall(getEndpoint, request).execute(observer);
+        channel.createCall(endpoint, request).execute(observer);
         verify(callFactory).create(observer);
         verify(okCall).enqueue(callback);
         verify(okCall, never()).cancel();
@@ -204,7 +215,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testCancelDelegatesToOkHttpCall() {
-        channel.createCall(getEndpoint, request).cancel();
+        channel.createCall(endpoint, request).cancel();
         verify(callFactory, never()).create(observer);
         verify(okCall, never()).enqueue(callback);
         verify(okCall).cancel();
@@ -212,7 +223,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testCanCancelMultipleTimes() {
-        Call call = channel.createCall(getEndpoint, request);
+        Call call = channel.createCall(endpoint, request);
         call.cancel();
         call.cancel();
         verify(okCall, times(2)).cancel();
@@ -220,7 +231,7 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testExecuteThrowsWhenExecutedTwice() {
-        Call call = channel.createCall(getEndpoint, request);
+        Call call = channel.createCall(endpoint, request);
         call.execute(observer);
         when(okCall.isExecuted()).thenReturn(true);
         assertThatThrownBy(() -> call.execute(observer))
@@ -232,5 +243,20 @@ public final class OkHttpChannelTest {
         ArgumentCaptor<okhttp3.Request> okRequest = ArgumentCaptor.forClass(okhttp3.Request.class);
         verify(client).newCall(okRequest.capture());
         return okRequest.getValue();
+    }
+
+    private static class FakeEndpoint implements Endpoint {
+        private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
+        private HttpMethod method;
+
+        @Override
+        public void renderPath(Map<String, String> params, UrlBuilder url) {
+            renderPath.accept(params, url);
+        }
+
+        @Override
+        public HttpMethod httpMethod() {
+            return method;
+        }
     }
 }

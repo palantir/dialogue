@@ -28,7 +28,6 @@ import java.util.Set;
 
 public final class PathTemplate {
 
-    // TODO(rfink): Add query parameters.
     private final ImmutableList<Segment> segments;
 
     private PathTemplate(Iterable<Segment> segments) {
@@ -48,24 +47,21 @@ public final class PathTemplate {
     }
 
     /** Populates this template with the given named parameters. */
-    public String fill(Map<String, String> parameters) {
-        StringBuilder builder = new StringBuilder();
+    public void fill(Map<String, String> parameters, UrlBuilder url) {
         int numVariableSegments = 0;
         for (Segment segment : segments) {
-            builder.append("/");
             if (segment.fixed != null) {
-                builder.append(segment.fixed);
+                url.pathSegment(segment.fixed);
             } else {
-                Preconditions.checkArgument(parameters.containsKey(segment.variable),
+                Preconditions.checkArgument(
+                        parameters.containsKey(segment.variable),
                         "Provided parameter map does not contain segment variable name",
                         SafeArg.of("variable", segment.variable));
-                builder.append(parameters.get(segment.variable));
+                url.pathSegment(parameters.get(segment.variable));
                 numVariableSegments += 1;
             }
         }
         Verify.verify(numVariableSegments == parameters.size(), "Too many parameters supplied, this is a bug");
-        String path = builder.toString();
-        return path.isEmpty() ? "/" : path;
     }
 
     public static final class PathTemplateBuilder {
