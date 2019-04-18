@@ -95,7 +95,7 @@ public final class SampleServiceClientTest {
     @Before
     public void before() {
         server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
-        baseUrl = Urls.https("localhost", server.getPort());
+        baseUrl = UrlBuilder.https().host("localhost").port(server.getPort()).build();
         Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
         blockingClient = SampleServiceClient.blocking(channel, runtime);
         asyncClient = SampleServiceClient.async(channel, runtime);
