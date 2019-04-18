@@ -18,8 +18,6 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -29,8 +27,10 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.http.HttpClient;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import okhttp3.HttpUrl;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -68,8 +68,7 @@ public final class HttpChannelTest {
     private Request request;
     @Mock
     private Observer observer;
-    @Mock
-    private Endpoint endpoint;
+    private FakeEndpoint endpoint;
 
     private ErrorDecoder errorDecoder = DefaultErrorDecoder.INSTANCE;
 
@@ -82,16 +81,10 @@ public final class HttpChannelTest {
         channel = HttpChannel.of(client, server.url("").url(), errorDecoder);
 
         when(request.body()).thenReturn(Optional.empty());
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.GET);
-        when(endpoint.renderPath(any())).thenReturn("/a");
-    }
 
-    @Test
-    public void endpointPathMustStartWithSlash() {
-        when(endpoint.renderPath(any())).thenReturn("");
-        assertThatThrownBy(() -> channel.createCall(endpoint, request))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("endpoint path must start with /");
+        endpoint = new FakeEndpoint();
+        endpoint.method = HttpMethod.GET;
+        endpoint.renderPath = (params, url) -> url.pathSegment("a");
     }
 
     @Test
@@ -116,8 +109,17 @@ public final class HttpChannelTest {
     }
 
     @Test
-    public void respectsBasePath_emptyEndpointPath() throws InterruptedException {
-        when(endpoint.renderPath(any())).thenReturn("/");
+    public void respectsBasePath_noSegment() throws InterruptedException {
+        endpoint.renderPath = (params, url) -> { };
+
+        channel = HttpChannel.of(client, server.url("/foo/bar").url(), errorDecoder);
+        channel.createCall(endpoint, request).execute(observer);
+        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar"));
+    }
+
+    @Test
+    public void respectsBasePath_emptySegment() throws InterruptedException {
+        endpoint.renderPath = (params, url) -> url.pathSegment("");
 
         channel = HttpChannel.of(client, server.url("/foo/bar").url(), errorDecoder);
         channel.createCall(endpoint, request).execute(observer);
@@ -127,11 +129,10 @@ public final class HttpChannelTest {
     @Test
     public void usesRequestParametersToFillPathTemplate() throws InterruptedException {
         when(request.pathParams()).thenReturn(ImmutableMap.of("a", "A"));
-        when(endpoint.renderPath(ImmutableMap.of("a", "A"))).thenReturn("/B");
+        endpoint.renderPath = (params, url) -> url.pathSegment(params.get("a"));
 
         channel.createCall(endpoint, request).execute(observer);
-        verify(endpoint).renderPath(request.pathParams());
-        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/B"));
+        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/A"));
     }
 
     @Test
@@ -142,6 +143,16 @@ public final class HttpChannelTest {
         RecordedRequest actualRequest = server.takeRequest();
         assertThat(actualRequest.getHeader("a")).isEqualTo("A");
         assertThat(actualRequest.getHeader("b")).isEqualTo("B");
+    }
+
+    @Ignore("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
+    @Test
+    public void encodesHeaders() throws Exception {
+        when(request.headerParams()).thenReturn(ImmutableMap.of("a", "ø\nü"));
+        channel.createCall(endpoint, request).execute(observer);
+
+        RecordedRequest actualRequest = server.takeRequest();
+        assertThat(actualRequest.getHeader("a")).isEqualTo("ø\nü");
     }
 
     @Ignore("TODO(rfink): Implement query params")
@@ -163,7 +174,7 @@ public final class HttpChannelTest {
 
     @Test
     public void get_failsWhenBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.GET);
+        endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -172,7 +183,7 @@ public final class HttpChannelTest {
 
     @Test
     public void post_failsWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.POST);
+        endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -181,7 +192,7 @@ public final class HttpChannelTest {
 
     @Test
     public void put_failsWhenNoBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.PUT);
+        endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.empty());
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -190,7 +201,7 @@ public final class HttpChannelTest {
 
     @Test
     public void delete_failsWhenBodyIsGiven() throws Exception {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.DELETE);
+        endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
                 .isInstanceOf(SafeIllegalArgumentException.class)
@@ -205,7 +216,7 @@ public final class HttpChannelTest {
 
     @Test
     public void postMethodYieldsPostHttpCall() throws InterruptedException {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.POST);
+        endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.of(body));
         channel.createCall(endpoint, request).execute(observer);
         assertThat(server.takeRequest().getMethod()).isEqualTo("POST");
@@ -213,7 +224,7 @@ public final class HttpChannelTest {
 
     @Test
     public void putMethodYieldsPutHttpCall() throws InterruptedException {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.PUT);
+        endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.of(body));
         channel.createCall(endpoint, request).execute(observer);
         assertThat(server.takeRequest().getMethod()).isEqualTo("PUT");
@@ -221,8 +232,28 @@ public final class HttpChannelTest {
 
     @Test
     public void deleteMethodYieldsDeleteHttpCall() throws InterruptedException {
-        when(endpoint.httpMethod()).thenReturn(HttpMethod.DELETE);
+        endpoint.method = HttpMethod.DELETE;
         channel.createCall(endpoint, request).execute(observer);
         assertThat(server.takeRequest().getMethod()).isEqualTo("DELETE");
+    }
+
+    @Test
+    public void encodesPathAndQueryParameters() {
+
+    }
+
+    private static class FakeEndpoint implements Endpoint {
+        private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
+        private HttpMethod method;
+
+        @Override
+        public void renderPath(Map<String, String> params, UrlBuilder url) {
+            renderPath.accept(params, url);
+        }
+
+        @Override
+        public HttpMethod httpMethod() {
+            return method;
+        }
     }
 }

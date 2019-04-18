@@ -147,6 +147,17 @@ public final class UrlBuilderTest {
         assertThat(UrlBuilder.UrlEncoder.encodeQueryNameOrValue("&=")).isEqualTo("%26%3D");
     }
 
+    @Test
+    public void newBuilderCopiesAllFields() {
+        UrlBuilder original = UrlBuilder.http().host("foo").port(42).pathSegment("foo").queryParam("name", "value");
+        UrlBuilder copy = original.newBuilder();
+        original.host("foo-new")
+                .port(43)
+                .pathSegment("foo-new")
+                .queryParam("name-new", "value-new");
+        assertThat(copy.build().toString()).isEqualTo("http://foo:42/foo?name=value");
+    }
+
     private static UrlBuilder minimalUrl() {
         return UrlBuilder.http().host("host").port(80);
     }

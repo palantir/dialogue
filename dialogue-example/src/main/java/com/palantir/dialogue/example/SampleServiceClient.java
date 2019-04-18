@@ -32,6 +32,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import java.io.IOException;
 import java.util.Map;
@@ -49,8 +50,8 @@ public final class SampleServiceClient {
                 .build();
 
         @Override
-        public String renderPath(Map<String, String> params) {
-            return pathTemplate.fill(params);
+        public void renderPath(Map<String, String> params, UrlBuilder url) {
+            pathTemplate.fill(params, url);
         }
 
         @Override
@@ -65,8 +66,8 @@ public final class SampleServiceClient {
                 .build();
 
         @Override
-        public String renderPath(Map<String, String> params) {
-            return pathTemplate.fill(params);
+        public void renderPath(Map<String, String> params, UrlBuilder url) {
+            pathTemplate.fill(params, url);
         }
 
         @Override

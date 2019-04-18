@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
 import javax.annotation.Nullable;
-import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
@@ -35,7 +34,7 @@ import okio.BufferedSink;
 public final class OkHttpChannel implements Channel {
 
     private final OkHttpClient client;
-    private final URL baseUrl;
+    private final UrlBuilder baseUrl;
     private final OkHttpCallback.Factory callbackFactory;
 
     private OkHttpChannel(
@@ -51,13 +50,17 @@ public final class OkHttpChannel implements Channel {
         Preconditions.checkArgument(
                 null == Strings.emptyToNull(baseUrl.getUserInfo()),
                 "baseUrl user info must be empty");
-        String basePath = baseUrl.getPath().endsWith("/")
-                ? baseUrl.getPath().substring(0, baseUrl.getPath().length() - 1)
-                : baseUrl.getPath();
-        this.baseUrl = Urls.create(baseUrl.getProtocol(), baseUrl.getHost(), baseUrl.getPort(), basePath);
+        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
+                .host(baseUrl.getHost())
+                .port(baseUrl.getPort());
+        String strippedBasePath = stripSlashes(baseUrl.getPath());
+        if (!strippedBasePath.isEmpty()) {
+            this.baseUrl.encodedPathSegments(strippedBasePath);
+        }
         this.callbackFactory = callbackFactory;
     }
 
+    /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
     public static OkHttpChannel of(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
         return new OkHttpChannel(client, baseUrl, observer -> new OkHttpCallback(observer, errorDecoder));
     }
@@ -85,18 +88,9 @@ public final class OkHttpChannel implements Channel {
     @Override
     public Call createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
-        String endpointPath = endpoint.renderPath(request.pathParams());
-        Preconditions.checkArgument(endpointPath.startsWith("/"), "endpoint path must start with /");
-        // Concatenation is OK since base path is empty or starts with / and does not end with / ,
-        // and endpoint path starts with /
-        String effectivePath = baseUrl.getPath() + endpointPath;
-
-        HttpUrl.Builder url = new HttpUrl.Builder()
-                .scheme(baseUrl.getProtocol())
-                .host(baseUrl.getHost())
-                .port(baseUrl.getPort())
-                .encodedPath(effectivePath);
-        request.queryParams().entries().forEach(entry -> url.addQueryParameter(entry.getKey(), entry.getValue()));
+        UrlBuilder url = baseUrl.newBuilder();
+        endpoint.renderPath(request.pathParams(), url);
+        request.queryParams().entries().forEach(entry -> url.queryParam(entry.getKey(), entry.getValue()));
         okhttp3.Request.Builder okRequest = new okhttp3.Request.Builder().url(url.build());
 
         // Fill request body and set HTTP method
@@ -139,5 +133,17 @@ public final class OkHttpChannel implements Channel {
                 okCall.cancel();
             }
         };
+    }
+
+    private String stripSlashes(String path) {
+        if (path.isEmpty()) {
+            return path;
+        } else if (path.equals("/")) {
+            return "";
+        } else {
+            int stripStart = path.startsWith("/") ? 1 : 0;
+            int stripEnd = path.endsWith("/") ? 1 : 0;
+            return path.substring(stripStart, path.length() - stripEnd);
+        }
     }
 }
