@@ -67,6 +67,7 @@ public final class HttpChannel implements Channel {
         // Create base request given the URL
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);
+        request.queryParams().forEach(url::queryParam);
         final HttpRequest.Builder httpRequest;
         try {
             httpRequest = HttpRequest.newBuilder().uri(url.build().toURI());

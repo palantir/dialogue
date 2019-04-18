@@ -28,6 +28,7 @@ import java.util.Set;
 
 public final class PathTemplate {
 
+    // TODO(rfink): Add query parameters.
     private final ImmutableList<Segment> segments;
 
     private PathTemplate(Iterable<Segment> segments) {
@@ -45,6 +46,8 @@ public final class PathTemplate {
     public static PathTemplateBuilder builder() {
         return new PathTemplateBuilder();
     }
+
+    // TODO(rfink): This doesn't encode parameters
 
     /** Populates this template with the given named parameters. */
     public void fill(Map<String, String> parameters, UrlBuilder url) {

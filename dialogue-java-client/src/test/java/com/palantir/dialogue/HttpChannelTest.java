@@ -81,6 +81,7 @@ public final class HttpChannelTest {
         channel = HttpChannel.of(client, server.url("").url(), errorDecoder);
 
         when(request.body()).thenReturn(Optional.empty());
+        when(request.queryParams()).thenReturn(ImmutableMultimap.of());
 
         endpoint = new FakeEndpoint();
         endpoint.method = HttpMethod.GET;
@@ -136,6 +137,14 @@ public final class HttpChannelTest {
     }
 
     @Test
+    public void encodesPathParameters() throws InterruptedException {
+        endpoint.renderPath = (params, url) -> url.pathSegment("/ü/");
+
+        channel.createCall(endpoint, request).execute(observer);
+        assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/%2F%C3%BC%2F"));
+    }
+
+    @Test
     public void fillsHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableMap.of("a", "A", "b", "B"));
         channel.createCall(endpoint, request).execute(observer);
@@ -155,21 +164,27 @@ public final class HttpChannelTest {
         assertThat(actualRequest.getHeader("a")).isEqualTo("ø\nü");
     }
 
-    @Ignore("TODO(rfink): Implement query params")
     @Test
     public void fillsQueryParameters() throws Exception {
-        String mustEncode = "%^&/?a=A3&a=A4";
-        // Edge cases tested: multiple parameters with same name, URL encoding
-        when(request.queryParams()).thenReturn(
-                ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B", mustEncode, mustEncode));
+        when(request.queryParams()).thenReturn(ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B"));
         channel.createCall(endpoint, request).execute(observer);
 
         HttpUrl requestUrl = server.takeRequest().getRequestUrl();
         Set<String> queryParameters = requestUrl.queryParameterNames();
-        assertThat(queryParameters.size()).isEqualTo(3);
+        assertThat(queryParameters.size()).isEqualTo(2);
         assertThat(requestUrl.queryParameterValues("a")).containsExactlyInAnyOrder("A1", "A2");
         assertThat(requestUrl.queryParameterValues("b")).containsExactlyInAnyOrder("B");
-        assertThat(requestUrl.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
+    }
+
+    @Test
+    public void encodesQueryParameters() throws Exception {
+        String mustEncode = "%^&/?a=A3&a=A4";
+        when(request.queryParams()).thenReturn(ImmutableMultimap.of(mustEncode, mustEncode));
+        channel.createCall(endpoint, request).execute(observer);
+
+        HttpUrl url = server.takeRequest().getRequestUrl();
+        assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
+        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a%3DA3%26a%3DA4");
     }
 
     @Test
@@ -235,11 +250,6 @@ public final class HttpChannelTest {
         endpoint.method = HttpMethod.DELETE;
         channel.createCall(endpoint, request).execute(observer);
         assertThat(server.takeRequest().getMethod()).isEqualTo("DELETE");
-    }
-
-    @Test
-    public void encodesPathAndQueryParameters() {
-
     }
 
     private static class FakeEndpoint implements Endpoint {
