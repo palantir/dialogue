@@ -137,6 +137,15 @@ public final class OkHttpChannelTest {
     }
 
     @Test
+    public void encodesPathParameters() {
+        endpoint.renderPath = (params, url) -> url.pathSegment("/ü/");
+
+        channel.createCall(endpoint, request).execute(observer);
+        assertThat(captureOkRequest().url())
+                .isEqualTo(HttpUrl.get(Urls.https("localhost", server.getPort(), "/%2F%C3%BC%2F")));
+    }
+
+    @Test
     public void testFillsHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableMap.of("a", "A", "b", "B"));
         channel.createCall(endpoint, request).execute(observer);
@@ -159,18 +168,25 @@ public final class OkHttpChannelTest {
 
     @Test
     public void testFillsQueryParameters() throws Exception {
-        String mustEncode = "%^&/?a=A3&a=A4";
-        // Edge cases tested: multiple parameters with same name, URL encoding
-        when(request.queryParams()).thenReturn(
-                ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B", mustEncode, mustEncode));
+        when(request.queryParams()).thenReturn(ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B"));
         channel.createCall(endpoint, request).execute(observer);
 
         HttpUrl url = captureOkRequest().url();
         Set<String> queryParameters = url.queryParameterNames();
-        assertThat(queryParameters.size()).isEqualTo(3);
+        assertThat(queryParameters.size()).isEqualTo(2);
         assertThat(url.queryParameterValues("a")).containsExactlyInAnyOrder("A1", "A2");
         assertThat(url.queryParameterValues("b")).containsExactlyInAnyOrder("B");
+    }
+
+    @Test
+    public void encodesQueryParameters() throws Exception {
+        String mustEncode = "%^&/?a=A3&a=A4";
+        when(request.queryParams()).thenReturn(ImmutableMultimap.of(mustEncode, mustEncode));
+        channel.createCall(endpoint, request).execute(observer);
+
+        HttpUrl url = captureOkRequest().url();
         assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
+        assertThat(url.url().getQuery()).isEqualTo("%25%5E%26/?a%3DA3%26a%3DA4=%25%5E%26/?a%3DA3%26a%3DA4");
     }
 
     @Test
