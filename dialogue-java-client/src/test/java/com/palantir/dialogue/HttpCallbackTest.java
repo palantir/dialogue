@@ -72,7 +72,6 @@ public class HttpCallbackTest {
     public void testDelegatesSuccessfulResponse() throws Exception {
         callback.onSuccess(httpResponse(200, "body"));
 
-        // Deserializer is invoked with request body.
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         verify(observer).success(response.capture());
         assertThat(streamToString(response.getValue().body())).isEqualTo("body");
@@ -98,11 +97,25 @@ public class HttpCallbackTest {
         verify(observer).exception(exception);
     }
 
+    @Test
+    public void contentTypeHeaderIsTreatedCaseInsensitively() throws IOException {
+        callback.onSuccess(httpResponse(200, "body", Map.of("CoNtEnT-TyPe", List.of("application/json"))));
+
+        ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
+        verify(observer).success(response.capture());
+        assertThat(response.getValue().contentType()).contains("application/json");
+    }
+
     private static String streamToString(InputStream stream) throws IOException {
         return new String(ByteStreams.toByteArray(stream), StandardCharsets.UTF_8);
     }
 
     private static HttpResponse<InputStream> httpResponse(int code, String bodyText) {
+        return httpResponse(code, bodyText, Map.of("Content-Type", List.of("application/json")));
+    }
+
+    private static HttpResponse<InputStream> httpResponse(
+            int code, String bodyText, Map<String, List<String>> headers) {
         return new HttpResponse<>() {
             @Override
             public int statusCode() {
@@ -121,7 +134,7 @@ public class HttpCallbackTest {
 
             @Override
             public HttpHeaders headers() {
-                return HttpHeaders.of(Map.of("Content-Type", List.of("application/json")), (a, b) -> true);
+                return HttpHeaders.of(headers, (a, b) -> true);
             }
 
             @Override
