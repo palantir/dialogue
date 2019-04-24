@@ -16,11 +16,9 @@
 
 package com.palantir.dialogue;
 
-import java.io.IOException;
-
 /** Reads objects from a response. */
 public interface Deserializer<T> {
 
     /** Deserializes the response body. */
-    T deserialize(Response response) throws IOException;
+    T deserialize(Response response);
 }

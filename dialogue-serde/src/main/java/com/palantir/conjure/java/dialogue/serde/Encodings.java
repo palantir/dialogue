@@ -25,7 +25,7 @@ import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIoException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -68,11 +68,11 @@ public final class Encodings {
                     Preconditions.checkArgument(value != null, "cannot deserialize a JSON null value");
                     return value;
                 } catch (MismatchedInputException e) {
-                    throw new SafeIoException(
+                    throw new SafeRuntimeException(
                             "Failed to deserialize response stream. Syntax error?",
                             e, SafeArg.of("type", type.getType()));
                 } catch (IOException e) {
-                    throw new SafeIoException(
+                    throw new SafeRuntimeException(
                             "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));
                 }
             };

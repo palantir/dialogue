@@ -28,7 +28,7 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.logsafe.exceptions.SafeIoException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -68,8 +68,12 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     public Deserializer<Void> emptyBodyDeserializer() {
         return response -> {
-            if (response.body().read() != -1) {
-                throw new RuntimeException("Expected empty response body");
+            try {
+                if (response.body().read() != -1) {
+                    throw new RuntimeException("Expected empty response body");
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to read from response body", e);
             }
             return null;
         };
@@ -171,7 +175,7 @@ final class ConjureBodySerDe implements BodySerDe {
         }
 
         @Override
-        public T deserialize(Response response) throws IOException {
+        public T deserialize(Response response) {
             EncodingDeserializerContainer<T> container = getResponseDeserializer(response.contentType());
             return container.deserializer.deserialize(response.body());
         }
@@ -179,7 +183,7 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(Optional<String> contentType) throws SafeIoException {
+        EncodingDeserializerContainer<T> getResponseDeserializer(Optional<String> contentType) {
             if (!contentType.isPresent()) {
                 throw new SafeIllegalArgumentException("Response is missing Content-Type header");
             }
@@ -189,7 +193,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     return container;
                 }
             }
-            throw new SafeIoException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
+            throw new SafeRuntimeException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
         }
     }
 

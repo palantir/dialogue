@@ -29,13 +29,13 @@ import com.palantir.dialogue.Exceptions;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
-import java.io.IOException;
+import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 // Example of the implementation code conjure would generate for a simple SampleService.
 public final class SampleServiceClient {
@@ -77,7 +77,7 @@ public final class SampleServiceClient {
     };
 
     /** Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel. */
-    public static SampleService blocking(Channel channel, ConjureRuntime runtime) {
+    public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration readTimeout) {
         return new SampleService() {
 
             private Serializer<String> stringToStringSerializer =
@@ -98,10 +98,12 @@ public final class SampleServiceClient {
                         .build();
 
                 Call call = channel.createCall(STRING_TO_STRING, request);
-                ListenableFuture<Response> response = Calls.toFuture(call);
+                ListenableFuture<String> response = Futures.transform(
+                        Calls.toFuture(call),
+                        r -> stringToStringDeserializer.deserialize(r),
+                        MoreExecutors.directExecutor());
                 try {
-                    // TODO(rfink): Figure out how to inject read/write timeouts
-                    return stringToStringDeserializer.deserialize(response.get());
+                    return response.get(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -112,9 +114,12 @@ public final class SampleServiceClient {
                 Request request = Request.builder().build();
 
                 Call call = channel.createCall(VOID_TO_VOID, request);
-                ListenableFuture<Response> response = Calls.toFuture(call);
+                ListenableFuture<Void> deserializedResponse = Futures.transform(
+                        Calls.toFuture(call),
+                        r -> voidToVoidDeserializer.deserialize(r),
+                        MoreExecutors.directExecutor());
                 try {
-                    voidToVoidDeserializer.deserialize(response.get());
+                    deserializedResponse.get(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -149,14 +154,7 @@ public final class SampleServiceClient {
                 Call call = channel.createCall(STRING_TO_STRING, request);
                 return Futures.transform(
                         Calls.toFuture(call),
-                        response -> {
-                            try {
-                                // TODO(rfink): The try/catch is a bit odd here.
-                                return stringToStringDeserializer.deserialize(response);
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to deserialize response", e);
-                            }
-                        },
+                        response -> stringToStringDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }
 
@@ -167,14 +165,7 @@ public final class SampleServiceClient {
                 Call call = channel.createCall(VOID_TO_VOID, request);
                 return Futures.transform(
                         Calls.toFuture(call),
-                        response -> {
-                            try {
-                                voidToVoidDeserializer.deserialize(response);
-                                return null;
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to deserialize response", e);
-                            }
-                        },
+                        response -> voidToVoidDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }
         };
