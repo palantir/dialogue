@@ -26,6 +26,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -63,7 +64,7 @@ public class ConjureBodySerDeTest {
         response.contentType = Optional.of("application/unknown");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(new StubEncoding("application/json")));
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
-                .isInstanceOf(IOException.class)
+                .isInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("Unsupported Content-Type");
     }
 
