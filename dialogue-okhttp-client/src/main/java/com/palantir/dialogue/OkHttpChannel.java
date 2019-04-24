@@ -16,10 +16,10 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Strings;
 import com.google.common.io.ByteStreams;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.IOException;
@@ -65,11 +65,6 @@ public final class OkHttpChannel implements Channel {
         return new OkHttpChannel(client, baseUrl, observer -> new OkHttpCallback(observer, errorDecoder));
     }
 
-    @VisibleForTesting
-    static OkHttpChannel of(OkHttpClient client, URL baseUrl, OkHttpCallback.Factory callbackFactory) {
-        return new OkHttpChannel(client, baseUrl, callbackFactory);
-    }
-
     private RequestBody toOkHttpBody(com.palantir.dialogue.RequestBody body) {
         return new RequestBody() {
             @Nullable
@@ -101,15 +96,17 @@ public final class OkHttpChannel implements Channel {
                 break;
             case POST:
                 okRequest = okRequest.post(toOkHttpBody(
-                        request.body().orElseThrow(() ->
-                                new SafeIllegalArgumentException("POST endpoints must have a request body"))));
+                        request.body().orElseThrow(() -> new SafeIllegalArgumentException(
+                                "Endpoint must have a request body", SafeArg.of("method", "POST")))));
                 break;
             case PUT:
                 okRequest = okRequest.put(toOkHttpBody(
-                        request.body().orElseThrow(()
-                                -> new SafeIllegalArgumentException("PUT endpoints must have a request body"))));
+                        request.body().orElseThrow(() -> new SafeIllegalArgumentException(
+                                "Endpoint must have a request body", SafeArg.of("method", "PUT")))));
                 break;
             case DELETE:
+                Preconditions.checkArgument(
+                        !request.body().isPresent(), "DELETE endpoints must not have a request body");
                 okRequest = okRequest.delete(request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
                 break;
         }
@@ -119,12 +116,13 @@ public final class OkHttpChannel implements Channel {
             okRequest.header(header.getKey(), header.getValue());
         }
 
-        // Create Dialogue call that delegates to an OkHttp Call.
+        // TODO(rfink): Think about repeatability/retries
+
         okhttp3.Call okCall = client.newCall(okRequest.build());
         return new Call() {
             @Override
             public void execute(Observer observer) {
-                Preconditions.checkState(!okCall.isExecuted(), "Calls must only be executed once.");
+                Preconditions.checkState(!okCall.isExecuted(), "Error, this call was already executed");
                 okCall.enqueue(callbackFactory.create(observer));
             }
 

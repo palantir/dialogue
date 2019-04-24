@@ -32,7 +32,7 @@ public final class Calls {
      * future cancels the underlying call.
      */
     public static ListenableFuture<Response> toFuture(Call call) {
-        ExceptionAwareFuture<Response> future = new ExceptionAwareFuture<>(call);
+        CallCancellingFuture<Response> future = new CallCancellingFuture<>(call);
         call.execute(new Observer() {
             @Override
             public void success(Response value) {
@@ -52,10 +52,10 @@ public final class Calls {
         return future;
     }
 
-    private static final class ExceptionAwareFuture<RespT> extends AbstractFuture<RespT> {
+    private static final class CallCancellingFuture<RespT> extends AbstractFuture<RespT> {
         private final Call call;
 
-        private ExceptionAwareFuture(Call call) {
+        private CallCancellingFuture(Call call) {
             this.call = call;
         }
 

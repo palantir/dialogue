@@ -1,0 +1,11 @@
+dependencies {
+    compile project(':dialogue-target')
+    compile project(':dialogue-example')
+
+    compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:keystores'
+    compile 'com.squareup.okhttp3:mockwebserver'
+    compile 'junit:junit'
+    compile 'org.assertj:assertj-core'
+    compile 'org.mockito:mockito-core'
+}
