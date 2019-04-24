@@ -9,11 +9,6 @@ dependencies {
     compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
 
-    testCompile project(':dialogue-example')
+    testCompile project(':dialogue-client-test-lib')
     testCompile project(':dialogue-serde')
-    testCompile 'com.palantir.conjure.java.runtime:keystores'
-    testCompile 'com.squareup.okhttp3:mockwebserver'
-    testCompile 'junit:junit'
-    testCompile 'org.assertj:assertj-core'
-    testCompile 'org.mockito:mockito-core'
 }

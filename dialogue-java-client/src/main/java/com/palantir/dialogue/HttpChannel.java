@@ -17,6 +17,11 @@
 package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -29,16 +34,19 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class HttpChannel implements Channel {
 
     private final HttpClient client;
+    private final ListeningExecutorService executor;
     private final UrlBuilder baseUrl;
     private final ErrorDecoder errorDecoder;
 
-    private HttpChannel(HttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
+    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
         this.client = client;
+        this.executor = MoreExecutors.listeningDecorator(executor);
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
                 "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
@@ -57,11 +65,10 @@ public final class HttpChannel implements Channel {
         this.errorDecoder = errorDecoder;
     }
 
-    public static HttpChannel of(HttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
-        return new HttpChannel(client, baseUrl, errorDecoder);
+    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
+        return new HttpChannel(client, executor, baseUrl, errorDecoder);
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")  // TODO(rfink): What to do with the future?
     @Override
     public Call createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
@@ -89,8 +96,7 @@ public final class HttpChannel implements Channel {
                 break;
             case DELETE:
                 Preconditions.checkArgument(
-                        !request.body().isPresent(),
-                        "DELETE endpoints must not have a request body");
+                        !request.body().isPresent(), "DELETE endpoints must not have a request body");
                 httpRequest.DELETE();
                 break;
         }
@@ -100,31 +106,47 @@ public final class HttpChannel implements Channel {
             httpRequest.header(header.getKey(), header.getValue());
         }
 
-        CompletableFuture<HttpResponse<InputStream>> call = client.sendAsync(
-                httpRequest.build(),
-                HttpResponse.BodyHandlers.ofInputStream());
+        // TODO(rfink): Think about repeatability/retries
+
         return new Call() {
+            private ListenableFuture<HttpResponse<InputStream>> response = null;
+
             @Override
-            public void execute(Observer observer) {
-                // TODO(rfink): What to do with this future?
-                call
-                        .thenAccept(httpResponse -> {
-                            Response response = toResponse(httpResponse);
-                            if (isSuccessful(response.code())) {
-                                observer.success(response);
-                            } else {
-                                observer.failure(errorDecoder.decode(response));
+            public synchronized void execute(Observer observer) {
+                Preconditions.checkState(response == null, "Error, this call was already executed");
+                response = executor.submit(() ->
+                        client.send(httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream()));
+                Futures.addCallback(
+                        response,
+                        // TODO(rfink): Factor out, or at least harmoznie with OkHttpClient
+                        new FutureCallback<>() {
+                            @Override
+                            public void onSuccess(@Nullable HttpResponse<InputStream> result) {
+                                try {
+                                    Response response = toResponse(result);
+                                    if (isSuccessful(response.code())) {
+                                        observer.success(response);
+                                    } else {
+                                        observer.failure(errorDecoder.decode(response));
+                                    }
+                                } catch (Throwable t) {
+                                    observer.exception(t);
+                                }
                             }
-                        })
-                        .exceptionally(exception -> {
-                            observer.exception(exception);
-                            return null;
-                        });
+
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                observer.exception(throwable);
+                            }
+                        },
+                        executor);
             }
 
             @Override
-            public void cancel() {
-                call.cancel(true);
+            public synchronized void cancel() {
+                if (response != null) {
+                    response.cancel(true);
+                }
             }
         };
     }

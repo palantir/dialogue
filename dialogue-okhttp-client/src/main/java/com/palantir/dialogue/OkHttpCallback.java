@@ -55,6 +55,7 @@ class OkHttpCallback implements Callback {
      * instances for every call and may, for example, supply cache instances by endpoint.
      */
     interface Factory {
+        // TODO(rfink): Remove this, it's not needed anymore
         OkHttpCallback create(Observer observer);
     }
 

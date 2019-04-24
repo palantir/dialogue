@@ -16,24 +16,22 @@
 
 package com.palantir.dialogue;
 
+// CHECKSTYLE:OFF  // static import
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
-import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import com.palantir.dialogue.example.AsyncSampleService;
 import com.palantir.dialogue.example.SampleService;
-import com.palantir.dialogue.example.SampleServiceClient;
+import java.net.ConnectException;
 import java.net.URL;
-import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
-import java.time.Duration;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import javax.net.ssl.SSLParameters;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -41,14 +39,15 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
-public final class SampleServiceClientTest {
+// CHECKSTYLE:ON
 
-    private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
-    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
+public abstract class AbstractSampleServiceClientTest {
+
+    abstract SampleService createBlockingClient(URL baseUrl);
+    abstract AsyncSampleService createAsyncClient(URL baseUrl);
+
+    static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"),
             Paths.get("src/test/resources/keyStore.jks"),
             "keystore");
@@ -56,11 +55,10 @@ public final class SampleServiceClientTest {
     @Rule
     public final MockWebServer server = new MockWebServer();
 
-    private URL baseUrl;
     private SampleService blockingClient;
     private AsyncSampleService asyncClient;
 
-    private static final ImmutableList<String> FAST_CIPHER_SUITES = ImmutableList.of(
+    static final ImmutableList<String> FAST_CIPHER_SUITES = ImmutableList.of(
             "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
             "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
             "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384",
@@ -78,7 +76,7 @@ public final class SampleServiceClientTest {
             // "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
             "TLS_EMPTY_RENEGOTIATION_INFO_SCSV");
 
-    private static final ImmutableList<String> GCM_CIPHER_SUITES = ImmutableList.of(
+    static final ImmutableList<String> GCM_CIPHER_SUITES = ImmutableList.of(
             "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
             "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
             "TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384",
@@ -86,7 +84,7 @@ public final class SampleServiceClientTest {
             "TLS_RSA_WITH_AES_256_GCM_SHA384",
             "TLS_RSA_WITH_AES_128_GCM_SHA256");
 
-    private static final String[] ALL_CIPHER_SUITES = ImmutableList.builder()
+    static final String[] ALL_CIPHER_SUITES = ImmutableList.builder()
             .addAll(FAST_CIPHER_SUITES)
             .addAll(GCM_CIPHER_SUITES)
             .build()
@@ -95,26 +93,8 @@ public final class SampleServiceClientTest {
     @Before
     public void before() {
         server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
-        baseUrl = UrlBuilder.https().host("localhost").port(server.getPort()).build();
-        Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
-        blockingClient = SampleServiceClient.blocking(channel, runtime);
-        asyncClient = SampleServiceClient.async(channel, runtime);
-    }
-
-    private HttpChannel createChannel(URL url, Duration timeout) {
-        SSLParameters sslConfig = new SSLParameters(
-                ALL_CIPHER_SUITES,
-                new String[] {"TLSv1.2"});
-        return HttpChannel.of(
-                // TODO(rfink): Read timeout
-                // TODO(rfink): Write timeout
-                HttpClient.newBuilder()
-                        .connectTimeout(timeout)
-                        .sslParameters(sslConfig)
-                        .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
-                        .build(),
-                url,
-                DefaultErrorDecoder.INSTANCE);
+        blockingClient = createBlockingClient(server.url("").url());
+        asyncClient = createAsyncClient(server.url("").url());
     }
 
     @Test
@@ -195,17 +175,16 @@ public final class SampleServiceClientTest {
 
     @Test
     public void testBlocking_throwsOnConnectError() throws Exception {
-        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofSeconds(1)), runtime);
         server.shutdown();
         assertThatThrownBy(() -> blockingClient.stringToString("", "", ""))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageStartingWith("java.net.ConnectException: Connection refused");
+                .hasCauseInstanceOf(ConnectException.class)
+                .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 
     @Ignore("TODO(rfink): Figure out how to inject read/write timeouts")
     @Test(timeout = 2_000)
     public void testBlocking_throwsOnTimeout() throws Exception {
-        blockingClient = SampleServiceClient.blocking(createChannel(baseUrl, Duration.ofMillis(500)), runtime);
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
                 .addHeader(Headers.CONTENT_TYPE, "application/json")
@@ -217,9 +196,10 @@ public final class SampleServiceClientTest {
 
     @Test
     public void testAsync_throwsOnConnectError() throws Exception {
-        asyncClient = SampleServiceClient.async(createChannel(baseUrl, Duration.ofMillis(10)), runtime);
         server.shutdown();
-
-        assertThatThrownBy(() -> asyncClient.voidToVoid().get()).hasMessageContaining("Connection refused");
+        assertThatThrownBy(() -> asyncClient.voidToVoid().get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(ConnectException.class)
+                .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 }
