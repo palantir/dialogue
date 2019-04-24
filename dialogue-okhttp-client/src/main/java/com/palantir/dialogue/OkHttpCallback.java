@@ -53,7 +53,6 @@ class OkHttpCallback implements Callback {
     public void onResponse(@Nonnull okhttp3.Call call, @Nonnull okhttp3.Response response) {
         try {
             if (response.isSuccessful()) {
-                // TODO(rfink): How are HEAD requests or change protocol responses handled?
                 observer.success(OkHttpResponse.wrap(response));
             } else {
                 observer.failure(errorDecoder.decode(OkHttpResponse.wrap(response)));

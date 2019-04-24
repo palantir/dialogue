@@ -67,7 +67,6 @@ public class OkHttpCallbackTest {
     public void testDelegatesSuccessfulResponse() throws Exception {
         callback.onResponse(mock(okhttp3.Call.class), okHttpResponse(200, "body"));
 
-        // Deserializer is invoked with request body.
         ArgumentCaptor<Response> response = ArgumentCaptor.forClass(Response.class);
         verify(observer).success(response.capture());
         assertThat(streamToString(response.getValue().body())).isEqualTo("body");

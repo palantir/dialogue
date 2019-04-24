@@ -50,7 +50,6 @@ final class HttpCallback implements FutureCallback<HttpResponse<InputStream>> {
     public void onSuccess(@Nullable HttpResponse<InputStream> result) {
         try {
             Response response = toResponse(result);
-            // TODO(rfink): How are HEAD requests or change protocol responses handled?
             if (isSuccessful(response.code())) {
                 observer.success(response);
             } else {
@@ -84,7 +83,6 @@ final class HttpCallback implements FutureCallback<HttpResponse<InputStream>> {
 
             @Override
             public Optional<String> contentType() {
-                // TODO(rfink): Header case sensitivity?
                 return response.headers().firstValue(Headers.CONTENT_TYPE);
             }
         };
