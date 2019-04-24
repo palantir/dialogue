@@ -35,12 +35,9 @@ public final class OkHttpChannel implements Channel {
 
     private final OkHttpClient client;
     private final UrlBuilder baseUrl;
-    private final OkHttpCallback.Factory callbackFactory;
+    private final ErrorDecoder errorDecoder;
 
-    private OkHttpChannel(
-            OkHttpClient client,
-            URL baseUrl,
-            OkHttpCallback.Factory callbackFactory) {
+    private OkHttpChannel(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
         this.client = client;
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
@@ -57,12 +54,12 @@ public final class OkHttpChannel implements Channel {
         if (!strippedBasePath.isEmpty()) {
             this.baseUrl.encodedPathSegments(strippedBasePath);
         }
-        this.callbackFactory = callbackFactory;
+        this.errorDecoder = errorDecoder;
     }
 
     /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
     public static OkHttpChannel of(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
-        return new OkHttpChannel(client, baseUrl, observer -> new OkHttpCallback(observer, errorDecoder));
+        return new OkHttpChannel(client, baseUrl, errorDecoder);
     }
 
     private RequestBody toOkHttpBody(com.palantir.dialogue.RequestBody body) {
@@ -123,7 +120,7 @@ public final class OkHttpChannel implements Channel {
             @Override
             public void execute(Observer observer) {
                 Preconditions.checkState(!okCall.isExecuted(), "Error, this call was already executed");
-                okCall.enqueue(callbackFactory.create(observer));
+                okCall.enqueue(new OkHttpCallback(observer, errorDecoder));
             }
 
             @Override

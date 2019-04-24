@@ -17,19 +17,15 @@
 package com.palantir.dialogue;
 
 import java.io.IOException;
-import java.io.InputStream;
 import javax.annotation.Nonnull;
 import okhttp3.Callback;
 
 /**
- * TODO(rfink): Update docs
- * <p>
- * An adapter between OkHttp {@link Callback}s and Dialogue {@link Observer}s for a given Dialogue {@link Endpoint}.
+ * An adapter between OkHttp {@link Callback}s and a Dialogue {@link Observer}.
  * <p>
  * A {@link okhttp3.Response#isSuccessful() successful} response is treated as follows: the response body is
- * deserialized into an object of type {@link Response} using the given {@link Deserializer
- * response deserializer} and the result is passed to {@link Observer#success}. An absent/null response body is passed
- * ot the deserializer as a null {@link InputStream}.
+ * deserialized into an object of type {@link Response} using the given {@link ErrorDecoder} and the result is passed to
+ * {@link Observer#success}.
  * <p>
  * A non-successful {@link okhttp3.Response}, i.e., one with {@code response.isSuccessful() == false}, is converted to
  * a {@link com.palantir.conjure.java.api.errors.RemoteException} using the given
@@ -37,8 +33,6 @@ import okhttp3.Callback;
  * <p>
  * Any other failure condition, e.g., OkHttp connection-level errors, deserialization errors, etc., are presented to
  * {@link Observer#exception}.
- * <p>
- * Implementations must be thread-safe.
  */
 class OkHttpCallback implements Callback {
 
@@ -50,15 +44,6 @@ class OkHttpCallback implements Callback {
         this.errorDecoder = errorDecoder;
     }
 
-    /**
-     * Supplies an {@link OkHttpCallback} instance for a given endpoint. Implementations may choose to not create new
-     * instances for every call and may, for example, supply cache instances by endpoint.
-     */
-    interface Factory {
-        // TODO(rfink): Remove this, it's not needed anymore
-        OkHttpCallback create(Observer observer);
-    }
-
     @Override
     public void onFailure(@Nonnull okhttp3.Call call, @Nonnull IOException error) {
         observer.exception(error);
@@ -67,12 +52,10 @@ class OkHttpCallback implements Callback {
     @Override
     public void onResponse(@Nonnull okhttp3.Call call, @Nonnull okhttp3.Response response) {
         try {
-            // TODO(rfink): 204 responses for Optional types [or aliases thereof] should yield Optional#absent
             if (response.isSuccessful()) {
                 // TODO(rfink): How are HEAD requests or change protocol responses handled?
                 observer.success(OkHttpResponse.wrap(response));
             } else {
-                // TODO(rfink): It's asymmetric that we deserialize errors here, but not payloads
                 observer.failure(errorDecoder.decode(OkHttpResponse.wrap(response)));
             }
         } catch (Throwable t) {

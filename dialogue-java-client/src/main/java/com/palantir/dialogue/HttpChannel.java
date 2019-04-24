@@ -17,7 +17,6 @@
 package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -33,9 +32,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class HttpChannel implements Channel {
 
@@ -116,30 +113,7 @@ public final class HttpChannel implements Channel {
                 Preconditions.checkState(response == null, "Error, this call was already executed");
                 response = executor.submit(() ->
                         client.send(httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream()));
-                Futures.addCallback(
-                        response,
-                        // TODO(rfink): Factor out, or at least harmoznie with OkHttpClient
-                        new FutureCallback<>() {
-                            @Override
-                            public void onSuccess(@Nullable HttpResponse<InputStream> result) {
-                                try {
-                                    Response response = toResponse(result);
-                                    if (isSuccessful(response.code())) {
-                                        observer.success(response);
-                                    } else {
-                                        observer.failure(errorDecoder.decode(response));
-                                    }
-                                } catch (Throwable t) {
-                                    observer.exception(t);
-                                }
-                            }
-
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                observer.exception(throwable);
-                            }
-                        },
-                        executor);
+                Futures.addCallback(response, new HttpCallback(observer, errorDecoder), executor);
             }
 
             @Override
@@ -147,30 +121,6 @@ public final class HttpChannel implements Channel {
                 if (response != null) {
                     response.cancel(true);
                 }
-            }
-        };
-    }
-
-    private boolean isSuccessful(int code) {
-        return code >= 200 && code < 300;
-    }
-
-    private static Response toResponse(HttpResponse<InputStream> response) {
-        return new Response() {
-            @Override
-            public InputStream body() {
-                return response.body();
-            }
-
-            @Override
-            public int code() {
-                return response.statusCode();
-            }
-
-            @Override
-            public Optional<String> contentType() {
-                // TODO(rfink): Header case sensitivity?
-                return response.headers().firstValue(Headers.CONTENT_TYPE);
             }
         };
     }
