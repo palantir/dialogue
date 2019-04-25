@@ -28,13 +28,17 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Exceptions;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.ri.ResourceIdentifier;
 import java.io.IOException;
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 
 // Example of the implementation code conjure would generate for a simple SampleService.
@@ -44,7 +48,7 @@ public final class SampleServiceClient {
 
     private static final Endpoint STRING_TO_STRING = new Endpoint() {
         private final PathTemplate pathTemplate = PathTemplate.builder()
-                .fixed("stringToString")
+                .fixed("objectToObject")
                 .fixed("objects")
                 .variable("objectId")
                 .build();
@@ -80,28 +84,31 @@ public final class SampleServiceClient {
     public static SampleService blocking(Channel channel, ConjureRuntime runtime) {
         return new SampleService() {
 
-            private Serializer<String> stringToStringSerializer =
-                    runtime.bodySerDe().serializer(new TypeMarker<String>() {});
-            private Deserializer<String> stringToStringDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+            private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
+                    runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
+            private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
             private Deserializer<Void> voidToVoidDeserializer = runtime.bodySerDe().emptyBodyDeserializer();
+            private PlainSerDe plainSerDe = runtime.plainSerDe();
 
             @Override
-            public String stringToString(String objectId, String header, String body) {
-                Preconditions.checkNotNull(objectId, "objectId parameter must not be null");
+            public SampleObject objectToObject(
+                    String path, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body) {
+                Preconditions.checkNotNull(path, "objectId parameter must not be null");
                 Preconditions.checkNotNull(header, "header parameter must not be null");
                 Preconditions.checkNotNull(body, "body parameter must not be null");
                 Request request = Request.builder()
-                        .putPathParams("objectId", objectId)
-                        .putHeaderParams("headerKey", header)
-                        .body(stringToStringSerializer.serialize(body))
+                        .putPathParams("objectId", plainSerDe.serializeString(path))
+                        .putHeaderParams("headerKey", plainSerDe.serializeDateTime(header))
+                        .putAllQueryParams("queryKey", plainSerDe.serializeRidList(query))
+                        .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
                 Call call = channel.createCall(STRING_TO_STRING, request);
                 ListenableFuture<Response> response = Calls.toFuture(call);
                 try {
                     // TODO(rfink): Figure out how to inject read/write timeouts
-                    return stringToStringDeserializer.deserialize(response.get());
+                    return sampleObjectToSampleObjectDeserializer.deserialize(response.get());
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -129,21 +136,27 @@ public final class SampleServiceClient {
     public static AsyncSampleService async(Channel channel, ConjureRuntime runtime) {
         return new AsyncSampleService() {
 
-            private Serializer<String> stringToStringSerializer =
-                    runtime.bodySerDe().serializer(new TypeMarker<String>() {});
-            private Deserializer<String> stringToStringDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+            private Serializer<SampleService.SampleObject> sampleObjectToSampleObjectSerializer =
+                    runtime.bodySerDe().serializer(new TypeMarker<SampleService.SampleObject>() {});
+            private Deserializer<SampleService.SampleObject> sampleObjectToSampleObjectDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<SampleService.SampleObject>() {});
             private Deserializer<Void> voidToVoidDeserializer = runtime.bodySerDe().emptyBodyDeserializer();
+            private PlainSerDe plainSerDe = runtime.plainSerDe();
 
             @Override
-            public ListenableFuture<String> stringToString(String objectId, String header, String body) {
+            public ListenableFuture<SampleService.SampleObject> stringToString(
+                    String objectId,
+                    OffsetDateTime header,
+                    List<ResourceIdentifier> query,
+                    SampleService.SampleObject body) {
                 Preconditions.checkNotNull(objectId, "objectId parameter must not be null");
                 Preconditions.checkNotNull(header, "header parameter must not be null");
                 Preconditions.checkNotNull(body, "body parameter must not be null");
                 Request request = Request.builder()
-                        .putPathParams("objectId", objectId)
-                        .putHeaderParams("headerKey", header)
-                        .body(stringToStringSerializer.serialize(body))
+                        .putPathParams("objectId", plainSerDe.serializeString(objectId))
+                        .putHeaderParams("headerKey", plainSerDe.serializeDateTime(header))
+                        .putAllQueryParams("queryKey", plainSerDe.serializeRidList(query))
+                        .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
                 Call call = channel.createCall(STRING_TO_STRING, request);
@@ -152,7 +165,7 @@ public final class SampleServiceClient {
                         response -> {
                             try {
                                 // TODO(rfink): The try/catch is a bit odd here.
-                                return stringToStringDeserializer.deserialize(response);
+                                return sampleObjectToSampleObjectDeserializer.deserialize(response);
                             } catch (IOException e) {
                                 throw new RuntimeException("Failed to deserialize response", e);
                             }

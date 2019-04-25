@@ -18,6 +18,7 @@ org.assertj:assertj-core = 3.12.2
 org.hamcrest:hamcrest-core = 2.1
 org.mockito:mockito-core = 2.27.0
 javax.ws.rs:javax.ws.rs-api = 2.0
+org.apache.commons:commons-lang3 = 3.9
 
 # conflicts
 com.google.errorprone:* = 2.3.3

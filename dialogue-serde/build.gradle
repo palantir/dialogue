@@ -12,4 +12,5 @@ dependencies {
     testCompile 'org.immutables:value::annotations'
     testCompile 'org.mockito:mockito-core'
     testCompile 'com.palantir.safe-logging:preconditions-assertj'
+    testCompile 'org.apache.commons:commons-lang3'
 }
