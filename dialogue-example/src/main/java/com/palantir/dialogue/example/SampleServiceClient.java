@@ -77,6 +77,7 @@ public final class SampleServiceClient {
     };
 
     /** Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel. */
+    // TODO(rfink): Consider using a builder pattern to construct clients
     public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration readTimeout) {
         return new SampleService() {
 
@@ -131,6 +132,7 @@ public final class SampleServiceClient {
      * Returns a new asynchronous {@link AsyncSampleService} implementation whose calls are executed on the given
      * channel.
      */
+    // TODO(rfink): Consider using a builder pattern to construct clients
     public static AsyncSampleService async(Channel channel, ConjureRuntime runtime) {
         return new AsyncSampleService() {
 
