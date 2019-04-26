@@ -76,9 +76,13 @@ public final class SampleServiceClient {
         }
     };
 
-    /** Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel. */
+    /**
+     * Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel.
+     * The {@code callTimeout} parameters indicates the maximum end-to-end life time for the blocking methods in this
+     * service. An exception is thrown when this duration is exceeded.
+     */
     // TODO(rfink): Consider using a builder pattern to construct clients
-    public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration readTimeout) {
+    public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration callTimeout) {
         return new SampleService() {
 
             private Serializer<String> stringToStringSerializer =
@@ -104,7 +108,7 @@ public final class SampleServiceClient {
                         r -> stringToStringDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
                 try {
-                    return response.get(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    return response.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -120,7 +124,7 @@ public final class SampleServiceClient {
                         r -> voidToVoidDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
                 try {
-                    deserializedResponse.get(readTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    deserializedResponse.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
