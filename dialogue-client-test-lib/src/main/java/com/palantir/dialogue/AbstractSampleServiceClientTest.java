@@ -25,6 +25,7 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.example.AsyncSampleService;
+import com.palantir.dialogue.example.SampleObject;
 import com.palantir.dialogue.example.SampleService;
 import com.palantir.ri.ResourceIdentifier;
 import java.net.ConnectException;
@@ -51,9 +52,9 @@ public abstract class AbstractSampleServiceClientTest {
     private static final ImmutableList<ResourceIdentifier> QUERY = ImmutableList.of(
             ResourceIdentifier.of("ri.a.b.c.d"),
             ResourceIdentifier.of("ri.a.b.c.e"));
-    private static final SampleService.SampleObject BODY = new SampleService.SampleObject(42);
+    private static final SampleObject BODY = new SampleObject(42);
     private static final String BODY_STRING = "{\"intProperty\":42}";
-    private static final SampleService.SampleObject RESPONSE = new SampleService.SampleObject(84);
+    private static final SampleObject RESPONSE = new SampleObject(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
 
     abstract SampleService createBlockingClient(URL baseUrl);

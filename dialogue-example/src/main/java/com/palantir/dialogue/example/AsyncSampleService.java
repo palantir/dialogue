@@ -23,7 +23,7 @@ import java.util.List;
 
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface AsyncSampleService {
-    ListenableFuture<SampleService.SampleObject> stringToString(
-            String objectId, OffsetDateTime header, List<ResourceIdentifier> query, SampleService.SampleObject body);
+    ListenableFuture<SampleObject> stringToString(
+            String objectId, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body);
     ListenableFuture<Void> voidToVoid();
 }

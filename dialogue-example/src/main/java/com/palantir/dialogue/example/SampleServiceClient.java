@@ -136,19 +136,19 @@ public final class SampleServiceClient {
     public static AsyncSampleService async(Channel channel, ConjureRuntime runtime) {
         return new AsyncSampleService() {
 
-            private Serializer<SampleService.SampleObject> sampleObjectToSampleObjectSerializer =
-                    runtime.bodySerDe().serializer(new TypeMarker<SampleService.SampleObject>() {});
-            private Deserializer<SampleService.SampleObject> sampleObjectToSampleObjectDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<SampleService.SampleObject>() {});
+            private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
+                    runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
+            private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
             private Deserializer<Void> voidToVoidDeserializer = runtime.bodySerDe().emptyBodyDeserializer();
             private PlainSerDe plainSerDe = runtime.plainSerDe();
 
             @Override
-            public ListenableFuture<SampleService.SampleObject> stringToString(
+            public ListenableFuture<SampleObject> stringToString(
                     String objectId,
                     OffsetDateTime header,
                     List<ResourceIdentifier> query,
-                    SampleService.SampleObject body) {
+                    SampleObject body) {
                 Preconditions.checkNotNull(objectId, "objectId parameter must not be null");
                 Preconditions.checkNotNull(header, "header parameter must not be null");
                 Preconditions.checkNotNull(body, "body parameter must not be null");
