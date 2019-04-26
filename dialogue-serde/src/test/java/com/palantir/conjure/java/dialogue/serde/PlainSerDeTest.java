@@ -16,25 +16,21 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import static com.palantir.logsafe.testing.Assertions.assertThatLoggableExceptionThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.PlainSerDe;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.ri.ResourceIdentifier;
 import com.palantir.tokens.auth.BearerToken;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.UUID;
-import java.util.function.Function;
+import org.apache.commons.lang3.tuple.Pair;
 import org.junit.Test;
 
 public final class PlainSerDeTest {
@@ -42,107 +38,98 @@ public final class PlainSerDeTest {
     private static final PlainSerDe PLAIN = ConjurePlainSerDe.INSTANCE;
 
     @Test
-    public void testDeserializeBearerToken() throws Exception {
-        runDeserializerTest("BearerToken", "token", BearerToken.valueOf("token"));
+    public void testSerializeBearerToken() {
+        BearerToken in = BearerToken.valueOf("token");
+        String out = "token";
+        assertThat(PLAIN.serializeBearerToken(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalBearerToken(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeBearerTokenList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeBearerTokenSet(ImmutableSet.of(in))).containsExactly(out);
     }
 
     @Test
-    public void testDeserializeBoolean() throws Exception {
-        runDeserializerTest("Boolean", "true", true);
+    public void testSerializeBoolean() {
+        for (Pair<Boolean, String> inOut : Arrays.asList(Pair.of(true, "true"), Pair.of(false, "false"))) {
+            boolean in = inOut.getLeft();
+            String out = inOut.getRight();
+            assertThat(PLAIN.serializeBoolean(in)).isEqualTo(out);
+            assertThat(PLAIN.serializeOptionalBoolean(Optional.of(in))).isEqualTo(Optional.of(out));
+            assertThat(PLAIN.serializeBooleanList(ImmutableList.of(in))).containsExactly(out);
+            assertThat(PLAIN.serializeBooleanSet(ImmutableSet.of(in))).containsExactly(out);
+        }
     }
 
     @Test
-    public void testDeserializeDateTime() throws Exception {
-        runDeserializerTest("DateTime", "2018-07-19T08:11:21+00:00", OffsetDateTime.parse("2018-07-19T08:11:21+00:00"));
+    public void testSerializeDateTime() {
+        OffsetDateTime in = OffsetDateTime.parse("2018-07-19T08:11:21+00:00");
+        String out = "2018-07-19T08:11:21Z";
+        assertThat(PLAIN.serializeDateTime(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalDateTime(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeDateTimeList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeDateTimeSet(ImmutableSet.of(in))).containsExactly(out);
     }
 
     @Test
-    public void testDeserializeDouble() throws Exception {
-        runDeserializerTest("Double", "1.234", 1.234, OptionalDouble::of);
+    public void testSerializeDouble() {
+        for (Pair<Double, String> inOut : Arrays.asList(Pair.of(1.234, "1.234"), Pair.of(1.2340, "1.234"))) {
+            double in = inOut.getLeft();
+            String out = inOut.getRight();
+            assertThat(PLAIN.serializeDouble(in)).isEqualTo(out);
+            assertThat(PLAIN.serializeOptionalDouble(OptionalDouble.of(in))).isEqualTo(Optional.of(out));
+            assertThat(PLAIN.serializeDoubleList(ImmutableList.of(in))).containsExactly(out);
+            assertThat(PLAIN.serializeDoubleSet(ImmutableSet.of(in))).containsExactly(out);
+        }
     }
 
     @Test
-    public void testDeserializeInteger() throws Exception {
-        runDeserializerTest("Integer", "13", 13, OptionalInt::of);
+    public void testSerializeInteger() {
+        for (Pair<Integer, String> inOut : Arrays.asList(Pair.of(42, "42"), Pair.of(-42, "-42"))) {
+            int in = inOut.getLeft();
+            String out = inOut.getRight();
+            assertThat(PLAIN.serializeInteger(in)).isEqualTo(out);
+            assertThat(PLAIN.serializeOptionalInteger(OptionalInt.of(in))).isEqualTo(Optional.of(out));
+            assertThat(PLAIN.serializeIntegerList(ImmutableList.of(in))).containsExactly(out);
+            assertThat(PLAIN.serializeIntegerSet(ImmutableSet.of(in))).containsExactly(out);
+        }
     }
 
     @Test
-    public void testDeserializeRid() throws Exception {
-        runDeserializerTest("Rid", "ri.service.instance.folder.foo",
-                ResourceIdentifier.of("ri.service.instance.folder.foo"));
+    public void testSerializeRid() {
+        ResourceIdentifier in = ResourceIdentifier.of("ri.service.instance.folder.foo");
+        String out = "ri.service.instance.folder.foo";
+        assertThat(PLAIN.serializeRid(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalRid(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeRidList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeRidSet(ImmutableSet.of(in))).containsExactly(out);
     }
 
     @Test
-    public void testDeserializeSafeLong() throws Exception {
-        runDeserializerTest("SafeLong", "9007199254740990", SafeLong.of(9007199254740990L));
+    public void testSerializeSafeLong() {
+        SafeLong in = SafeLong.of(9007199254740990L);
+        String out = "9007199254740990";
+        assertThat(PLAIN.serializeSafeLong(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalSafeLong(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeSafeLongList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeSafeLongSet(ImmutableSet.of(in))).containsExactly(out);
     }
 
     @Test
-    public void testDeserializeString() throws Exception {
-        runDeserializerTest("String", "hello, world!", "hello, world!");
+    public void testSerializeString() {
+        String in = "hello world!";
+        String out = "hello world!";
+        assertThat(PLAIN.serializeString(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalString(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeStringList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeStringSet(ImmutableSet.of(in))).containsExactly(out);
     }
 
     @Test
-    public void testDeserializeUuid() throws Exception {
-        runDeserializerTest("Uuid", "90a8481a-2ef5-4c64-83fc-04a9b369e2b8",
-                UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8"));
+    public void testSerializeUuid() {
+        UUID in = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
+        String out = "90a8481a-2ef5-4c64-83fc-04a9b369e2b8";
+        assertThat(PLAIN.serializeUuid(in)).isEqualTo(out);
+        assertThat(PLAIN.serializeOptionalUuid(Optional.of(in))).isEqualTo(Optional.of(out));
+        assertThat(PLAIN.serializeUuidList(ImmutableList.of(in))).containsExactly(out);
+        assertThat(PLAIN.serializeUuidSet(ImmutableSet.of(in))).containsExactly(out);
     }
-
-    @Test
-    public void testBearerTokensNotIncludedInThrowable() {
-        assertThatLoggableExceptionThrownBy(() ->
-                PLAIN.deserializeBearerToken(ImmutableList.of("one", "two", "three")))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasLogMessage("Expected one element")
-                .hasExactlyArgs(SafeArg.of("size", 3));
-    }
-
-    @Test
-    public void testValuesAreLoggedUnsafe() {
-        assertThatLoggableExceptionThrownBy(() ->
-                PLAIN.deserializeString(ImmutableList.of("one", "two", "three")))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasLogMessage("Expected one element")
-                .hasExactlyArgs(SafeArg.of("size", 3),
-                        UnsafeArg.of("received", ImmutableList.of("one", "two", "three")));
-    }
-
-    private static <T> void runDeserializerTest(String typeName, String plainIn, T want) throws Exception {
-        runDeserializerTest(typeName, plainIn, want, Optional::of);
-    }
-
-    private static <T> void runDeserializerTest(String typeName, String plainIn, T want,
-            Function<T, Object> createOptional) throws Exception {
-        assertThat(PlainSerDe.class.getMethod("deserialize" + typeName, String.class)
-                .invoke(PLAIN, plainIn)).isEqualTo(want);
-
-        assertThatLoggableExceptionThrownBy(() -> {
-            try {
-                PlainSerDe.class.getMethod("deserialize" + typeName, String.class)
-                        .invoke(PLAIN, new Object[] {null});
-            } catch (InvocationTargetException ite) {
-                throw ite.getCause();
-            }
-        })
-                .describedAs("invoking a string emptyBodyDeserializer with null should result in an IAE")
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasLogMessage("Value is required");
-
-        assertThat(PlainSerDe.class.getMethod("deserialize" + typeName, Iterable.class)
-                .invoke(PLAIN, ImmutableList.of(plainIn))).isEqualTo(want);
-
-        Method optionalStringDeserializer = PlainSerDe.class.getMethod("deserializeOptional" + typeName, String.class);
-        assertThat(optionalStringDeserializer.invoke(PLAIN, plainIn)).isEqualTo(createOptional.apply(want));
-
-        assertThat(optionalStringDeserializer.invoke(PLAIN, new Object[] { null }))
-                .isEqualTo(createEmptyOptional(optionalStringDeserializer));
-
-        assertThat(PlainSerDe.class.getMethod("deserializeOptional" + typeName, Iterable.class)
-                .invoke(PLAIN, ImmutableList.of(plainIn))).isEqualTo(createOptional.apply(want));
-    }
-
-    private static Object createEmptyOptional(Method deserializerMethod) throws ReflectiveOperationException {
-        return deserializerMethod.getReturnType().getDeclaredMethod("empty").invoke(null);
-    }
-
 }

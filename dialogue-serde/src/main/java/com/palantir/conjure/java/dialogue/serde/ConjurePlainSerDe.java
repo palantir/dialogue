@@ -16,20 +16,13 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.PlainSerDe;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.ri.ResourceIdentifier;
 import com.palantir.tokens.auth.BearerToken;
 import java.time.OffsetDateTime;
-import java.util.Collections;
-import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -37,565 +30,196 @@ import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 
 /** Package private internal API. */
 enum ConjurePlainSerDe implements PlainSerDe {
     INSTANCE;
 
     @Override
-    public BearerToken deserializeBearerToken(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return BearerToken.valueOf(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize bearertoken", ex);
-        }
+    public String serializeBearerToken(BearerToken in) {
+        return in.toString();
     }
 
     @Override
-    public BearerToken deserializeBearerToken(@Nullable Iterable<String> in) {
-        // BearerToken values should never be logged
-        return deserializeBearerToken(getOnlyElementDoNotLogValues(in));
+    public Optional<String> serializeOptionalBearerToken(Optional<BearerToken> in) {
+        return in.map(this::serializeBearerToken);
     }
 
     @Override
-    public Optional<BearerToken> deserializeOptionalBearerToken(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeBearerToken(in));
+    public List<String> serializeBearerTokenList(List<BearerToken> in) {
+        return toList(in, this::serializeBearerToken);
     }
 
     @Override
-    public Optional<BearerToken> deserializeOptionalBearerToken(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        // BearerToken values should never be logged
-        return Optional.of(deserializeBearerToken(getOnlyElementDoNotLogValues(in)));
+    public List<String> serializeBearerTokenSet(Set<BearerToken> in) {
+        return toList(in, this::serializeBearerToken);
     }
 
     @Override
-    public List<BearerToken> deserializeBearerTokenList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<BearerToken> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeBearerToken(item));
-        }
-        return builder.build();
+    public String serializeBoolean(boolean in) {
+        return in ? "true" : "false";
     }
 
     @Override
-    public Set<BearerToken> deserializeBearerTokenSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<BearerToken> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeBearerToken(item));
-        }
-        return builder.build();
+    public Optional<String> serializeOptionalBoolean(Optional<Boolean> in) {
+        return in.map(this::serializeBoolean);
     }
 
     @Override
-    public boolean deserializeBoolean(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return Boolean.parseBoolean(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize boolean", ex);
-        }
+    public List<String> serializeBooleanList(List<Boolean> in) {
+        return toList(in, this::serializeBoolean);
     }
 
     @Override
-    public boolean deserializeBoolean(@Nullable Iterable<String> in) {
-        return deserializeBoolean(getOnlyElement(in));
+    public List<String> serializeBooleanSet(Set<Boolean> in) {
+        return toList(in, this::serializeBoolean);
     }
 
     @Override
-    public Optional<Boolean> deserializeOptionalBoolean(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeBoolean(in));
+    public String serializeDateTime(OffsetDateTime in) {
+        return in.toString();
     }
 
     @Override
-    public Optional<Boolean> deserializeOptionalBoolean(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeBoolean(getOnlyElement(in)));
+    public Optional<String> serializeOptionalDateTime(Optional<OffsetDateTime> in) {
+        return in.map(this::serializeDateTime);
     }
 
     @Override
-    public List<Boolean> deserializeBooleanList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<Boolean> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeBoolean(item));
-        }
-        return builder.build();
+    public List<String> serializeDateTimeList(List<OffsetDateTime> in) {
+        return toList(in, this::serializeDateTime);
     }
 
     @Override
-    public Set<Boolean> deserializeBooleanSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<Boolean> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeBoolean(item));
-        }
-        return builder.build();
+    public List<String> serializeDateTimeSet(Set<OffsetDateTime> in) {
+        return toList(in, this::serializeDateTime);
     }
 
     @Override
-    public OffsetDateTime deserializeDateTime(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return OffsetDateTime.parse(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize datetime", ex);
-        }
+    public String serializeDouble(double in) {
+        return Double.toString(in);
     }
 
     @Override
-    public OffsetDateTime deserializeDateTime(@Nullable Iterable<String> in) {
-        return deserializeDateTime(getOnlyElement(in));
+    public Optional<String> serializeOptionalDouble(OptionalDouble in) {
+        return in.isPresent() ? Optional.of(serializeDouble(in.getAsDouble())) : Optional.empty();
     }
 
     @Override
-    public Optional<OffsetDateTime> deserializeOptionalDateTime(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeDateTime(in));
+    public List<String> serializeDoubleList(List<Double> in) {
+        return toList(in, this::serializeDouble);
     }
 
     @Override
-    public Optional<OffsetDateTime> deserializeOptionalDateTime(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeDateTime(getOnlyElement(in)));
+    public List<String> serializeDoubleSet(Set<Double> in) {
+        return toList(in, this::serializeDouble);
     }
 
     @Override
-    public List<OffsetDateTime> deserializeDateTimeList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<OffsetDateTime> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeDateTime(item));
-        }
-        return builder.build();
+    public String serializeInteger(int in) {
+        return Integer.toString(in);
     }
 
     @Override
-    public Set<OffsetDateTime> deserializeDateTimeSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<OffsetDateTime> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeDateTime(item));
-        }
-        return builder.build();
+    public Optional<String> serializeOptionalInteger(OptionalInt in) {
+        return in.isPresent() ? Optional.of(serializeInteger(in.getAsInt())) : Optional.empty();
     }
 
     @Override
-    public double deserializeDouble(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return Double.parseDouble(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize double", ex);
-        }
+    public List<String> serializeIntegerList(List<Integer> in) {
+        return toList(in, this::serializeInteger);
     }
 
     @Override
-    public double deserializeDouble(@Nullable Iterable<String> in) {
-        return deserializeDouble(getOnlyElement(in));
+    public List<String> serializeIntegerSet(Set<Integer> in) {
+        return toList(in, this::serializeInteger);
     }
 
     @Override
-    public OptionalDouble deserializeOptionalDouble(@Nullable String in) {
-        if (in == null) {
-            return OptionalDouble.empty();
-        }
-        return OptionalDouble.of(deserializeDouble(in));
+    public String serializeRid(ResourceIdentifier in) {
+        return in.toString();
     }
 
     @Override
-    public OptionalDouble deserializeOptionalDouble(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return OptionalDouble.empty();
-        }
-        return OptionalDouble.of(deserializeDouble(getOnlyElement(in)));
+    public Optional<String> serializeOptionalRid(Optional<ResourceIdentifier> in) {
+        return in.map(this::serializeRid);
     }
 
     @Override
-    public List<Double> deserializeDoubleList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<Double> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeDouble(item));
-        }
-        return builder.build();
+    public List<String> serializeRidList(List<ResourceIdentifier> in) {
+        return toList(in, this::serializeRid);
     }
 
     @Override
-    public Set<Double> deserializeDoubleSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<Double> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeDouble(item));
-        }
-        return builder.build();
+    public List<String> serializeRidSet(Set<ResourceIdentifier> in) {
+        return toList(in, this::serializeRid);
     }
 
     @Override
-    public int deserializeInteger(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return Integer.parseInt(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize integer", ex);
-        }
+    public String serializeSafeLong(SafeLong in) {
+        return in.toString();
     }
 
     @Override
-    public int deserializeInteger(@Nullable Iterable<String> in) {
-        return deserializeInteger(getOnlyElement(in));
+    public Optional<String> serializeOptionalSafeLong(Optional<SafeLong> in) {
+        return in.map(this::serializeSafeLong);
     }
 
     @Override
-    public OptionalInt deserializeOptionalInteger(@Nullable String in) {
-        if (in == null) {
-            return OptionalInt.empty();
-        }
-        return OptionalInt.of(deserializeInteger(in));
+    public List<String> serializeSafeLongList(List<SafeLong> in) {
+        return toList(in, this::serializeSafeLong);
     }
 
     @Override
-    public OptionalInt deserializeOptionalInteger(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return OptionalInt.empty();
-        }
-        return OptionalInt.of(deserializeInteger(getOnlyElement(in)));
+    public List<String> serializeSafeLongSet(Set<SafeLong> in) {
+        return toList(in, this::serializeSafeLong);
     }
 
     @Override
-    public List<Integer> deserializeIntegerList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeInteger(item));
-        }
-        return builder.build();
+    public String serializeString(String in) {
+        return in;
     }
 
     @Override
-    public Set<Integer> deserializeIntegerSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<Integer> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeInteger(item));
-        }
-        return builder.build();
+    public Optional<String> serializeOptionalString(Optional<String> in) {
+        return in;
     }
 
     @Override
-    public ResourceIdentifier deserializeRid(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return ResourceIdentifier.valueOf(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize rid", ex);
-        }
+    public List<String> serializeStringList(List<String> in) {
+        return in;
     }
 
     @Override
-    public ResourceIdentifier deserializeRid(@Nullable Iterable<String> in) {
-        return deserializeRid(getOnlyElement(in));
+    public List<String> serializeStringSet(Set<String> in) {
+        return new ArrayList<>(in);
     }
 
     @Override
-    public Optional<ResourceIdentifier> deserializeOptionalRid(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeRid(in));
+    public String serializeUuid(UUID in) {
+        return in.toString();
     }
 
     @Override
-    public Optional<ResourceIdentifier> deserializeOptionalRid(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeRid(getOnlyElement(in)));
+    public Optional<String> serializeOptionalUuid(Optional<UUID> in) {
+        return in.map(this::serializeUuid);
     }
 
     @Override
-    public List<ResourceIdentifier> deserializeRidList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<ResourceIdentifier> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeRid(item));
-        }
-        return builder.build();
+    public List<String> serializeUuidList(List<UUID> in) {
+        return toList(in, this::serializeUuid);
     }
 
     @Override
-    public Set<ResourceIdentifier> deserializeRidSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<ResourceIdentifier> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeRid(item));
-        }
-        return builder.build();
+    public List<String> serializeUuidSet(Set<UUID> in) {
+        return toList(in, this::serializeUuid);
     }
 
-    @Override
-    public SafeLong deserializeSafeLong(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return SafeLong.valueOf(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize safelong", ex);
+    private static <T> List<String> toList(Collection<T> in, Function<T, String> toString) {
+        List<String> out = new ArrayList<>(in.size());
+        for (T i : in) {
+            out.add(toString.apply(i));
         }
-    }
-
-    @Override
-    public SafeLong deserializeSafeLong(@Nullable Iterable<String> in) {
-        return deserializeSafeLong(getOnlyElement(in));
-    }
-
-    @Override
-    public Optional<SafeLong> deserializeOptionalSafeLong(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeSafeLong(in));
-    }
-
-    @Override
-    public Optional<SafeLong> deserializeOptionalSafeLong(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeSafeLong(getOnlyElement(in)));
-    }
-
-    @Override
-    public List<SafeLong> deserializeSafeLongList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<SafeLong> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeSafeLong(item));
-        }
-        return builder.build();
-    }
-
-    @Override
-    public Set<SafeLong> deserializeSafeLongSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<SafeLong> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeSafeLong(item));
-        }
-        return builder.build();
-    }
-
-    @Override
-    public String deserializeString(@Nullable String in) {
-        return checkArgumentNotNull(in);
-    }
-
-    @Override
-    public String deserializeString(@Nullable Iterable<String> in) {
-        return deserializeString(getOnlyElement(in));
-    }
-
-    @Override
-    public Optional<String> deserializeOptionalString(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeString(in));
-    }
-
-    @Override
-    public Optional<String> deserializeOptionalString(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeString(getOnlyElement(in)));
-    }
-
-    @Override
-    public List<String> deserializeStringList(@Nullable Iterable<String> in) {
-        return in == null ? Collections.emptyList() : ImmutableList.copyOf(in);
-    }
-
-    @Override
-    public Set<String> deserializeStringSet(@Nullable Iterable<String> in) {
-        return in == null ? Collections.emptySet() : ImmutableSet.copyOf(in);
-    }
-
-    @Override
-    public UUID deserializeUuid(@Nullable String in) {
-        checkArgumentNotNull(in);
-        try {
-            return UUID.fromString(in);
-        } catch (RuntimeException ex) {
-            throw new SafeIllegalArgumentException("failed to deserialize uuid", ex);
-        }
-    }
-
-    @Override
-    public UUID deserializeUuid(@Nullable Iterable<String> in) {
-        return deserializeUuid(getOnlyElement(in));
-    }
-
-    @Override
-    public Optional<UUID> deserializeOptionalUuid(@Nullable String in) {
-        if (in == null) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeUuid(in));
-    }
-
-    @Override
-    public Optional<UUID> deserializeOptionalUuid(@Nullable Iterable<String> in) {
-        if (in == null || Iterables.isEmpty(in)) {
-            return Optional.empty();
-        }
-        return Optional.of(deserializeUuid(getOnlyElement(in)));
-    }
-
-    @Override
-    public List<UUID> deserializeUuidList(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<UUID> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeUuid(item));
-        }
-        return builder.build();
-    }
-
-    @Override
-    public Set<UUID> deserializeUuidSet(@Nullable Iterable<String> in) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<UUID> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeUuid(item));
-        }
-        return builder.build();
-    }
-
-    @Override
-    public <T> T deserializeComplex(@Nullable String in, Function<String, T> factory) {
-        return factory.apply(deserializeString(checkArgumentNotNull(in)));
-    }
-
-    @Override
-    public <T> T deserializeComplex(@Nullable Iterable<String> in, Function<String, T> factory) {
-        return factory.apply(deserializeString(in));
-    }
-
-    @Override
-    public <T> Optional<T> deserializeOptionalComplex(
-            @Nullable Iterable<String> in, Function<String, T> factory) {
-        return deserializeOptionalString(in).map(factory);
-    }
-
-    @Override
-    public <T> List<T> deserializeComplexList(@Nullable Iterable<String> in, Function<String, T> factory) {
-        if (in == null) {
-            return Collections.emptyList();
-        }
-        ImmutableList.Builder<T> builder = ImmutableList.builder();
-        for (String item : in) {
-            builder.add(deserializeComplex(item, factory));
-        }
-        return builder.build();
-    }
-
-    @Override
-    public <T> Set<T> deserializeComplexSet(@Nullable Iterable<String> in, Function<String, T> factory) {
-        if (in == null) {
-            return Collections.emptySet();
-        }
-        ImmutableSet.Builder<T> builder = ImmutableSet.builder();
-        for (String item : in) {
-            builder.add(deserializeComplex(item, factory));
-        }
-        return builder.build();
-    }
-
-    private static <T> T getOnlyElement(@Nullable Iterable<T> input) {
-        return getOnlyElementInternal(input, true);
-    }
-
-    private static <T> T getOnlyElementDoNotLogValues(@Nullable Iterable<T> input) {
-        return getOnlyElementInternal(input, false);
-    }
-
-    private static <T> T getOnlyElementInternal(@Nullable Iterable<T> input, boolean includeValues) {
-        if (input == null) {
-            throw new SafeIllegalArgumentException("Expected one element but received null");
-        }
-        Iterator<T> iterator = input.iterator();
-        if (!iterator.hasNext()) {
-            throw new SafeIllegalArgumentException("Expected one element but received none");
-        }
-        T first = iterator.next();
-        if (!iterator.hasNext()) {
-            return first;
-        }
-        int size = Iterables.size(input);
-        if (includeValues) {
-            throw new SafeIllegalArgumentException("Expected one element",
-                    SafeArg.of("size", size), UnsafeArg.of("received", input));
-        } else {
-            throw new SafeIllegalArgumentException("Expected one element", SafeArg.of("size", size));
-        }
-    }
-
-    /** Throws a SafeIllegalArgumentException rather than NPE in order to cause a 400 response. */
-    @CanIgnoreReturnValue
-    private static <T> T checkArgumentNotNull(@Nullable T input) {
-        if (input == null) {
-            throw new SafeIllegalArgumentException("Value is required");
-        }
-        return input;
+        return out;
     }
 }

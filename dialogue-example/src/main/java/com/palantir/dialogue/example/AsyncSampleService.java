@@ -17,9 +17,13 @@
 package com.palantir.dialogue.example;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.ri.ResourceIdentifier;
+import java.time.OffsetDateTime;
+import java.util.List;
 
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface AsyncSampleService {
-    ListenableFuture<String> stringToString(String objectId, String header, String body);
+    ListenableFuture<SampleObject> stringToString(
+            String objectId, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body);
     ListenableFuture<Void> voidToVoid();
 }

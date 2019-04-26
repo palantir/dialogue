@@ -26,135 +26,84 @@ import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
-import javax.annotation.Nullable;
 
 /**
- * Provides functionality to parse supported types using the
+ * Provides functionality for serializing supported types using the
  * <a href="https://palantir.github.io/conjure/#/docs/spec/wire?id=_6-plain-format">Conjure PLAIN format</a>.
- *
- * These utilities are used to parse HTTP path, query, and header parameter values.
+ * <p>
+ * These utilities are used to serialize HTTP path, query, and header parameter values.
  */
 public interface PlainSerDe {
 
-    // TODO(ckozak): Write javadoc
+    String serializeBearerToken(BearerToken in);
 
-    BearerToken deserializeBearerToken(@Nullable String in);
+    Optional<String> serializeOptionalBearerToken(Optional<BearerToken> in);
 
-    BearerToken deserializeBearerToken(@Nullable Iterable<String> in);
+    List<String> serializeBearerTokenList(List<BearerToken> in);
 
-    Optional<BearerToken> deserializeOptionalBearerToken(@Nullable String in);
+    List<String> serializeBearerTokenSet(Set<BearerToken> in);
 
-    Optional<BearerToken> deserializeOptionalBearerToken(@Nullable Iterable<String> in);
+    String serializeBoolean(boolean in);
 
-    List<BearerToken> deserializeBearerTokenList(@Nullable Iterable<String> in);
+    Optional<String> serializeOptionalBoolean(Optional<Boolean> in);
 
-    Set<BearerToken> deserializeBearerTokenSet(@Nullable Iterable<String> in);
+    List<String> serializeBooleanList(List<Boolean> in);
 
-    boolean deserializeBoolean(@Nullable String in);
+    List<String> serializeBooleanSet(Set<Boolean> in);
 
-    boolean deserializeBoolean(@Nullable Iterable<String> in);
+    String serializeDateTime(OffsetDateTime in);
 
-    Optional<Boolean> deserializeOptionalBoolean(@Nullable String in);
+    Optional<String> serializeOptionalDateTime(Optional<OffsetDateTime> in);
 
-    Optional<Boolean> deserializeOptionalBoolean(@Nullable Iterable<String> in);
+    List<String> serializeDateTimeList(List<OffsetDateTime> in);
 
-    List<Boolean> deserializeBooleanList(@Nullable Iterable<String> in);
+    List<String> serializeDateTimeSet(Set<OffsetDateTime> in);
 
-    Set<Boolean> deserializeBooleanSet(@Nullable Iterable<String> in);
+    String serializeDouble(double in);
 
-    OffsetDateTime deserializeDateTime(@Nullable String in);
+    Optional<String> serializeOptionalDouble(OptionalDouble in);
 
-    OffsetDateTime deserializeDateTime(@Nullable Iterable<String> in);
+    List<String> serializeDoubleList(List<Double> in);
 
-    Optional<OffsetDateTime> deserializeOptionalDateTime(@Nullable String in);
+    List<String> serializeDoubleSet(Set<Double> in);
 
-    Optional<OffsetDateTime> deserializeOptionalDateTime(@Nullable Iterable<String> in);
+    String serializeInteger(int in);
 
-    List<OffsetDateTime> deserializeDateTimeList(@Nullable Iterable<String> in);
+    Optional<String> serializeOptionalInteger(OptionalInt in);
 
-    Set<OffsetDateTime> deserializeDateTimeSet(@Nullable Iterable<String> in);
+    List<String> serializeIntegerList(List<Integer> in);
 
-    double deserializeDouble(@Nullable String in);
+    List<String> serializeIntegerSet(Set<Integer> in);
 
-    double deserializeDouble(@Nullable Iterable<String> in);
+    String serializeRid(ResourceIdentifier in);
 
-    OptionalDouble deserializeOptionalDouble(@Nullable String in);
+    Optional<String> serializeOptionalRid(Optional<ResourceIdentifier> in);
 
-    OptionalDouble deserializeOptionalDouble(@Nullable Iterable<String> in);
+    List<String> serializeRidList(List<ResourceIdentifier> in);
 
-    List<Double> deserializeDoubleList(@Nullable Iterable<String> in);
+    List<String> serializeRidSet(Set<ResourceIdentifier> in);
 
-    Set<Double> deserializeDoubleSet(@Nullable Iterable<String> in);
+    String serializeSafeLong(SafeLong in);
 
-    int deserializeInteger(@Nullable String in);
+    Optional<String> serializeOptionalSafeLong(Optional<SafeLong> in);
 
-    int deserializeInteger(@Nullable Iterable<String> in);
+    List<String> serializeSafeLongList(List<SafeLong> in);
 
-    OptionalInt deserializeOptionalInteger(@Nullable String in);
+    List<String> serializeSafeLongSet(Set<SafeLong> in);
 
-    OptionalInt deserializeOptionalInteger(@Nullable Iterable<String> in);
+    String serializeString(String in);
 
-    List<Integer> deserializeIntegerList(@Nullable Iterable<String> in);
+    Optional<String> serializeOptionalString(Optional<String> in);
 
-    Set<Integer> deserializeIntegerSet(@Nullable Iterable<String> in);
+    List<String> serializeStringList(List<String> in);
 
-    ResourceIdentifier deserializeRid(String in);
+    List<String> serializeStringSet(Set<String> in);
 
-    ResourceIdentifier deserializeRid(@Nullable Iterable<String> in);
+    String serializeUuid(UUID in);
 
-    Optional<ResourceIdentifier> deserializeOptionalRid(@Nullable String in);
+    Optional<String> serializeOptionalUuid(Optional<UUID> in);
 
-    Optional<ResourceIdentifier> deserializeOptionalRid(@Nullable Iterable<String> in);
+    List<String> serializeUuidList(List<UUID> in);
 
-    List<ResourceIdentifier> deserializeRidList(@Nullable Iterable<String> in);
-
-    Set<ResourceIdentifier> deserializeRidSet(@Nullable Iterable<String> in);
-
-    SafeLong deserializeSafeLong(@Nullable String in);
-
-    SafeLong deserializeSafeLong(@Nullable Iterable<String> in);
-
-    Optional<SafeLong> deserializeOptionalSafeLong(@Nullable String in);
-
-    Optional<SafeLong> deserializeOptionalSafeLong(@Nullable Iterable<String> in);
-
-    List<SafeLong> deserializeSafeLongList(@Nullable Iterable<String> in);
-
-    Set<SafeLong> deserializeSafeLongSet(@Nullable Iterable<String> in);
-
-    String deserializeString(@Nullable String in);
-
-    String deserializeString(@Nullable Iterable<String> in);
-
-    Optional<String> deserializeOptionalString(@Nullable String in);
-
-    Optional<String> deserializeOptionalString(@Nullable Iterable<String> in);
-
-    List<String> deserializeStringList(@Nullable Iterable<String> in);
-
-    Set<String> deserializeStringSet(@Nullable Iterable<String> in);
-
-    UUID deserializeUuid(@Nullable String in);
-
-    UUID deserializeUuid(@Nullable Iterable<String> in);
-
-    Optional<UUID> deserializeOptionalUuid(@Nullable String in);
-
-    Optional<UUID> deserializeOptionalUuid(@Nullable Iterable<String> in);
-
-    List<UUID> deserializeUuidList(@Nullable Iterable<String> in);
-
-    Set<UUID> deserializeUuidSet(@Nullable Iterable<String> in);
-
-    <T> T deserializeComplex(@Nullable String in, Function<String, T> factory);
-
-    <T> T deserializeComplex(@Nullable Iterable<String> in, Function<String, T> factory);
-
-    <T> Optional<T> deserializeOptionalComplex(@Nullable Iterable<String> in, Function<String, T> factory);
-
-    <T> List<T> deserializeComplexList(@Nullable Iterable<String> in, Function<String, T> factory);
-
-    <T> Set<T> deserializeComplexSet(@Nullable Iterable<String> in, Function<String, T> factory);
-
+    List<String> serializeUuidSet(Set<UUID> in);
 }

@@ -4,7 +4,7 @@ com.google.guava:guava = 27.0.1-jre
 com.palantir.baseline:* = 0.39.1
 com.palantir.conjure.java.api:* = 2.3.0
 com.palantir.conjure.java.runtime:* = 4.24.1
-com.palantir.conjure.java:* = 3.3.0
+com.palantir.conjure.java:* = 3.5.0
 com.palantir.ri:resource-identifier = 1.0.1
 com.palantir.safe-logging:* = 1.8.2
 com.palantir.tokens:auth-tokens = 3.5.2
@@ -18,6 +18,7 @@ org.assertj:assertj-core = 3.12.2
 org.hamcrest:hamcrest-core = 2.1
 org.mockito:mockito-core = 2.27.0
 javax.ws.rs:javax.ws.rs-api = 2.0
+org.apache.commons:commons-lang3 = 3.9
 
 # conflicts
 com.google.errorprone:* = 2.3.3

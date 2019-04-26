@@ -16,8 +16,13 @@
 
 package com.palantir.dialogue.example;
 
+import com.palantir.ri.ResourceIdentifier;
+import java.time.OffsetDateTime;
+import java.util.List;
+
 // Example of the interface code conjure would generate for a simple SampleService.
 public interface SampleService {
-    String stringToString(String objectId, String header, String body);
+
+    SampleObject objectToObject(String path, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body);
     void voidToVoid();
 }
