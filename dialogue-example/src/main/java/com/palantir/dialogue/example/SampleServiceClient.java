@@ -82,8 +82,8 @@ public final class SampleServiceClient {
 
     /**
      * Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel.
-     * The {@code callTimeout} parameters indicates the maximum end-to-end life time for the blocking methods in this
-     * service. An exception is thrown when this duration is exceeded.
+     * The {@code callTimeout} parameter indicates the maximum end-to-end life time for the blocking methods in this
+     * service; an exception is thrown when this duration is exceeded.
      */
     // TODO(rfink): Consider using a builder pattern to construct clients
     public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration callTimeout) {
@@ -116,6 +116,8 @@ public final class SampleServiceClient {
                         MoreExecutors.directExecutor());
                 try {
                     return response.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    // TODO(rfink): Think about exception handling, in particular in the case of retries. Should this
+                    //  actually throw a TimeoutException?
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
