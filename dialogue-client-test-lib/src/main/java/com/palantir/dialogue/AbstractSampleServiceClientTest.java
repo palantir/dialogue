@@ -32,20 +32,24 @@ import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 
 // CHECKSTYLE:ON
 
 public abstract class AbstractSampleServiceClientTest {
+
+    abstract SampleService createBlockingClient(URL baseUrl, Duration timeout);
+    abstract AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout);
 
     private static final String PATH = "myPath";
     private static final OffsetDateTime HEADER = OffsetDateTime.parse("2018-07-19T08:11:21+00:00");
@@ -56,9 +60,6 @@ public abstract class AbstractSampleServiceClientTest {
     private static final String BODY_STRING = "{\"intProperty\":42}";
     private static final SampleObject RESPONSE = new SampleObject(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
-
-    abstract SampleService createBlockingClient(URL baseUrl);
-    abstract AsyncSampleService createAsyncClient(URL baseUrl);
 
     static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"),
@@ -106,8 +107,8 @@ public abstract class AbstractSampleServiceClientTest {
     @Before
     public void before() {
         server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
-        blockingClient = createBlockingClient(server.url("").url());
-        asyncClient = createAsyncClient(server.url("").url());
+        blockingClient = createBlockingClient(server.url("").url(), Duration.ofSeconds(1));
+        asyncClient = createAsyncClient(server.url("").url(), Duration.ofSeconds(1));
     }
 
     @Test
@@ -190,7 +191,7 @@ public abstract class AbstractSampleServiceClientTest {
                 .hasMessageContaining("Expected empty response body");
     }
 
-    @Test
+    @Test(timeout = 2_000)
     public void testBlocking_throwsOnConnectError() throws Exception {
         server.shutdown();
         assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
@@ -199,19 +200,21 @@ public abstract class AbstractSampleServiceClientTest {
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 
-    @Ignore("TODO(rfink): Figure out how to inject read/write timeouts")
-    @Test(timeout = 2_000)
-    public void testBlocking_throwsOnTimeout() {
+    @Test(timeout = 2_000)  // see client construction: we set a 1s timeout
+    public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
                 .addHeader(Headers.CONTENT_TYPE, "application/json")
                 .setBodyDelay(10, TimeUnit.SECONDS));
         assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Failed to deserialize response");
+                .hasCauseInstanceOf(TimeoutException.class)
+                .hasMessageContaining("Waited 1000 milliseconds");
+
+        // TODO(rfink): It seems that the OkHttp version of this tests leaves the connection open after the timeout.
     }
 
-    @Test
+    @Test(timeout = 2_000)
     public void testAsync_throwsOnConnectError() throws Exception {
         server.shutdown();
         assertThatThrownBy(() -> asyncClient.voidToVoid().get())

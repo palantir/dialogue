@@ -30,16 +30,16 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.ri.ResourceIdentifier;
-import java.io.IOException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 // Example of the implementation code conjure would generate for a simple SampleService.
 public final class SampleServiceClient {
@@ -80,8 +80,13 @@ public final class SampleServiceClient {
         }
     };
 
-    /** Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel. */
-    public static SampleService blocking(Channel channel, ConjureRuntime runtime) {
+    /**
+     * Returns a new blocking {@link SampleService} implementation whose calls are executed on the given channel.
+     * The {@code callTimeout} parameter indicates the maximum end-to-end life time for the blocking methods in this
+     * service; an exception is thrown when this duration is exceeded.
+     */
+    // TODO(rfink): Consider using a builder pattern to construct clients
+    public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration callTimeout) {
         return new SampleService() {
 
             private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
@@ -105,10 +110,14 @@ public final class SampleServiceClient {
                         .build();
 
                 Call call = channel.createCall(STRING_TO_STRING, request);
-                ListenableFuture<Response> response = Calls.toFuture(call);
+                ListenableFuture<SampleObject> response = Futures.transform(
+                        Calls.toFuture(call),
+                        r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
+                        MoreExecutors.directExecutor());
                 try {
-                    // TODO(rfink): Figure out how to inject read/write timeouts
-                    return sampleObjectToSampleObjectDeserializer.deserialize(response.get());
+                    return response.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
+                    // TODO(rfink): Think about exception handling, in particular in the case of retries. Should this
+                    //  actually throw a TimeoutException?
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -119,9 +128,12 @@ public final class SampleServiceClient {
                 Request request = Request.builder().build();
 
                 Call call = channel.createCall(VOID_TO_VOID, request);
-                ListenableFuture<Response> response = Calls.toFuture(call);
+                ListenableFuture<Void> deserializedResponse = Futures.transform(
+                        Calls.toFuture(call),
+                        r -> voidToVoidDeserializer.deserialize(r),
+                        MoreExecutors.directExecutor());
                 try {
-                    voidToVoidDeserializer.deserialize(response.get());
+                    deserializedResponse.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
                 } catch (Throwable t) {
                     throw Exceptions.unwrapExecutionException(t);
                 }
@@ -133,6 +145,7 @@ public final class SampleServiceClient {
      * Returns a new asynchronous {@link AsyncSampleService} implementation whose calls are executed on the given
      * channel.
      */
+    // TODO(rfink): Consider using a builder pattern to construct clients
     public static AsyncSampleService async(Channel channel, ConjureRuntime runtime) {
         return new AsyncSampleService() {
 
@@ -162,14 +175,7 @@ public final class SampleServiceClient {
                 Call call = channel.createCall(STRING_TO_STRING, request);
                 return Futures.transform(
                         Calls.toFuture(call),
-                        response -> {
-                            try {
-                                // TODO(rfink): The try/catch is a bit odd here.
-                                return sampleObjectToSampleObjectDeserializer.deserialize(response);
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to deserialize response", e);
-                            }
-                        },
+                        response -> sampleObjectToSampleObjectDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }
 
@@ -180,14 +186,7 @@ public final class SampleServiceClient {
                 Call call = channel.createCall(VOID_TO_VOID, request);
                 return Futures.transform(
                         Calls.toFuture(call),
-                        response -> {
-                            try {
-                                voidToVoidDeserializer.deserialize(response);
-                                return null;
-                            } catch (IOException e) {
-                                throw new RuntimeException("Failed to deserialize response", e);
-                            }
-                        },
+                        response -> voidToVoidDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }
         };

@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
@@ -26,6 +25,7 @@ import com.palantir.dialogue.example.SampleServiceClient;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.time.Duration;
+import java.util.concurrent.Executors;
 import javax.net.ssl.SSLParameters;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -36,14 +36,14 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
     private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
 
     @Override
-    SampleService createBlockingClient(URL baseUrl) {
-        Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
-        return SampleServiceClient.blocking(channel, runtime);
+    SampleService createBlockingClient(URL baseUrl, Duration timeout) {
+        Channel channel = createChannel(baseUrl, timeout);
+        return SampleServiceClient.blocking(channel, runtime, timeout);
     }
 
     @Override
-    AsyncSampleService createAsyncClient(URL baseUrl) {
-        Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
+    AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout) {
+        Channel channel = createChannel(baseUrl, timeout);
         return SampleServiceClient.async(channel, runtime);
     }
 
@@ -57,7 +57,7 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
                         .sslParameters(sslConfig)
                         .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
-                MoreExecutors.newDirectExecutorService(),
+                Executors.newSingleThreadExecutor(),
                 url,
                 DefaultErrorDecoder.INSTANCE);
     }

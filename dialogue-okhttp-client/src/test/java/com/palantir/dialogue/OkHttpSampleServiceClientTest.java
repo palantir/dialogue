@@ -17,7 +17,6 @@
 package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
@@ -26,6 +25,7 @@ import com.palantir.dialogue.example.SampleService;
 import com.palantir.dialogue.example.SampleServiceClient;
 import java.net.URL;
 import java.time.Duration;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
@@ -39,14 +39,14 @@ public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceCl
     private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
 
     @Override
-    SampleService createBlockingClient(URL baseUrl) {
-        Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
-        return SampleServiceClient.blocking(channel, runtime);
+    SampleService createBlockingClient(URL baseUrl, Duration timeout) {
+        Channel channel = createChannel(baseUrl, timeout);
+        return SampleServiceClient.blocking(channel, runtime, timeout);
     }
 
     @Override
-    AsyncSampleService createAsyncClient(URL baseUrl) {
-        Channel channel = createChannel(baseUrl, Duration.ofSeconds(1));
+    AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout) {
+        Channel channel = createChannel(baseUrl, timeout);
         return SampleServiceClient.async(channel, runtime);
     }
 
@@ -55,10 +55,8 @@ public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceCl
                 new OkHttpClient.Builder()
                         .protocols(ImmutableList.of(Protocol.HTTP_1_1))
                         // Execute calls on same thread so that async tests are deterministic.
-                        .dispatcher(new Dispatcher(MoreExecutors.newDirectExecutorService()))
+                        .dispatcher(new Dispatcher(Executors.newSingleThreadExecutor()))
                         .connectTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                        .readTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
-                        .writeTimeout(timeout.toMillis(), TimeUnit.MILLISECONDS)
                         .sslSocketFactory(
                                 SslSocketFactories.createSslSocketFactory(SSL_CONFIG),
                                 SslSocketFactories.createX509TrustManager(SSL_CONFIG))

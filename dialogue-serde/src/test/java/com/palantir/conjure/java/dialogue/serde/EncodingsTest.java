@@ -25,6 +25,7 @@ import static org.mockito.Mockito.verify;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,7 +44,7 @@ public final class EncodingsTest {
     @Test
     public void json_deserialize_throwsDeserializationErrorsAsIllegalArgumentException() {
         assertThatThrownBy(() -> deserialize(asStream("\"2018-08-bogus\""), new TypeMarker<OffsetDateTime>() {}))
-                .isInstanceOf(IOException.class)
+                .isInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("Failed to deserialize");
     }
 
