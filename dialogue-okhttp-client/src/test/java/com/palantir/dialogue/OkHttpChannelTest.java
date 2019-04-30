@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import okhttp3.Dispatcher;

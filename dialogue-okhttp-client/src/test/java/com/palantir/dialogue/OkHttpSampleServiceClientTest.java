@@ -19,7 +19,6 @@ package com.palantir.dialogue;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import com.palantir.dialogue.example.AsyncSampleService;
 import com.palantir.dialogue.example.SampleService;
 import com.palantir.dialogue.example.SampleServiceClient;
