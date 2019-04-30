@@ -19,8 +19,6 @@ package com.palantir.dialogue.example;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Call;
-import com.palantir.dialogue.Calls;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;

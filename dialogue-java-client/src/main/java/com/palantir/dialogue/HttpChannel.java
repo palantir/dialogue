@@ -17,7 +17,6 @@
 package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -35,7 +34,6 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 public final class HttpChannel implements Channel {
 
