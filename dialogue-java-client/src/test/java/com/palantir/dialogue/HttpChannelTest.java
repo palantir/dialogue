@@ -29,7 +29,6 @@ public final class HttpChannelTest extends AbstractChannelTest {
     @Override
     Channel createChannel(URL baseUrl, ExecutorService executor) {
         HttpClient client = HttpClient.newBuilder().build();
-        ErrorDecoder errorDecoder = DefaultErrorDecoder.INSTANCE;
-        return HttpChannel.of(client, executor, baseUrl, errorDecoder);
+        return HttpChannel.of(client, executor, baseUrl);
     }
 }

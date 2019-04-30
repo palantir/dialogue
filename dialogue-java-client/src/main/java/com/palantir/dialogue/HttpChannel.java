@@ -40,9 +40,8 @@ public final class HttpChannel implements Channel {
     private final HttpClient client;
     private final ListeningExecutorService executor;
     private final UrlBuilder baseUrl;
-    private final ErrorDecoder errorDecoder;
 
-    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
+    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl) {
         this.client = client;
         this.executor = MoreExecutors.listeningDecorator(executor);
         // Sanitize path syntax and strip all irrelevant URL components
@@ -60,11 +59,10 @@ public final class HttpChannel implements Channel {
         if (!strippedBasePath.isEmpty()) {
             this.baseUrl.encodedPathSegments(strippedBasePath);
         }
-        this.errorDecoder = errorDecoder;
     }
 
-    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
-        return new HttpChannel(client, executor, baseUrl, errorDecoder);
+    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl) {
+        return new HttpChannel(client, executor, baseUrl);
     }
 
     @Override

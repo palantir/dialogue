@@ -38,9 +38,8 @@ public final class OkHttpChannel implements Channel {
 
     private final OkHttpClient client;
     private final UrlBuilder baseUrl;
-    private final ErrorDecoder errorDecoder;
 
-    private OkHttpChannel(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
+    private OkHttpChannel(OkHttpClient client, URL baseUrl) {
         this.client = client;
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
@@ -57,12 +56,11 @@ public final class OkHttpChannel implements Channel {
         if (!strippedBasePath.isEmpty()) {
             this.baseUrl.encodedPathSegments(strippedBasePath);
         }
-        this.errorDecoder = errorDecoder;
     }
 
     /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
-    public static OkHttpChannel of(OkHttpClient client, URL baseUrl, ErrorDecoder errorDecoder) {
-        return new OkHttpChannel(client, baseUrl, errorDecoder);
+    public static OkHttpChannel of(OkHttpClient client, URL baseUrl) {
+        return new OkHttpChannel(client, baseUrl);
     }
 
     private RequestBody toOkHttpBody(com.palantir.dialogue.RequestBody body) {

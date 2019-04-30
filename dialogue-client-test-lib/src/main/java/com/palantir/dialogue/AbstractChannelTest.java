@@ -57,7 +57,7 @@ import org.mockito.Mock;
 
 // CHECKSTYLE:ON
 
-@SuppressWarnings("checkstyle:avoidstaticimport")
+@SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
 public abstract class AbstractChannelTest {
 
     abstract Channel createChannel(URL baseUrl, ExecutorService executor);

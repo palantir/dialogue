@@ -61,7 +61,6 @@ public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceCl
                                 SslSocketFactories.createSslSocketFactory(SSL_CONFIG),
                                 SslSocketFactories.createX509TrustManager(SSL_CONFIG))
                         .build(),
-                url,
-                DefaultErrorDecoder.INSTANCE);
+                url);
     }
 }

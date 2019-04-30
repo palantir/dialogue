@@ -33,7 +33,6 @@ public final class OkHttpChannelTest extends AbstractChannelTest {
                 .newBuilder()
                 .dispatcher(new Dispatcher(executor))
                 .build();
-        ErrorDecoder errorDecoder = DefaultErrorDecoder.INSTANCE;
-        return OkHttpChannel.of(client, baseUrl, errorDecoder);
+        return OkHttpChannel.of(client, baseUrl);
     }
 }

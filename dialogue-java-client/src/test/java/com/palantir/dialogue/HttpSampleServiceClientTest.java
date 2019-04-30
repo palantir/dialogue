@@ -58,7 +58,6 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
                         .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
                 Executors.newSingleThreadExecutor(),
-                url,
-                DefaultErrorDecoder.INSTANCE);
+                url);
     }
 }
