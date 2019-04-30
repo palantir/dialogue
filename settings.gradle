@@ -1,5 +1,6 @@
 rootProject.name = 'dialogue'
 include 'dialogue-client-test-lib'
+include 'dialogue-core'
 include 'dialogue-example'
 include 'dialogue-java-client'
 include 'dialogue-okhttp-client'

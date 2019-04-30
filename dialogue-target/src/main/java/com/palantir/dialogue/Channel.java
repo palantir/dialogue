@@ -16,9 +16,11 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.util.concurrent.ListenableFuture;
+
 /**
  * A channel is an abstraction of a transport layer (e.g., HTTP) that is consumed by server and client stubs.
  */
 public interface Channel {
-    Call createCall(Endpoint endpoint, Request request);
+    ListenableFuture<Response> createCall(Endpoint endpoint, Request request);
 }

@@ -30,6 +30,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
@@ -109,9 +110,9 @@ public final class SampleServiceClient {
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
-                Call call = channel.createCall(STRING_TO_STRING, request);
+                ListenableFuture<Response> call = channel.createCall(STRING_TO_STRING, request);
                 ListenableFuture<SampleObject> response = Futures.transform(
-                        Calls.toFuture(call),
+                        call,
                         r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
                 try {
@@ -127,9 +128,9 @@ public final class SampleServiceClient {
             public void voidToVoid() {
                 Request request = Request.builder().build();
 
-                Call call = channel.createCall(VOID_TO_VOID, request);
+                ListenableFuture<Response> call = channel.createCall(VOID_TO_VOID, request);
                 ListenableFuture<Void> deserializedResponse = Futures.transform(
-                        Calls.toFuture(call),
+                        call,
                         r -> voidToVoidDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
                 try {
@@ -172,9 +173,9 @@ public final class SampleServiceClient {
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
-                Call call = channel.createCall(STRING_TO_STRING, request);
+                ListenableFuture<Response> call = channel.createCall(STRING_TO_STRING, request);
                 return Futures.transform(
-                        Calls.toFuture(call),
+                        call,
                         response -> sampleObjectToSampleObjectDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }
@@ -183,9 +184,9 @@ public final class SampleServiceClient {
             public ListenableFuture<Void> voidToVoid() {
                 Request request = Request.builder().build();
 
-                Call call = channel.createCall(VOID_TO_VOID, request);
+                ListenableFuture<Response> call = channel.createCall(VOID_TO_VOID, request);
                 return Futures.transform(
-                        Calls.toFuture(call),
+                        call,
                         response -> voidToVoidDeserializer.deserialize(response),
                         MoreExecutors.directExecutor());
             }

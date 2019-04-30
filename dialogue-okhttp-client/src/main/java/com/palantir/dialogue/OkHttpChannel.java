@@ -18,6 +18,8 @@ package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
 import com.google.common.io.ByteStreams;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -26,6 +28,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
 import javax.annotation.Nullable;
+import okhttp3.Callback;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.RequestBody;
@@ -78,7 +81,7 @@ public final class OkHttpChannel implements Channel {
     }
 
     @Override
-    public Call createCall(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);
@@ -116,18 +119,20 @@ public final class OkHttpChannel implements Channel {
         // TODO(rfink): Think about repeatability/retries
 
         okhttp3.Call okCall = client.newCall(okRequest.build());
-        return new Call() {
+
+        SettableFuture<Response> future = SettableFuture.create();
+        okCall.enqueue(new Callback() {
             @Override
-            public void execute(Observer observer) {
-                Preconditions.checkState(!okCall.isExecuted(), "Error, this call was already executed");
-                okCall.enqueue(new OkHttpCallback(observer, errorDecoder));
+            public void onFailure(okhttp3.Call call, IOException e) {
+                future.setException(e);
             }
 
             @Override
-            public void cancel() {
-                okCall.cancel();
+            public void onResponse(okhttp3.Call call, okhttp3.Response response) {
+                future.set(OkHttpResponse.wrap(response));
             }
-        };
+        });
+        return future;
     }
 
     private String stripSlashes(String path) {
