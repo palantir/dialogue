@@ -315,18 +315,6 @@ public abstract class AbstractChannelTest {
         verify(callback).onFailure(any());
     }
 
-    @Test
-    public void unparseableNonConjureErrorsSurfaceExceptions() throws IOException {
-        // drain successful response so we can enqueue a failed one below
-        channel.createCall(endpoint, request);
-
-        server.enqueue(new MockResponse().setBody("bogus").setResponseCode(500));
-        ListenableFuture<Response> call = channel.createCall(endpoint, request);
-        Futures.addCallback(call, callback, MoreExecutors.directExecutor());
-        verify(callback, never()).onSuccess(any());
-        verify(callback).onFailure(any());
-    }
-
     private static class FakeEndpoint implements Endpoint {
         private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
         private HttpMethod method;
