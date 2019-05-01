@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -30,40 +31,48 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
- * requests allowed to a particular channel. If the channel's concurrency limit has been reach, the call will not be
- * executed.
+ * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the maybeCreateCall
+ * method returns empty
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
-    private static final Object CONTEXT = null;
+    private static final Void NO_CONTEXT = null;
 
     private final Channel delegate;
-    private final Limiter<Object> limiter;
+    private final Supplier<Limiter<Void>> limiterSupplier;
+    private final Map<Endpoint, Limiter<Void>> limiters;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(Channel delegate, Limiter<Object> limiter) {
+    ConcurrencyLimitedChannel(Channel delegate, Supplier<Limiter<Void>> limiterSupplier) {
         this.delegate = delegate;
-        this.limiter = limiter;
+        this.limiterSupplier = limiterSupplier;
+        this.limiters = Maps.newConcurrentMap();
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {
+        return new ConcurrencyLimitedChannel(delegate, ConcurrencyLimitedChannel::createLimiter);
+    }
+
+    private static Limiter<Void> createLimiter() {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Don't count slow calls as a sign of the server being overloaded
                 .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
                 .build();
-        Limiter<Object> limiter = SimpleLimiter.newBuilder()
+        return SimpleLimiter.newBuilder()
                 .limit(WindowedLimit.newBuilder().build(aimdLimit))
                 .build();
-        return new ConcurrencyLimitedChannel(delegate, limiter);
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeCreateCall(Endpoint endpoint, Request request) {
-        return limiter.acquire(CONTEXT).map(listener -> {
+        Limiter<Void> limiter = limiters.computeIfAbsent(endpoint, e -> limiterSupplier.get());
+        return limiter.acquire(NO_CONTEXT).map(listener -> {
             ListenableFuture<Response> call = delegate.createCall(endpoint, request);
             Futures.addCallback(call, new LimiterCallback(listener), MoreExecutors.directExecutor());
             return call;
