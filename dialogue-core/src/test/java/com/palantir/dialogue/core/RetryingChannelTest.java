@@ -43,8 +43,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public class RetryingChannelTest {
-    private static final TestResponse expectedResponse = new TestResponse();
-    private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(expectedResponse);
+    private static final TestResponse EXPECTED_RESPONSE = new TestResponse();
+    private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
             Futures.immediateFailedFuture(new IllegalArgumentException());
     private static final TestEndpoint ENDPOINT = new TestEndpoint();
@@ -64,7 +64,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         ListenableFuture<Response> response = retryer.createCall(ENDPOINT, REQUEST);
-        assertThat(response.get()).isEqualTo(expectedResponse);
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test
@@ -75,7 +75,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         ListenableFuture<Response> response = retryer.createCall(ENDPOINT, REQUEST);
-        assertThat(response.get()).isEqualTo(expectedResponse);
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test

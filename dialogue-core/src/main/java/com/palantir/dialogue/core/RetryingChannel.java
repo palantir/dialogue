@@ -34,8 +34,8 @@ import java.util.function.Supplier;
  * Retries calls to the underlying channel upon failure.
  */
 public final class RetryingChannel implements Channel {
-    private static final Executor direct = MoreExecutors.directExecutor();
-    private static final int DEFAULT_MAX_RETRIES = 3;
+    private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
+    private static final int DEFAULT_MAX_RETRIES = 4;
 
     private final Channel delegate;
     private final int maxRetries;
@@ -54,15 +54,15 @@ public final class RetryingChannel implements Channel {
     public ListenableFuture<Response> createCall(Endpoint endpoint, Request request) {
         SettableFuture<Response> future = SettableFuture.create();
 
-        ListenableFuture<Response> call = delegate.createCall(endpoint, request);
-        FutureCallback<Response> retryer = new RetryingCallback<>(() -> delegate.createCall(endpoint, request), future);
-        Futures.addCallback(call, retryer, direct);
+        Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.createCall(endpoint, request);
+        FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
+        Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
 
         return future;
     }
 
     private final class RetryingCallback<T> implements FutureCallback<T> {
-        private final AtomicInteger failures = new AtomicInteger();
+        private final AtomicInteger failures = new AtomicInteger(0);
         private final Supplier<ListenableFuture<T>> runnable;
         private final SettableFuture<T> delegate;
 
@@ -79,7 +79,7 @@ public final class RetryingChannel implements Channel {
         @Override
         public void onFailure(Throwable throwable) {
             if (failures.incrementAndGet() < maxRetries) {
-                Futures.addCallback(runnable.get(), this, direct);
+                Futures.addCallback(runnable.get(), this, DIRECT_EXECUTOR);
             } else {
                 delegate.setException(throwable);
             }
