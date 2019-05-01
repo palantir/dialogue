@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import static com.palantir.logsafe.Preconditions.checkState;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
