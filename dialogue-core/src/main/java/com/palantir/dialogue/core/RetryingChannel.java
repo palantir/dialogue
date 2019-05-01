@@ -28,7 +28,6 @@ import com.palantir.dialogue.Response;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 final class RetryingChannel implements Channel {
     private static final Executor direct = MoreExecutors.directExecutor();
@@ -68,7 +67,7 @@ final class RetryingChannel implements Channel {
         }
 
         @Override
-        public void onSuccess(@Nullable T result) {
+        public void onSuccess(T result) {
             delegate.set(result);
         }
 
