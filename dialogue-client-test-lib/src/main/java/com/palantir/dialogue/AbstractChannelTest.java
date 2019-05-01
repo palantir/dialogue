@@ -22,18 +22,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.conjure.java.api.errors.ErrorType;
-import com.palantir.conjure.java.api.errors.SerializableError;
-import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -59,7 +57,7 @@ import org.mockito.Mock;
 
 // CHECKSTYLE:ON
 
-@SuppressWarnings("checkstyle:avoidstaticimport")
+@SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
 public abstract class AbstractChannelTest {
 
     abstract Channel createChannel(URL baseUrl, ExecutorService executor);
@@ -83,10 +81,8 @@ public abstract class AbstractChannelTest {
         }
     };
 
-    @Mock
-    private Request request;
-    @Mock
-    private Observer observer;
+    @Mock private Request request;
+    @Mock private FutureCallback<Response> callback;
     private FakeEndpoint endpoint;
 
     private Channel channel;
@@ -107,21 +103,21 @@ public abstract class AbstractChannelTest {
     @Test
     public void respectsBasePath_emptyBasePath() throws InterruptedException {
         channel = createChannel(server.url("").url(), MoreExecutors.newDirectExecutorService());
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_slashBasePath() throws InterruptedException {
         channel = createChannel(server.url("/").url(), MoreExecutors.newDirectExecutorService());
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_nonEmptyBasePath() throws InterruptedException {
         channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/a"));
     }
 
@@ -130,7 +126,7 @@ public abstract class AbstractChannelTest {
         endpoint.renderPath = (params, url) -> { };
 
         channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar"));
     }
 
@@ -139,7 +135,7 @@ public abstract class AbstractChannelTest {
         endpoint.renderPath = (params, url) -> url.pathSegment("");
 
         channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/"));
     }
 
@@ -148,7 +144,7 @@ public abstract class AbstractChannelTest {
         when(request.pathParams()).thenReturn(ImmutableMap.of("a", "A"));
         endpoint.renderPath = (params, url) -> url.pathSegment(params.get("a"));
 
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/A"));
     }
 
@@ -156,14 +152,14 @@ public abstract class AbstractChannelTest {
     public void encodesPathParameters() throws InterruptedException {
         endpoint.renderPath = (params, url) -> url.pathSegment("/ü/");
 
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/%2F%C3%BC%2F"));
     }
 
     @Test
     public void fillsHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableMap.of("a", "A", "b", "B"));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
         assertThat(actualRequest.getHeader("a")).isEqualTo("A");
@@ -174,7 +170,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void encodesHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableMap.of("a", "ø\nü"));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
         assertThat(actualRequest.getHeader("a")).isEqualTo("ø\nü");
@@ -183,7 +179,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void fillsQueryParameters() throws Exception {
         when(request.queryParams()).thenReturn(ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B"));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
 
         HttpUrl requestUrl = server.takeRequest().getRequestUrl();
         Set<String> queryParameters = requestUrl.queryParameterNames();
@@ -196,7 +192,7 @@ public abstract class AbstractChannelTest {
     public void encodesQueryParameters() throws Exception {
         String mustEncode = "%^&/?a=A3&a=A4";
         when(request.queryParams()).thenReturn(ImmutableMultimap.of(mustEncode, mustEncode));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
 
         HttpUrl url = server.takeRequest().getRequestUrl();
         assertThat(url.queryParameterValues(mustEncode)).containsExactlyInAnyOrder(mustEncode);
@@ -204,44 +200,44 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void get_failsWhenBodyIsGiven() throws Exception {
+    public void get_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
+        assertThatThrownBy(() -> channel.createCall(endpoint, request))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessage("GET endpoints must not have a request body");
     }
 
     @Test
-    public void post_failsWhenNoBodyIsGiven() throws Exception {
+    public void post_failsWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
+        assertThatThrownBy(() -> channel.createCall(endpoint, request))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessage("Endpoint must have a request body: {method=POST}");
     }
 
     @Test
-    public void put_failsWhenNoBodyIsGiven() throws Exception {
+    public void put_failsWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
+        assertThatThrownBy(() -> channel.createCall(endpoint, request))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessage("Endpoint must have a request body: {method=PUT}");
     }
 
     @Test
-    public void delete_failsWhenBodyIsGiven() throws Exception {
+    public void delete_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> channel.createCall(endpoint, request).execute(observer))
+        assertThatThrownBy(() -> channel.createCall(endpoint, request))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessage("DELETE endpoints must not have a request body");
     }
 
     @Test
     public void getMethodYieldsGetHttpCall() throws InterruptedException {
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("GET");
     }
 
@@ -249,7 +245,7 @@ public abstract class AbstractChannelTest {
     public void postMethodYieldsPostHttpCall() throws InterruptedException {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.of(body));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("POST");
     }
 
@@ -257,65 +253,50 @@ public abstract class AbstractChannelTest {
     public void putMethodYieldsPutHttpCall() throws InterruptedException {
         endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.of(body));
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("PUT");
     }
 
     @Test
     public void deleteMethodYieldsDeleteHttpCall() throws InterruptedException {
         endpoint.method = HttpMethod.DELETE;
-        channel.createCall(endpoint, request).execute(observer);
+        channel.createCall(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("DELETE");
     }
 
     @Test
     public void callObservesSuccessfulResponses() {
-        channel.createCall(endpoint, request).execute(observer);
-        verify(observer).success(any());
-        verify(observer, never()).failure(any());
-        verify(observer, never()).exception(any());
-    }
-
-    @Test
-    public void cannotExecuteCallTwice() {
-        Call call = channel.createCall(endpoint, request);
-        call.execute(observer);
-        assertThatThrownBy(() -> call.execute(observer))
-                .hasMessage("Error, this call was already executed");
-    }
-
-    @Test
-    public void canCancelNonExecutedCalls() {
-        assertThatCode(() -> channel.createCall(endpoint, request).cancel()).doesNotThrowAnyException();
+        ListenableFuture<Response> call = channel.createCall(endpoint, request);
+        Futures.addCallback(call, callback, MoreExecutors.directExecutor());
+        verify(callback).onSuccess(any());
+        verify(callback, never()).onFailure(any());
     }
 
     @Test
     public void canCancelMultipleTimes() {
-        Call call = channel.createCall(endpoint, request);
-        call.execute(observer);
-        assertThatCode(call::cancel).doesNotThrowAnyException();
-        assertThatCode(call::cancel).doesNotThrowAnyException();
+        ListenableFuture<Response> call = channel.createCall(endpoint, request);
+        assertThatCode(() -> call.cancel(true)).doesNotThrowAnyException();
+        assertThatCode(() -> call.cancel(true)).doesNotThrowAnyException();
     }
 
     @Test
     public void callCancellationIsObservedAsException() throws InterruptedException {
-        channel.createCall(endpoint, request).execute(mock(Observer.class));  // drain enqueued response
+        channel.createCall(endpoint, request);  // drain enqueued response
 
         channel = createChannel(server.url("").url(), Executors.newCachedThreadPool());
-        Call call = channel.createCall(endpoint, request);
-        call.execute(observer);
-        call.cancel();
+        ListenableFuture<Response> call = channel.createCall(endpoint, request);
+        Futures.addCallback(call, callback, MoreExecutors.directExecutor());
+        call.cancel(true);
 
         Thread.sleep(1000);
         server.enqueue(new MockResponse());
-        verify(observer, never()).success(any());
+        verify(callback, never()).onSuccess(any());
         ArgumentCaptor<Throwable> throwable = ArgumentCaptor.forClass(Throwable.class);
-        verify(observer).exception(throwable.capture());
+        verify(callback).onFailure(throwable.capture());
         assertThat(throwable.getValue())
                 // Different exceptions for HttpClient vs OkHttpClient
                 .isInstanceOfAny(CancellationException.class, IOException.class)
                 .hasMessageFindingMatch("(Task was cancelled\\.)|(Canceled)");
-        verify(observer, never()).failure(any());
     }
 
     // TODO(rfink): How to test that cancellation propagates to the server?
@@ -323,38 +304,10 @@ public abstract class AbstractChannelTest {
     @Test
     public void connectionErrorsSurfaceAsExceptions() throws IOException {
         server.shutdown();
-        channel.createCall(endpoint, request).execute(observer);
-        verify(observer, never()).success(any());
-        verify(observer).exception(any());
-        verify(observer, never()).failure(any());
-    }
-
-    @Test
-    public void conjureErrorsSurfaceAsFailures() throws IOException {
-        // drain successful response so we can enqueue a failed one below
-        channel.createCall(endpoint, request).execute(mock(Observer.class));
-
-        SerializableError error = SerializableError.forException(new ServiceException(ErrorType.FAILED_PRECONDITION));
-        server.enqueue(new MockResponse()
-                .setBody(new ObjectMapper().writeValueAsString(error))
-                .setResponseCode(500)
-                .addHeader("Content-Type", "application/json"));
-        channel.createCall(endpoint, request).execute(observer);
-        verify(observer, never()).success(any());
-        verify(observer, never()).exception(any());
-        verify(observer).failure(any());
-    }
-
-    @Test
-    public void unparseableNonConjureErrorsSurfaceExceptions() throws IOException {
-        // drain successful response so we can enqueue a failed one below
-        channel.createCall(endpoint, request).execute(mock(Observer.class));
-
-        server.enqueue(new MockResponse().setBody("bogus").setResponseCode(500));
-        channel.createCall(endpoint, request).execute(observer);
-        verify(observer, never()).success(any());
-        verify(observer).exception(any());
-        verify(observer, never()).failure(any());
+        ListenableFuture<Response> call = channel.createCall(endpoint, request);
+        Futures.addCallback(call, callback, MoreExecutors.directExecutor());
+        verify(callback, never()).onSuccess(any());
+        verify(callback).onFailure(any());
     }
 
     private static class FakeEndpoint implements Endpoint {

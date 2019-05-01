@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.util.concurrent.ExecutorService;
@@ -29,7 +28,6 @@ public final class HttpChannelTest extends AbstractChannelTest {
     @Override
     Channel createChannel(URL baseUrl, ExecutorService executor) {
         HttpClient client = HttpClient.newBuilder().build();
-        ErrorDecoder errorDecoder = DefaultErrorDecoder.INSTANCE;
-        return HttpChannel.of(client, executor, baseUrl, errorDecoder);
+        return HttpChannel.of(client, executor, baseUrl);
     }
 }

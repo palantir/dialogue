@@ -32,6 +32,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 
 public final class HttpChannel implements Channel {
@@ -39,9 +40,8 @@ public final class HttpChannel implements Channel {
     private final HttpClient client;
     private final ListeningExecutorService executor;
     private final UrlBuilder baseUrl;
-    private final ErrorDecoder errorDecoder;
 
-    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
+    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl) {
         this.client = client;
         this.executor = MoreExecutors.listeningDecorator(executor);
         // Sanitize path syntax and strip all irrelevant URL components
@@ -59,15 +59,14 @@ public final class HttpChannel implements Channel {
         if (!strippedBasePath.isEmpty()) {
             this.baseUrl.encodedPathSegments(strippedBasePath);
         }
-        this.errorDecoder = errorDecoder;
     }
 
-    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl, ErrorDecoder errorDecoder) {
-        return new HttpChannel(client, executor, baseUrl, errorDecoder);
+    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl) {
+        return new HttpChannel(client, executor, baseUrl);
     }
 
     @Override
-    public Call createCall(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> createCall(Endpoint endpoint, Request request) {
         // Create base request given the URL
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);
@@ -105,26 +104,29 @@ public final class HttpChannel implements Channel {
 
         // TODO(rfink): Think about repeatability/retries
 
-        return new Call() {
-            private ListenableFuture<HttpResponse<InputStream>> response = null;
+        ListenableFuture<HttpResponse<InputStream>> response = executor.submit(() ->
+                client.send(httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream()));
+        return Futures.transform(response, this::toResponse, MoreExecutors.directExecutor());
+    }
 
+    private Response toResponse(HttpResponse<InputStream> response) {
+        return new Response() {
             @Override
-            public synchronized void execute(Observer observer) {
-                Preconditions.checkState(response == null, "Error, this call was already executed");
-                response = executor.submit(() ->
-                        client.send(httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream()));
-                Futures.addCallback(response, new HttpCallback(observer, errorDecoder), executor);
+            public InputStream body() {
+                return response.body();
             }
 
             @Override
-            public synchronized void cancel() {
-                if (response != null) {
-                    response.cancel(true);
-                }
+            public int code() {
+                return response.statusCode();
+            }
+
+            @Override
+            public Optional<String> contentType() {
+                return response.headers().firstValue(Headers.CONTENT_TYPE);
             }
         };
     }
-
     private static HttpRequest.BodyPublisher toBody(Request request, String method) {
         RequestBody body = request.body().orElseThrow(() -> new SafeIllegalArgumentException(
                 "Endpoint must have a request body", SafeArg.of("method", method)));

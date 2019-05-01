@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.dialogue.serde.DefaultErrorDecoder;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
 import okhttp3.Dispatcher;
@@ -33,7 +32,6 @@ public final class OkHttpChannelTest extends AbstractChannelTest {
                 .newBuilder()
                 .dispatcher(new Dispatcher(executor))
                 .build();
-        ErrorDecoder errorDecoder = DefaultErrorDecoder.INSTANCE;
-        return OkHttpChannel.of(client, baseUrl, errorDecoder);
+        return OkHttpChannel.of(client, baseUrl);
     }
 }
