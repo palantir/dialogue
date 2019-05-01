@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -29,17 +30,21 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-final class RetryingChannel implements Channel {
+/**
+ * Retries calls to the underlying channel upon failure.
+ */
+public final class RetryingChannel implements Channel {
     private static final Executor direct = MoreExecutors.directExecutor();
     private static final int DEFAULT_MAX_RETRIES = 3;
 
     private final Channel delegate;
     private final int maxRetries;
 
-    RetryingChannel(Channel delegate) {
+    public RetryingChannel(Channel delegate) {
         this(delegate, DEFAULT_MAX_RETRIES);
     }
 
+    @VisibleForTesting
     RetryingChannel(Channel delegate, int maxRetries) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
