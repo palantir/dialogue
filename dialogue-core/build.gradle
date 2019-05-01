@@ -1,0 +1,14 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+sourceCompatibility = 11
+
+dependencies {
+    compile project(':dialogue-target')
+    compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:client-config'
+    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    compile 'com.palantir.safe-logging:preconditions'
+
+    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-serde')
+}
