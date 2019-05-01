@@ -73,11 +73,11 @@ final class RetryingChannel implements Channel {
         }
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Throwable throwable) {
             if (failures.incrementAndGet() < maxRetries) {
                 Futures.addCallback(runnable.get(), this, direct);
             } else {
-                delegate.setException(t);
+                delegate.setException(throwable);
             }
         }
     }
