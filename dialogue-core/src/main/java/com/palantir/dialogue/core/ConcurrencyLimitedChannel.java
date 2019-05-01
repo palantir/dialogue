@@ -46,16 +46,14 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Void NO_CONTEXT = null;
 
     private final Channel delegate;
-    private final Supplier<Limiter<Void>> limiterSupplier;
     private final LoadingCache<Endpoint, Limiter<Void>> limiters;
 
     @VisibleForTesting
     ConcurrencyLimitedChannel(Channel delegate, Supplier<Limiter<Void>> limiterSupplier) {
         this.delegate = delegate;
-        this.limiterSupplier = limiterSupplier;
         this.limiters = Caffeine.newBuilder()
                 .expireAfterAccess(Duration.ofMinutes(5))
-                .build(key -> createLimiter());
+                .build(key -> limiterSupplier.get());
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {

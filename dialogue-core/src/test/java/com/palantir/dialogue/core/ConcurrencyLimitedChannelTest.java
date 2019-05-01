@@ -40,7 +40,7 @@ public class ConcurrencyLimitedChannelTest {
     @Mock private Endpoint endpoint;
     @Mock private Request request;
     @Mock private Channel delegate;
-    @Mock private Limiter<Object> limiter;
+    @Mock private Limiter<Void> limiter;
     @Mock private Limiter.Listener listener;
     @Mock private Response response;
     private ConcurrencyLimitedChannel channel;
@@ -48,7 +48,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @Before
     public void before() {
-        channel = new ConcurrencyLimitedChannel(delegate, limiter);
+        channel = new ConcurrencyLimitedChannel(delegate, () -> limiter);
 
         responseFuture = SettableFuture.create();
         when(delegate.createCall(endpoint, request)).thenReturn(responseFuture);
