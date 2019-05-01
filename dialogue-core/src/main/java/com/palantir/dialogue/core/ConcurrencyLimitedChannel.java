@@ -31,7 +31,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -75,7 +74,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
     private static final class LimiterCallback implements FutureCallback<Response> {
-        private static final Set<Integer> DROP_CODES = ImmutableSet.of(429, 503);
+        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429, 503);
 
         private final Limiter.Listener listener;
 
