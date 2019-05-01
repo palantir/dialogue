@@ -16,9 +16,10 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -31,7 +32,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.util.Map;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -46,13 +47,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private final Channel delegate;
     private final Supplier<Limiter<Void>> limiterSupplier;
-    private final Map<Endpoint, Limiter<Void>> limiters;
+    private final LoadingCache<Endpoint, Limiter<Void>> limiters;
 
     @VisibleForTesting
     ConcurrencyLimitedChannel(Channel delegate, Supplier<Limiter<Void>> limiterSupplier) {
         this.delegate = delegate;
         this.limiterSupplier = limiterSupplier;
-        this.limiters = Maps.newConcurrentMap();
+        this.limiters = Caffeine.newBuilder()
+                .expireAfterAccess(Duration.ofMinutes(5))
+                .build(key -> createLimiter());
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {
@@ -61,6 +64,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private static Limiter<Void> createLimiter() {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
+                // Explicitly set values to prevent library changes from breaking us
+                .initialLimit(20)
+                .minLimit(1)
+                .maxLimit(200)
+                .backoffRatio(0.9)
                 // Don't count slow calls as a sign of the server being overloaded
                 .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
                 .build();
@@ -71,8 +79,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeCreateCall(Endpoint endpoint, Request request) {
-        Limiter<Void> limiter = limiters.computeIfAbsent(endpoint, e -> limiterSupplier.get());
-        return limiter.acquire(NO_CONTEXT).map(listener -> {
+        return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener -> {
             ListenableFuture<Response> call = delegate.createCall(endpoint, request);
             Futures.addCallback(call, new LimiterCallback(listener), MoreExecutors.directExecutor());
             return call;
