@@ -35,7 +35,6 @@ public final class RoundRobinChannel implements LimitedChannel {
     private final List<LimitedChannel> delegates;
 
     public RoundRobinChannel(List<LimitedChannel> delegates) {
-        checkState(delegates.size() > 0, "Must have at least one channel to load balance across");
         this.delegates = delegates;
     }
 
