@@ -5,6 +5,7 @@ sourceCompatibility = 11
 dependencies {
     compile project(':dialogue-target')
     compile 'com.google.guava:guava'
+    compile 'com.netflix.concurrency-limits:concurrency-limits-core'
     compile 'com.palantir.safe-logging:preconditions'
 
     testCompile 'junit:junit'
