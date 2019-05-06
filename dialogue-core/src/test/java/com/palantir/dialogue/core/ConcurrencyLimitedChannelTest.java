@@ -56,63 +56,58 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testLimiterAvailable_successfulRequest() {
-        limitAvailable();
-        responseCode(200);
+        mockLimitAvailable();
+        mockResponseCode(200);
 
         assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
-
         verify(listener).onSuccess();
     }
 
     @Test
     public void testLimiterAvailable_429isDropped() {
-        limitAvailable();
-        responseCode(429);
+        mockLimitAvailable();
+        mockResponseCode(429);
 
         assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
-
         verify(listener).onDropped();
     }
 
     @Test
     public void testLimiterAvailable_503isDropped() {
-        limitAvailable();
-        responseCode(503);
+        mockLimitAvailable();
+        mockResponseCode(503);
 
         assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
-
         verify(listener).onDropped();
     }
 
     @Test
     public void testLimiterAvailable_exceptionIsIgnored() {
-        limitAvailable();
+        mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
         assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
-
         verify(listener).onIgnore();
     }
 
     @Test
     public void testUnavailable() {
-        limitUnvailable();
+        mockLimitUnavailable();
 
         assertThat(channel.maybeCreateCall(endpoint, request)).isEmpty();
-
         verifyZeroInteractions(listener);
     }
 
-    private void responseCode(int code) {
+    private void mockResponseCode(int code) {
         when(response.code()).thenReturn(code);
         responseFuture.set(response);
     }
 
-    private void limitAvailable() {
+    private void mockLimitAvailable() {
         when(limiter.acquire(null)).thenReturn(Optional.of(listener));
     }
 
-    private void limitUnvailable() {
+    private void mockLimitUnavailable() {
         when(limiter.acquire(null)).thenReturn(Optional.empty());
     }
 }
