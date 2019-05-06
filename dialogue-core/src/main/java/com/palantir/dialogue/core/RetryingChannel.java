@@ -51,10 +51,10 @@ public final class RetryingChannel implements Channel {
     }
 
     @Override
-    public ListenableFuture<Response> createCall(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         SettableFuture<Response> future = SettableFuture.create();
 
-        Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.createCall(endpoint, request);
+        Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
         FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
         Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
 

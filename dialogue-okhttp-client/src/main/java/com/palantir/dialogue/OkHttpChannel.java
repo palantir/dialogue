@@ -79,7 +79,7 @@ public final class OkHttpChannel implements Channel {
     }
 
     @Override
-    public ListenableFuture<Response> createCall(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // Create base request given the URL
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);

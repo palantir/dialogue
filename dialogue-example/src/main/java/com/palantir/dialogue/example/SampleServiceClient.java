@@ -108,7 +108,7 @@ public final class SampleServiceClient {
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
-                ListenableFuture<Response> call = channel.createCall(STRING_TO_STRING, request);
+                ListenableFuture<Response> call = channel.execute(STRING_TO_STRING, request);
                 ListenableFuture<SampleObject> response = Futures.transform(
                         call,
                         r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
@@ -126,7 +126,7 @@ public final class SampleServiceClient {
             public void voidToVoid() {
                 Request request = Request.builder().build();
 
-                ListenableFuture<Response> call = channel.createCall(VOID_TO_VOID, request);
+                ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
                 ListenableFuture<Void> deserializedResponse = Futures.transform(
                         call,
                         r -> voidToVoidDeserializer.deserialize(r),
@@ -171,7 +171,7 @@ public final class SampleServiceClient {
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
 
-                ListenableFuture<Response> call = channel.createCall(STRING_TO_STRING, request);
+                ListenableFuture<Response> call = channel.execute(STRING_TO_STRING, request);
                 return Futures.transform(
                         call,
                         response -> sampleObjectToSampleObjectDeserializer.deserialize(response),
@@ -182,7 +182,7 @@ public final class SampleServiceClient {
             public ListenableFuture<Void> voidToVoid() {
                 Request request = Request.builder().build();
 
-                ListenableFuture<Response> call = channel.createCall(VOID_TO_VOID, request);
+                ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
                 return Futures.transform(
                         call,
                         response -> voidToVoidDeserializer.deserialize(response),
