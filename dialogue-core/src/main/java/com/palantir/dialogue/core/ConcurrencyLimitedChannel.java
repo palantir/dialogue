@@ -39,8 +39,8 @@ import java.util.function.Supplier;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
- * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the maybeCreateCall
- * method returns empty
+ * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the
+ * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Void NO_CONTEXT = null;
