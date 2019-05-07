@@ -51,7 +51,7 @@ public class ConcurrencyLimitedChannelTest {
         channel = new ConcurrencyLimitedChannel(delegate, () -> limiter);
 
         responseFuture = SettableFuture.create();
-        when(delegate.createCall(endpoint, request)).thenReturn(responseFuture);
+        when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
     }
 
     @Test

@@ -78,7 +78,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener -> {
-            ListenableFuture<Response> call = delegate.createCall(endpoint, request);
+            ListenableFuture<Response> call = delegate.execute(endpoint, request);
             Futures.addCallback(call, new LimiterCallback(listener), MoreExecutors.directExecutor());
             return call;
         });
