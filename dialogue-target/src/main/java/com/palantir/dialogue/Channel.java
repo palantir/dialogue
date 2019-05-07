@@ -22,5 +22,5 @@ import com.google.common.util.concurrent.ListenableFuture;
  * A channel is an abstraction of a transport layer (e.g., HTTP) that is consumed by server and client stubs.
  */
 public interface Channel {
-    ListenableFuture<Response> createCall(Endpoint endpoint, Request request);
+    ListenableFuture<Response> execute(Endpoint endpoint, Request request);
 }

@@ -60,33 +60,33 @@ public class RetryingChannelTest {
 
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {
-        when(channel.createCall(any(), any()))
+        when(channel.execute(any(), any()))
                 .thenReturn(SUCCESS);
 
-        ListenableFuture<Response> response = retryer.createCall(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test
     public void testRetriesUpToMaxRetries() throws ExecutionException, InterruptedException {
-        when(channel.createCall(any(), any()))
+        when(channel.execute(any(), any()))
                 .thenReturn(FAILED)
                 .thenReturn(FAILED)
                 .thenReturn(SUCCESS);
 
-        ListenableFuture<Response> response = retryer.createCall(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test
     public void testRetriesMax() {
-        when(channel.createCall(any(), any()))
+        when(channel.execute(any(), any()))
                 .thenReturn(FAILED);
 
-        ListenableFuture<Response> response = retryer.createCall(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
-        verify(channel, times(3)).createCall(ENDPOINT, REQUEST);
+        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
     }
 
     private static final class TestResponse implements Response {
