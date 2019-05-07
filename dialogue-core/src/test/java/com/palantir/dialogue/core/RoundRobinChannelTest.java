@@ -49,37 +49,37 @@ public class RoundRobinChannelTest {
     public void before() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of(channelA, channelB));
 
-        when(channelA.maybeCreateCall(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
-        when(channelB.maybeCreateCall(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
+        when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
     }
 
     @Test
     public void testRoundRobins() {
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
     }
 
     @Test
     public void testIgnoresUnavailableChannels() {
-        when(channelA.maybeCreateCall(endpoint, request)).thenReturn(UNAVAILABLE);
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
 
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
     }
 
     @Test
     public void testNoChannelsAvailable() {
-        when(channelA.maybeCreateCall(endpoint, request)).thenReturn(UNAVAILABLE);
-        when(channelB.maybeCreateCall(endpoint, request)).thenReturn(UNAVAILABLE);
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
+        when(channelB.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
 
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEmpty();
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
     }
 
     @Test
     public void testNoChannelsConfigured() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of());
 
-        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEmpty();
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
     }
 }

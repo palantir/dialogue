@@ -27,5 +27,5 @@ import java.util.Optional;
  * overloaded).
  */
 public interface LimitedChannel {
-    Optional<ListenableFuture<Response>> maybeCreateCall(Endpoint endpoint, Request request);
+    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
 }

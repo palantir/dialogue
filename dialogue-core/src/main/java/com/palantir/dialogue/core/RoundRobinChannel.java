@@ -39,7 +39,7 @@ public final class RoundRobinChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeCreateCall(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         if (delegates.isEmpty()) {
             return Optional.empty();
         }
@@ -48,7 +48,7 @@ public final class RoundRobinChannel implements LimitedChannel {
 
         for (int i = 0; i < delegates.size(); i++) {
             LimitedChannel channel = delegates.get(toIndex(host + i));
-            Optional<ListenableFuture<Response>> maybeCall = channel.maybeCreateCall(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
             if (maybeCall.isPresent()) {
                 return maybeCall;
             }

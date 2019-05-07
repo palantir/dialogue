@@ -59,7 +59,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(200);
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
         verify(listener).onSuccess();
     }
 
@@ -68,7 +68,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(429);
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
         verify(listener).onDropped();
     }
 
@@ -77,7 +77,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(503);
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
         verify(listener).onDropped();
     }
 
@@ -86,7 +86,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
         verify(listener).onIgnore();
     }
 
@@ -94,7 +94,7 @@ public class ConcurrencyLimitedChannelTest {
     public void testUnavailable() {
         mockLimitUnavailable();
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
         verifyZeroInteractions(listener);
     }
 
@@ -102,7 +102,7 @@ public class ConcurrencyLimitedChannelTest {
     public void testWithDefaultLimiter() {
         ConcurrencyLimitedChannel channel = ConcurrencyLimitedChannel.create(delegate);
 
-        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
 
     private void mockResponseCode(int code) {
