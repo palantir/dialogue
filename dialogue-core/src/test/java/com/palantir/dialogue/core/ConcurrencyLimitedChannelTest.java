@@ -100,7 +100,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        ConcurrencyLimitedChannel channel = ConcurrencyLimitedChannel.create(delegate);
+        channel = ConcurrencyLimitedChannel.create(delegate);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
