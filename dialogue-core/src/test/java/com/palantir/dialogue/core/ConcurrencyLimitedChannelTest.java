@@ -98,6 +98,13 @@ public class ConcurrencyLimitedChannelTest {
         verifyZeroInteractions(listener);
     }
 
+    @Test
+    public void testWithDefaultLimiter() {
+        ConcurrencyLimitedChannel channel = ConcurrencyLimitedChannel.create(delegate);
+
+        assertThat(channel.maybeCreateCall(endpoint, request)).contains(responseFuture);
+    }
+
     private void mockResponseCode(int code) {
         when(response.code()).thenReturn(code);
         responseFuture.set(response);

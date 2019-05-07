@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class RoundRobinChannel implements LimitedChannel {
 
     private final AtomicInteger currentHost = new AtomicInteger(0);
-    private final List<LimitedChannel> delegates;
+    private final ImmutableList<LimitedChannel> delegates;
 
     public RoundRobinChannel(List<LimitedChannel> delegates) {
         this.delegates = ImmutableList.copyOf(delegates);
@@ -40,6 +40,10 @@ public final class RoundRobinChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeCreateCall(Endpoint endpoint, Request request) {
+        if (delegates.isEmpty()) {
+            return Optional.empty();
+        }
+
         int host = currentHost.getAndUpdate(value -> toIndex(value + 1));
 
         for (int i = 0; i < delegates.size(); i++) {

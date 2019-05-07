@@ -75,4 +75,11 @@ public class RoundRobinChannelTest {
 
         assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEmpty();
     }
+
+    @Test
+    public void testNoChannelsConfigured() {
+        loadBalancer = new RoundRobinChannel(ImmutableList.of());
+
+        assertThat(loadBalancer.maybeCreateCall(endpoint, request)).isEmpty();
+    }
 }
