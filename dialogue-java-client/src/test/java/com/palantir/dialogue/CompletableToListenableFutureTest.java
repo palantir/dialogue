@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -52,20 +54,34 @@ public class CompletableToListenableFutureTest {
     }
 
     @Test
-    public void testExceptions() throws ExecutionException, InterruptedException {
-        ListenableFuture<String> listenableFuture = SettableFuture.create();
+    public void testCompletedExceptionally() {
+        originalFuture.completeExceptionally(new IllegalArgumentException());
 
-        listenableFuture.cancel(true);
-
-        listenableFuture.get();
+        assertThatThrownBy(() -> originalFuture.get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> wrappedFuture.get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
     }
 
     @Test
-    public void testExceptions2() throws ExecutionException, InterruptedException {
-        CompletableFuture<String> completableFuture = new CompletableFuture<>();
+    public void oneOfTwoCompletedExceptionally() {
+        CompletableFuture<String> failedFuture = new CompletableFuture<>();
+        CompletableFuture<String> derivedFuture = originalFuture.thenCombine(failedFuture, String::concat);
+        ListenableFuture<String> wrappedDerivedFuture = new CompletableToListenableFuture<>(derivedFuture);
 
-        completableFuture.cancel(true);
+        originalFuture.complete("done");
+        failedFuture.completeExceptionally(new IllegalArgumentException());
 
-        completableFuture.get();
+        assertThatThrownBy(() -> failedFuture.get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> derivedFuture.get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> wrappedDerivedFuture.get())
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(IllegalArgumentException.class);
     }
 }
