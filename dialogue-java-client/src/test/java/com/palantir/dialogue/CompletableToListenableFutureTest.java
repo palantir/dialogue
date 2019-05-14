@@ -19,8 +19,11 @@ package com.palantir.dialogue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -46,5 +49,23 @@ public class CompletableToListenableFutureTest {
         verify(runnable, never()).run();
         originalFuture.complete("done");
         verify(runnable).run();
+    }
+
+    @Test
+    public void testExceptions() throws ExecutionException, InterruptedException {
+        ListenableFuture<String> listenableFuture = SettableFuture.create();
+
+        listenableFuture.cancel(true);
+
+        listenableFuture.get();
+    }
+
+    @Test
+    public void testExceptions2() throws ExecutionException, InterruptedException {
+        CompletableFuture<String> completableFuture = new CompletableFuture<>();
+
+        completableFuture.cancel(true);
+
+        completableFuture.get();
     }
 }
