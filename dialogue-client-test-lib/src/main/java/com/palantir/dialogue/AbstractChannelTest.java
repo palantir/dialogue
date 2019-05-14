@@ -273,7 +273,7 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void callCancellationIsObservedAsException() throws InterruptedException, ExecutionException {
+    public void callCancellationIsObservedAsException() throws InterruptedException {
         channel.execute(endpoint, request);  // drain enqueued response
 
         channel = createChannel(server.url("").url());
