@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,8 +38,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.BiConsumer;
 import okhttp3.HttpUrl;
 import okhttp3.mockwebserver.MockResponse;
@@ -57,7 +54,7 @@ import org.mockito.Mock;
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
 public abstract class AbstractChannelTest {
 
-    abstract Channel createChannel(URL baseUrl, ExecutorService executor);
+    abstract Channel createChannel(URL baseUrl);
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -86,7 +83,7 @@ public abstract class AbstractChannelTest {
 
     @Before
     public void before() {
-        channel = createChannel(server.url("").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("").url());
 
         when(request.body()).thenReturn(Optional.empty());
         when(request.queryParams()).thenReturn(ImmutableMultimap.of());
@@ -99,21 +96,21 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void respectsBasePath_emptyBasePath() throws InterruptedException {
-        channel = createChannel(server.url("").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("").url());
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_slashBasePath() throws InterruptedException {
-        channel = createChannel(server.url("/").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("/").url());
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/a"));
     }
 
     @Test
     public void respectsBasePath_nonEmptyBasePath() throws InterruptedException {
-        channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/a"));
     }
@@ -122,7 +119,7 @@ public abstract class AbstractChannelTest {
     public void respectsBasePath_noSegment() throws InterruptedException {
         endpoint.renderPath = (params, url) -> { };
 
-        channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar"));
     }
@@ -131,7 +128,7 @@ public abstract class AbstractChannelTest {
     public void respectsBasePath_emptySegment() throws InterruptedException {
         endpoint.renderPath = (params, url) -> url.pathSegment("");
 
-        channel = createChannel(server.url("/foo/bar").url(), MoreExecutors.newDirectExecutorService());
+        channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/foo/bar/"));
     }
@@ -276,10 +273,10 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void callCancellationIsObservedAsException() throws InterruptedException {
+    public void callCancellationIsObservedAsException() throws InterruptedException, ExecutionException {
         channel.execute(endpoint, request);  // drain enqueued response
 
-        channel = createChannel(server.url("").url(), Executors.newCachedThreadPool());
+        channel = createChannel(server.url("").url());
         ListenableFuture<Response> call = channel.execute(endpoint, request);
         call.cancel(true);
 
@@ -287,9 +284,7 @@ public abstract class AbstractChannelTest {
         server.enqueue(new MockResponse());
 
         assertThatThrownBy(call::get)
-                // Different exceptions for HttpClient vs OkHttpClient
-                .isInstanceOfAny(CancellationException.class, IOException.class)
-                .hasMessageFindingMatch("(Task was cancelled\\.)|(Canceled)");
+                .isInstanceOfAny(CancellationException.class);
     }
 
     // TODO(rfink): How to test that cancellation propagates to the server?

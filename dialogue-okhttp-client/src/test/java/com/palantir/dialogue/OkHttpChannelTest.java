@@ -17,7 +17,7 @@
 package com.palantir.dialogue;
 
 import java.net.URL;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import org.junit.runner.RunWith;
@@ -27,10 +27,10 @@ import org.mockito.junit.MockitoJUnitRunner;
 public final class OkHttpChannelTest extends AbstractChannelTest {
 
     @Override
-    Channel createChannel(URL baseUrl, ExecutorService executor) {
+    Channel createChannel(URL baseUrl) {
         OkHttpClient client = new OkHttpClient()
                 .newBuilder()
-                .dispatcher(new Dispatcher(executor))
+                .dispatcher(new Dispatcher(Executors.newSingleThreadExecutor()))
                 .build();
         return OkHttpChannel.of(client, baseUrl);
     }

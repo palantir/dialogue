@@ -24,7 +24,6 @@ import com.palantir.dialogue.example.SampleServiceClient;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.time.Duration;
-import java.util.concurrent.Executors;
 import javax.net.ssl.SSLParameters;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -56,7 +55,6 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
                         .sslParameters(sslConfig)
                         .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
-                Executors.newSingleThreadExecutor(),
                 url);
     }
 }
