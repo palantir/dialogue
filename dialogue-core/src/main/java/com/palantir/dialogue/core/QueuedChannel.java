@@ -59,7 +59,7 @@ final class QueuedChannel implements Channel {
     }
 
     /**
-     * Try to schedule as many tasks as possible when requests are submitted and when they complete.
+     * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
      */
     private void schedule() {
         while (scheduleNextTask()) {
