@@ -81,6 +81,7 @@ public class QueuedChannelTest {
     }
 
     @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedOnNextSubmission() {
         mockNoCapacity();
         queuedChannel.execute(endpoint, request);
@@ -92,6 +93,7 @@ public class QueuedChannelTest {
     }
 
     @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedWhenRunningRequestCompletes() {
         mockHasCapacity();
         queuedChannel.execute(endpoint, request);
