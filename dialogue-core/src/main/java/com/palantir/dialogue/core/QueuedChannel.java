@@ -35,7 +35,7 @@ import org.immutables.value.Value;
 final class QueuedChannel implements Channel {
 
     private static final Executor DIRECT = MoreExecutors.directExecutor();
-    private final Deque<CallComponents> queuedCalls = new ConcurrentLinkedDeque<>();
+    private final Deque<DeferredCall> queuedCalls = new ConcurrentLinkedDeque<>();
     private final LimitedChannel delegate;
 
     QueuedChannel(LimitedChannel delegate) {
@@ -47,7 +47,7 @@ final class QueuedChannel implements Channel {
      */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        CallComponents components = ImmutableCallComponents.of(endpoint, request, SettableFuture.create());
+        DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
             throw QosException.unavailable();
@@ -73,7 +73,7 @@ final class QueuedChannel implements Channel {
      * tasks may be able to be scheduled, and false otherwise.
      */
     private boolean scheduleNextTask() {
-        CallComponents components = queuedCalls.poll();
+        DeferredCall components = queuedCalls.poll();
         if (components == null) {
             return false;
         }
@@ -115,7 +115,7 @@ final class QueuedChannel implements Channel {
     }
 
     @Value.Immutable
-    interface CallComponents {
+    interface DeferredCall {
         @Value.Parameter Endpoint endpoint();
         @Value.Parameter Request request();
         @Value.Parameter SettableFuture<Response> response();
