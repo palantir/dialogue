@@ -24,7 +24,8 @@ import java.util.Optional;
 
 /**
  * Similar to {@link com.palantir.dialogue.Channel}, but may not actually execute the call (eg: when the channel is
- * overloaded).
+ * overloaded). Semantics match {@link com.palantir.dialogue.Channel} aside from returning an
+ * {@link Optional<Response> optional response}.
  */
 public interface LimitedChannel {
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
