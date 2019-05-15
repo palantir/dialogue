@@ -17,10 +17,7 @@
 package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -33,17 +30,15 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.CompletableFuture;
 
 public final class HttpChannel implements Channel {
 
     private final HttpClient client;
-    private final ListeningExecutorService executor;
     private final UrlBuilder baseUrl;
 
-    private HttpChannel(HttpClient client, ExecutorService executor, URL baseUrl) {
+    private HttpChannel(HttpClient client, URL baseUrl) {
         this.client = client;
-        this.executor = MoreExecutors.listeningDecorator(executor);
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
                 "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
@@ -61,8 +56,8 @@ public final class HttpChannel implements Channel {
         }
     }
 
-    public static HttpChannel of(HttpClient client, ExecutorService executor, URL baseUrl) {
-        return new HttpChannel(client, executor, baseUrl);
+    public static HttpChannel of(HttpClient client, URL baseUrl) {
+        return new HttpChannel(client, baseUrl);
     }
 
     @Override
@@ -104,9 +99,11 @@ public final class HttpChannel implements Channel {
 
         // TODO(rfink): Think about repeatability/retries
 
-        ListenableFuture<HttpResponse<InputStream>> response = executor.submit(() ->
-                client.send(httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream()));
-        return Futures.transform(response, this::toResponse, MoreExecutors.directExecutor());
+        CompletableFuture<Response> future = client.sendAsync(
+                httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream())
+                .thenApply(this::toResponse);
+
+        return new CompletableToListenableFuture<>(future);
     }
 
     private Response toResponse(HttpResponse<InputStream> response) {
@@ -127,6 +124,7 @@ public final class HttpChannel implements Channel {
             }
         };
     }
+
     private static HttpRequest.BodyPublisher toBody(Request request, String method) {
         RequestBody body = request.body().orElseThrow(() -> new SafeIllegalArgumentException(
                 "Endpoint must have a request body", SafeArg.of("method", method)));

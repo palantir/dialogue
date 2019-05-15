@@ -18,7 +18,6 @@ package com.palantir.dialogue;
 
 import java.net.URL;
 import java.net.http.HttpClient;
-import java.util.concurrent.ExecutorService;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -26,8 +25,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 public final class HttpChannelTest extends AbstractChannelTest {
 
     @Override
-    Channel createChannel(URL baseUrl, ExecutorService executor) {
+    Channel createChannel(URL baseUrl) {
         HttpClient client = HttpClient.newBuilder().build();
-        return HttpChannel.of(client, executor, baseUrl);
+        return HttpChannel.of(client, baseUrl);
     }
 }
