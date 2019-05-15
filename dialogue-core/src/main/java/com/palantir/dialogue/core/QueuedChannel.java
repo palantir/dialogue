@@ -69,11 +69,15 @@ final class QueuedChannel implements Channel {
 
     /**
      * Get the next call and attempt to execute it. If it is runnable, wire up the underlying future to the one
-     * previously returned to the caller and return true. If it is not runnable, add it back into the queue and return
-     * false.
+     * previously returned to the caller. If it is not runnable, add it back into the queue. Returns true if more
+     * tasks may be able to be scheduled, and false otherwise.
      */
     private boolean scheduleNextTask() {
         CallComponents components = queuedCalls.poll();
+        if (components == null) {
+            return false;
+        }
+
         Optional<ListenableFuture<Response>> response =
                 delegate.maybeExecute(components.endpoint(), components.request());
 
