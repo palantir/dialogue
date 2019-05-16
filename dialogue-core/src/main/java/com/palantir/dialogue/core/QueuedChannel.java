@@ -50,7 +50,7 @@ final class QueuedChannel implements Channel {
         DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
-            throw QosException.unavailable();
+            return Futures.immediateFailedFuture(QosException.unavailable());
         }
 
         schedule();
