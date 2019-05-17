@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -30,16 +31,49 @@ import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+/**
+ * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
+ * requests. This is done by enqueueing requests on submission, and then running the schedule loop in one of 3 ways:
+ * <ol>
+ *     <li>On submission - allows execution when there is available capacity</li>
+ *     <li>On request completion - allows execution when capacity has now become available</li>
+ *     <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight
+ *     requests</li>
+ * </ol>
+ *
+ * This implementation was chose over alternatives for the following reasons:
+ * <ul>
+ *     <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to
+ *     wait until the next scheduling period</li>
+ *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
+ *     doing work, much of which will be wasted</li>
+ * </ul>
+ */
 final class QueuedChannel implements Channel {
 
+    private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
     private final Deque<DeferredCall> queuedCalls = new ConcurrentLinkedDeque<>();
     private final LimitedChannel delegate;
+    private final ScheduledExecutorService backgroundScheduler =
+            Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                    .setNameFormat("dialogue-request-scheduler")
+                    .setUncaughtExceptionHandler((t, e) ->
+                            log.error("Uncaught exception while scheduling request. This is a programming error.", e))
+                    .setDaemon(false)
+                    .build());
+
 
     QueuedChannel(LimitedChannel delegate) {
         this.delegate = delegate;
+        backgroundScheduler.scheduleWithFixedDelay(this::schedule, 100, 100, TimeUnit.MILLISECONDS);
     }
 
     /**
