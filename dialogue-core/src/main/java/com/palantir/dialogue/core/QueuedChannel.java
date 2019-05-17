@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  *     requests</li>
  * </ol>
  *
- * This implementation was chose over alternatives for the following reasons:
+ * This implementation was chosen over alternatives for the following reasons:
  * <ul>
  *     <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to
  *     wait until the next scheduling period</li>
@@ -65,15 +65,18 @@ final class QueuedChannel implements Channel {
     private final ScheduledExecutorService backgroundScheduler =
             Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
                     .setNameFormat("dialogue-request-scheduler")
-                    .setUncaughtExceptionHandler((t, e) ->
-                            log.error("Uncaught exception while scheduling request. This is a programming error.", e))
                     .setDaemon(false)
                     .build());
 
-
     QueuedChannel(LimitedChannel delegate) {
         this.delegate = delegate;
-        backgroundScheduler.scheduleWithFixedDelay(this::schedule, 100, 100, TimeUnit.MILLISECONDS);
+        this.backgroundScheduler.scheduleWithFixedDelay(() -> {
+            try {
+                schedule();
+            } catch (Exception e) {
+                log.error("Uncaught exception while scheduling request. This is a programming error.", e))
+            }
+        }, 100, 100, TimeUnit.MILLISECONDS);
     }
 
     /**
