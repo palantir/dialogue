@@ -68,6 +68,7 @@ final class QueuedChannel implements Channel {
                     .setDaemon(false)
                     .build());
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     QueuedChannel(LimitedChannel delegate) {
         this.delegate = delegate;
         this.backgroundScheduler.scheduleWithFixedDelay(() -> {
