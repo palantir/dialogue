@@ -77,7 +77,7 @@ final class QueuedChannel implements Channel {
     }
 
     /**
-     * Enqueue the call and try to schedule as many queued tasks as possible.
+     * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
