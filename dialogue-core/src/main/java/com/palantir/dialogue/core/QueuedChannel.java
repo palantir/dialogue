@@ -74,7 +74,7 @@ final class QueuedChannel implements Channel {
             try {
                 schedule();
             } catch (Exception e) {
-                log.error("Uncaught exception while scheduling request. This is a programming error.", e))
+                log.error("Uncaught exception while scheduling request. This is a programming error.", e);
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
     }
