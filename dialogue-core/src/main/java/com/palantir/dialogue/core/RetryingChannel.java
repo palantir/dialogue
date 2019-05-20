@@ -34,7 +34,6 @@ import java.util.function.Supplier;
  * Retries calls to the underlying channel upon failure.
  */
 final class RetryingChannel implements Channel {
-    private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
     private static final int DEFAULT_MAX_RETRIES = 4;
 
     private final Channel delegate;
@@ -56,7 +55,7 @@ final class RetryingChannel implements Channel {
 
         Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
         FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
-        Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
+        MoreFutures.addDirectCallback(callSupplier.get(), retryer);
 
         return future;
     }
@@ -79,7 +78,7 @@ final class RetryingChannel implements Channel {
         @Override
         public void onFailure(Throwable throwable) {
             if (failures.incrementAndGet() < maxRetries) {
-                Futures.addCallback(runnable.get(), this, DIRECT_EXECUTOR);
+                MoreFutures.addDirectCallback(runnable.get(), this);
             } else {
                 delegate.setException(throwable);
             }

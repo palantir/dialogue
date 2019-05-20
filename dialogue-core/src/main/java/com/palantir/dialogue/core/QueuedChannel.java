@@ -20,7 +20,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
@@ -30,7 +29,6 @@ import com.palantir.dialogue.Response;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
-import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
@@ -60,7 +58,6 @@ import org.slf4j.LoggerFactory;
 final class QueuedChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
-    private static final Executor DIRECT = MoreExecutors.directExecutor();
     private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     private final ScheduledExecutorService backgroundScheduler =
@@ -127,7 +124,7 @@ final class QueuedChannel implements Channel {
                 delegate.maybeExecute(components.endpoint(), components.request());
 
         if (response.isPresent()) {
-            Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
+            MoreFutures.addDirectCallback(response.get(), new ForwardAndSchedule(components.response()));
             return true;
         } else {
             queuedCalls.addFirst(components);
