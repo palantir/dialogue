@@ -61,7 +61,7 @@ final class BlacklistingChannel implements LimitedChannel {
         } else {
 
             return delegate.maybeExecute(endpoint, request)
-                    .map(future -> MoreFutures.addDirectCallback(future, new BlacklistingCallback<>()));
+                    .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback<>()));
         }
     }
 

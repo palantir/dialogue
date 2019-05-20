@@ -26,6 +26,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -34,6 +35,7 @@ import java.util.function.Supplier;
  */
 final class RetryingChannel implements Channel {
     private static final int DEFAULT_MAX_RETRIES = 4;
+    private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
 
     private final Channel delegate;
     private final int maxRetries;
@@ -54,7 +56,7 @@ final class RetryingChannel implements Channel {
 
         Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
         FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
-        Futures.addCallback(callSupplier.get(), retryer, MoreExecutors.directExecutor());
+        Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
 
         return future;
     }
@@ -77,7 +79,7 @@ final class RetryingChannel implements Channel {
         @Override
         public void onFailure(Throwable throwable) {
             if (failures.incrementAndGet() < maxRetries) {
-                Futures.addCallback(runnable.get(), this, MoreExecutors.directExecutor());
+                Futures.addCallback(runnable.get(), this, DIRECT_EXECUTOR);
             } else {
                 delegate.setException(throwable);
             }

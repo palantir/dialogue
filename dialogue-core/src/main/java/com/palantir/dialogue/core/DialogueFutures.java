@@ -21,8 +21,8 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 
-final class MoreFutures {
-    private MoreFutures() {}
+final class DialogueFutures {
+    private DialogueFutures() {}
 
     static <T> ListenableFuture<T> addDirectCallback(ListenableFuture<T> future, FutureCallback<T> callback) {
         Futures.addCallback(future, callback, MoreExecutors.directExecutor());
