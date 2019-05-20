@@ -18,7 +18,9 @@ package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -52,7 +54,7 @@ final class RetryingChannel implements Channel {
 
         Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
         FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
-        MoreFutures.addDirectCallback(callSupplier.get(), retryer);
+        Futures.addCallback(callSupplier.get(), retryer, MoreExecutors.directExecutor());
 
         return future;
     }
@@ -75,7 +77,7 @@ final class RetryingChannel implements Channel {
         @Override
         public void onFailure(Throwable throwable) {
             if (failures.incrementAndGet() < maxRetries) {
-                MoreFutures.addDirectCallback(runnable.get(), this);
+                Futures.addCallback(runnable.get(), this, MoreExecutors.directExecutor());
             } else {
                 delegate.setException(throwable);
             }

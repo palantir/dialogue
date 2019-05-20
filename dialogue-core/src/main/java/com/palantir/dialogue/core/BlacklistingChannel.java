@@ -70,7 +70,7 @@ final class BlacklistingChannel implements LimitedChannel {
         public void onSuccess(T result) {}
 
         @Override
-        public void onFailure(Throwable t) {
+        public void onFailure(Throwable throwable) {
             isBlacklisted.put(KEY, VALUE);
         }
     }
