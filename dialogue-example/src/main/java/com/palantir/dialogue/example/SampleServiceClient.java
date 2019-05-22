@@ -87,7 +87,6 @@ public final class SampleServiceClient {
     // TODO(rfink): Consider using a builder pattern to construct clients
     public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration callTimeout) {
         return new SampleService() {
-
             private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
             private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
@@ -147,7 +146,6 @@ public final class SampleServiceClient {
     // TODO(rfink): Consider using a builder pattern to construct clients
     public static AsyncSampleService async(Channel channel, ConjureRuntime runtime) {
         return new AsyncSampleService() {
-
             private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
             private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
