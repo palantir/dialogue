@@ -59,7 +59,6 @@ final class BlacklistingChannel implements LimitedChannel {
         if (isBlacklisted.getIfPresent(KEY) != null) {
             return Optional.empty();
         } else {
-
             return delegate.maybeExecute(endpoint, request)
                     .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback<>()));
         }
