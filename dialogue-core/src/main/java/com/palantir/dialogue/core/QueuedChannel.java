@@ -27,6 +27,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.io.InputStream;
+import java.net.http.HttpResponse;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -88,7 +90,7 @@ final class QueuedChannel implements Channel {
         DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
-            return Futures.immediateFailedFuture(QosException.unavailable());
+            return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
         }
 
         schedule();
@@ -149,6 +151,25 @@ final class QueuedChannel implements Channel {
         public void onFailure(Throwable throwable) {
             response.setException(throwable);
             schedule();
+        }
+    }
+
+    private enum  RateLimitedResponse implements Response {
+        INSTANCE;
+
+        @Override
+        public InputStream body() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public int code() {
+            return 429;
+        }
+
+        @Override
+        public Optional<String> contentType() {
+            return Optional.empty();
         }
     }
 
