@@ -33,14 +33,14 @@ import java.util.function.Supplier;
 /**
  * Retries calls to the underlying channel upon failure.
  */
-public final class RetryingChannel implements Channel {
+final class RetryingChannel implements Channel {
     private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
     private static final int DEFAULT_MAX_RETRIES = 4;
 
     private final Channel delegate;
     private final int maxRetries;
 
-    public RetryingChannel(Channel delegate) {
+    RetryingChannel(Channel delegate) {
         this(delegate, DEFAULT_MAX_RETRIES);
     }
 

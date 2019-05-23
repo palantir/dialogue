@@ -27,6 +27,6 @@ import java.util.Optional;
  * overloaded). Semantics match {@link com.palantir.dialogue.Channel} aside from returning an
  * {@link Optional optional response}.
  */
-public interface LimitedChannel {
+interface LimitedChannel {
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
 }
