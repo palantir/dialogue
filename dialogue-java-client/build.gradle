@@ -3,6 +3,7 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 sourceCompatibility = 11
 
 dependencies {
+    compile project(':dialogue-core')
     compile project(':dialogue-target')
     compile 'com.google.guava:guava'
     compile 'com.palantir.conjure.java.runtime:client-config'
