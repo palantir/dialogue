@@ -49,7 +49,7 @@ public class QueuedChannelTest {
 
     @Before
     public void before() {
-        queuedChannel = new QueuedChannel(delegate);
+        queuedChannel = new QueuedChannel(delegate, 1);
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 
@@ -106,6 +106,14 @@ public class QueuedChannelTest {
         futureResponse.set(mockResponse);
 
         verify(delegate, times(3)).maybeExecute(endpoint, request);
+    }
+
+    @Test
+    public void testQueueFullReturns429() throws ExecutionException, InterruptedException {
+        mockNoCapacity();
+        queuedChannel.execute(endpoint, request);
+
+        assertThat(queuedChannel.execute(endpoint, request).get().code()).isEqualTo(429);
     }
 
     private OngoingStubbing<Optional<ListenableFuture<Response>>> mockHasCapacity() {
