@@ -108,6 +108,17 @@ public class QueuedChannelTest {
         verify(delegate, times(3)).maybeExecute(endpoint, request);
     }
 
+    @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
+    public void testQueueFullReturns429() throws ExecutionException, InterruptedException {
+        queuedChannel = new QueuedChannel(delegate, 1);
+
+        mockNoCapacity();
+        queuedChannel.execute(endpoint, request);
+
+        assertThat(queuedChannel.execute(endpoint, request).get().code()).isEqualTo(429);
+    }
+
     private OngoingStubbing<Optional<ListenableFuture<Response>>> mockHasCapacity() {
         return when(delegate.maybeExecute(endpoint, request)).thenReturn(maybeResponse);
     }

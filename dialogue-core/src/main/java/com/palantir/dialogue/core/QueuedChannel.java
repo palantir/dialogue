@@ -16,22 +16,23 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.util.Deque;
+import java.io.InputStream;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.immutables.value.Value;
@@ -60,7 +61,7 @@ final class QueuedChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
-    private final Deque<DeferredCall> queuedCalls = new ConcurrentLinkedDeque<>();
+    private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     private final ScheduledExecutorService backgroundScheduler =
             Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
@@ -68,9 +69,15 @@ final class QueuedChannel implements Channel {
                     .setDaemon(false)
                     .build());
 
+    QueuedChannel(LimitedChannel channel) {
+        this(channel, 1_000);
+    }
+
+    @VisibleForTesting
     @SuppressWarnings("FutureReturnValueIgnored")
-    QueuedChannel(LimitedChannel delegate) {
+    QueuedChannel(LimitedChannel delegate, int maxQueueSize) {
         this.delegate = delegate;
+        this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
         this.backgroundScheduler.scheduleWithFixedDelay(() -> {
             try {
                 schedule();
@@ -88,7 +95,7 @@ final class QueuedChannel implements Channel {
         DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
-            return Futures.immediateFailedFuture(QosException.unavailable());
+            return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
         }
 
         schedule();
@@ -149,6 +156,25 @@ final class QueuedChannel implements Channel {
         public void onFailure(Throwable throwable) {
             response.setException(throwable);
             schedule();
+        }
+    }
+
+    private enum  RateLimitedResponse implements Response {
+        INSTANCE;
+
+        @Override
+        public InputStream body() {
+            return InputStream.nullInputStream();
+        }
+
+        @Override
+        public int code() {
+            return 429;
+        }
+
+        @Override
+        public Optional<String> contentType() {
+            return Optional.empty();
         }
     }
 
