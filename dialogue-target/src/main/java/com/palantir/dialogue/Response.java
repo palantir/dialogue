@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ImmutableList;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,10 @@ public interface Response {
 
     /** Retrieves the first value from the header map for the given key. */
     default Optional<String> getFirstHeader(String header) {
-        return Optional.ofNullable(headers().get(header))
-                .flatMap(values -> values.stream().findFirst());
+        List<String> headerList = headers().getOrDefault(header, ImmutableList.of());
+
+        return headerList.isEmpty()
+                ? Optional.empty()
+                : Optional.of(headerList.get(0));
     }
 }
