@@ -41,44 +41,65 @@ public class BlacklistingChannelTest {
     @Mock private Ticker ticker;
     @Mock private Endpoint endpoint;
     @Mock private Request request;
-    @Mock private Response successfulResponse;
+    @Mock private Response response;
     private BlacklistingChannel channel;
-    private SettableFuture<Response> response;
+    private SettableFuture<Response> futureResponse;
 
     @Before
     public void before() {
         channel = new BlacklistingChannel(delegate, BLACKLIST_DURATION, ticker);
 
-        response = SettableFuture.create();
-        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(response));
+        futureResponse = SettableFuture.create();
+        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(futureResponse));
     }
 
     @Test
     public void testBlacklistAfterError() {
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
 
-        response.setException(new IllegalStateException());
+        futureResponse.setException(new IllegalStateException());
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
+    public void testBlacklistAfter503() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+
+        futureResponse.set(mockResponseWithCode(503));
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
+    public void testBlacklistedForDuration() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+
+        futureResponse.setException(new IllegalStateException());
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
 
         when(ticker.read()).thenReturn(BLACKLIST_DURATION.toNanos() - 1);
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
 
         when(ticker.read()).thenReturn(BLACKLIST_DURATION.toNanos());
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
     }
 
     @Test
     public void testNotBlacklistedAfterSuccess() {
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
 
-        response.set(successfulResponse);
+        futureResponse.set(mockResponseWithCode(200));
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
     }
 
     @Test
     public void testConcurrentRequestsAllowed() {
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
-        assertThat(channel.maybeExecute(endpoint, request)).contains(response);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+    }
+
+    private Response mockResponseWithCode(int code) {
+        when(response.code()).thenReturn(code);
+        return response;
     }
 }

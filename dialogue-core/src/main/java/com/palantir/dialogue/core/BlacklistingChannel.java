@@ -60,13 +60,17 @@ final class BlacklistingChannel implements LimitedChannel {
             return Optional.empty();
         } else {
             return delegate.maybeExecute(endpoint, request)
-                    .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback<>()));
+                    .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback()));
         }
     }
 
-    private class BlacklistingCallback<T> implements FutureCallback<T> {
+    private class BlacklistingCallback implements FutureCallback<Response> {
         @Override
-        public void onSuccess(T result) {}
+        public void onSuccess(Response response) {
+            if (response.code() == 503) {
+                isBlacklisted.put(KEY, VALUE);
+            }
+        }
 
         @Override
         public void onFailure(Throwable throwable) {
