@@ -179,11 +179,6 @@ final class QueuedChannel implements Channel {
         public Map<String, List<String>> headers() {
             return ImmutableMap.of();
         }
-
-        @Override
-        public Optional<String> contentType() {
-            return Optional.empty();
-        }
     }
 
     @Value.Immutable

@@ -31,6 +31,9 @@ public interface Response {
     /** The HTTP headers for this response. */
     Map<String, List<String>> headers();
 
-    /** The content-type HTTP header of the response if it exists. */
-    Optional<String> contentType();
+    /** Retrieves the first value from the header map for the given key. */
+    default Optional<String> getFirstHeader(String header) {
+        return Optional.ofNullable(headers().get(header))
+                .flatMap(values -> values.stream().findFirst());
+    }
 }

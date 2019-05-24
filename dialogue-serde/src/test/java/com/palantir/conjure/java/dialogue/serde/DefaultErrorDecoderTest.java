@@ -39,8 +39,8 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import javax.annotation.CheckForNull;
+import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -152,12 +152,7 @@ public final class DefaultErrorDecoderTest {
 
             @Override
             public Map<String, List<String>> headers() {
-                return ImmutableMap.of();
-            }
-
-            @Override
-            public Optional<String> contentType() {
-                return Optional.of(mediaType);
+                return ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(mediaType));
             }
         };
     }

@@ -16,14 +16,9 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.collect.Iterables;
-import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import java.io.InputStream;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 public final class OkHttpResponse implements Response {
 
@@ -52,15 +47,5 @@ public final class OkHttpResponse implements Response {
     @Override
     public Map<String, List<String>> headers() {
         return delegate.headers().toMultimap();
-    }
-
-    @Override
-    public Optional<String> contentType() {
-        // TODO(rfink): Maybe cache this
-        // TODO(rfink): Header case sensitivity?
-        Collection<String> headers = delegate.headers(Headers.CONTENT_TYPE);
-        Preconditions.checkArgument(headers.size() <= 1, "Expected zero or one Content-Type headers",
-                SafeArg.of("contentType", headers));
-        return Optional.ofNullable(headers.size() == 1 ? Iterables.getOnlyElement(headers) : null);
     }
 }

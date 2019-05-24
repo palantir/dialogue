@@ -35,7 +35,6 @@ import com.palantir.dialogue.UrlBuilder;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.Before;
 import org.junit.Test;
@@ -105,11 +104,6 @@ public class RetryingChannelTest {
         @Override
         public Map<String, List<String>> headers() {
             return ImmutableMap.of();
-        }
-
-        @Override
-        public Optional<String> contentType() {
-            return Optional.empty();
         }
     }
 

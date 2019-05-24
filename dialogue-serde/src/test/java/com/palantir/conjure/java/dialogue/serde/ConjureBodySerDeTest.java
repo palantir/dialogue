@@ -33,7 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
+import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 
 public class ConjureBodySerDeTest {
@@ -46,7 +46,7 @@ public class ConjureBodySerDeTest {
         Encoding plain = new StubEncoding("text/plain");
 
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("text/plain");
+        response.contentType("text/plain");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(json, plain));
         String value = serializers.deserializer(TYPE).deserialize(response);
         assertThat(value).isEqualTo(plain.getContentType());
@@ -64,7 +64,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testUnsupportedRequestContentType() {
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("application/unknown");
+        response.contentType("application/unknown");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(new StubEncoding("application/json")));
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
@@ -97,7 +97,7 @@ public class ConjureBodySerDeTest {
         Encoding plain = new StubEncoding("text/plain");
 
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("application/unknown");
+        response.contentType("application/unknown");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(json, plain));
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(json.getContentType());
@@ -149,7 +149,6 @@ public class ConjureBodySerDeTest {
         private InputStream body = new ByteArrayInputStream(new byte[] {});
         private int code = 0;
         private Map<String, List<String>> headers = ImmutableMap.of();
-        private Optional<String> contentType = Optional.empty();
 
         @Override
         public InputStream body() {
@@ -166,9 +165,8 @@ public class ConjureBodySerDeTest {
             return headers;
         }
 
-        @Override
-        public Optional<String> contentType() {
-            return contentType;
+        public void contentType(String contentType) {
+            this.headers = ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(contentType));
         }
     }
 }
