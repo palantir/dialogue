@@ -83,7 +83,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
     private static final class LimiterCallback implements FutureCallback<Response> {
-        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429, 503);
+        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429);
 
         private final Limiter.Listener listener;
 
