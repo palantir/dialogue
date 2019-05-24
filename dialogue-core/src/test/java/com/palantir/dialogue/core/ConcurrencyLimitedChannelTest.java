@@ -73,15 +73,6 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testLimiterAvailable_503isDropped() {
-        mockLimitAvailable();
-        mockResponseCode(503);
-
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).onDropped();
-    }
-
-    @Test
     public void testLimiterAvailable_exceptionIsIgnored() {
         mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());

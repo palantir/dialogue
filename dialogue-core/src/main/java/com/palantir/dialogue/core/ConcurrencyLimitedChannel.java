@@ -21,9 +21,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
 import com.netflix.concurrency.limits.limit.WindowedLimit;
@@ -77,18 +75,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener -> {
-            ListenableFuture<Response> call = delegate.execute(endpoint, request);
-            Futures.addCallback(call, new LimiterCallback(listener), MoreExecutors.directExecutor());
-            return call;
-        });
+        return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener ->
+                DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), new LimiterCallback(listener)));
     }
 
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
     private static final class LimiterCallback implements FutureCallback<Response> {
-        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429, 503);
+        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429);
 
         private final Limiter.Listener listener;
 
