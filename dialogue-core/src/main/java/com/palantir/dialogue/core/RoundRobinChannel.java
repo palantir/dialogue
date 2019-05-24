@@ -29,12 +29,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Round robins requests across many channels, attempting to choose a channel that has some available capacity.
  */
-public final class RoundRobinChannel implements LimitedChannel {
+final class RoundRobinChannel implements LimitedChannel {
 
     private final AtomicInteger currentHost = new AtomicInteger(0);
     private final ImmutableList<LimitedChannel> delegates;
 
-    public RoundRobinChannel(List<LimitedChannel> delegates) {
+    RoundRobinChannel(List<LimitedChannel> delegates) {
         this.delegates = ImmutableList.copyOf(delegates);
     }
 
