@@ -21,6 +21,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public final class OkHttpResponse implements Response {
@@ -45,6 +47,11 @@ public final class OkHttpResponse implements Response {
     @Override
     public int code() {
         return delegate.code();
+    }
+
+    @Override
+    public Map<String, List<String>> headers() {
+        return delegate.headers().toMultimap();
     }
 
     @Override

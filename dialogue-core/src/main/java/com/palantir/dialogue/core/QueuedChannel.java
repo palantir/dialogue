@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -28,6 +29,8 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Executor;
@@ -159,7 +162,7 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    private enum  RateLimitedResponse implements Response {
+    private enum RateLimitedResponse implements Response {
         INSTANCE;
 
         @Override
@@ -170,6 +173,11 @@ final class QueuedChannel implements Channel {
         @Override
         public int code() {
             return 429;
+        }
+
+        @Override
+        public Map<String, List<String>> headers() {
+            return ImmutableMap.of();
         }
 
         @Override

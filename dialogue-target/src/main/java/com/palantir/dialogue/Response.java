@@ -17,6 +17,8 @@
 package com.palantir.dialogue;
 
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface Response {
@@ -26,6 +28,10 @@ public interface Response {
     /** The HTTP response code for this response. */
     int code();
 
+    /** The HTTP headers for this response. */
+    Map<String, List<String>> headers();
+
     /** The content-type HTTP header of the response if it exists. */
     Optional<String> contentType();
+
 }

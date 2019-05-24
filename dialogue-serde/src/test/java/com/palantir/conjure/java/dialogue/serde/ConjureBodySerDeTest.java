@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -30,6 +31,8 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.junit.Test;
 
@@ -145,6 +148,7 @@ public class ConjureBodySerDeTest {
 
         private InputStream body = new ByteArrayInputStream(new byte[] {});
         private int code = 0;
+        private Map<String, List<String>> headers = ImmutableMap.of();
         private Optional<String> contentType = Optional.empty();
 
         @Override
@@ -155,6 +159,11 @@ public class ConjureBodySerDeTest {
         @Override
         public int code() {
             return code;
+        }
+
+        @Override
+        public Map<String, List<String>> headers() {
+            return headers;
         }
 
         @Override
