@@ -31,6 +31,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
+import javax.ws.rs.core.HttpHeaders;
 
 public enum DefaultErrorDecoder implements ErrorDecoder {
     INSTANCE;
@@ -42,7 +44,8 @@ public enum DefaultErrorDecoder implements ErrorDecoder {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
-        if (response.contentType().isPresent() && response.contentType().get().equals("application/json")) {
+        Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+        if (contentType.isPresent() && contentType.get().equals("application/json")) {
             final String body;
             try {
                 body = toString(response.body());

@@ -23,9 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
@@ -76,7 +76,6 @@ public abstract class AbstractChannelTest {
     };
 
     @Mock private Request request;
-    @Mock private FutureCallback<Response> callback;
     private FakeEndpoint endpoint;
 
     private Channel channel;
@@ -263,6 +262,7 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> call = channel.execute(endpoint, request);
         assertThat(call.get().body()).hasContent("");
         assertThat(call.get().code()).isEqualTo(200);
+        assertThat(call.get().headers()).containsEntry("Content-Length", ImmutableList.of("0"));
     }
 
     @Test

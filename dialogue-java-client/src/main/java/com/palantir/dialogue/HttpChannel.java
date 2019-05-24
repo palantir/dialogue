@@ -28,8 +28,8 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 public final class HttpChannel implements Channel {
@@ -119,8 +119,8 @@ public final class HttpChannel implements Channel {
             }
 
             @Override
-            public Optional<String> contentType() {
-                return response.headers().firstValue(Headers.CONTENT_TYPE);
+            public Map<String, List<String>> headers() {
+                return response.headers().map();
             }
         };
     }

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -30,7 +31,9 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Optional;
+import java.util.List;
+import java.util.Map;
+import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 
 public class ConjureBodySerDeTest {
@@ -43,7 +46,7 @@ public class ConjureBodySerDeTest {
         Encoding plain = new StubEncoding("text/plain");
 
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("text/plain");
+        response.contentType("text/plain");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(json, plain));
         String value = serializers.deserializer(TYPE).deserialize(response);
         assertThat(value).isEqualTo(plain.getContentType());
@@ -61,7 +64,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testUnsupportedRequestContentType() {
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("application/unknown");
+        response.contentType("application/unknown");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(new StubEncoding("application/json")));
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
@@ -94,7 +97,7 @@ public class ConjureBodySerDeTest {
         Encoding plain = new StubEncoding("text/plain");
 
         TestResponse response = new TestResponse();
-        response.contentType = Optional.of("application/unknown");
+        response.contentType("application/unknown");
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(json, plain));
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(json.getContentType());
@@ -145,7 +148,7 @@ public class ConjureBodySerDeTest {
 
         private InputStream body = new ByteArrayInputStream(new byte[] {});
         private int code = 0;
-        private Optional<String> contentType = Optional.empty();
+        private Map<String, List<String>> headers = ImmutableMap.of();
 
         @Override
         public InputStream body() {
@@ -158,8 +161,12 @@ public class ConjureBodySerDeTest {
         }
 
         @Override
-        public Optional<String> contentType() {
-            return contentType;
+        public Map<String, List<String>> headers() {
+            return headers;
+        }
+
+        public void contentType(String contentType) {
+            this.headers = ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(contentType));
         }
     }
 }

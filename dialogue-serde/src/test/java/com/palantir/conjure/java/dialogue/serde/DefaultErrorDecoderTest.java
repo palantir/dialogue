@@ -23,6 +23,7 @@ import static org.junit.Assert.fail;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -36,8 +37,10 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
+import java.util.List;
+import java.util.Map;
 import javax.annotation.CheckForNull;
+import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
@@ -148,8 +151,8 @@ public final class DefaultErrorDecoderTest {
             }
 
             @Override
-            public Optional<String> contentType() {
-                return Optional.of(mediaType);
+            public Map<String, List<String>> headers() {
+                return ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(mediaType));
             }
         };
     }

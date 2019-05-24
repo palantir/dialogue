@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
@@ -102,7 +103,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public InputStream deserializeInputStream(Response exchange) {
-        Optional<String> contentType = exchange.contentType();
+        Optional<String> contentType = exchange.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (!contentType.isPresent()) {
             throw new SafeIllegalArgumentException("Response is missing Content-Type header");
         }
@@ -176,7 +177,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public T deserialize(Response response) {
-            EncodingDeserializerContainer<T> container = getResponseDeserializer(response.contentType());
+            Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+            EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
             return container.deserializer.deserialize(response.body());
         }
 

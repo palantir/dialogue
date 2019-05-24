@@ -16,7 +16,10 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ImmutableList;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface Response {
@@ -26,6 +29,16 @@ public interface Response {
     /** The HTTP response code for this response. */
     int code();
 
-    /** The content-type HTTP header of the response if it exists. */
-    Optional<String> contentType();
+    /** The HTTP headers for this response. Headers names are compared in a case-insensitive fashion as per
+     * https://tools.ietf.org/html/rfc7540#section-8.1.2. */
+    Map<String, List<String>> headers();
+
+    /** Retrieves the first value from the header map for the given key. */
+    default Optional<String> getFirstHeader(String header) {
+        List<String> headerList = headers().getOrDefault(header, ImmutableList.of());
+
+        return headerList.isEmpty()
+                ? Optional.empty()
+                : Optional.of(headerList.get(0));
+    }
 }
