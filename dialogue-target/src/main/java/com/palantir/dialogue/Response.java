@@ -33,5 +33,4 @@ public interface Response {
 
     /** The content-type HTTP header of the response if it exists. */
     Optional<String> contentType();
-
 }
