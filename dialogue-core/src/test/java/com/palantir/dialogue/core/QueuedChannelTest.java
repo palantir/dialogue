@@ -109,6 +109,7 @@ public class QueuedChannelTest {
     }
 
     @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueueFullReturns429() throws ExecutionException, InterruptedException {
         mockNoCapacity();
         queuedChannel.execute(endpoint, request);
