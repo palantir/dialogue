@@ -9,6 +9,7 @@ dependencies {
     compile 'com.netflix.concurrency-limits:concurrency-limits-core'
     compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.safe-logging:preconditions'
+    compile 'io.dropwizard.metrics:metrics-core'
 
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'
