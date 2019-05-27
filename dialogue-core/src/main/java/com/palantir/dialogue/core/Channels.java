@@ -20,6 +20,7 @@ import static java.util.stream.Collectors.toList;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collection;
 import java.util.List;
 
@@ -27,8 +28,13 @@ public final class Channels {
 
     private Channels() {}
 
-    public static Channel create(Collection<? extends Channel> channels, UserAgent userAgent) {
+    public static Channel create(
+            Collection<? extends Channel> channels,
+            UserAgent userAgent,
+            TaggedMetricRegistry metrics) {
         List<LimitedChannel> limitedChannels = channels.stream()
+                // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+                .map(channel -> new InstrumentedChannel(channel, metrics))
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(toList());
 

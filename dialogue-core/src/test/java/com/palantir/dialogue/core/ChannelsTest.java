@@ -31,6 +31,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import org.junit.Before;
@@ -74,7 +75,10 @@ public final class ChannelsTest {
 
     @Before
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")));
+        channel = Channels.create(
+                ImmutableList.of(delegate),
+                UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")),
+                new DefaultTaggedMetricRegistry());
     }
 
     @Test

@@ -20,6 +20,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
 import org.junit.runner.RunWith;
@@ -39,6 +40,8 @@ public final class JavaChannelsTest extends AbstractChannelTest {
                 .security(SSL_CONFIG)
                 .build();
         return JavaChannels.create(
-                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
+                ClientConfigurations.of(serviceConf),
+                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
+                new DefaultTaggedMetricRegistry());
     }
 }

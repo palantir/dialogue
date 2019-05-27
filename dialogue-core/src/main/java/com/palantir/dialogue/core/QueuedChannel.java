@@ -59,6 +59,8 @@ import org.slf4j.LoggerFactory;
  *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
  *     doing work, much of which will be wasted</li>
  * </ul>
+ *
+ * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
 final class QueuedChannel implements Channel {
 
