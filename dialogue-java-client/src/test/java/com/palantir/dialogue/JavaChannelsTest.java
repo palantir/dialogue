@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import java.net.URL;
@@ -37,6 +38,7 @@ public final class JavaChannelsTest extends AbstractChannelTest {
                 .addUris(baseUrl.toString())
                 .security(SSL_CONFIG)
                 .build();
-        return JavaChannels.create(ClientConfigurations.of(serviceConf));
+        return JavaChannels.create(
+                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
     }
 }

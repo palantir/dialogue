@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import static java.util.stream.Collectors.toList;
 
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
 import java.net.MalformedURLException;
@@ -33,7 +34,7 @@ public final class JavaChannels {
 
     private JavaChannels() {}
 
-    public static Channel create(ClientConfiguration conf) {
+    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
         // TODO(jellis): read/write timeouts
         // TODO(jellis): record metrics
         // TODO(jellis): gcm cipher toggle
@@ -54,7 +55,7 @@ public final class JavaChannels {
                 .map(uri -> HttpChannel.of(client, url(uri)))
                 .collect(toList());
 
-        return Channels.create(channels);
+        return Channels.create(channels, baseAgent);
     }
 
     private static URL url(String uri) {

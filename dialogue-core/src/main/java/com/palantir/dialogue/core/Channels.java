@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static java.util.stream.Collectors.toList;
 
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
 import java.util.Collection;
 import java.util.List;
@@ -26,11 +27,13 @@ public final class Channels {
 
     private Channels() {}
 
-    public static Channel create(Collection<? extends Channel> channels) {
+    public static Channel create(Collection<? extends Channel> channels, UserAgent userAgent) {
         List<LimitedChannel> limitedChannels = channels.stream()
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(toList());
 
-        return new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels)));
+        return new UserAgentChannel(
+                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels))),
+                userAgent);
     }
 }

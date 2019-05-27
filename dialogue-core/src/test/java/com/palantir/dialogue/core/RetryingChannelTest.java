@@ -115,5 +115,20 @@ public class RetryingChannelTest {
         public HttpMethod httpMethod() {
             return HttpMethod.GET;
         }
+
+        @Override
+        public String serviceName() {
+            return "service";
+        }
+
+        @Override
+        public String endpointName() {
+            return "endpoint";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
+        }
     }
 }
