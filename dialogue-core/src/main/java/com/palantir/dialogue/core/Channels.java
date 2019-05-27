@@ -33,13 +33,13 @@ public final class Channels {
             UserAgent userAgent,
             TaggedMetricRegistry metrics) {
         List<LimitedChannel> limitedChannels = channels.stream()
+                // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+                .map(channel -> new InstrumentedChannel(channel, metrics))
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(toList());
 
         return new UserAgentChannel(
-                new InstrumentedChannel(
-                        new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels))),
-                        metrics),
+                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels))),
                 userAgent);
     }
 }
