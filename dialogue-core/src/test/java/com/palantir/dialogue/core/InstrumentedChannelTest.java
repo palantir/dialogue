@@ -60,10 +60,13 @@ public final class InstrumentedChannelTest {
         Timer timer = registry.timer(name);
 
         assertThat(timer.getCount()).isEqualTo(0);
+
+        // Successful execution
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(null));
         channel.execute(endpoint, null);
         assertThat(timer.getCount()).isEqualTo(1);
 
+        // Unsuccessful execution
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
         channel.execute(endpoint, null);
         assertThat(timer.getCount()).isEqualTo(2);
