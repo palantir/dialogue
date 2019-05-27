@@ -77,10 +77,19 @@ public final class UserAgentChannelTest {
 
     @Test
     public void injectsDialogueVersionAndEndpointVersion() {
+        // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
+        final String dialogueVersion;
+        if (System.getenv().get("CI") != null) {
+            dialogueVersion = Channel.class.getPackage().getImplementationVersion();
+        } else {
+            dialogueVersion = "0.0.0";
+        }
+
         Request augmentedRequest = Request.builder()
                 .from(request)
-                // NOTE: tests are run against class not JARs and thus don't carry versions; hence the dialogue/0.0.0
-                .putHeaderParams("user-agent", "test-class/1.2.3 test-service/2.3.4 test-endpoint/2.3.4 dialogue/0.0.0")
+                .putHeaderParams(
+                        "user-agent",
+                        "test-class/1.2.3 test-service/2.3.4 test-endpoint/2.3.4 dialogue/" + dialogueVersion)
                 .build();
         channel.execute(endpoint, request);
         verify(delegate).execute(endpoint, augmentedRequest);
