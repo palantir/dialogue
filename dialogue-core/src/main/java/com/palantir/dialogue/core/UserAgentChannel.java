@@ -31,6 +31,15 @@ import com.palantir.dialogue.Response;
  */
 final class UserAgentChannel implements Channel {
 
+    private static final UserAgent.Agent DIALOGUE_AGENT;
+
+    static {
+        String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
+        DIALOGUE_AGENT = UserAgent.Agent.of(
+                "dialogue",
+                maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
+    }
+
     private final Channel delegate;
     private final UserAgent baseAgent;
 
@@ -49,14 +58,8 @@ final class UserAgentChannel implements Channel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
-        String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        UserAgent.Agent dialogueAgent = UserAgent.Agent.of(
-                "dialogue",
-                maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
-
         return baseAgent
                 .addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpoint.version()))
-                .addAgent(UserAgent.Agent.of(endpoint.endpointName(), endpoint.version()))
-                .addAgent(dialogueAgent);
+                .addAgent(DIALOGUE_AGENT);
     }
 }
