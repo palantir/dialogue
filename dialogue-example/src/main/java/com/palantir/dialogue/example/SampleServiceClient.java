@@ -45,6 +45,10 @@ public final class SampleServiceClient {
 
     private SampleServiceClient() {}
 
+    public String apiVersion() {
+        return "0.0.0";
+    }
+
     private static final Endpoint STRING_TO_STRING = new Endpoint() {
         private final PathTemplate pathTemplate = PathTemplate.builder()
                 .fixed("objectToObject")
@@ -61,6 +65,21 @@ public final class SampleServiceClient {
         public HttpMethod httpMethod() {
             return HttpMethod.POST;
         }
+
+        @Override
+        public String serviceName() {
+            return "SampleService";
+        }
+
+        @Override
+        public String endpointName() {
+            return "STRING_TO_STRING";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
+        }
     };
 
     private static final Endpoint VOID_TO_VOID = new Endpoint() {
@@ -76,6 +95,21 @@ public final class SampleServiceClient {
         @Override
         public HttpMethod httpMethod() {
             return HttpMethod.GET;
+        }
+
+        @Override
+        public String serviceName() {
+            return "SampleService";
+        }
+
+        @Override
+        public String endpointName() {
+            return "VOID_TO_VOID";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
         }
     };
 

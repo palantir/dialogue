@@ -16,23 +16,15 @@
 
 package com.palantir.dialogue.core;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -40,10 +32,10 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class ChannelsTest {
+public final class UserAgentChannelTest {
 
-    @Mock private Channel delegate;
-    private Endpoint endpoint = new Endpoint() {
+    private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
+    private static final Endpoint endpoint = new Endpoint() {
         @Override
         public void renderPath(Map<String, String> params, UrlBuilder url) {}
 
@@ -64,24 +56,32 @@ public final class ChannelsTest {
 
         @Override
         public String version() {
-            return "1.0.0";
+            return "2.3.4";
         }
     };
 
-    @Mock private Response response;
-    private Request request = Request.builder().build();
-    private Channel channel;
+    @Mock private Channel delegate;
+    private UserAgentChannel channel;
 
     @Before
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")));
+        channel = new UserAgentChannel(delegate, baseAgent);
     }
 
-    @Test
-    public void testRequestMakesItThrough() throws ExecutionException, InterruptedException {
-        ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+    private Request request = Request.builder()
+            .putHeaderParams("header", "value")
+            .putQueryParams("query", "value")
+            .putPathParams("path", "value")
+            .build();
 
-        assertThat(channel.execute(endpoint, request).get()).isEqualTo(response);
+    @Test
+    public void injectsDialogueVersionAndEndpointVersion() {
+        Request augmentedRequest = Request.builder()
+                .from(request)
+                // NOTE: tests are run against class not JARs and thus don't carry versions; hence the dialogue/0.0.0
+                .putHeaderParams("user-agent", "test-class/1.2.3 test-service/2.3.4 test-endpoint/2.3.4 dialogue/0.0.0")
+                .build();
+        channel.execute(endpoint, request);
+        verify(delegate).execute(endpoint, augmentedRequest);
     }
 }

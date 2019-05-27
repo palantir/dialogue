@@ -25,4 +25,7 @@ import java.util.Map;
 public interface Endpoint {
     void renderPath(Map<String, String> params, UrlBuilder url);
     HttpMethod httpMethod();
+    String serviceName();
+    String endpointName();
+    String version();
 }

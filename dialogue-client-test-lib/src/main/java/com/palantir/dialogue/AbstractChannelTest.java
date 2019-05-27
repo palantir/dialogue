@@ -310,5 +310,20 @@ public abstract class AbstractChannelTest {
         public HttpMethod httpMethod() {
             return method;
         }
+
+        @Override
+        public String serviceName() {
+            return "service";
+        }
+
+        @Override
+        public String endpointName() {
+            return "endpoint";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
+        }
     }
 }
