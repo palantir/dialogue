@@ -87,9 +87,7 @@ public final class UserAgentChannelTest {
 
         Request augmentedRequest = Request.builder()
                 .from(request)
-                .putHeaderParams(
-                        "user-agent",
-                        "test-class/1.2.3 test-service/2.3.4 test-endpoint/2.3.4 dialogue/" + dialogueVersion)
+                .putHeaderParams("user-agent", "test-class/1.2.3 test-service/2.3.4 dialogue/" + dialogueVersion)
                 .build();
         channel.execute(endpoint, request);
         verify(delegate).execute(endpoint, augmentedRequest);
