@@ -37,7 +37,6 @@ public final class JavaChannels {
 
     public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
         // TODO(jellis): read/write timeouts
-        // TODO(jellis): record metrics
         // TODO(jellis): gcm cipher toggle
         // TODO(jellis): proxy creds + mesh proxy
         // TODO(jellis): configure node selection strategy
