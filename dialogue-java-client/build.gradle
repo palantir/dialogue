@@ -9,6 +9,7 @@ dependencies {
     compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
+    compile 'com.squareup.okio:okio'
 
     testCompile project(':dialogue-client-test-lib')
     testCompile project(':dialogue-serde')

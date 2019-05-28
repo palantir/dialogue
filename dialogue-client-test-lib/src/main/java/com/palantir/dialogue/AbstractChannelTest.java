@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,6 +44,8 @@ import okhttp3.HttpUrl;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okio.Buffer;
+import okio.GzipSink;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
@@ -295,6 +298,32 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> call = channel.execute(endpoint, request);
         assertThatThrownBy(call::get)
                 .hasCauseInstanceOf(ConnectException.class);
+    }
+
+    @Test
+    public void supportsGzipEncryptedResponse() throws Exception {
+        // drain enqueued response
+        channel.execute(endpoint, request).get();
+        server.takeRequest();
+
+        server.enqueue(new MockResponse()
+                .addHeader("cOntent-encoding", "gzip")
+                .setBody(zip("foo")));
+        Response response = channel.execute(endpoint, request).get();
+        assertThat(response.body()).hasContent("foo");
+        assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");
+    }
+
+    private static Buffer zip(String content) throws IOException {
+        Buffer gzipBytes = new Buffer();
+        Buffer rawBytes = new Buffer();
+        rawBytes.writeString(content, StandardCharsets.UTF_8);
+        rawBytes.flush();
+
+        GzipSink gzip = new GzipSink(gzipBytes);
+        gzip.write(rawBytes, 3);
+        gzip.close();
+        return gzipBytes;
     }
 
     private static class FakeEndpoint implements Endpoint {
