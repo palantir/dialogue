@@ -31,6 +31,8 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import okio.GzipSource;
+import okio.Okio;
 
 public final class HttpChannel implements Channel {
 
@@ -96,9 +98,9 @@ public final class HttpChannel implements Channel {
         for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
             httpRequest.header(header.getKey(), header.getValue());
         }
+        httpRequest.header("accept-encoding", "gzip");
 
         // TODO(rfink): Think about repeatability/retries
-
         CompletableFuture<Response> future = client.sendAsync(
                 httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream())
                 .thenApply(this::toResponse);
@@ -110,7 +112,15 @@ public final class HttpChannel implements Channel {
         return new Response() {
             @Override
             public InputStream body() {
-                return response.body();
+                boolean isGzipped = response.headers()
+                        .firstValue("content-encoding").orElse("")
+                        .equalsIgnoreCase("gzip");
+                if (isGzipped) {
+                    // TODO(rfink): Think about removing the okio dependency at some point?
+                    return Okio.buffer(new GzipSource(Okio.source(response.body()))).inputStream();
+                } else {
+                    return response.body();
+                }
             }
 
             @Override
