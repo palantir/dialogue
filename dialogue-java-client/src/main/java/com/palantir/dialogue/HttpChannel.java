@@ -114,8 +114,7 @@ public final class HttpChannel implements Channel {
             public InputStream body() {
                 boolean isGzipped = response.headers()
                         .firstValue("content-encoding").orElse("")
-                        .toLowerCase()
-                        .equals("gzip");
+                        .equalsIgnoreCase("gzip");
                 if (isGzipped) {
                     // TODO(rfink): Think about removing the okio dependency at some point?
                     return Okio.buffer(new GzipSource(Okio.source(response.body()))).inputStream();
