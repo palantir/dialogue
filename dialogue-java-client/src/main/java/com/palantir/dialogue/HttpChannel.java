@@ -20,9 +20,7 @@ import com.google.common.base.Strings;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
@@ -84,10 +82,10 @@ public final class HttpChannel implements Channel {
                 httpRequest.GET();
                 break;
             case POST:
-                httpRequest.POST(toBody(request, "POST"));
+                httpRequest.POST(toBody(request));
                 break;
             case PUT:
-                httpRequest.PUT(toBody(request, "PUT"));
+                httpRequest.PUT(toBody(request));
                 break;
             case DELETE:
                 Preconditions.checkArgument(
@@ -138,11 +136,12 @@ public final class HttpChannel implements Channel {
         };
     }
 
-    private static HttpRequest.BodyPublisher toBody(Request request, String method) {
-        RequestBody body = request.body().orElseThrow(() -> new SafeIllegalArgumentException(
-                "Endpoint must have a request body", SafeArg.of("method", method)));
-        // TODO(rfink): Throw if accessed multiple times?
-        return HttpRequest.BodyPublishers.ofInputStream(body::content);
+    private static HttpRequest.BodyPublisher toBody(Request request) {
+        if (request.body().isPresent()) {
+            return HttpRequest.BodyPublishers.ofInputStream(request.body().get()::content);
+        } else {
+            return HttpRequest.BodyPublishers.noBody();
+        }
     }
 
     private String stripSlashes(String path) {

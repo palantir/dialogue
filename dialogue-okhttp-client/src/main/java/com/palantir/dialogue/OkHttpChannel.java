@@ -21,12 +21,11 @@ import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
+import java.util.Optional;
 import javax.annotation.Nullable;
 import okhttp3.Callback;
 import okhttp3.MediaType;
@@ -36,6 +35,7 @@ import okio.BufferedSink;
 
 public final class OkHttpChannel implements Channel {
 
+    private static final RequestBody EMPTY_REQUEST_BODY = RequestBody.create(null, new byte[] {});
     private final OkHttpClient client;
     private final UrlBuilder baseUrl;
 
@@ -61,6 +61,10 @@ public final class OkHttpChannel implements Channel {
     /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
     public static OkHttpChannel of(OkHttpClient client, URL baseUrl) {
         return new OkHttpChannel(client, baseUrl);
+    }
+
+    private RequestBody toOkHttpBody(Optional<com.palantir.dialogue.RequestBody> body) {
+        return body.map(this::toOkHttpBody).orElse(EMPTY_REQUEST_BODY);
     }
 
     private RequestBody toOkHttpBody(com.palantir.dialogue.RequestBody body) {
@@ -93,14 +97,10 @@ public final class OkHttpChannel implements Channel {
                 okRequest = okRequest.get();
                 break;
             case POST:
-                okRequest = okRequest.post(toOkHttpBody(
-                        request.body().orElseThrow(() -> new SafeIllegalArgumentException(
-                                "Endpoint must have a request body", SafeArg.of("method", "POST")))));
+                okRequest = okRequest.post(toOkHttpBody(request.body()));
                 break;
             case PUT:
-                okRequest = okRequest.put(toOkHttpBody(
-                        request.body().orElseThrow(() -> new SafeIllegalArgumentException(
-                                "Endpoint must have a request body", SafeArg.of("method", "PUT")))));
+                okRequest = okRequest.put(toOkHttpBody(request.body()));
                 break;
             case DELETE:
                 Preconditions.checkArgument(
