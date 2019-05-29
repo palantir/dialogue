@@ -81,7 +81,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure JSON wire format. */
     public static Encoding json() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newServerObjectMapper())) {
+        return new AbstractJacksonEncoding(configure(ObjectMappers.newClientObjectMapper())) {
             private static final String CONTENT_TYPE = "application/json";
 
             @Override
@@ -101,7 +101,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure CBOR wire format. */
     public static Encoding cbor() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newCborServerObjectMapper())) {
+        return new AbstractJacksonEncoding(configure(ObjectMappers.newCborClientObjectMapper())) {
             private static final String CONTENT_TYPE = "application/cbor";
 
             @Override
