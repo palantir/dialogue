@@ -17,11 +17,18 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
@@ -35,10 +42,16 @@ import java.util.List;
 import java.util.Map;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
+@RunWith(MockitoJUnitRunner.class)
 public class ConjureBodySerDeTest {
 
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
+
+    @Mock private ErrorDecoder errorDecoder;
 
     @Test
     public void testRequestContentType() throws IOException {
@@ -101,6 +114,22 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(json, plain));
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(json.getContentType());
+    }
+
+    @Test
+    public void testErrorsDecoded() {
+        TestResponse response = new TestResponse();
+        response.code = 400;
+
+        ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
+        SerializableError serialized = SerializableError.forException(serviceException);
+        when(errorDecoder.isError(response)).thenReturn(true);
+        when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
+
+        BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(new StubEncoding("text/plain")), errorDecoder);
+
+        assertThatExceptionOfType(RemoteException.class)
+                .isThrownBy(() -> serializers.deserializer(TYPE).deserialize(response));
     }
 
     /** Deserializes requests as the configured content type. */

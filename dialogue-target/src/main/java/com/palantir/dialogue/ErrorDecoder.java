@@ -25,5 +25,9 @@ import com.palantir.conjure.java.api.errors.RemoteException;
  * Response} does not adhere to an expected format.
  */
 public interface ErrorDecoder {
+    default boolean isError(Response response) {
+        return 300 <= response.code() && response.code() <= 599;
+    }
+
     RemoteException decode(Response response);
 }
