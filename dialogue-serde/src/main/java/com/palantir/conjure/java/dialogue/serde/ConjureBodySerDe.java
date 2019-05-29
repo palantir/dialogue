@@ -16,10 +16,12 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -42,6 +44,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private static final String BINARY_CONTENT_TYPE = "application/octet-stream";
 
     private final List<Encoding> encodings;
+    private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
 
     /**
@@ -50,8 +53,14 @@ final class ConjureBodySerDe implements BodySerDe {
      * by a given request, or the first serializer if no such serializer can be found.
      */
     ConjureBodySerDe(List<Encoding> encodings) {
+        this(encodings, DefaultErrorDecoder.INSTANCE);
+    }
+
+    @VisibleForTesting
+    ConjureBodySerDe(List<Encoding> encodings, ErrorDecoder errorDecoder) {
         // Defensive copy
         this.encodings = ImmutableList.copyOf(encodings);
+        this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0);
     }
@@ -63,7 +72,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(encodings, token);
+        return new EncodingDeserializerRegistry<>(encodings, errorDecoder, token);
     }
 
     @Override
@@ -167,16 +176,23 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
+        // TODO(jellis): consider supporting cbor encoded errors
         private final List<EncodingDeserializerContainer<T>> encodings;
+        private final ErrorDecoder errorDecoder;
 
-        EncodingDeserializerRegistry(List<Encoding> encodings, TypeMarker<T> token) {
+        EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
+            this.errorDecoder = errorDecoder;
         }
 
         @Override
         public T deserialize(Response response) {
+            if (errorDecoder.isError(response)) {
+                throw errorDecoder.decode(response);
+            }
+
             Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
             EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
             return container.deserializer.deserialize(response.body());

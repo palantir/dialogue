@@ -68,7 +68,10 @@ public final class DefaultErrorDecoderTest {
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {
         for (int code : ImmutableList.of(300, 400, 404, 500)) {
-            RemoteException exception = decode("application/json", code, SERIALIZED_EXCEPTION);
+            Response response = response(code, "application/json", SERIALIZED_EXCEPTION);
+            assertThat(decoder.isError(response)).isTrue();
+
+            RemoteException exception = decoder.decode(response);
             assertThat(exception.getCause()).isNull();
             assertThat(exception.getStatus()).isEqualTo(code);
             assertThat(exception.getError().errorCode()).isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
@@ -89,21 +92,21 @@ public final class DefaultErrorDecoderTest {
 
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
-        assertThatThrownBy(() -> decode("text/plain", 500, SERIALIZED_EXCEPTION))
+        assertThatThrownBy(() -> decoder.decode(response(500, "text/plain", SERIALIZED_EXCEPTION)))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("Failed to interpret response body as SerializableError: {code=500}");
     }
 
     @Test
     public void doesNotHandleUnparseableBody() {
-        assertThatThrownBy(() -> decode("application/json/", 500, "not json"))
+        assertThatThrownBy(() -> decoder.decode(response(500, "application/json/", "not json")))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessageStartingWith("Failed to interpret response body as SerializableError:");
     }
 
     @Test
     public void doesNotHandleNullBody() {
-        assertThatThrownBy(() -> decode("application/json", 500, null))
+        assertThatThrownBy(() -> decoder.decode(response(500, "application/json", null)))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessageStartingWith(
                         "Failed to deserialize response body as JSON, could not deserialize SerializableError:");
@@ -127,11 +130,7 @@ public final class DefaultErrorDecoderTest {
         //         ? ((WebApplicationException) exception).getResponse().getStatus()
         //         : 400;
         int status = 400;
-        return decode("application/json", status, json);
-    }
-
-    private static RemoteException decode(String contentType, int status, @CheckForNull String body) {
-        return decoder.decode(response(status, contentType, body));
+        return decoder.decode(response(status, "application/json", json));
     }
 
     private static Response response(int code, String mediaType, @CheckForNull String body) {
