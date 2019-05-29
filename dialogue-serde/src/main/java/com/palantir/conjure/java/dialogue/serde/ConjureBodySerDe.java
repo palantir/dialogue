@@ -53,6 +53,7 @@ final class ConjureBodySerDe implements BodySerDe {
      * by a given request, or the first serializer if no such serializer can be found.
      */
     ConjureBodySerDe(List<Encoding> encodings) {
+        // TODO(jellis): consider supporting cbor encoded errors
         this(encodings, DefaultErrorDecoder.INSTANCE);
     }
 
@@ -176,7 +177,6 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
-        // TODO(jellis): consider supporting cbor encoded errors
         private final List<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
 
