@@ -119,7 +119,6 @@ public class ConjureBodySerDeTest {
     @Test
     public void testErrorsDecoded() {
         TestResponse response = new TestResponse();
-        // response.contentType();
         response.code = 400;
 
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
