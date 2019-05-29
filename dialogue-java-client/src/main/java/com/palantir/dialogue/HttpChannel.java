@@ -17,11 +17,13 @@
 package com.palantir.dialogue;
 
 import com.google.common.base.Strings;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -31,8 +33,8 @@ import java.net.http.HttpResponse;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import okio.GzipSource;
-import okio.Okio;
+import java.util.function.Supplier;
+import java.util.zip.GZIPInputStream;
 
 public final class HttpChannel implements Channel {
 
@@ -116,8 +118,7 @@ public final class HttpChannel implements Channel {
                         .firstValue("content-encoding").orElse("")
                         .equalsIgnoreCase("gzip");
                 if (isGzipped) {
-                    // TODO(rfink): Think about removing the okio dependency at some point?
-                    return Okio.buffer(new GzipSource(Okio.source(response.body()))).inputStream();
+                    return new DeferredGzipInputStream(response.body());
                 } else {
                     return response.body();
                 }
@@ -151,6 +152,31 @@ public final class HttpChannel implements Channel {
             int stripStart = path.startsWith("/") ? 1 : 0;
             int stripEnd = path.endsWith("/") ? 1 : 0;
             return path.substring(stripStart, path.length() - stripEnd);
+        }
+    }
+
+    /** Wraps a {@link java.util.zip.GZIPInputStream} deferring initialization until first byte is read. */
+    private static class DeferredGzipInputStream extends InputStream {
+        private final Supplier<GZIPInputStream> delegate;
+
+        DeferredGzipInputStream(InputStream original) {
+            delegate = Suppliers.memoize(() -> {
+                try {
+                    return new GZIPInputStream(original);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+        }
+
+        @Override
+        public int read() throws IOException {
+            return delegate.get().read();
+        }
+
+        @Override
+        public int read(byte[] bytes, int off, int len) throws IOException {
+            return delegate.get().read(bytes, off, len);
         }
     }
 }
