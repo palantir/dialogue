@@ -210,14 +210,14 @@ public abstract class AbstractChannelTest {
     public void post_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();;
+        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();
     }
 
     @Test
     public void put_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();;
+        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();
     }
 
     @Test
