@@ -43,7 +43,6 @@ import java.util.Map;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
