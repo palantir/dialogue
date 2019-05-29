@@ -57,6 +57,8 @@ import org.mockito.Mock;
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
 public abstract class AbstractChannelTest {
 
+    private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
+
     abstract Channel createChannel(URL baseUrl);
 
     @Rule
@@ -64,17 +66,17 @@ public abstract class AbstractChannelTest {
     private final RequestBody body = new RequestBody() {
         @Override
         public Optional<Long> length() {
-            return Optional.empty();
+            return Optional.of((long) CONTENT.length);
         }
 
         @Override
         public InputStream content() {
-            return new ByteArrayInputStream(new byte[] {});
+            return new ByteArrayInputStream(CONTENT);
         }
 
         @Override
         public String contentType() {
-            return "unused";
+            return "application/text";
         }
     };
 
@@ -258,6 +260,15 @@ public abstract class AbstractChannelTest {
         endpoint.method = HttpMethod.DELETE;
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("DELETE");
+    }
+
+    @Test
+    public void setsContentTypeHeader() throws InterruptedException {
+        endpoint.method = HttpMethod.POST;
+        when(request.body()).thenReturn(Optional.of(body));
+        channel.execute(endpoint, request);
+
+        assertThat(server.takeRequest().getHeader("content-type")).isEqualTo("application/text");
     }
 
     @Test

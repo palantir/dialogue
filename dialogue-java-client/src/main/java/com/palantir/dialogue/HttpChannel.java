@@ -102,6 +102,8 @@ public final class HttpChannel implements Channel {
         }
         httpRequest.header("accept-encoding", "gzip");
 
+        request.body().ifPresent(body -> httpRequest.header("content-type", body.contentType()));
+
         // TODO(rfink): Think about repeatability/retries
         CompletableFuture<Response> future = client.sendAsync(
                 httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream())
