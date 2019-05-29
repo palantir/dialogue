@@ -207,21 +207,17 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void post_failsWhenNoBodyIsGiven() {
+    public void post_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> channel.execute(endpoint, request))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("Endpoint must have a request body: {method=POST}");
+        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();;
     }
 
     @Test
-    public void put_failsWhenNoBodyIsGiven() {
+    public void put_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.PUT;
         when(request.body()).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> channel.execute(endpoint, request))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("Endpoint must have a request body: {method=PUT}");
+        assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();;
     }
 
     @Test
