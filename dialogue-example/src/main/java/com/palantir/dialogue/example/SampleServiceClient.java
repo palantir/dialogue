@@ -146,13 +146,8 @@ public final class SampleServiceClient {
                         call,
                         r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
-                try {
-                    return response.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                    // TODO(rfink): Think about exception handling, in particular in the case of retries. Should this
-                    //  actually throw a TimeoutException?
-                } catch (Throwable t) {
-                    throw Exceptions.unwrapExecutionException(t);
-                }
+
+                return Exceptions.getUnchecked(response);
             }
 
             @Override
@@ -164,11 +159,8 @@ public final class SampleServiceClient {
                         call,
                         r -> voidToVoidDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
-                try {
-                    deserializedResponse.get(callTimeout.toMillis(), TimeUnit.MILLISECONDS);
-                } catch (Throwable t) {
-                    throw Exceptions.unwrapExecutionException(t);
-                }
+
+                Exceptions.getUnchecked(deserializedResponse);
             }
         };
     }

@@ -16,7 +16,11 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.util.concurrent.ExecutionError;
+import com.google.common.util.concurrent.UncheckedExecutionException;
+import com.palantir.conjure.java.api.errors.RemoteException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 /** Provides utility functions for exception handling. */
 public final class Exceptions {
@@ -24,22 +28,35 @@ public final class Exceptions {
     private Exceptions() {}
 
     /**
-     * If the given {@link Throwable} is an {@link ExecutionException} with a non-null {@link Throwable#cause cause},
-     * returns the cause, possibly wrapped in a {@link RuntimeException} unless it is already a RuntimeException. Else,
-     * returns the given throwable itself if it is a {@link RuntimeException}, or else the given throwable wrapped in a
-     * {@link RuntimeException}.
+     * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except it propagates
+     * {@link RemoteException}s directly, rather than wrapping them in an {@link UncheckedExecutionException}.
      */
-    public static RuntimeException unwrapExecutionException(Throwable throwable) {
-        if (throwable instanceof ExecutionException) {
-            if (throwable.getCause() != null) {
-                Throwable cause = throwable.getCause();
-                throw throwable.getCause() instanceof RuntimeException
-                        ? (RuntimeException) cause
-                        : new RuntimeException(cause);
+    public static <T> T getUnchecked(Future<T> future) {
+        try {
+            return future.get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            if (e.getCause() instanceof RemoteException) {
+                RemoteException remoteException = (RemoteException) e.getCause();
+                RemoteException correctStackTrace = new RemoteException(
+                        remoteException.getError(),
+                        remoteException.getStatus());
+                correctStackTrace.initCause(e);
+                throw correctStackTrace;
             }
+
+            return defaultGetUnchecked(e.getCause());
         }
-        return throwable instanceof RuntimeException
-                ? (RuntimeException) throwable
-                : new RuntimeException(throwable);
+    }
+
+     // Equivalent to the behavior in Futures.getUnchecked(Future)
+    private static <T> T defaultGetUnchecked(Throwable exception) {
+        if (exception instanceof Error) {
+            throw new ExecutionError((Error) exception);
+        } else {
+            throw new UncheckedExecutionException(exception);
+        }
     }
 }
