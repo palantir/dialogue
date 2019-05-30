@@ -36,7 +36,7 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
     @Override
     SampleService createBlockingClient(URL baseUrl, Duration timeout) {
         Channel channel = createChannel(baseUrl, timeout);
-        return SampleServiceClient.blocking(channel, runtime, timeout);
+        return SampleServiceClient.blocking(channel, runtime);
     }
 
     @Override
@@ -55,6 +55,6 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
                         .sslParameters(sslConfig)
                         .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
-                url);
+                url, timeout);
     }
 }

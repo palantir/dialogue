@@ -36,7 +36,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -200,18 +199,14 @@ public abstract class AbstractSampleServiceClientTest {
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 
-    @Test(timeout = 2_000)  // see client construction: we set a 1s timeout
+    @Test(timeout = 5_000)  // see client construction: we set a 1s timeout
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
                 .addHeader(Headers.CONTENT_TYPE, "application/json")
                 .setBodyDelay(10, TimeUnit.SECONDS));
         assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
-                .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(TimeoutException.class)
-                .hasMessageContaining("Waited 1000 milliseconds");
-
-        // TODO(rfink): It seems that the OkHttp version of this tests leaves the connection open after the timeout.
+                .isInstanceOf(RuntimeException.class);
     }
 
     @Test(timeout = 2_000)
