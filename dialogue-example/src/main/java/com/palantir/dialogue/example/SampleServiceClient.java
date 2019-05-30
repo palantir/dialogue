@@ -34,7 +34,6 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.ri.ResourceIdentifier;
-import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
@@ -118,7 +117,7 @@ public final class SampleServiceClient {
      * service; an exception is thrown when this duration is exceeded.
      */
     // TODO(rfink): Consider using a builder pattern to construct clients
-    public static SampleService blocking(Channel channel, ConjureRuntime runtime, Duration callTimeout) {
+    public static SampleService blocking(Channel channel, ConjureRuntime runtime) {
         return new SampleService() {
             private Serializer<SampleObject> sampleObjectToSampleObjectSerializer =
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
@@ -154,12 +153,12 @@ public final class SampleServiceClient {
                 Request request = Request.builder().build();
 
                 ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
-                ListenableFuture<Void> deserializedResponse = Futures.transform(
+                ListenableFuture<Void> response = Futures.transform(
                         call,
                         r -> voidToVoidDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
 
-                Exceptions.getUnchecked(deserializedResponse);
+                Exceptions.getUnchecked(response);
             }
         };
     }

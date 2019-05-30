@@ -28,6 +28,7 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -37,10 +38,12 @@ import java.util.zip.GZIPInputStream;
 public final class HttpChannel implements Channel {
 
     private final HttpClient client;
+    private final Duration requestTimeout;
     private final UrlBuilder baseUrl;
 
-    private HttpChannel(HttpClient client, URL baseUrl) {
+    private HttpChannel(HttpClient client, URL baseUrl, Duration requestTimeout) {
         this.client = client;
+        this.requestTimeout = requestTimeout;
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
                 "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
@@ -59,7 +62,11 @@ public final class HttpChannel implements Channel {
     }
 
     public static HttpChannel of(HttpClient client, URL baseUrl) {
-        return new HttpChannel(client, baseUrl);
+        return new HttpChannel(client, baseUrl, Duration.ofSeconds(30));
+    }
+
+    public static HttpChannel of(HttpClient client, URL baseUrl, Duration requestTimeout) {
+        return new HttpChannel(client, baseUrl, requestTimeout);
     }
 
     @Override
@@ -68,12 +75,7 @@ public final class HttpChannel implements Channel {
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);
         request.queryParams().forEach(url::queryParam);
-        final HttpRequest.Builder httpRequest;
-        try {
-            httpRequest = HttpRequest.newBuilder().uri(url.build().toURI());
-        } catch (URISyntaxException e) {
-            throw new RuntimeException("Failed to construct URI, this is a bug", e);
-        }
+        HttpRequest.Builder httpRequest = newRequestBuilder(url);
 
         // Fill request body and set HTTP method
         switch (endpoint.httpMethod()) {
@@ -98,9 +100,10 @@ public final class HttpChannel implements Channel {
         for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
             httpRequest.header(header.getKey(), header.getValue());
         }
-        httpRequest.header("accept-encoding", "gzip");
 
+        httpRequest.header("accept-encoding", "gzip");
         request.body().ifPresent(body -> httpRequest.header("content-type", body.contentType()));
+        httpRequest.timeout(requestTimeout);
 
         // TODO(rfink): Think about repeatability/retries
         CompletableFuture<Response> future = client.sendAsync(
@@ -108,6 +111,14 @@ public final class HttpChannel implements Channel {
                 .thenApply(this::toResponse);
 
         return new CompletableToListenableFuture<>(future);
+    }
+
+    private static HttpRequest.Builder newRequestBuilder(UrlBuilder url) {
+        try {
+            return HttpRequest.newBuilder().uri(url.build().toURI());
+        } catch (URISyntaxException e) {
+            throw new RuntimeException("Failed to construct URI, this is a bug", e);
+        }
     }
 
     private Response toResponse(HttpResponse<InputStream> response) {

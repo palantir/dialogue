@@ -38,25 +38,28 @@ public final class Exceptions {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
-            if (e.getCause() instanceof RemoteException) {
-                RemoteException remoteException = (RemoteException) e.getCause();
-                RemoteException correctStackTrace = new RemoteException(
-                        remoteException.getError(),
-                        remoteException.getStatus());
-                correctStackTrace.initCause(e);
-                throw correctStackTrace;
+            Throwable cause = e.getCause();
+            String message = cause.getMessage();
+
+            // TODO(jellis): can consider propagating other relevant exceptions (eg: HttpConnectTimeoutException)
+            // see HttpClientImpl#send(HttpRequest req, BodyHandler<T> responseHandler)
+            if (cause instanceof RemoteException) {
+                throw newRemoteException((RemoteException) cause);
             }
 
-            return defaultGetUnchecked(e.getCause());
+            // This matches the behavior in Futures.getUnchecked(Future)
+            if (cause instanceof Error) {
+                throw new ExecutionError(message, (Error) cause);
+            } else {
+                throw new UncheckedExecutionException(message, cause);
+            }
         }
     }
 
-     // Equivalent to the behavior in Futures.getUnchecked(Future)
-    private static <T> T defaultGetUnchecked(Throwable exception) {
-        if (exception instanceof Error) {
-            throw new ExecutionError((Error) exception);
-        } else {
-            throw new UncheckedExecutionException(exception);
-        }
+    // Need to create a new exception so our current stacktrace is included in the exception
+    private static RemoteException newRemoteException(RemoteException remoteException) {
+        RemoteException newException = new RemoteException(remoteException.getError(), remoteException.getStatus());
+        newException.initCause(remoteException);
+        return newException;
     }
 }
