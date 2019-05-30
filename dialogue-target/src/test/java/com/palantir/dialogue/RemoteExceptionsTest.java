@@ -29,13 +29,13 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import org.junit.Test;
 
-public class ExceptionsTest {
+public class RemoteExceptionsTest {
 
     @Test
     public void testSuccess() {
         ListenableFuture<String> future = Futures.immediateFuture("success");
 
-        assertThat(Exceptions.getUnchecked(future)).isEqualTo("success");
+        assertThat(RemoteExceptions.getUnchecked(future)).isEqualTo("success");
     }
 
     @Test
@@ -43,7 +43,7 @@ public class ExceptionsTest {
         RemoteException remoteException = remoteException(new ServiceException(ErrorType.INVALID_ARGUMENT));
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
-        assertThatThrownBy(() -> Exceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(RemoteException.class)
                 .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode());
     }
@@ -53,7 +53,7 @@ public class ExceptionsTest {
         RuntimeException runtimeException = new RuntimeException();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(runtimeException);
 
-        assertThatThrownBy(() -> Exceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(UncheckedExecutionException.class)
                 .hasCauseInstanceOf(RuntimeException.class);
     }
@@ -63,7 +63,7 @@ public class ExceptionsTest {
         Exception exception = new Exception();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(exception);
 
-        assertThatThrownBy(() -> Exceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(UncheckedExecutionException.class)
                 .hasCauseInstanceOf(Exception.class);
     }
@@ -73,7 +73,7 @@ public class ExceptionsTest {
         Error error = new Error();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(error);
 
-        assertThatThrownBy(() -> Exceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(ExecutionError.class)
                 .hasCauseInstanceOf(Error.class);
     }

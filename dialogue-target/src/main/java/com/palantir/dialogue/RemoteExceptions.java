@@ -23,9 +23,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
 /** Provides utility functions for exception handling. */
-public final class Exceptions {
+public final class RemoteExceptions {
 
-    private Exceptions() {}
+    private RemoteExceptions() {}
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except it propagates

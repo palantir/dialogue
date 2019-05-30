@@ -23,7 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Exceptions;
+import com.palantir.dialogue.RemoteExceptions;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.PlainSerDe;
@@ -145,7 +145,7 @@ public final class SampleServiceClient {
                         r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
 
-                return Exceptions.getUnchecked(response);
+                return RemoteExceptions.getUnchecked(response);
             }
 
             @Override
@@ -158,7 +158,7 @@ public final class SampleServiceClient {
                         r -> voidToVoidDeserializer.deserialize(r),
                         MoreExecutors.directExecutor());
 
-                Exceptions.getUnchecked(response);
+                RemoteExceptions.getUnchecked(response);
             }
         };
     }
