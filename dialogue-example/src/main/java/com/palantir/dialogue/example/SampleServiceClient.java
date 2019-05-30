@@ -38,7 +38,6 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 // Example of the implementation code conjure would generate for a simple SampleService.
 public final class SampleServiceClient {
