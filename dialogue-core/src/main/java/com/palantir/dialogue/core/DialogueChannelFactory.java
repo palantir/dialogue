@@ -39,6 +39,10 @@ public final class DialogueChannelFactory {
         this.channelFactory = channelFactory;
     }
 
+    /**
+     * Returns a refreshing {@link Channel} for a service identified by {@code service} in
+     * {@link ServicesConfigBlock#services()}.
+     */
     public Channel create(String service) {
         Supplier<Channel> channelSupplier = new MemoizingComposingSupplier<>(conf, c -> createChannel(service, c));
         return (endpoint, request) -> channelSupplier.get().execute(endpoint, request);

@@ -81,8 +81,8 @@ public final class DialogueChannelFactoryTest {
 
     @Before
     public void before() {
-        when(channelFactory.create(matchesConf1())).thenReturn(channel1);
-        when(channelFactory.create(matchesConf2())).thenReturn(channel2);
+        when(channelFactory.create(matchesConf(URI_1))).thenReturn(channel1);
+        when(channelFactory.create(matchesConf(URI_2))).thenReturn(channel2);
         when(channel1.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
         when(channel2.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
 
@@ -105,7 +105,7 @@ public final class DialogueChannelFactoryTest {
         channelA.execute(endpoint, request).get();
 
         verify(channel1, times(2)).execute(endpoint, request);
-        verify(channelFactory).create(matchesConf1());
+        verify(channelFactory).create(matchesConf(URI_1));
         verifyNoMoreInteractions(channelFactory);
     }
 
@@ -120,20 +120,16 @@ public final class DialogueChannelFactoryTest {
         verify(channel1).execute(endpoint, request);
         verify(channel2).execute(endpoint, request);
 
-        verify(channelFactory).create(matchesConf1());
-        verify(channelFactory).create(matchesConf2());
+        verify(channelFactory).create(matchesConf(URI_1));
+        verify(channelFactory).create(matchesConf(URI_2));
 
         verifyNoMoreInteractions(channelFactory);
     }
 
     // ClientConfiguration contains an SSLSocketFactory and X509TrustManager which rely on object equality
     // which is why we have our own matchers here
-    public ClientConfiguration matchesConf1() {
-        return argThat(argument -> argument != null && argument.uris().contains(URI_1));
-    }
-
-    public ClientConfiguration matchesConf2() {
-        return argThat(argument -> argument != null && argument.uris().contains(URI_2));
+    public ClientConfiguration matchesConf(String uri) {
+        return argThat(argument -> argument != null && argument.uris().contains(uri));
     }
 
     // TODO(jellis): move this into logsafe testing
