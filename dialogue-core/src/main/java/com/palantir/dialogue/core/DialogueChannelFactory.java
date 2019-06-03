@@ -63,7 +63,7 @@ public final class DialogueChannelFactory {
         }
     }
 
-    interface ChannelFactory {
+    public interface ChannelFactory {
         Channel create(ClientConfiguration conf);
     }
 }
