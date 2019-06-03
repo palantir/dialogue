@@ -30,11 +30,15 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.function.Supplier;
 
-public final class DialogueChannelFactory {
+/**
+ * Utility that creates {@link Channel}s that will be automatically recreated any time the given
+ * {@link ServicesConfigBlock} changes.
+ */
+public final class RefreshingChannelFactory {
     private final Supplier<? extends ServicesConfigBlock> conf;
     private final ChannelFactory channelFactory;
 
-    public DialogueChannelFactory(Supplier<? extends ServicesConfigBlock> conf, ChannelFactory channelFactory) {
+    public RefreshingChannelFactory(Supplier<? extends ServicesConfigBlock> conf, ChannelFactory channelFactory) {
         this.conf = conf;
         this.channelFactory = channelFactory;
     }

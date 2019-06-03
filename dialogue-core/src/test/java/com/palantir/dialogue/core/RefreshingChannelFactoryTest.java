@@ -47,7 +47,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class DialogueChannelFactoryTest {
+public final class RefreshingChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"),
@@ -69,14 +69,14 @@ public final class DialogueChannelFactoryTest {
                     .build())
             .build();
 
-    @Mock private DialogueChannelFactory.ChannelFactory channelFactory;
+    @Mock private RefreshingChannelFactory.ChannelFactory channelFactory;
     @Mock private Endpoint endpoint;
     @Mock private Request request;
     @Mock private Response response;
     @Mock private Channel channel1;
     @Mock private Channel channel2;
     private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(EMPTY_CONFIG);
-    private DialogueChannelFactory clientFactory;
+    private RefreshingChannelFactory clientFactory;
     private Channel channelA;
 
     @Before
@@ -86,7 +86,7 @@ public final class DialogueChannelFactoryTest {
         when(channel1.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
         when(channel2.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
 
-        clientFactory = new DialogueChannelFactory(() -> conf.get(), channelFactory);
+        clientFactory = new RefreshingChannelFactory(() -> conf.get(), channelFactory);
         channelA = clientFactory.create(SERVICE_A);
     }
 
