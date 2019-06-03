@@ -34,9 +34,9 @@ public class MemoizingComposingSupplierTest {
     @Before
     public void before() {
         timesInvoked = new AtomicInteger(0);
-        function = value -> {
+        function = in -> {
             timesInvoked.incrementAndGet();
-            return value;
+            return in;
         };
 
         value = new AtomicInteger();

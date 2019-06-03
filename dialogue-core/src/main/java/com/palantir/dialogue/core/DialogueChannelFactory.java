@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -59,7 +60,8 @@ public final class DialogueChannelFactory {
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            throw new SafeIllegalStateException("Service not configured", SafeArg.of("serviceName", serviceName));
+            return Futures.immediateFailedFuture(
+                    new SafeIllegalStateException("Service not configured", SafeArg.of("serviceName", serviceName)));
         }
     }
 

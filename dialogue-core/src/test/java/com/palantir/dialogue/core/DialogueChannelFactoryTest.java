@@ -16,15 +16,15 @@
 
 package com.palantir.dialogue.core;
 
-import static com.palantir.logsafe.testing.Assertions.assertThatLoggableExceptionThrownBy;
-import static org.mockito.ArgumentMatchers.any;
+import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -32,9 +32,14 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.testing.LoggableExceptionAssert;
 import java.nio.file.Paths;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
+import org.assertj.core.internal.Failures;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -42,7 +47,7 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public class DialogueChannelFactoryTest {
+public final class DialogueChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"),
@@ -64,10 +69,10 @@ public class DialogueChannelFactoryTest {
                     .build())
             .build();
 
-
     @Mock private DialogueChannelFactory.ChannelFactory channelFactory;
     @Mock private Endpoint endpoint;
     @Mock private Request request;
+    @Mock private Response response;
     @Mock private Channel channel1;
     @Mock private Channel channel2;
     private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(EMPTY_CONFIG);
@@ -78,6 +83,8 @@ public class DialogueChannelFactoryTest {
     public void before() {
         when(channelFactory.create(matchesConf1())).thenReturn(channel1);
         when(channelFactory.create(matchesConf2())).thenReturn(channel2);
+        when(channel1.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
+        when(channel2.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
 
         clientFactory = new DialogueChannelFactory(() -> conf.get(), channelFactory);
         channelA = clientFactory.create(SERVICE_A);
@@ -85,19 +92,17 @@ public class DialogueChannelFactoryTest {
 
     @Test
     public void testServiceNotConfigured() {
-        assertThatLoggableExceptionThrownBy(() -> channelA.execute(endpoint, request))
+        assertThatLoggableException(channelA.execute(endpoint, request))
                 .hasLogMessage("Service not configured")
                 .hasExactlyArgs(SafeArg.of("serviceName", SERVICE_A));
-
-        verify(channelFactory, never()).create(any());
     }
 
     @Test
-    public void testServiceConfigured() {
+    public void testServiceConfigured() throws ExecutionException, InterruptedException {
         conf.set(SERVICE_A_CONFIG_1);
 
-        channelA.execute(endpoint, request);
-        channelA.execute(endpoint, request);
+        channelA.execute(endpoint, request).get();
+        channelA.execute(endpoint, request).get();
 
         verify(channel1, times(2)).execute(endpoint, request);
         verify(channelFactory).create(matchesConf1());
@@ -105,12 +110,12 @@ public class DialogueChannelFactoryTest {
     }
 
     @Test
-    public void testConfiguredServiceChanges() {
+    public void testConfiguredServiceChanges() throws ExecutionException, InterruptedException {
         conf.set(SERVICE_A_CONFIG_1);
-        channelA.execute(endpoint, request);
+        channelA.execute(endpoint, request).get();
 
         conf.set(SERVICE_A_CONFIG_2);
-        channelA.execute(endpoint, request);
+        channelA.execute(endpoint, request).get();
 
         verify(channel1).execute(endpoint, request);
         verify(channel2).execute(endpoint, request);
@@ -129,5 +134,24 @@ public class DialogueChannelFactoryTest {
 
     public ClientConfiguration matchesConf2() {
         return argThat(argument -> argument != null && argument.uris().contains(URI_2));
+    }
+
+    // TODO(jellis): move this into logsafe testing
+    @SuppressWarnings("unchecked")
+    public static <T extends Throwable & SafeLoggable> LoggableExceptionAssert<T> assertThatLoggableException(
+            ListenableFuture<?> shouldRaiseThrowable) {
+        try {
+            shouldRaiseThrowable.get();
+            return fail("Expected SafeLoggable exception");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        } catch (ExecutionException e) {
+            if (!SafeLoggable.class.isInstance(e.getCause())) {
+                throw Failures.instance().failure(String.format("Expecting code to throw a SafeLoggable exception, "
+                        + "but caught a %s which does not", e.getCause().getClass().getCanonicalName()));
+            }
+            return new LoggableExceptionAssert<>((T) e.getCause());
+        }
     }
 }
