@@ -79,13 +79,13 @@ public final class ChannelsTest {
                 ImmutableList.of(delegate),
                 UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")),
                 new DefaultTaggedMetricRegistry());
+
+        ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
+        when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
     public void testRequestMakesItThrough() throws ExecutionException, InterruptedException {
-        ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
-
         assertThat(channel.execute(endpoint, request).get()).isEqualTo(response);
     }
 }

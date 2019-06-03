@@ -39,7 +39,7 @@ public final class Channels {
                 .collect(toList());
 
         return new UserAgentChannel(
-                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels))),
+                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels), metrics)),
                 userAgent);
     }
 }
