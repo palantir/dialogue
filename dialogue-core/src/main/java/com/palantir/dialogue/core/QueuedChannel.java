@@ -28,6 +28,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +40,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -66,21 +69,34 @@ final class QueuedChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
+
+    @VisibleForTesting
+    static final MetricName NUM_QUEUED_METRIC =
+            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.queued").build();
+    @VisibleForTesting
+    static final MetricName NUM_RUNNING_METRICS =
+            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.running").build();
+
     private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
+    // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
+    private final AtomicInteger numRunningRequests = new AtomicInteger(0);
     private final ScheduledExecutorService backgroundScheduler =
             Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
                     .setNameFormat("dialogue-request-scheduler")
                     .setDaemon(false)
                     .build());
 
-    QueuedChannel(LimitedChannel channel) {
-        this(channel, 1_000);
+    QueuedChannel(LimitedChannel channel, TaggedMetricRegistry metrics) {
+        this(channel, 1_000, metrics);
     }
 
     @VisibleForTesting
     @SuppressWarnings("FutureReturnValueIgnored")
-    QueuedChannel(LimitedChannel delegate, int maxQueueSize) {
+    QueuedChannel(
+            LimitedChannel delegate,
+            int maxQueueSize,
+            TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
         this.backgroundScheduler.scheduleWithFixedDelay(() -> {
@@ -90,6 +106,9 @@ final class QueuedChannel implements Channel {
                 log.error("Uncaught exception while scheduling request. This is a programming error.", e);
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
+
+        metrics.gauge(NUM_QUEUED_METRIC, queuedCalls::size);
+        metrics.gauge(NUM_RUNNING_METRICS, numRunningRequests::get);
     }
 
     /**
@@ -132,6 +151,8 @@ final class QueuedChannel implements Channel {
                 delegate.maybeExecute(components.endpoint(), components.request());
 
         if (response.isPresent()) {
+            numRunningRequests.incrementAndGet();
+            response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
             Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
             return true;
         } else {
@@ -185,8 +206,11 @@ final class QueuedChannel implements Channel {
 
     @Value.Immutable
     interface DeferredCall {
-        @Value.Parameter Endpoint endpoint();
-        @Value.Parameter Request request();
-        @Value.Parameter SettableFuture<Response> response();
+        @Value.Parameter
+        Endpoint endpoint();
+        @Value.Parameter
+        Request request();
+        @Value.Parameter
+        SettableFuture<Response> response();
     }
 }

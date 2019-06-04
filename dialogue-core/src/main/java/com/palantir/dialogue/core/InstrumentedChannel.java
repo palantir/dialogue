@@ -32,6 +32,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * A channel that observes metrics about the processed requests and responses.
+ * TODO(rfink): Consider renaming since this is no longer the only one doing instrumentation
  */
 final class InstrumentedChannel implements Channel {
 
