@@ -49,20 +49,20 @@ import org.slf4j.LoggerFactory;
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
  * requests. This is done by enqueueing requests on submission, and then running the schedule loop in one of 3 ways:
  * <ol>
- * <li>On submission - allows execution when there is available capacity</li>
- * <li>On request completion - allows execution when capacity has now become available</li>
- * <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight
- * requests</li>
+ *     <li>On submission - allows execution when there is available capacity</li>
+ *     <li>On request completion - allows execution when capacity has now become available</li>
+ *     <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight
+ *     requests</li>
  * </ol>
- * <p>
+ *
  * This implementation was chosen over alternatives for the following reasons:
  * <ul>
- * <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to
- * wait until the next scheduling period</li>
- * <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
- * doing work, much of which will be wasted</li>
+ *     <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to
+ *     wait until the next scheduling period</li>
+ *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
+ *     doing work, much of which will be wasted</li>
  * </ul>
- * <p>
+ *
  * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
 final class QueuedChannel implements Channel {
