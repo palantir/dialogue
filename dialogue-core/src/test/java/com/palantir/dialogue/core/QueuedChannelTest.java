@@ -41,6 +41,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 import org.mockito.stubbing.OngoingStubbing;
 
 @RunWith(MockitoJUnitRunner.class)
+@SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
     @Mock private LimitedChannel delegate;
