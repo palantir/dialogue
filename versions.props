@@ -10,6 +10,7 @@ com.palantir.conjure.java:* = 3.9.1
 com.palantir.ri:resource-identifier = 1.0.1
 com.palantir.safe-logging:* = 1.9.0
 com.palantir.tokens:auth-tokens = 3.5.2
+com.palantir.tracing:tracing = 2.15.0
 com.squareup.okhttp3:* = 3.14.1
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.7.5

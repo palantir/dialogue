@@ -28,6 +28,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tracing.DeferredTracer;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -97,7 +98,7 @@ final class QueuedChannel implements Channel {
      */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
+        DeferredCall components = DeferredCall.of(endpoint, request, new DeferredTracer("dialogue-queued"));
 
         if (!queuedCalls.offer(components)) {
             return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
@@ -132,6 +133,9 @@ final class QueuedChannel implements Channel {
                 delegate.maybeExecute(components.endpoint(), components.request());
 
         if (response.isPresent()) {
+            // Complete the queued span
+            components.tracer().withTrace(() -> null);
+
             Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
             return true;
         } else {
@@ -187,6 +191,11 @@ final class QueuedChannel implements Channel {
     interface DeferredCall {
         @Value.Parameter Endpoint endpoint();
         @Value.Parameter Request request();
+        @Value.Parameter DeferredTracer tracer();
         @Value.Parameter SettableFuture<Response> response();
+
+        static DeferredCall of(Endpoint endpoint, Request request, DeferredTracer tracer) {
+            return ImmutableDeferredCall.of(endpoint, request, tracer, SettableFuture.create());
+        }
     }
 }

@@ -18,15 +18,20 @@ package com.palantir.dialogue;
 
 import static java.util.stream.Collectors.toList;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
+import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.security.GeneralSecurityException;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -45,6 +50,7 @@ public final class JavaChannels {
         // TODO(jellis): client QoS, server QoS, retries?
 
         HttpClient client = HttpClient.newBuilder()
+                .executor(createExecutor())
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(conf.connectTimeout())
                 .proxy(conf.proxy())
@@ -74,5 +80,14 @@ public final class JavaChannels {
         } catch (GeneralSecurityException e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    // Same default thread pool with tracing enabled
+    private static ExecutorService createExecutor() {
+        ThreadFactory threadFactory = new ThreadFactoryBuilder()
+                .setNameFormat("dialogue-%d")
+                .setDaemon(true)
+                .build();
+        return Tracers.wrap("dialogue-execute", Executors.newCachedThreadPool(threadFactory));
     }
 }

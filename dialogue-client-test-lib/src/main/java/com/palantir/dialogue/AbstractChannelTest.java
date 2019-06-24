@@ -26,8 +26,13 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.tracing.Observability;
+import com.palantir.tracing.Tracer;
+import com.palantir.tracing.Tracers;
+import com.palantir.tracing.api.SpanType;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -50,10 +55,13 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 // CHECKSTYLE:ON
 
+@RunWith(MockitoJUnitRunner.class)
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
 public abstract class AbstractChannelTest {
 
@@ -319,6 +327,20 @@ public abstract class AbstractChannelTest {
         Response response = channel.execute(endpoint, request).get();
         assertThat(response.body()).hasContent("foo");
         assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");
+    }
+
+    @Test
+    public void tracingEnabled() throws ExecutionException, InterruptedException {
+        Tracer.initTrace(Observability.SAMPLE, Tracers.randomId());
+
+        Map<String, SpanType> spans = Maps.newHashMap();
+        Tracer.subscribe("test-subscriber", span -> spans.put(span.getOperation(), span.type()));
+
+        channel.execute(endpoint, request).get();
+
+        assertThat(spans)
+                .containsEntry("dialogue-queued", SpanType.LOCAL)
+                .containsEntry("dialogue-execute", SpanType.LOCAL);
     }
 
     private static Buffer zip(String content) throws IOException {
