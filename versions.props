@@ -1,15 +1,15 @@
 com.fasterxml.jackson.core:* = 2.9.9
-com.github.ben-manes.caffeine:caffeine = 2.7.0
+com.github.ben-manes.caffeine:caffeine = 2.8.0
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.guava:guava = 27.0.1-jre
 com.netflix.concurrency-limits:* = 0.2.0
 com.palantir.baseline:* = 0.39.1
 com.palantir.conjure.java.api:* = 2.3.0
-com.palantir.conjure.java.runtime:* = 4.28.1
+com.palantir.conjure.java.runtime:* = 4.35.0
 com.palantir.conjure.java:* = 4.0.0
 com.palantir.ri:resource-identifier = 1.0.1
-com.palantir.safe-logging:* = 1.9.0
-com.palantir.tokens:auth-tokens = 3.5.2
+com.palantir.safe-logging:* = 1.10.1
+com.palantir.tokens:auth-tokens = 3.6.1
 com.squareup.okhttp3:* = 3.14.1
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.7.5
@@ -17,9 +17,9 @@ org.slf4j:* = 1.7.25
 
 # test deps
 junit:junit = 4.12
-org.assertj:assertj-core = 3.12.2
+org.assertj:assertj-core = 3.13.2
 org.hamcrest:hamcrest-core = 2.1
-org.mockito:mockito-core = 2.28.2
+org.mockito:mockito-core = 3.0.0
 javax.ws.rs:javax.ws.rs-api = 2.0
 org.apache.commons:commons-lang3 = 3.9
 
