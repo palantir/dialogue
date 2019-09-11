@@ -51,10 +51,6 @@ allprojects {
             url 'https://dl.bintray.com/palantir/releases/'
         }
     }
-
-    dependencyRecommendations {
-        strategy ConflictResolved
-    }
 }
 
 subprojects {
