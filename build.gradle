@@ -34,6 +34,10 @@ buildscript {
     }
 }
 
+plugins {
+    id 'com.palantir.consistent-versions' version '1.4.0'
+}
+
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
 
@@ -45,12 +49,6 @@ allprojects {
         jcenter()
         maven {
             url 'https://dl.bintray.com/palantir/releases/'
-        }
-    }
-
-    configurations.all {
-        resolutionStrategy {
-            failOnVersionConflict()
         }
     }
 }
