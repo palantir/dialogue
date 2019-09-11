@@ -34,6 +34,10 @@ buildscript {
     }
 }
 
+plugins {
+    id 'com.palantir.consistent-versions' version '1.4.0'
+}
+
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
 
@@ -48,10 +52,8 @@ allprojects {
         }
     }
 
-    configurations.all {
-        resolutionStrategy {
-            failOnVersionConflict()
-        }
+    dependencyRecommendations {
+        strategy ConflictResolved
     }
 }
 
