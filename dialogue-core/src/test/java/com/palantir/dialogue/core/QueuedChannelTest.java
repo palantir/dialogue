@@ -18,19 +18,30 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tracing.Observability;
+import com.palantir.tracing.Tracer;
+import com.palantir.tracing.Tracers;
+import com.palantir.tracing.api.Span;
+import com.palantir.tracing.api.SpanObserver;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.Before;
@@ -150,6 +161,28 @@ public class QueuedChannelTest {
         futureResponse.set(mockResponse);
         assertThat(gaugeValue(QueuedChannel.NUM_QUEUED_METRIC)).isEqualTo(0);
         assertThat(gaugeValue(QueuedChannel.NUM_RUNNING_METRICS)).isEqualTo(0);
+    }
+
+    @Test
+    public void testQueuedAndExecutionTimeTraced() {
+        String traceId = Tracers.randomId();
+        Tracer.initTrace(Observability.SAMPLE, traceId);
+        Map<String, Span> observedSpans = Maps.newHashMap();
+        Tracer.subscribe("test", span -> observedSpans.put(span.getOperation(), span));
+
+        mockNoCapacity();
+        queuedChannel.execute(endpoint, request);
+        assertThat(observedSpans).isEmpty();
+
+        mockHasCapacity();
+        queuedChannel.schedule();
+        assertThat(observedSpans).containsOnlyKeys("queued");
+
+        futureResponse.set(mockResponse);
+        assertThat(observedSpans).containsOnlyKeys("queued", "executing");
+
+        observedSpans.forEach((op, span) -> assertThat(span.getTraceId()).isEqualTo(traceId));
+        assertThat(observedSpans.get("executing").getParentSpanId()).contains(observedSpans.get("queued").getSpanId());
     }
 
     @SuppressWarnings("unchecked")

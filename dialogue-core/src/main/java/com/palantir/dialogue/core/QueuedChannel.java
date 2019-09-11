@@ -28,6 +28,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.InputStream;
@@ -116,7 +118,8 @@ final class QueuedChannel implements Channel {
      */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
+        DetachedSpan span = DetachedSpan.start("queued");
+        DeferredCall components = DeferredCall.of(endpoint, request, span, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
             return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
@@ -130,7 +133,8 @@ final class QueuedChannel implements Channel {
     /**
      * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
      */
-    private void schedule() {
+    @VisibleForTesting
+    void schedule() {
         while (scheduleNextTask()) {
             // Do nothing
         }
@@ -153,6 +157,11 @@ final class QueuedChannel implements Channel {
         if (response.isPresent()) {
             numRunningRequests.incrementAndGet();
             response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
+
+            DetachedSpan executingSpan = components.span().childDetachedSpan("executing");
+            components.span().complete();
+            response.get().addListener(executingSpan::complete, DIRECT);
+
             Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
             return true;
         } else {
@@ -206,11 +215,14 @@ final class QueuedChannel implements Channel {
 
     @Value.Immutable
     interface DeferredCall {
-        @Value.Parameter
-        Endpoint endpoint();
-        @Value.Parameter
-        Request request();
-        @Value.Parameter
-        SettableFuture<Response> response();
+        @Value.Parameter Endpoint endpoint();
+        @Value.Parameter Request request();
+        @Value.Parameter DetachedSpan span();
+        @Value.Parameter SettableFuture<Response> response();
+
+        static DeferredCall of(
+                Endpoint endpoint, Request request, DetachedSpan span, SettableFuture<Response> response) {
+            return ImmutableDeferredCall.of(endpoint, request, span, response);
+        }
     }
 }
