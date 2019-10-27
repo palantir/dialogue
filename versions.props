@@ -17,7 +17,7 @@ org.slf4j:* = 1.7.25
 
 # test deps
 junit:junit = 4.12
-org.assertj:assertj-core = 3.13.2
+org.assertj:assertj-core = 3.14.0
 org.hamcrest:hamcrest-core = 2.2
 org.mockito:mockito-core = 3.1.0
 javax.ws.rs:javax.ws.rs-api = 2.0
