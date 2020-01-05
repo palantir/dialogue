@@ -333,7 +333,7 @@ public abstract class AbstractChannelTest {
         return gzipBytes;
     }
 
-    private static class FakeEndpoint implements Endpoint {
+    private static final class FakeEndpoint implements Endpoint {
         private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
         private HttpMethod method;
 

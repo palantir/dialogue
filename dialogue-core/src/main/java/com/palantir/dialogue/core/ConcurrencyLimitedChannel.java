@@ -101,7 +101,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
 
         @Override
-        public void onFailure(Throwable throwable) {
+        public void onFailure(Throwable _throwable) {
             listener.onIgnore();
         }
     }

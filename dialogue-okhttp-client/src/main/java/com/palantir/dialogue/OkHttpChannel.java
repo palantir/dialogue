@@ -121,12 +121,12 @@ public final class OkHttpChannel implements Channel {
         SettableFuture<Response> future = SettableFuture.create();
         okCall.enqueue(new Callback() {
             @Override
-            public void onFailure(okhttp3.Call call, IOException exception) {
+            public void onFailure(okhttp3.Call _call, IOException exception) {
                 future.setException(exception);
             }
 
             @Override
-            public void onResponse(okhttp3.Call call, okhttp3.Response response) {
+            public void onResponse(okhttp3.Call _call, okhttp3.Response response) {
                 future.set(OkHttpResponse.wrap(response));
             }
         });
