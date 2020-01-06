@@ -142,7 +142,7 @@ public class ConjureBodySerDeTest {
         }
 
         @Override
-        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+        public <T> Serializer<T> serializer(TypeMarker<T> _type) {
             return (value, output) -> {
                 // nop
             };
@@ -173,7 +173,7 @@ public class ConjureBodySerDeTest {
         }
     }
 
-    private static class TestResponse implements Response {
+    private static final class TestResponse implements Response {
 
         private InputStream body = new ByteArrayInputStream(new byte[] {});
         private int code = 0;

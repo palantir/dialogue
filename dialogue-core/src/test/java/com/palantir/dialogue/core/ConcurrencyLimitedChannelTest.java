@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.SettableFuture;
@@ -86,7 +86,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitUnavailable();
 
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
-        verifyZeroInteractions(listener);
+        verifyNoMoreInteractions(listener);
     }
 
     @Test

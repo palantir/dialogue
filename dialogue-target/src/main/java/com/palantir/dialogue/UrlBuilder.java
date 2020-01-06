@@ -25,6 +25,7 @@ import com.google.common.net.InetAddresses;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayOutputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -131,7 +132,7 @@ public final class UrlBuilder {
 
             return new URL(protocol, host, port, file.toString());
         } catch (MalformedURLException e) {
-            throw new IllegalArgumentException("Malformed URL", e);
+            throw new SafeIllegalArgumentException("Malformed URL", e);
         }
     }
 
