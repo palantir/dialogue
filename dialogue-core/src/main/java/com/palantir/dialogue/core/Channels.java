@@ -16,8 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import static java.util.stream.Collectors.toList;
-
+import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -37,7 +36,7 @@ public final class Channels {
                 .map(channel -> new InstrumentedChannel(channel, metrics))
                 .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
                 .map(ConcurrencyLimitedChannel::create)
-                .collect(toList());
+                .collect(ImmutableList.toImmutableList());
 
         return new UserAgentChannel(
                 new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels), metrics)),
