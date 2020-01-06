@@ -35,6 +35,7 @@ public final class Channels {
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, metrics))
+                .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(toList());
 
