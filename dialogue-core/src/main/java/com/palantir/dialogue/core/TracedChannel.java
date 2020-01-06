@@ -23,7 +23,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-public final class TracedChannel implements Channel {
+final class TracedChannel implements Channel {
     private final Channel delegate;
     private final String operationName;
 
