@@ -67,7 +67,7 @@ public final class RefreshingChannelFactory {
         }
 
         @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
             return Futures.immediateFailedFuture(
                     new SafeIllegalStateException("Service not configured", SafeArg.of("serviceName", serviceName)));
         }

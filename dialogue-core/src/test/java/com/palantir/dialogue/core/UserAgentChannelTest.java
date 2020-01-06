@@ -38,7 +38,7 @@ public final class UserAgentChannelTest {
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
     private static final Endpoint endpoint = new Endpoint() {
         @Override
-        public void renderPath(Map<String, String> params, UrlBuilder url) {}
+        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
 
         @Override
         public HttpMethod httpMethod() {

@@ -31,6 +31,7 @@ public final class RemoteExceptions {
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except it propagates
      * {@link RemoteException}s directly, rather than wrapping them in an {@link UncheckedExecutionException}.
      */
+    @SuppressWarnings("ThrowError") // match behavior of Futures.getUnchecked(Future)
     public static <T> T getUnchecked(Future<T> future) {
         try {
             return future.get();

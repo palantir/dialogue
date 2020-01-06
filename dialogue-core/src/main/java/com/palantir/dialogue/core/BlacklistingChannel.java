@@ -64,7 +64,7 @@ final class BlacklistingChannel implements LimitedChannel {
         }
     }
 
-    private class BlacklistingCallback implements FutureCallback<Response> {
+    private final class BlacklistingCallback implements FutureCallback<Response> {
         @Override
         public void onSuccess(Response response) {
             // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
@@ -74,7 +74,7 @@ final class BlacklistingChannel implements LimitedChannel {
         }
 
         @Override
-        public void onFailure(Throwable throwable) {
+        public void onFailure(Throwable _throwable) {
             isBlacklisted.put(KEY, VALUE);
         }
     }

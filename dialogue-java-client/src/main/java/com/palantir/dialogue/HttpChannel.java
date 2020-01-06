@@ -21,6 +21,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
@@ -117,7 +118,7 @@ public final class HttpChannel implements Channel {
         try {
             return HttpRequest.newBuilder().uri(url.build().toURI());
         } catch (URISyntaxException e) {
-            throw new RuntimeException("Failed to construct URI, this is a bug", e);
+            throw new SafeRuntimeException("Failed to construct URI, this is a bug", e);
         }
     }
 

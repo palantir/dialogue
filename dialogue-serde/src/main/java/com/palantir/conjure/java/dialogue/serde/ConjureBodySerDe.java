@@ -81,10 +81,10 @@ final class ConjureBodySerDe implements BodySerDe {
         return response -> {
             try {
                 if (response.body().read() != -1) {
-                    throw new RuntimeException("Expected empty response body");
+                    throw new SafeRuntimeException("Expected empty response body");
                 }
             } catch (IOException e) {
-                throw new RuntimeException("Failed to read from response body", e);
+                throw new SafeRuntimeException("Failed to read from response body", e);
             }
             return null;
         };
@@ -142,7 +142,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 bytes.flush();
                 bytes.close();
             } catch (IOException e) {
-                throw new RuntimeException("Failed to close or flush ByteStream. This is a bug.", e);
+                throw new SafeRuntimeException("Failed to close or flush ByteStream. This is a bug.", e);
             }
 
             return new RequestBody() {
