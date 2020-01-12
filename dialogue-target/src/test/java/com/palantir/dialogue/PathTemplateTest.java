@@ -35,7 +35,7 @@ public final class PathTemplateTest {
     @Test
     public void testEmptyPath() {
         PathTemplate template = PathTemplate.builder().build();
-        assertThat(fill(template, ImmutableMap.of())).isEqualTo("");
+        assertThat(fill(template, ImmutableMap.of())).isEmpty();
     }
 
     @Test

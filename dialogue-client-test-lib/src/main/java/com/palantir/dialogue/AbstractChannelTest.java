@@ -181,7 +181,7 @@ public abstract class AbstractChannelTest {
 
         HttpUrl requestUrl = server.takeRequest().getRequestUrl();
         Set<String> queryParameters = requestUrl.queryParameterNames();
-        assertThat(queryParameters.size()).isEqualTo(2);
+        assertThat(queryParameters).hasSize(2);
         assertThat(requestUrl.queryParameterValues("a")).containsExactlyInAnyOrder("A1", "A2");
         assertThat(requestUrl.queryParameterValues("b")).containsExactlyInAnyOrder("B");
     }
