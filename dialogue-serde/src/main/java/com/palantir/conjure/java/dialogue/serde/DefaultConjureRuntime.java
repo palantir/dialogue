@@ -17,12 +17,12 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.logsafe.Preconditions;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -56,7 +56,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
     public static final class Builder {
 
-        private final List<Encoding> encodings = Lists.newArrayList();
+        private final List<Encoding> encodings = new ArrayList<>();
 
         private Builder() {}
 
