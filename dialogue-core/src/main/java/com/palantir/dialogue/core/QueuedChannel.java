@@ -107,8 +107,8 @@ final class QueuedChannel implements Channel {
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
 
-        metrics.gauge(NUM_QUEUED_METRIC, queuedCalls::size);
-        metrics.gauge(NUM_RUNNING_METRICS, numRunningRequests::get);
+        metrics.registerWithReplacement(NUM_QUEUED_METRIC, queuedCalls::size);
+        metrics.registerWithReplacement(NUM_RUNNING_METRICS, numRunningRequests::get);
     }
 
     /**
