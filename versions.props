@@ -5,16 +5,16 @@ com.google.guava:guava = 27.0.1-jre
 com.netflix.concurrency-limits:* = 0.2.0
 com.palantir.baseline:* = 0.39.1
 com.palantir.conjure.java.api:* = 2.10.0
-com.palantir.conjure.java.runtime:* = 4.42.0
+com.palantir.conjure.java.runtime:* = 4.54.0
 com.palantir.conjure.java:* = 4.8.1
 com.palantir.ri:resource-identifier = 1.1.0
-com.palantir.safe-logging:* = 1.11.0
+com.palantir.safe-logging:* = 1.13.0
 com.palantir.tokens:auth-tokens = 3.6.1
-com.palantir.tracing:* = 4.2.0
+com.palantir.tracing:* = 4.3.0
 com.squareup.okhttp3:* = 3.14.1
 io.dropwizard.metrics:metrics-core = 3.2.6
-org.immutables:* = 2.8.1
-org.slf4j:* = 1.7.25
+org.immutables:* = 2.8.3
+org.slf4j:* = 1.7.30
 
 # test deps
 junit:junit = 4.12
