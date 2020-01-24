@@ -44,12 +44,14 @@ final class TracedRequestChannel implements Channel {
                             .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0");
 
                     if (metadata.getParentSpanId().isPresent()) {
-                        requestBuilder.putHeaderParams(TraceHttpHeaders.PARENT_SPAN_ID,
+                        requestBuilder.putHeaderParams(
+                                TraceHttpHeaders.PARENT_SPAN_ID,
                                 metadata.getParentSpanId().get());
                     }
 
                     if (metadata.getOriginatingSpanId().isPresent()) {
-                        requestBuilder.putHeaderParams(TraceHttpHeaders.ORIGINATING_SPAN_ID,
+                        requestBuilder.putHeaderParams(
+                                TraceHttpHeaders.ORIGINATING_SPAN_ID,
                                 metadata.getOriginatingSpanId().get());
                     }
 

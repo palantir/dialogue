@@ -18,9 +18,9 @@ package com.palantir.dialogue;
 
 /**
  * {@link ConjureRuntime} is the anchor for all non-generated logic used by generated clients.
- * <p>
- * The {@link ConjureRuntime} and provided interfaces {@link BodySerDe}, {@link PlainSerDe}, and
- * are internal API, no guarantees are made for custom implementations.
+ *
+ * <p>The {@link ConjureRuntime} and provided interfaces {@link BodySerDe}, {@link PlainSerDe}, and are internal API, no
+ * guarantees are made for custom implementations.
  */
 public interface ConjureRuntime {
 

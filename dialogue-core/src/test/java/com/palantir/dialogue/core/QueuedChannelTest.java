@@ -44,10 +44,18 @@ import org.mockito.stubbing.OngoingStubbing;
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
-    @Mock private LimitedChannel delegate;
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
-    @Mock private Response mockResponse;
+    @Mock
+    private LimitedChannel delegate;
+
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
+    @Mock
+    private Response mockResponse;
+
     private TaggedMetricRegistry metrics;
     private QueuedChannel queuedChannel;
     private SettableFuture<Response> futureResponse;

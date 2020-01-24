@@ -62,8 +62,10 @@ public final class UrlBuilder {
     }
 
     private UrlBuilder(String protocol) {
-        Preconditions.checkArgument(protocol.equals("http") || protocol.equals("https"),
-                "unsupported protocol", SafeArg.of("protocol", protocol));
+        Preconditions.checkArgument(
+                protocol.equals("http") || protocol.equals("https"),
+                "unsupported protocol",
+                SafeArg.of("protocol", protocol));
         this.protocol = protocol;
     }
 
@@ -76,9 +78,8 @@ public final class UrlBuilder {
     }
 
     /**
-     * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g.,
-     * {@code 192.168.0.1}), and IPv6 addresses of the form
-     * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
+     * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g., {@code 192.168.0.1}), and
+     * IPv6 addresses of the form {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
      */
     public UrlBuilder host(String theHost) {
         Preconditions.checkArgument(UrlEncoder.isHost(theHost), "invalid host format", UnsafeArg.of("host", theHost));
@@ -95,11 +96,13 @@ public final class UrlBuilder {
     /**
      * Adds the given URL-encoded path segment (one or more) to the list of segments, or fails if the given segments
      * contain forbidden characters. Note that leading or trailing slashes are preserved, for instance {@code url
-     * .pathSegment("foo").encodedPathSegments{"/bar/"}.pathSegment("baz")} yields a URL with path
-     * {@code foo//bar//baz} (note the empty segments).
+     * .pathSegment("foo").encodedPathSegments{"/bar/"}.pathSegment("baz")} yields a URL with path {@code foo//bar//baz}
+     * (note the empty segments).
      */
     public UrlBuilder encodedPathSegments(String segments) {
-        Preconditions.checkArgument(UrlEncoder.isPath(segments), "invalid characters in encoded path segments",
+        Preconditions.checkArgument(
+                UrlEncoder.isPath(segments),
+                "invalid characters in encoded path segments",
                 UnsafeArg.of("segments", segments));
         this.pathSegments.add(segments);
         return this;
@@ -112,8 +115,8 @@ public final class UrlBuilder {
     }
 
     /**
-     * URL-encodes the given query parameter name and value and adds them to the list of query parameters. Note that
-     * no guarantee is made regarding the ordering of query parameters in the resulting URL.
+     * URL-encodes the given query parameter name and value and adds them to the list of query parameters. Note that no
+     * guarantee is made regarding the ordering of query parameters in the resulting URL.
      */
     public UrlBuilder queryParam(String name, String value) {
         this.queryNamesAndValues.put(UrlEncoder.encodeQueryNameOrValue(name), UrlEncoder.encodeQueryNameOrValue(value));
@@ -196,7 +199,7 @@ public final class UrlBuilder {
         @VisibleForTesting
         static String encode(String source, CharMatcher charactersToKeep) {
             byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream(source.length());  // approx sizing
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(source.length()); // approx sizing
             boolean wasChanged = false;
             for (byte b : bytes) {
                 if (charactersToKeep.matches(toChar(b))) {
@@ -210,9 +213,7 @@ public final class UrlBuilder {
                     wasChanged = true;
                 }
             }
-            return wasChanged
-                    ? new String(bos.toByteArray(), StandardCharsets.UTF_8)
-                    : source;
+            return wasChanged ? new String(bos.toByteArray(), StandardCharsets.UTF_8) : source;
         }
 
         // converts the given (signed) byte into an (unsigned) char

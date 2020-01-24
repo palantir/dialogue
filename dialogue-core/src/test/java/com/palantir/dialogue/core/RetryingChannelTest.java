@@ -51,7 +51,9 @@ public class RetryingChannelTest {
     private static final TestEndpoint ENDPOINT = new TestEndpoint();
     private static final Request REQUEST = Request.builder().build();
 
-    @Mock private Channel channel;
+    @Mock
+    private Channel channel;
+
     private RetryingChannel retryer;
 
     @Before
@@ -61,8 +63,7 @@ public class RetryingChannelTest {
 
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {
-        when(channel.execute(any(), any()))
-                .thenReturn(SUCCESS);
+        when(channel.execute(any(), any())).thenReturn(SUCCESS);
 
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
@@ -81,12 +82,10 @@ public class RetryingChannelTest {
 
     @Test
     public void testRetriesMax() {
-        when(channel.execute(any(), any()))
-                .thenReturn(FAILED);
+        when(channel.execute(any(), any())).thenReturn(FAILED);
 
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
-        assertThatThrownBy(response::get)
-                .hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(IllegalArgumentException.class);
         verify(channel, times(3)).execute(ENDPOINT, REQUEST);
     }
 

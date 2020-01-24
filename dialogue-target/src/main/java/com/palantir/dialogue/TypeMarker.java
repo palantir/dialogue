@@ -25,7 +25,11 @@ import java.lang.reflect.TypeVariable;
 /**
  * Captures generic type information.
  *
- * Usage example: <pre>new TypeMarker&lt;List&lt;Integer&gt;() {}</pre>.
+ * <p>Usage example:
+ *
+ * <pre>new TypeMarker&lt;List&lt;Integer&gt;() {}</pre>
+ *
+ * .
  */
 @SuppressWarnings("unused") // Generic type exists for compile time safety but is not used internally.
 public abstract class TypeMarker<T> {
@@ -34,10 +38,13 @@ public abstract class TypeMarker<T> {
 
     protected TypeMarker() {
         Type genericSuperclass = getClass().getGenericSuperclass();
-        Preconditions.checkArgument(genericSuperclass instanceof ParameterizedType,
-                "Class is not parameterized", SafeArg.of("class", genericSuperclass));
+        Preconditions.checkArgument(
+                genericSuperclass instanceof ParameterizedType,
+                "Class is not parameterized",
+                SafeArg.of("class", genericSuperclass));
         type = ((ParameterizedType) genericSuperclass).getActualTypeArguments()[0];
-        Preconditions.checkArgument(!(type instanceof TypeVariable),
+        Preconditions.checkArgument(
+                !(type instanceof TypeVariable),
                 "TypeMarker does not support variable types",
                 SafeArg.of("typeVariable", type));
     }

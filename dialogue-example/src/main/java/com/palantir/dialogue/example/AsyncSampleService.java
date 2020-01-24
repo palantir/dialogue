@@ -25,5 +25,6 @@ import java.util.List;
 public interface AsyncSampleService {
     ListenableFuture<SampleObject> stringToString(
             String objectId, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body);
+
     ListenableFuture<Void> voidToVoid();
 }

@@ -40,8 +40,12 @@ public final class InstrumentedChannelTest {
 
     private TaggedMetricRegistry registry;
     private InstrumentedChannel channel;
-    @Mock private Channel delegate;
-    @Mock private Endpoint endpoint;
+
+    @Mock
+    private Channel delegate;
+
+    @Mock
+    private Endpoint endpoint;
 
     @Before
     public void before() {

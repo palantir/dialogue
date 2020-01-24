@@ -54,39 +54,60 @@ public final class UrlBuilderTest {
 
     @Test
     public void validatesPort() {
-        assertThatThrownBy(() -> UrlBuilder.http().host("host").build())
-                .hasMessage("port must be set");
+        assertThatThrownBy(() -> UrlBuilder.http().host("host").build()).hasMessage("port must be set");
         assertThatThrownBy(() -> UrlBuilder.http().host("host").port(65535 + 1).build())
                 .hasMessage("port must be in range [0, 65535]");
     }
 
     @Test
     public void encodesPaths() {
-        assertThat(minimalUrl().pathSegment("foo").build().toString())
-                .isEqualTo("http://host:80/foo");
+        assertThat(minimalUrl().pathSegment("foo").build().toString()).isEqualTo("http://host:80/foo");
         assertThat(minimalUrl().pathSegment("foo").pathSegment("bar").build().toString())
                 .isEqualTo("http://host:80/foo/bar");
-        assertThat(minimalUrl().pathSegment("foo/bar").build().toString())
-                .isEqualTo("http://host:80/foo%2Fbar");
-        assertThat(minimalUrl().pathSegment("!@#$%^&*()_+{}[]|\\|\"':;/?.>,<~`").build().toString())
+        assertThat(minimalUrl().pathSegment("foo/bar").build().toString()).isEqualTo("http://host:80/foo%2Fbar");
+        assertThat(minimalUrl()
+                        .pathSegment("!@#$%^&*()_+{}[]|\\|\"':;/?.>,<~`")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80/!%40%23$%25%5E&*()_+%7B%7D%5B%5D%7C%5C%7C%22'%3A;%2F%3F.%3E,%3C~%60");
     }
 
     @Test
     public void handlesEmptyPathSegments() {
-        assertThat(minimalUrl().pathSegment("").pathSegment("").pathSegment("bar").build().toString())
+        assertThat(minimalUrl()
+                        .pathSegment("")
+                        .pathSegment("")
+                        .pathSegment("bar")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80///bar");
     }
 
     @Test
     public void handlesPreEncodedPathSegments() {
-        assertThat(minimalUrl().encodedPathSegments("foo").pathSegment("baz").build().toString())
+        assertThat(minimalUrl()
+                        .encodedPathSegments("foo")
+                        .pathSegment("baz")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80/foo/baz");
-        assertThat(minimalUrl().encodedPathSegments("foo/bar").pathSegment("baz").build().toString())
+        assertThat(minimalUrl()
+                        .encodedPathSegments("foo/bar")
+                        .pathSegment("baz")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80/foo/bar/baz");
-        assertThat(minimalUrl().encodedPathSegments("foo/").pathSegment("baz").build().toString())
+        assertThat(minimalUrl()
+                        .encodedPathSegments("foo/")
+                        .pathSegment("baz")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80/foo//baz");
-        assertThat(minimalUrl().encodedPathSegments("/foo").pathSegment("baz").build().toString())
+        assertThat(minimalUrl()
+                        .encodedPathSegments("/foo")
+                        .pathSegment("baz")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80//foo/baz");
         assertThatThrownBy(() -> minimalUrl().encodedPathSegments("ö"))
                 .hasMessage("invalid characters in encoded path segments: {segments=ö}");
@@ -94,28 +115,32 @@ public final class UrlBuilderTest {
 
     @Test
     public void encodesQueryParams() {
-        assertThat(minimalUrl().queryParam("foo", "bar").build().toString())
-                .isEqualTo("http://host:80?foo=bar");
+        assertThat(minimalUrl().queryParam("foo", "bar").build().toString()).isEqualTo("http://host:80?foo=bar");
         assertThat(minimalUrl().queryParam("question?&", "answer!&").build().toString())
                 .isEqualTo("http://host:80?question?%26=answer!%26");
     }
 
     @Test
     public void encodesMultipleQueryParamsWithSameName() {
-        assertThat(minimalUrl().queryParam("foo", "bar").queryParam("foo", "baz").build().toString())
+        assertThat(minimalUrl()
+                        .queryParam("foo", "bar")
+                        .queryParam("foo", "baz")
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80?foo=bar&foo=baz");
     }
 
     @Test
     public void fullExample() {
         assertThat(UrlBuilder.https()
-                .host("host")
-                .port(80)
-                .pathSegment("foo")
-                .pathSegment("bar")
-                .queryParam("boom", "baz")
-                .queryParam("question", "answer")
-                .build().toString())
+                        .host("host")
+                        .port(80)
+                        .pathSegment("foo")
+                        .pathSegment("bar")
+                        .queryParam("boom", "baz")
+                        .queryParam("question", "answer")
+                        .build()
+                        .toString())
                 .isEqualTo("https://host:80/foo/bar?question=answer&boom=baz");
     }
 
@@ -149,12 +174,10 @@ public final class UrlBuilderTest {
 
     @Test
     public void newBuilderCopiesAllFields() {
-        UrlBuilder original = UrlBuilder.http().host("foo").port(42).pathSegment("foo").queryParam("name", "value");
+        UrlBuilder original =
+                UrlBuilder.http().host("foo").port(42).pathSegment("foo").queryParam("name", "value");
         UrlBuilder copy = original.newBuilder();
-        original.host("foo-new")
-                .port(43)
-                .pathSegment("foo-new")
-                .queryParam("name-new", "value-new");
+        original.host("foo-new").port(43).pathSegment("foo-new").queryParam("name-new", "value-new");
         assertThat(copy.build().toString()).isEqualTo("http://foo:42/foo?name=value");
     }
 

@@ -28,10 +28,10 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Provides functionality for serializing supported types using the
- * <a href="https://palantir.github.io/conjure/#/docs/spec/wire?id=_6-plain-format">Conjure PLAIN format</a>.
- * <p>
- * These utilities are used to serialize HTTP path, query, and header parameter values.
+ * Provides functionality for serializing supported types using the <a
+ * href="https://palantir.github.io/conjure/#/docs/spec/wire?id=_6-plain-format">Conjure PLAIN format</a>.
+ *
+ * <p>These utilities are used to serialize HTTP path, query, and header parameter values.
  */
 public interface PlainSerDe {
 

@@ -70,7 +70,8 @@ public final class Encodings {
                 } catch (MismatchedInputException e) {
                     throw new SafeRuntimeException(
                             "Failed to deserialize response stream. Syntax error?",
-                            e, SafeArg.of("type", type.getType()));
+                            e,
+                            SafeArg.of("type", type.getType()));
                 } catch (IOException e) {
                     throw new SafeRuntimeException(
                             "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));
@@ -130,8 +131,8 @@ public final class Encodings {
     }
 
     /**
-     * Work around a CBORGenerator bug.
-     * For more information: https://github.com/FasterXML/jackson-dataformats-binary/issues/155
+     * Work around a CBORGenerator bug. For more information:
+     * https://github.com/FasterXML/jackson-dataformats-binary/issues/155
      */
     private static final class ShieldingOutputStream extends FilterOutputStream {
         ShieldingOutputStream(OutputStream out) {

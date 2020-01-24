@@ -42,13 +42,16 @@ public final class OkHttpChannel implements Channel {
     private OkHttpChannel(OkHttpClient client, URL baseUrl) {
         this.client = client;
         // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty", UnsafeArg.of("ref", baseUrl.getRef()));
         Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()),
-                "baseUrl user info must be empty");
+                null == Strings.emptyToNull(baseUrl.getQuery()),
+                "baseUrl query must be empty",
+                UnsafeArg.of("query", baseUrl.getQuery()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getRef()),
+                "baseUrl ref must be empty",
+                UnsafeArg.of("ref", baseUrl.getRef()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
         this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
                 .host(baseUrl.getHost())
                 .port(baseUrl.getPort());
@@ -105,7 +108,8 @@ public final class OkHttpChannel implements Channel {
             case DELETE:
                 Preconditions.checkArgument(
                         !request.body().isPresent(), "DELETE endpoints must not have a request body");
-                okRequest = okRequest.delete(request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
+                okRequest = okRequest.delete(
+                        request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
                 break;
         }
 

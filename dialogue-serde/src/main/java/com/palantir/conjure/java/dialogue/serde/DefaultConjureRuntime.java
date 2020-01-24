@@ -25,9 +25,7 @@ import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * {@link DefaultConjureRuntime} provides functionality required by generated handlers.
- */
+/** {@link DefaultConjureRuntime} provides functionality required by generated handlers. */
 public final class DefaultConjureRuntime implements ConjureRuntime {
 
     private final BodySerDe bodySerDe;
@@ -35,9 +33,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 // TODO(rfink): The default thing here is a little odd
-                builder.encodings.isEmpty()
-                        ? ImmutableList.of(Encodings.json(), Encodings.cbor())
-                        : builder.encodings);
+                builder.encodings.isEmpty() ? ImmutableList.of(Encodings.json(), Encodings.cbor()) : builder.encodings);
     }
 
     public static Builder builder() {

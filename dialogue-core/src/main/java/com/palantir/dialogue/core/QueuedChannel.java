@@ -48,19 +48,20 @@ import org.slf4j.LoggerFactory;
 /**
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
  * requests. This is done by enqueueing requests on submission, and then running the schedule loop in one of 3 ways:
+ *
  * <ol>
- *     <li>On submission - allows execution when there is available capacity</li>
- *     <li>On request completion - allows execution when capacity has now become available</li>
- *     <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight
- *     requests</li>
+ *   <li>On submission - allows execution when there is available capacity
+ *   <li>On request completion - allows execution when capacity has now become available
+ *   <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight requests
  * </ol>
  *
  * This implementation was chosen over alternatives for the following reasons:
+ *
  * <ul>
- *     <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to
- *     wait until the next scheduling period</li>
- *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
- *     doing work, much of which will be wasted</li>
+ *   <li>Always periodically schedule: this decreases throughout as requests that may be able to run will have to wait
+ *       until the next scheduling period
+ *   <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly doing
+ *       work, much of which will be wasted
  * </ul>
  *
  * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
@@ -71,18 +72,21 @@ final class QueuedChannel implements Channel {
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
     @VisibleForTesting
-    static final MetricName NUM_QUEUED_METRIC =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.queued").build();
+    static final MetricName NUM_QUEUED_METRIC = MetricName.builder()
+            .safeName("com.palantir.conjure.java.dispatcher.calls.queued")
+            .build();
+
     @VisibleForTesting
-    static final MetricName NUM_RUNNING_METRICS =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.running").build();
+    static final MetricName NUM_RUNNING_METRICS = MetricName.builder()
+            .safeName("com.palantir.conjure.java.dispatcher.calls.running")
+            .build();
 
     private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
-    private final ScheduledExecutorService backgroundScheduler =
-            Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+    private final ScheduledExecutorService backgroundScheduler = Executors.newSingleThreadScheduledExecutor(
+            new ThreadFactoryBuilder()
                     .setNameFormat("dialogue-request-scheduler")
                     .setDaemon(false)
                     .build());
@@ -93,27 +97,26 @@ final class QueuedChannel implements Channel {
 
     @VisibleForTesting
     @SuppressWarnings("FutureReturnValueIgnored")
-    QueuedChannel(
-            LimitedChannel delegate,
-            int maxQueueSize,
-            TaggedMetricRegistry metrics) {
+    QueuedChannel(LimitedChannel delegate, int maxQueueSize, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
-        this.backgroundScheduler.scheduleWithFixedDelay(() -> {
-            try {
-                schedule();
-            } catch (Exception e) {
-                log.error("Uncaught exception while scheduling request. This is a programming error.", e);
-            }
-        }, 100, 100, TimeUnit.MILLISECONDS);
+        this.backgroundScheduler.scheduleWithFixedDelay(
+                () -> {
+                    try {
+                        schedule();
+                    } catch (Exception e) {
+                        log.error("Uncaught exception while scheduling request. This is a programming error.", e);
+                    }
+                },
+                100,
+                100,
+                TimeUnit.MILLISECONDS);
 
         metrics.registerWithReplacement(NUM_QUEUED_METRIC, queuedCalls::size);
         metrics.registerWithReplacement(NUM_RUNNING_METRICS, numRunningRequests::get);
     }
 
-    /**
-     * Enqueues and tries to schedule as many queued tasks as possible.
-     */
+    /** Enqueues and tries to schedule as many queued tasks as possible. */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
@@ -127,9 +130,7 @@ final class QueuedChannel implements Channel {
         return components.response();
     }
 
-    /**
-     * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
-     */
+    /** Try to schedule as many tasks as possible. Called when requests are submitted and when they complete. */
     private void schedule() {
         while (scheduleNextTask()) {
             // Do nothing
@@ -138,8 +139,8 @@ final class QueuedChannel implements Channel {
 
     /**
      * Get the next call and attempt to execute it. If it is runnable, wire up the underlying future to the one
-     * previously returned to the caller. If it is not runnable, add it back into the queue. Returns true if more
-     * tasks may be able to be scheduled, and false otherwise.
+     * previously returned to the caller. If it is not runnable, add it back into the queue. Returns true if more tasks
+     * may be able to be scheduled, and false otherwise.
      */
     private boolean scheduleNextTask() {
         DeferredCall components = queuedCalls.poll();
@@ -162,8 +163,8 @@ final class QueuedChannel implements Channel {
     }
 
     /**
-     * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
-     * This also schedules the next set of requests to be run.
+     * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller. This
+     * also schedules the next set of requests to be run.
      */
     private class ForwardAndSchedule implements FutureCallback<Response> {
         private final SettableFuture<Response> response;
@@ -208,8 +209,10 @@ final class QueuedChannel implements Channel {
     interface DeferredCall {
         @Value.Parameter
         Endpoint endpoint();
+
         @Value.Parameter
         Request request();
+
         @Value.Parameter
         SettableFuture<Response> response();
     }

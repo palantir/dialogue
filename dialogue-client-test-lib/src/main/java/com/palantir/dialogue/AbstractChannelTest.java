@@ -63,6 +63,7 @@ public abstract class AbstractChannelTest {
 
     @Rule
     public final MockWebServer server = new MockWebServer();
+
     private final RequestBody body = new RequestBody() {
         @Override
         public Optional<Long> length() {
@@ -80,7 +81,9 @@ public abstract class AbstractChannelTest {
         }
     };
 
-    @Mock private Request request;
+    @Mock
+    private Request request;
+
     private FakeEndpoint endpoint;
 
     private Channel channel;
@@ -121,7 +124,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void respectsBasePath_noSegment() throws InterruptedException {
-        endpoint.renderPath = (params, url) -> { };
+        endpoint.renderPath = (params, url) -> {};
 
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
@@ -284,7 +287,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void callCancellationIsObservedAsException() throws InterruptedException {
-        channel.execute(endpoint, request);  // drain enqueued response
+        channel.execute(endpoint, request); // drain enqueued response
 
         channel = createChannel(server.url("").url());
         ListenableFuture<Response> call = channel.execute(endpoint, request);
@@ -293,8 +296,7 @@ public abstract class AbstractChannelTest {
         Thread.sleep(1000);
         server.enqueue(new MockResponse());
 
-        assertThatThrownBy(call::get)
-                .isInstanceOfAny(CancellationException.class);
+        assertThatThrownBy(call::get).isInstanceOfAny(CancellationException.class);
     }
 
     // TODO(rfink): How to test that cancellation propagates to the server?
@@ -303,8 +305,7 @@ public abstract class AbstractChannelTest {
     public void connectionErrorsSurfaceAsExceptions() throws IOException {
         server.shutdown();
         ListenableFuture<Response> call = channel.execute(endpoint, request);
-        assertThatThrownBy(call::get)
-                .hasCauseInstanceOf(ConnectException.class);
+        assertThatThrownBy(call::get).hasCauseInstanceOf(ConnectException.class);
     }
 
     @Test
@@ -313,9 +314,7 @@ public abstract class AbstractChannelTest {
         channel.execute(endpoint, request).get();
         server.takeRequest();
 
-        server.enqueue(new MockResponse()
-                .addHeader("cOntent-encoding", "gzip")
-                .setBody(zip("foo")));
+        server.enqueue(new MockResponse().addHeader("cOntent-encoding", "gzip").setBody(zip("foo")));
         Response response = channel.execute(endpoint, request).get();
         assertThat(response.body()).hasContent("foo");
         assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");

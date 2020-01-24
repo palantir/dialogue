@@ -22,11 +22,13 @@ import com.google.common.util.concurrent.ListenableFuture;
  * A channel is an abstraction of a transport layer (e.g., HTTP) that is consumed by server and client stubs.
  *
  * <h4>Threading Model</h4>
- * Implementations of {@link Channel#execute(Endpoint, Request)} must return immediately, and must not perform
- * blocking operations. Channel implementations using blocking constructs must internally leverage an executor
- * to expose only a non-blocking API.
+ *
+ * Implementations of {@link Channel#execute(Endpoint, Request)} must return immediately, and must not perform blocking
+ * operations. Channel implementations using blocking constructs must internally leverage an executor to expose only a
+ * non-blocking API.
  *
  * <h4>Behavior</h4>
+ *
  * Implementations of {@link Channel#execute(Endpoint, Request)} must never throw. A failed {@link ListenableFuture}
  * must be returned instead.
  */

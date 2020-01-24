@@ -37,12 +37,24 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class ConcurrencyLimitedChannelTest {
 
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
-    @Mock private Channel delegate;
-    @Mock private Limiter<Void> limiter;
-    @Mock private Limiter.Listener listener;
-    @Mock private Response response;
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
+    @Mock
+    private Channel delegate;
+
+    @Mock
+    private Limiter<Void> limiter;
+
+    @Mock
+    private Limiter.Listener listener;
+
+    @Mock
+    private Response response;
+
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
 

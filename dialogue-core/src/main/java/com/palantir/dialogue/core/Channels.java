@@ -28,9 +28,7 @@ public final class Channels {
     private Channels() {}
 
     public static Channel create(
-            Collection<? extends Channel> channels,
-            UserAgent userAgent,
-            TaggedMetricRegistry metrics) {
+            Collection<? extends Channel> channels, UserAgent userAgent, TaggedMetricRegistry metrics) {
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, metrics))
@@ -41,7 +39,6 @@ public final class Channels {
                 .collect(ImmutableList.toImmutableList());
 
         return new UserAgentChannel(
-                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels), metrics)),
-                userAgent);
+                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels), metrics)), userAgent);
     }
 }
