@@ -30,6 +30,14 @@ import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A channel that logs warnings when the response from a server contains the "deprecation" header. Logs include the
+ * content of the "server" header when it is provided, and always include endpoint details.
+ *
+ * <p>Deprecation warnings are produced at most once per minute per service. The {@code client.deprecations} meter may
+ * be used to understand more granular rates of deprecated calls against a particular service using the
+ * {@code service-name} tag.
+ */
 final class DeprecationWarningChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
