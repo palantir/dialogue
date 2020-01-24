@@ -39,7 +39,7 @@ final class DialogueFutures {
             }
 
             @Override
-            public void onFailure(Throwable throwable) {}
+            public void onFailure(Throwable _throwable) {}
         };
     }
 }
