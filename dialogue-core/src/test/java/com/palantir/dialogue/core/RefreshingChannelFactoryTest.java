@@ -35,6 +35,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.testing.Assertions;
 import com.palantir.logsafe.testing.LoggableExceptionAssert;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
@@ -147,7 +148,8 @@ public final class RefreshingChannelFactoryTest {
                 throw Failures.instance().failure(String.format("Expecting code to throw a SafeLoggable exception, "
                         + "but caught a %s which does not", e.getCause().getClass().getCanonicalName()));
             }
-            return new LoggableExceptionAssert<>((T) e.getCause());
+
+            return Assertions.assertThatLoggableException((T) e.getCause());
         }
     }
 }
