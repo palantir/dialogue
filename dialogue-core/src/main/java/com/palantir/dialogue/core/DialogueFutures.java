@@ -20,6 +20,8 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import java.util.function.Consumer;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 final class DialogueFutures {
     private DialogueFutures() {}
@@ -27,5 +29,17 @@ final class DialogueFutures {
     static <T> ListenableFuture<T> addDirectCallback(ListenableFuture<T> future, FutureCallback<T> callback) {
         Futures.addCallback(future, callback, MoreExecutors.directExecutor());
         return future;
+    }
+
+    static <T> FutureCallback<T> onSuccess(Consumer<T> onSuccess) {
+        return new FutureCallback<T>() {
+            @Override
+            public void onSuccess(@Nullable T result) {
+                onSuccess.accept(result);
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {}
+        };
     }
 }
