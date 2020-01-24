@@ -5,7 +5,7 @@ com.google.guava:guava = 27.0.1-jre
 com.netflix.concurrency-limits:* = 0.2.0
 com.palantir.baseline:* = 0.39.1
 com.palantir.conjure.java.api:* = 2.10.0
-com.palantir.conjure.java.runtime:* = 4.54.0
+com.palantir.conjure.java.runtime:* = 4.58.0
 com.palantir.conjure.java:* = 4.8.1
 com.palantir.ri:resource-identifier = 1.1.0
 com.palantir.safe-logging:* = 1.13.0
@@ -25,5 +25,5 @@ javax.ws.rs:javax.ws.rs-api = 2.0
 org.apache.commons:commons-lang3 = 3.9
 
 # conflicts
-com.google.errorprone:* = 2.3.3
+com.google.errorprone:* = 2.3.4
 org.checkerframework:checker-qual = 2.5.3
