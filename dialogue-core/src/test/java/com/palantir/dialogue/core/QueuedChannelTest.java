@@ -44,6 +44,11 @@ import org.mockito.stubbing.OngoingStubbing;
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
+    private static final MetricName NUM_QUEUED_METRIC =
+            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.queued").build();
+    private static final MetricName NUM_RUNNING_METRICS =
+            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.running").build();
+
     @Mock private LimitedChannel delegate;
     @Mock private Endpoint endpoint;
     @Mock private Request request;
@@ -131,12 +136,12 @@ public class QueuedChannelTest {
         mockNoCapacity();
 
         queuedChannel.execute(endpoint, request);
-        assertThat(gaugeValue(QueuedChannel.NUM_QUEUED_METRIC)).isEqualTo(1);
-        assertThat(gaugeValue(QueuedChannel.NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(1);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
 
         queuedChannel.execute(endpoint, request);
-        assertThat(gaugeValue(QueuedChannel.NUM_QUEUED_METRIC)).isEqualTo(2);
-        assertThat(gaugeValue(QueuedChannel.NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(2);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
     }
 
     @Test
@@ -144,12 +149,12 @@ public class QueuedChannelTest {
         mockHasCapacity();
 
         queuedChannel.execute(endpoint, request);
-        assertThat(gaugeValue(QueuedChannel.NUM_QUEUED_METRIC)).isEqualTo(0);
-        assertThat(gaugeValue(QueuedChannel.NUM_RUNNING_METRICS)).isEqualTo(1);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(1);
 
         futureResponse.set(mockResponse);
-        assertThat(gaugeValue(QueuedChannel.NUM_QUEUED_METRIC)).isEqualTo(0);
-        assertThat(gaugeValue(QueuedChannel.NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
     }
 
     @SuppressWarnings("unchecked")

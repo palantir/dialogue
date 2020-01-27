@@ -28,7 +28,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.InputStream;
 import java.util.List;
@@ -70,13 +69,6 @@ final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
-    @VisibleForTesting
-    static final MetricName NUM_QUEUED_METRIC =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.queued").build();
-    @VisibleForTesting
-    static final MetricName NUM_RUNNING_METRICS =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.running").build();
-
     private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
@@ -96,7 +88,7 @@ final class QueuedChannel implements Channel {
     QueuedChannel(
             LimitedChannel delegate,
             int maxQueueSize,
-            TaggedMetricRegistry metrics) {
+            TaggedMetricRegistry registry) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
         this.backgroundScheduler.scheduleWithFixedDelay(() -> {
@@ -107,8 +99,9 @@ final class QueuedChannel implements Channel {
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
 
-        metrics.registerWithReplacement(NUM_QUEUED_METRIC, queuedCalls::size);
-        metrics.registerWithReplacement(NUM_RUNNING_METRICS, numRunningRequests::get);
+        DispatcherMetrics metrics = DispatcherMetrics.of(registry);
+        metrics.callsQueued(queuedCalls::size);
+        metrics.callsRunning(numRunningRequests::get);
     }
 
     /**
