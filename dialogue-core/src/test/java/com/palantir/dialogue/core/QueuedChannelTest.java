@@ -61,7 +61,7 @@ public class QueuedChannelTest {
     @Before
     public void before() {
         metrics = new DefaultTaggedMetricRegistry();
-        queuedChannel = new QueuedChannel(delegate, metrics);
+        queuedChannel = new QueuedChannel(delegate, DispatcherMetrics.of(metrics));
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 
@@ -123,7 +123,7 @@ public class QueuedChannelTest {
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueueFullReturns429() throws ExecutionException, InterruptedException {
-        queuedChannel = new QueuedChannel(delegate, 1, metrics);
+        queuedChannel = new QueuedChannel(delegate, 1, DispatcherMetrics.of(metrics));
 
         mockNoCapacity();
         queuedChannel.execute(endpoint, request);

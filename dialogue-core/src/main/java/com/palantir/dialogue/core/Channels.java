@@ -41,7 +41,8 @@ public final class Channels {
                 .collect(ImmutableList.toImmutableList());
 
         return new UserAgentChannel(
-                new RetryingChannel(new QueuedChannel(new RoundRobinChannel(limitedChannels), metrics)),
+                new RetryingChannel(new QueuedChannel(
+                        new RoundRobinChannel(limitedChannels), DispatcherMetrics.of(metrics))),
                 userAgent);
     }
 }

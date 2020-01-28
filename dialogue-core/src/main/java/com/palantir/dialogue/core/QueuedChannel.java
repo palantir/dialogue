@@ -28,7 +28,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -79,7 +78,7 @@ final class QueuedChannel implements Channel {
                     .setDaemon(false)
                     .build());
 
-    QueuedChannel(LimitedChannel channel, TaggedMetricRegistry metrics) {
+    QueuedChannel(LimitedChannel channel, DispatcherMetrics metrics) {
         this(channel, 1_000, metrics);
     }
 
@@ -88,7 +87,7 @@ final class QueuedChannel implements Channel {
     QueuedChannel(
             LimitedChannel delegate,
             int maxQueueSize,
-            TaggedMetricRegistry registry) {
+            DispatcherMetrics metrics) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
         this.backgroundScheduler.scheduleWithFixedDelay(() -> {
@@ -99,7 +98,6 @@ final class QueuedChannel implements Channel {
             }
         }, 100, 100, TimeUnit.MILLISECONDS);
 
-        DispatcherMetrics metrics = DispatcherMetrics.of(registry);
         metrics.callsQueued(queuedCalls::size);
         metrics.callsRunning(numRunningRequests::get);
     }
