@@ -19,13 +19,9 @@ package com.palantir.dialogue;
 import java.io.IOException;
 import java.io.OutputStream;
 
-/**
- * Streamed binary response data with Content-Type <code>application/octet-stream</code>.
- */
+/** Streamed binary response data with Content-Type <code>application/octet-stream</code>. */
 public interface BinaryRequestBody {
 
-    /**
-     * Invoked to write data to the response stream. Called exactly once.
-     */
+    /** Invoked to write data to the response stream. Called exactly once. */
     void write(OutputStream responseBody) throws IOException;
 }

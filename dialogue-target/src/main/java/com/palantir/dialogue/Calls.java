@@ -27,9 +27,9 @@ public final class Calls {
 
     /**
      * Converts the given {@link Call} to a {@link Future} by {@link Call#execute executing} the Call and capturing its
-     * result. If the call fails with an {@link Observer#exception} or {@link Observer#failure}, the
-     * corresponding exception is captured by the Future and will be rethrown by {@link Future#get}. Cancelling the
-     * future cancels the underlying call.
+     * result. If the call fails with an {@link Observer#exception} or {@link Observer#failure}, the corresponding
+     * exception is captured by the Future and will be rethrown by {@link Future#get}. Cancelling the future cancels the
+     * underlying call.
      */
     public static ListenableFuture<Response> toFuture(Call call) {
         CallCancellingFuture<Response> future = new CallCancellingFuture<>(call);

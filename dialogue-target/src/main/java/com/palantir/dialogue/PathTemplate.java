@@ -37,8 +37,8 @@ public final class PathTemplate {
         for (Segment segment : segments) {
             if (segment.variable != null) {
                 boolean seen = seenVariables.add(segment.variable);
-                Preconditions.checkArgument(seen, "Duplicate segment variable names not allowed",
-                        SafeArg.of("variable", segment.variable));
+                Preconditions.checkArgument(
+                        seen, "Duplicate segment variable names not allowed", SafeArg.of("variable", segment.variable));
             }
         }
     }

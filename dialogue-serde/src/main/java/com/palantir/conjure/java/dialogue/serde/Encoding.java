@@ -21,18 +21,21 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 /**
- * An encoding provides support for a <pre>Content-Type</pre> corresponding with the conjure wire format. Encodings
- * provide a {@link Encoding#getContentType() content type} string as well as factories for typed {@link Serializer}
- * and {@link Deserializer} objects.
- * <p>
- * This interface is considered internal API and may change without a major version rev. Custom implementations
- * are not recommended, but may be implemented to test custom encodings without a fork of the runtime.
+ * An encoding provides support for a
+ *
+ * <pre>Content-Type</pre>
+ *
+ * corresponding with the conjure wire format. Encodings provide a {@link Encoding#getContentType() content type} string
+ * as well as factories for typed {@link Serializer} and {@link Deserializer} objects.
+ *
+ * <p>This interface is considered internal API and may change without a major version rev. Custom implementations are
+ * not recommended, but may be implemented to test custom encodings without a fork of the runtime.
  */
 public interface Encoding {
 
     /**
-     * Creates a new {@link Serializer} for the requested type. It is recommended to reuse instances over requesting
-     * new ones for each request.
+     * Creates a new {@link Serializer} for the requested type. It is recommended to reuse instances over requesting new
+     * ones for each request.
      */
     <T> Serializer<T> serializer(TypeMarker<T> type);
 
@@ -42,14 +45,34 @@ public interface Encoding {
      */
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
-    /** Returns the value used in response <pre>Content-Type</pre> header. */
+    /**
+     * Returns the value used in response
+     *
+     * <pre>Content-Type</pre>
+     *
+     * header.
+     */
     String getContentType();
 
     /**
-     * Checks if a <pre>Content-Type</pre> or <pre>Accept</pre> value is supported by this encoding. This is not an
-     * exact match on {@link #getContentType()} because values may contain additional metadata, for
-     * example <pre>Content-Type: application/json; charset=utf-8</pre> may be supported by an {@link Encoding}
-     * which returns <pre>application/json</pre> from {@link #getContentType()}.
+     * Checks if a
+     *
+     * <pre>Content-Type</pre>
+     *
+     * or
+     *
+     * <pre>Accept</pre>
+     *
+     * value is supported by this encoding. This is not an exact match on {@link #getContentType()} because values may
+     * contain additional metadata, for example
+     *
+     * <pre>Content-Type: application/json; charset=utf-8</pre>
+     *
+     * may be supported by an {@link Encoding} which returns
+     *
+     * <pre>application/json</pre>
+     *
+     * from {@link #getContentType()}.
      */
     boolean supportsContentType(String contentType);
 
@@ -58,8 +81,8 @@ public interface Encoding {
         /**
          * Reads a serialized type-{@link T} object representation from the given input stream and returns the
          * corresponding object. Implementations should read the entire input stream, but must not close it.
-         * Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs
-         * must never be null.
+         * Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs must
+         * never be null.
          */
         T deserialize(InputStream input);
     }

@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -26,9 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/**
- * Round robins requests across many channels, attempting to choose a channel that has some available capacity.
- */
+/** Round robins requests across many channels, attempting to choose a channel that has some available capacity. */
 final class RoundRobinChannel implements LimitedChannel {
 
     private final AtomicInteger currentHost = new AtomicInteger(0);

@@ -61,7 +61,9 @@ public final class UserAgentChannelTest {
         }
     };
 
-    @Mock private Channel delegate;
+    @Mock
+    private Channel delegate;
+
     private UserAgentChannel channel;
 
     @Before

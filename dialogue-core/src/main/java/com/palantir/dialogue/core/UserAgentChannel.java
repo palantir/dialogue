@@ -25,9 +25,9 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 
 /**
- * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
- * dialogue library (extracted from this package's implementation version), and the name and version of the
- * {@link Endpoint}'s target service and endpoint.
+ * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the dialogue
+ * library (extracted from this package's implementation version), and the name and version of the {@link Endpoint}'s
+ * target service and endpoint.
  */
 final class UserAgentChannel implements Channel {
 
@@ -58,8 +58,6 @@ final class UserAgentChannel implements Channel {
 
     private static UserAgent.Agent extractDialogueAgent() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        return UserAgent.Agent.of(
-                "dialogue",
-                maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
+        return UserAgent.Agent.of("dialogue", maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
     }
 }

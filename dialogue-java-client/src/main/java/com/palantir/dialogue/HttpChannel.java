@@ -46,13 +46,16 @@ public final class HttpChannel implements Channel {
         this.client = client;
         this.requestTimeout = requestTimeout;
         // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty", UnsafeArg.of("ref", baseUrl.getRef()));
         Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()),
-                "baseUrl user info must be empty");
+                null == Strings.emptyToNull(baseUrl.getQuery()),
+                "baseUrl query must be empty",
+                UnsafeArg.of("query", baseUrl.getQuery()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getRef()),
+                "baseUrl ref must be empty",
+                UnsafeArg.of("ref", baseUrl.getRef()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
         this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
                 .host(baseUrl.getHost())
                 .port(baseUrl.getPort());
@@ -108,7 +111,7 @@ public final class HttpChannel implements Channel {
 
         // TODO(rfink): Think about repeatability/retries
         CompletableFuture<Response> future = client.sendAsync(
-                httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream())
+                        httpRequest.build(), HttpResponse.BodyHandlers.ofInputStream())
                 .thenApply(this::toResponse);
 
         return new CompletableToListenableFuture<>(future);
@@ -127,7 +130,8 @@ public final class HttpChannel implements Channel {
             @Override
             public InputStream body() {
                 boolean isGzipped = response.headers()
-                        .firstValue("content-encoding").orElse("")
+                        .firstValue("content-encoding")
+                        .orElse("")
                         .equalsIgnoreCase("gzip");
                 if (isGzipped) {
                     return new DeferredGzipInputStream(response.body());

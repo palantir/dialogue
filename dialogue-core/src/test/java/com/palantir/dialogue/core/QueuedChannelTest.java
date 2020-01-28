@@ -44,15 +44,25 @@ import org.mockito.stubbing.OngoingStubbing;
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
-    private static final MetricName NUM_QUEUED_METRIC =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.queued").build();
-    private static final MetricName NUM_RUNNING_METRICS =
-            MetricName.builder().safeName("com.palantir.conjure.java.dispatcher.calls.running").build();
+    private static final MetricName NUM_QUEUED_METRIC = MetricName.builder()
+            .safeName("com.palantir.conjure.java.dispatcher.calls.queued")
+            .build();
+    private static final MetricName NUM_RUNNING_METRICS = MetricName.builder()
+            .safeName("com.palantir.conjure.java.dispatcher.calls.running")
+            .build();
 
-    @Mock private LimitedChannel delegate;
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
-    @Mock private Response mockResponse;
+    @Mock
+    private LimitedChannel delegate;
+
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
+    @Mock
+    private Response mockResponse;
+
     private TaggedMetricRegistry metrics;
     private QueuedChannel queuedChannel;
     private SettableFuture<Response> futureResponse;

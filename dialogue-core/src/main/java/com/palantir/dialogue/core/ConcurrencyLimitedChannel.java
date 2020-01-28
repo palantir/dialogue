@@ -49,9 +49,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @VisibleForTesting
     ConcurrencyLimitedChannel(Channel delegate, Supplier<Limiter<Void>> limiterSupplier) {
         this.delegate = delegate;
-        this.limiters = Caffeine.newBuilder()
-                .expireAfterAccess(Duration.ofMinutes(5))
-                .build(key -> limiterSupplier.get());
+        this.limiters =
+                Caffeine.newBuilder().expireAfterAccess(Duration.ofMinutes(5)).build(key -> limiterSupplier.get());
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {
@@ -79,9 +78,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), new LimiterCallback(listener)));
     }
 
-    /**
-     * Signals back to the {@link Limiter} whether or not the request was successfully handled.
-     */
+    /** Signals back to the {@link Limiter} whether or not the request was successfully handled. */
     private static final class LimiterCallback implements FutureCallback<Response> {
         private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429);
 

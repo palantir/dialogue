@@ -74,11 +74,15 @@ public final class DefaultErrorDecoderTest {
             RemoteException exception = decoder.decode(response);
             assertThat(exception.getCause()).isNull();
             assertThat(exception.getStatus()).isEqualTo(code);
-            assertThat(exception.getError().errorCode()).isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
+            assertThat(exception.getError().errorCode())
+                    .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
             assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
-            assertThat(exception.getMessage()).isEqualTo(
-                    "RemoteException: " + ErrorType.FAILED_PRECONDITION.code().name()
-                            + " (" + ErrorType.FAILED_PRECONDITION.name() + ") with instance ID "
+            assertThat(exception.getMessage())
+                    .isEqualTo("RemoteException: "
+                            + ErrorType.FAILED_PRECONDITION.code().name()
+                            + " ("
+                            + ErrorType.FAILED_PRECONDITION.name()
+                            + ") with instance ID "
                             + SERVICE_EXCEPTION.getErrorInstanceId());
         }
     }

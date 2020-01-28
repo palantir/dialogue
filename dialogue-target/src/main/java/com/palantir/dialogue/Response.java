@@ -29,16 +29,16 @@ public interface Response {
     /** The HTTP response code for this response. */
     int code();
 
-    /** The HTTP headers for this response. Headers names are compared in a case-insensitive fashion as per
-     * https://tools.ietf.org/html/rfc7540#section-8.1.2. */
+    /**
+     * The HTTP headers for this response. Headers names are compared in a case-insensitive fashion as per
+     * https://tools.ietf.org/html/rfc7540#section-8.1.2.
+     */
     Map<String, List<String>> headers();
 
     /** Retrieves the first value from the header map for the given key. */
     default Optional<String> getFirstHeader(String header) {
         List<String> headerList = headers().getOrDefault(header, ImmutableList.of());
 
-        return headerList.isEmpty()
-                ? Optional.empty()
-                : Optional.of(headerList.get(0));
+        return headerList.isEmpty() ? Optional.empty() : Optional.of(headerList.get(0));
     }
 }

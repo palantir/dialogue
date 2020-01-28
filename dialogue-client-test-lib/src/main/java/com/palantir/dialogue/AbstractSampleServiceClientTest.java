@@ -48,22 +48,20 @@ import org.junit.Test;
 public abstract class AbstractSampleServiceClientTest {
 
     abstract SampleService createBlockingClient(URL baseUrl, Duration timeout);
+
     abstract AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout);
 
     private static final String PATH = "myPath";
     private static final OffsetDateTime HEADER = OffsetDateTime.parse("2018-07-19T08:11:21+00:00");
-    private static final ImmutableList<ResourceIdentifier> QUERY = ImmutableList.of(
-            ResourceIdentifier.of("ri.a.b.c.d"),
-            ResourceIdentifier.of("ri.a.b.c.e"));
+    private static final ImmutableList<ResourceIdentifier> QUERY =
+            ImmutableList.of(ResourceIdentifier.of("ri.a.b.c.d"), ResourceIdentifier.of("ri.a.b.c.e"));
     private static final SampleObject BODY = new SampleObject(42);
     private static final String BODY_STRING = "{\"intProperty\":42}";
     private static final SampleObject RESPONSE = new SampleObject(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
 
     static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"),
-            Paths.get("src/test/resources/keyStore.jks"),
-            "keystore");
+            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -112,9 +110,7 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testBlocking_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse()
-                .setBody(RESPONSE_STRING)
-                .addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
 
         assertThat(blockingClient.objectToObject(PATH, HEADER, QUERY, BODY)).isEqualTo(RESPONSE);
         RecordedRequest request = server.takeRequest();
@@ -133,9 +129,7 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testAsync_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse()
-                .setBody(RESPONSE_STRING)
-                .addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThat(asyncClient.stringToString(PATH, HEADER, QUERY, BODY).get()).isEqualTo(RESPONSE);
     }
 
@@ -150,13 +144,15 @@ public abstract class AbstractSampleServiceClientTest {
     @Test
     public void testAsync_stringToString_throwsWhenResponseBodyIsEmpty() {
         server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
-        assertThatThrownBy(() -> asyncClient.stringToString(PATH, HEADER, QUERY, BODY).get())
+        assertThatThrownBy(() ->
+                        asyncClient.stringToString(PATH, HEADER, QUERY, BODY).get())
                 .hasMessageContaining("Failed to deserialize response");
     }
 
     @Test
     public void testAsync_stringToString_nullRequestBody() {
-        assertThatThrownBy(() -> asyncClient.stringToString(PATH, HEADER, QUERY, null).get())
+        assertThatThrownBy(() ->
+                        asyncClient.stringToString(PATH, HEADER, QUERY, null).get())
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("body parameter must not be null");
     }
@@ -186,8 +182,7 @@ public abstract class AbstractSampleServiceClientTest {
     @Test
     public void testAsync_voidToVoid_throwsWhenResponseBodyIsNonEmpty() {
         server.enqueue(new MockResponse().setBody("Unexpected response"));
-        assertThatThrownBy(() -> asyncClient.voidToVoid().get())
-                .hasMessageContaining("Expected empty response body");
+        assertThatThrownBy(() -> asyncClient.voidToVoid().get()).hasMessageContaining("Expected empty response body");
     }
 
     @Test(timeout = 2_000)
@@ -199,7 +194,7 @@ public abstract class AbstractSampleServiceClientTest {
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 
-    @Test(timeout = 5_000)  // see client construction: we set a 1s timeout
+    @Test(timeout = 5_000) // see client construction: we set a 1s timeout
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")

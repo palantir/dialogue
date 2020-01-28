@@ -38,8 +38,7 @@ final class Urls {
     }
 
     static URL create(String protocol, String host, int port, String path) {
-        Preconditions.checkArgument(path.isEmpty() || path.startsWith("/"),
-                "path must be empty or start with /");
+        Preconditions.checkArgument(path.isEmpty() || path.startsWith("/"), "path must be empty or start with /");
         try {
             return new URL(protocol, host, port, path);
         } catch (MalformedURLException e) {

@@ -44,9 +44,8 @@ final class DeprecationWarningChannel implements Channel {
 
     private final Channel delegate;
     private final TaggedMetricRegistry registry;
-    private final Cache<String, Object> loggingRateLimiter = Caffeine.newBuilder()
-            .expireAfterWrite(Duration.ofMinutes(1))
-            .build();
+    private final Cache<String, Object> loggingRateLimiter =
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
     DeprecationWarningChannel(Channel delegate, TaggedMetricRegistry registry) {
         this.delegate = delegate;
@@ -56,14 +55,13 @@ final class DeprecationWarningChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return DialogueFutures.addDirectCallback(
-                delegate.execute(endpoint, request),
-                DialogueFutures.onSuccess(response -> {
+                delegate.execute(endpoint, request), DialogueFutures.onSuccess(response -> {
                     if (response != null) {
                         response.getFirstHeader("deprecation").ifPresent(deprecated -> {
                             registry.meter(MetricName.builder()
-                                    .safeName("client.deprecations")
-                                    .putSafeTags("service-name", endpoint.serviceName())
-                                    .build())
+                                            .safeName("client.deprecations")
+                                            .putSafeTags("service-name", endpoint.serviceName())
+                                            .build())
                                     .mark();
 
                             if (tryAcquire(endpoint.serviceName())) {
@@ -75,7 +73,8 @@ final class DeprecationWarningChannel implements Channel {
                                         SafeArg.of("endpointClientVersion", endpoint.version()),
                                         SafeArg.of(
                                                 "service",
-                                                response.getFirstHeader("server").orElse("no server header provided")));
+                                                response.getFirstHeader("server")
+                                                        .orElse("no server header provided")));
                             }
                         });
                     }
@@ -86,8 +85,8 @@ final class DeprecationWarningChannel implements Channel {
      * Returns true when the loggingRateLimiter permits logging for the provided serviceName, and false otherwise.
      *
      * <p>Note: this method is not synchronized because the throttling is best effort rather than guaranteed -- the
-     * penalty for failing to rate limit correctly is a few extra log lines, and we choose that penalty over the cost
-     * of synchronization.
+     * penalty for failing to rate limit correctly is a few extra log lines, and we choose that penalty over the cost of
+     * synchronization.
      */
     private boolean tryAcquire(String serviceName) {
         if (loggingRateLimiter.getIfPresent(serviceName) == null) {

@@ -46,19 +46,26 @@ public final class PathTemplateTest {
 
     @Test
     public void testVariableSegments() {
-        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        PathTemplate template =
+                PathTemplate.builder().variable("a").variable("b").build();
         assertThat(fill(template, A_B)).isEqualTo("/A/B");
     }
 
     @Test
     public void testFixedAndVariableSegments() {
-        PathTemplate template = PathTemplate.builder().fixed("a").variable("b").variable("c").fixed("d").build();
+        PathTemplate template = PathTemplate.builder()
+                .fixed("a")
+                .variable("b")
+                .variable("c")
+                .fixed("d")
+                .build();
         assertThat(fill(template, B_C)).isEqualTo("/a/B/C/d");
     }
 
     @Test
     public void testTooFewParameters() {
-        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        PathTemplate template =
+                PathTemplate.builder().variable("a").variable("b").build();
         assertThatThrownBy(() -> fill(template, A))
                 .isInstanceOf(IllegalArgumentException.class)
                 .isInstanceOf(SafeLoggable.class)
@@ -67,7 +74,8 @@ public final class PathTemplateTest {
 
     @Test
     public void testTooManyParameters() {
-        PathTemplate template = PathTemplate.builder().variable("a").variable("b").build();
+        PathTemplate template =
+                PathTemplate.builder().variable("a").variable("b").build();
         assertThatThrownBy(() -> fill(template, A_B_C))
                 .isInstanceOf(VerifyException.class)
                 .hasMessage("Too many parameters supplied, this is a bug");

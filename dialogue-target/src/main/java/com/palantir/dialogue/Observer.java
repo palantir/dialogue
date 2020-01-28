@@ -21,18 +21,22 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 /**
  * A callback interface for RPC responses. Successful calls are presented to {@link #success}. We distinguish between
  * two types of non-successful responses:
+ *
  * <p>
+ *
  * <ul>
- * <li>Application-level errors from the server, e.g., authorization problems, invalid arguments, etc., are presented
- * to {@link #failure} as a {@link RemoteException} explaining the type of failure. These are typically "expected"
- * errors in the sense that they are part of the API contract between client and server.</li>
- * <li>All other errors, e.g., failed connections or DNS lookups, failed deserialization of server responses, etc., are
- * presented to {@link #exception}. These are typically "unexpected" errors in the sense that they represent a
- * configuration problem or a bug.</li>
+ *   <li>Application-level errors from the server, e.g., authorization problems, invalid arguments, etc., are presented
+ *       to {@link #failure} as a {@link RemoteException} explaining the type of failure. These are typically "expected"
+ *       errors in the sense that they are part of the API contract between client and server.
+ *   <li>All other errors, e.g., failed connections or DNS lookups, failed deserialization of server responses, etc.,
+ *       are presented to {@link #exception}. These are typically "unexpected" errors in the sense that they represent a
+ *       configuration problem or a bug.
  * </ul>
  */
 public interface Observer {
     void success(Response value);
+
     void failure(RemoteException error);
+
     void exception(Throwable throwable);
 }

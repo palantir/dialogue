@@ -48,9 +48,9 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Encoding defaultEncoding;
 
     /**
-     * Selects the first (based on input order) of the provided encodings that
-     * {@link Encoding#supportsContentType supports} the serialization format {@link Headers#ACCEPT accepted}
-     * by a given request, or the first serializer if no such serializer can be found.
+     * Selects the first (based on input order) of the provided encodings that {@link Encoding#supportsContentType
+     * supports} the serialization format {@link Headers#ACCEPT accepted} by a given request, or the first serializer if
+     * no such serializer can be found.
      */
     ConjureBodySerDe(List<Encoding> encodings) {
         // TODO(jellis): consider supporting cbor encoded errors
@@ -118,9 +118,7 @@ final class ConjureBodySerDe implements BodySerDe {
             throw new SafeIllegalArgumentException("Response is missing Content-Type header");
         }
         if (!contentType.get().startsWith(BINARY_CONTENT_TYPE)) {
-            throw new SafeIllegalArgumentException(
-                    "Unsupported Content-Type",
-                    SafeArg.of("Content-Type", contentType));
+            throw new SafeIllegalArgumentException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
         }
         return exchange.body();
     }

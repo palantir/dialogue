@@ -31,8 +31,8 @@ import java.util.concurrent.TimeUnit;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
- * A channel that observes metrics about the processed requests and responses.
- * TODO(rfink): Consider renaming since this is no longer the only one doing instrumentation
+ * A channel that observes metrics about the processed requests and responses. TODO(rfink): Consider renaming since this
+ * is no longer the only one doing instrumentation
  */
 final class InstrumentedChannel implements Channel {
 
@@ -51,22 +51,25 @@ final class InstrumentedChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Stopwatch stopwatch = Stopwatch.createStarted();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
-        Futures.addCallback(response, new FutureCallback<>() {
-            @Override
-            public void onSuccess(@Nullable Response _result) {
-                record(endpoint);
-            }
+        Futures.addCallback(
+                response,
+                new FutureCallback<>() {
+                    @Override
+                    public void onSuccess(@Nullable Response _result) {
+                        record(endpoint);
+                    }
 
-            @Override
-            public void onFailure(Throwable _throwable) {
-                record(endpoint);
-            }
+                    @Override
+                    public void onFailure(Throwable _throwable) {
+                        record(endpoint);
+                    }
 
-            private void record(Endpoint endpoint) {
-                long micros = stopwatch.elapsed(TimeUnit.MICROSECONDS);
-                registry.timer(name(endpoint.serviceName())).update(micros, TimeUnit.MICROSECONDS);
-            }
-        }, MoreExecutors.directExecutor());
+                    private void record(Endpoint endpoint) {
+                        long micros = stopwatch.elapsed(TimeUnit.MICROSECONDS);
+                        registry.timer(name(endpoint.serviceName())).update(micros, TimeUnit.MICROSECONDS);
+                    }
+                },
+                MoreExecutors.directExecutor());
 
         return response;
     }

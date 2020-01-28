@@ -25,9 +25,17 @@ public final class EmptyBodyTest {
 
     @Test
     public void testSerialization() throws IOException {
-        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).content()).hasContent("");
-        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).length()).contains(0L);
-        assertThat(EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).contentType())
+        assertThat(EmptyBody.serializer("application/json")
+                        .serialize(EmptyBody.INSTANCE)
+                        .content())
+                .hasContent("");
+        assertThat(EmptyBody.serializer("application/json")
+                        .serialize(EmptyBody.INSTANCE)
+                        .length())
+                .contains(0L);
+        assertThat(EmptyBody.serializer("application/json")
+                        .serialize(EmptyBody.INSTANCE)
+                        .contentType())
                 .isEqualTo("application/json");
     }
 }
