@@ -51,22 +51,25 @@ final class InstrumentedChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Stopwatch stopwatch = Stopwatch.createStarted();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
-        Futures.addCallback(response, new FutureCallback<>() {
-            @Override
-            public void onSuccess(@Nullable Response _result) {
-                record(endpoint);
-            }
+        Futures.addCallback(
+                response,
+                new FutureCallback<>() {
+                    @Override
+                    public void onSuccess(@Nullable Response _result) {
+                        record(endpoint);
+                    }
 
-            @Override
-            public void onFailure(Throwable _throwable) {
-                record(endpoint);
-            }
+                    @Override
+                    public void onFailure(Throwable _throwable) {
+                        record(endpoint);
+                    }
 
-            private void record(Endpoint endpoint) {
-                long micros = stopwatch.elapsed(TimeUnit.MICROSECONDS);
-                registry.timer(name(endpoint.serviceName())).update(micros, TimeUnit.MICROSECONDS);
-            }
-        }, MoreExecutors.directExecutor());
+                    private void record(Endpoint endpoint) {
+                        long micros = stopwatch.elapsed(TimeUnit.MICROSECONDS);
+                        registry.timer(name(endpoint.serviceName())).update(micros, TimeUnit.MICROSECONDS);
+                    }
+                },
+                MoreExecutors.directExecutor());
 
         return response;
     }

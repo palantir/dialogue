@@ -59,7 +59,8 @@ public final class EncodingsTest {
         // TODO(rfink): Do we need to test this for all primitive types?
         assertThatThrownBy(() -> deserialize(asStream("null"), new TypeMarker<String>() {}))
                 .isInstanceOf(SafeIllegalArgumentException.class);
-        assertThat(deserialize(asStream("null"), new TypeMarker<Optional<String>>() {})).isEmpty();
+        assertThat(deserialize(asStream("null"), new TypeMarker<Optional<String>>() {}))
+                .isEmpty();
     }
 
     @Test

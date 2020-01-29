@@ -51,31 +51,46 @@ import org.mockito.junit.MockitoJUnitRunner;
 public final class RefreshingChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"),
-            Paths.get("src/test/resources/keyStore.jks"),
-            "keystore");
-    private static final ServicesConfigBlock EMPTY_CONFIG = ServicesConfigBlock.builder().build();
+            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
+    private static final ServicesConfigBlock EMPTY_CONFIG =
+            ServicesConfigBlock.builder().build();
     private static final String URI_1 = "uri-1";
     private static final ServicesConfigBlock SERVICE_A_CONFIG_1 = ServicesConfigBlock.builder()
-            .putServices(SERVICE_A, PartialServiceConfiguration.builder()
-                    .addUris(URI_1)
-                    .security(SSL_CONFIG)
-                    .build())
+            .putServices(
+                    SERVICE_A,
+                    PartialServiceConfiguration.builder()
+                            .addUris(URI_1)
+                            .security(SSL_CONFIG)
+                            .build())
             .build();
     private static final String URI_2 = "uri-2";
     private static final ServicesConfigBlock SERVICE_A_CONFIG_2 = ServicesConfigBlock.builder()
-            .putServices(SERVICE_A, PartialServiceConfiguration.builder()
-                    .addUris(URI_2)
-                    .security(SSL_CONFIG)
-                    .build())
+            .putServices(
+                    SERVICE_A,
+                    PartialServiceConfiguration.builder()
+                            .addUris(URI_2)
+                            .security(SSL_CONFIG)
+                            .build())
             .build();
 
-    @Mock private RefreshingChannelFactory.ChannelFactory channelFactory;
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
-    @Mock private Response response;
-    @Mock private Channel channel1;
-    @Mock private Channel channel2;
+    @Mock
+    private RefreshingChannelFactory.ChannelFactory channelFactory;
+
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
+    @Mock
+    private Response response;
+
+    @Mock
+    private Channel channel1;
+
+    @Mock
+    private Channel channel2;
+
     private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(EMPTY_CONFIG);
     private RefreshingChannelFactory clientFactory;
     private Channel channelA;
@@ -145,8 +160,10 @@ public final class RefreshingChannelFactoryTest {
             throw new RuntimeException(e);
         } catch (ExecutionException e) {
             if (!SafeLoggable.class.isInstance(e.getCause())) {
-                throw Failures.instance().failure(String.format("Expecting code to throw a SafeLoggable exception, "
-                        + "but caught a %s which does not", e.getCause().getClass().getCanonicalName()));
+                throw Failures.instance()
+                        .failure(String.format(
+                                "Expecting code to throw a SafeLoggable exception, " + "but caught a %s which does not",
+                                e.getCause().getClass().getCanonicalName()));
             }
 
             return Assertions.assertThatLoggableException((T) e.getCause());

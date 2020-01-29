@@ -37,11 +37,21 @@ public class BlacklistingChannelTest {
 
     private static final Duration BLACKLIST_DURATION = Duration.ofSeconds(10);
 
-    @Mock private LimitedChannel delegate;
-    @Mock private Ticker ticker;
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
-    @Mock private Response response;
+    @Mock
+    private LimitedChannel delegate;
+
+    @Mock
+    private Ticker ticker;
+
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
+    @Mock
+    private Response response;
+
     private BlacklistingChannel channel;
     private SettableFuture<Response> futureResponse;
 

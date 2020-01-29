@@ -34,7 +34,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceClientTest {
 
-    private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+    private static final ConjureRuntime runtime =
+            DefaultConjureRuntime.builder().build();
 
     @Override
     SampleService createBlockingClient(URL baseUrl, Duration timeout) {

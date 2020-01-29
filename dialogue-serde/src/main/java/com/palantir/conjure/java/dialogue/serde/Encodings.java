@@ -70,7 +70,8 @@ public final class Encodings {
                 } catch (MismatchedInputException e) {
                     throw new SafeRuntimeException(
                             "Failed to deserialize response stream. Syntax error?",
-                            e, SafeArg.of("type", type.getType()));
+                            e,
+                            SafeArg.of("type", type.getType()));
                 } catch (IOException e) {
                     throw new SafeRuntimeException(
                             "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));

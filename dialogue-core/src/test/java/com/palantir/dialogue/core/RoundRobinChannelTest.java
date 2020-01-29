@@ -39,10 +39,18 @@ public class RoundRobinChannelTest {
     private static final Optional<ListenableFuture<Response>> CHANNEL_B_RESPONSE = Optional.of(SettableFuture.create());
     private static final Optional<ListenableFuture<Response>> UNAVAILABLE = Optional.empty();
 
-    @Mock private LimitedChannel channelA;
-    @Mock private LimitedChannel channelB;
-    @Mock private Endpoint endpoint;
-    @Mock private Request request;
+    @Mock
+    private LimitedChannel channelA;
+
+    @Mock
+    private LimitedChannel channelB;
+
+    @Mock
+    private Endpoint endpoint;
+
+    @Mock
+    private Request request;
+
     private RoundRobinChannel loadBalancer;
 
     @Before

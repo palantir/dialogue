@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;

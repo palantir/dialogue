@@ -21,5 +21,6 @@ import org.immutables.value.Value;
 @Value.Immutable
 public interface Header {
     String name();
+
     String value();
 }

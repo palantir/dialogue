@@ -62,8 +62,10 @@ public final class UrlBuilder {
     }
 
     private UrlBuilder(String protocol) {
-        Preconditions.checkArgument(protocol.equals("http") || protocol.equals("https"),
-                "unsupported protocol", SafeArg.of("protocol", protocol));
+        Preconditions.checkArgument(
+                protocol.equals("http") || protocol.equals("https"),
+                "unsupported protocol",
+                SafeArg.of("protocol", protocol));
         this.protocol = protocol;
     }
 
@@ -99,7 +101,9 @@ public final class UrlBuilder {
      * {@code foo//bar//baz} (note the empty segments).
      */
     public UrlBuilder encodedPathSegments(String segments) {
-        Preconditions.checkArgument(UrlEncoder.isPath(segments), "invalid characters in encoded path segments",
+        Preconditions.checkArgument(
+                UrlEncoder.isPath(segments),
+                "invalid characters in encoded path segments",
                 UnsafeArg.of("segments", segments));
         this.pathSegments.add(segments);
         return this;
@@ -196,7 +200,7 @@ public final class UrlBuilder {
         @VisibleForTesting
         static String encode(String source, CharMatcher charactersToKeep) {
             byte[] bytes = source.getBytes(StandardCharsets.UTF_8);
-            ByteArrayOutputStream bos = new ByteArrayOutputStream(source.length());  // approx sizing
+            ByteArrayOutputStream bos = new ByteArrayOutputStream(source.length()); // approx sizing
             boolean wasChanged = false;
             for (byte b : bytes) {
                 if (charactersToKeep.matches(toChar(b))) {
@@ -210,9 +214,7 @@ public final class UrlBuilder {
                     wasChanged = true;
                 }
             }
-            return wasChanged
-                    ? new String(bos.toByteArray(), StandardCharsets.UTF_8)
-                    : source;
+            return wasChanged ? new String(bos.toByteArray(), StandardCharsets.UTF_8) : source;
         }
 
         // converts the given (signed) byte into an (unsigned) char

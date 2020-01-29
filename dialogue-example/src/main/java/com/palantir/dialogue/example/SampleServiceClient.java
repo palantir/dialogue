@@ -81,9 +81,8 @@ public final class SampleServiceClient {
     };
 
     private static final Endpoint VOID_TO_VOID = new Endpoint() {
-        private final PathTemplate pathTemplate = PathTemplate.builder()
-                .fixed("voidToVoid")
-                .build();
+        private final PathTemplate pathTemplate =
+                PathTemplate.builder().fixed("voidToVoid").build();
 
         @Override
         public void renderPath(Map<String, String> params, UrlBuilder url) {
@@ -123,7 +122,8 @@ public final class SampleServiceClient {
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
             private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
                     runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
-            private Deserializer<Void> voidToVoidDeserializer = runtime.bodySerDe().emptyBodyDeserializer();
+            private Deserializer<Void> voidToVoidDeserializer =
+                    runtime.bodySerDe().emptyBodyDeserializer();
             private PlainSerDe plainSerDe = runtime.plainSerDe();
 
             @Override
@@ -154,9 +154,7 @@ public final class SampleServiceClient {
 
                 ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
                 ListenableFuture<Void> response = Futures.transform(
-                        call,
-                        r -> voidToVoidDeserializer.deserialize(r),
-                        MoreExecutors.directExecutor());
+                        call, r -> voidToVoidDeserializer.deserialize(r), MoreExecutors.directExecutor());
 
                 RemoteExceptions.getUnchecked(response);
             }
@@ -174,15 +172,13 @@ public final class SampleServiceClient {
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
             private Deserializer<SampleObject> sampleObjectToSampleObjectDeserializer =
                     runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
-            private Deserializer<Void> voidToVoidDeserializer = runtime.bodySerDe().emptyBodyDeserializer();
+            private Deserializer<Void> voidToVoidDeserializer =
+                    runtime.bodySerDe().emptyBodyDeserializer();
             private PlainSerDe plainSerDe = runtime.plainSerDe();
 
             @Override
             public ListenableFuture<SampleObject> stringToString(
-                    String objectId,
-                    OffsetDateTime header,
-                    List<ResourceIdentifier> query,
-                    SampleObject body) {
+                    String objectId, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body) {
                 Preconditions.checkNotNull(objectId, "objectId parameter must not be null");
                 Preconditions.checkNotNull(header, "header parameter must not be null");
                 Preconditions.checkNotNull(body, "body parameter must not be null");
@@ -206,9 +202,7 @@ public final class SampleServiceClient {
 
                 ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
                 return Futures.transform(
-                        call,
-                        response -> voidToVoidDeserializer.deserialize(response),
-                        MoreExecutors.directExecutor());
+                        call, response -> voidToVoidDeserializer.deserialize(response), MoreExecutors.directExecutor());
             }
         };
     }

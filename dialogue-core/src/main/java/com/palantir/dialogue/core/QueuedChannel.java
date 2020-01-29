@@ -72,8 +72,8 @@ final class QueuedChannel implements Channel {
     private final LimitedChannel delegate;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
-    private final ScheduledExecutorService backgroundScheduler =
-            Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+    private final ScheduledExecutorService backgroundScheduler = Executors.newSingleThreadScheduledExecutor(
+            new ThreadFactoryBuilder()
                     .setNameFormat("dialogue-request-scheduler")
                     .setDaemon(false)
                     .build());
@@ -84,19 +84,20 @@ final class QueuedChannel implements Channel {
 
     @VisibleForTesting
     @SuppressWarnings("FutureReturnValueIgnored")
-    QueuedChannel(
-            LimitedChannel delegate,
-            int maxQueueSize,
-            DispatcherMetrics metrics) {
+    QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
-        this.backgroundScheduler.scheduleWithFixedDelay(() -> {
-            try {
-                schedule();
-            } catch (Exception e) {
-                log.error("Uncaught exception while scheduling request. This is a programming error.", e);
-            }
-        }, 100, 100, TimeUnit.MILLISECONDS);
+        this.backgroundScheduler.scheduleWithFixedDelay(
+                () -> {
+                    try {
+                        schedule();
+                    } catch (Exception e) {
+                        log.error("Uncaught exception while scheduling request. This is a programming error.", e);
+                    }
+                },
+                100,
+                100,
+                TimeUnit.MILLISECONDS);
 
         metrics.callsQueued(queuedCalls::size);
         metrics.callsRunning(numRunningRequests::get);
@@ -199,8 +200,10 @@ final class QueuedChannel implements Channel {
     interface DeferredCall {
         @Value.Parameter
         Endpoint endpoint();
+
         @Value.Parameter
         Request request();
+
         @Value.Parameter
         SettableFuture<Response> response();
     }

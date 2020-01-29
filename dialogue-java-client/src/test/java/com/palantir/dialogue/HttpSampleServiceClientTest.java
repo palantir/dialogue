@@ -31,7 +31,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class HttpSampleServiceClientTest extends AbstractSampleServiceClientTest {
 
-    private static final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+    private static final ConjureRuntime runtime =
+            DefaultConjureRuntime.builder().build();
 
     @Override
     SampleService createBlockingClient(URL baseUrl, Duration timeout) {
@@ -46,15 +47,14 @@ public final class HttpSampleServiceClientTest extends AbstractSampleServiceClie
     }
 
     private HttpChannel createChannel(URL url, Duration timeout) {
-        SSLParameters sslConfig = new SSLParameters(
-                ALL_CIPHER_SUITES,
-                new String[] {"TLSv1.2"});
+        SSLParameters sslConfig = new SSLParameters(ALL_CIPHER_SUITES, new String[] {"TLSv1.2"});
         return HttpChannel.of(
                 HttpClient.newBuilder()
                         .connectTimeout(timeout)
                         .sslParameters(sslConfig)
                         .sslContext(SslSocketFactories.createSslContext(SSL_CONFIG))
                         .build(),
-                url, timeout);
+                url,
+                timeout);
     }
 }
