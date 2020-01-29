@@ -43,7 +43,9 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class ChannelsTest {
 
-    @Mock private Channel delegate;
+    @Mock
+    private Channel delegate;
+
     private Endpoint endpoint = new Endpoint() {
         @Override
         public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
@@ -69,7 +71,9 @@ public final class ChannelsTest {
         }
     };
 
-    @Mock private Response response;
+    @Mock
+    private Response response;
+
     private Request request = Request.builder().build();
     private Channel channel;
 

@@ -58,8 +58,6 @@ final class UserAgentChannel implements Channel {
 
     private static UserAgent.Agent extractDialogueAgent() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        return UserAgent.Agent.of(
-                "dialogue",
-                maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
+        return UserAgent.Agent.of("dialogue", maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
     }
 }

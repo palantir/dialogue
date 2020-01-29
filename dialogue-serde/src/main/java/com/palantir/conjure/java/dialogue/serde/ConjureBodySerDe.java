@@ -118,9 +118,7 @@ final class ConjureBodySerDe implements BodySerDe {
             throw new SafeIllegalArgumentException("Response is missing Content-Type header");
         }
         if (!contentType.get().startsWith(BINARY_CONTENT_TYPE)) {
-            throw new SafeIllegalArgumentException(
-                    "Unsupported Content-Type",
-                    SafeArg.of("Content-Type", contentType));
+            throw new SafeIllegalArgumentException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
         }
         return exchange.body();
     }

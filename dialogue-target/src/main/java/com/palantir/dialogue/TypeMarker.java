@@ -34,10 +34,13 @@ public abstract class TypeMarker<T> {
 
     protected TypeMarker() {
         Type genericSuperclass = getClass().getGenericSuperclass();
-        Preconditions.checkArgument(genericSuperclass instanceof ParameterizedType,
-                "Class is not parameterized", SafeArg.of("class", genericSuperclass));
+        Preconditions.checkArgument(
+                genericSuperclass instanceof ParameterizedType,
+                "Class is not parameterized",
+                SafeArg.of("class", genericSuperclass));
         type = ((ParameterizedType) genericSuperclass).getActualTypeArguments()[0];
-        Preconditions.checkArgument(!(type instanceof TypeVariable),
+        Preconditions.checkArgument(
+                !(type instanceof TypeVariable),
                 "TypeMarker does not support variable types",
                 SafeArg.of("typeVariable", type));
     }

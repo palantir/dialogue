@@ -51,7 +51,8 @@ public class ConjureBodySerDeTest {
 
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
 
-    @Mock private ErrorDecoder errorDecoder;
+    @Mock
+    private ErrorDecoder errorDecoder;
 
     @Test
     public void testRequestContentType() throws IOException {

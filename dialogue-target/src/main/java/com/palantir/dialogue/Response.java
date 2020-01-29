@@ -37,8 +37,6 @@ public interface Response {
     default Optional<String> getFirstHeader(String header) {
         List<String> headerList = headers().getOrDefault(header, ImmutableList.of());
 
-        return headerList.isEmpty()
-                ? Optional.empty()
-                : Optional.of(headerList.get(0));
+        return headerList.isEmpty() ? Optional.empty() : Optional.of(headerList.get(0));
     }
 }

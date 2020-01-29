@@ -33,7 +33,9 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public class CompletableToListenableFutureTest {
 
-    @Mock private Runnable runnable;
+    @Mock
+    private Runnable runnable;
+
     private CompletableFuture<String> originalFuture;
     private CompletableToListenableFuture<String> wrappedFuture;
 
@@ -42,6 +44,7 @@ public class CompletableToListenableFutureTest {
         originalFuture = new CompletableFuture<>();
         wrappedFuture = new CompletableToListenableFuture<>(originalFuture);
     }
+
     @Test
     public void testAddListener() {
         wrappedFuture.addListener(runnable, MoreExecutors.directExecutor());

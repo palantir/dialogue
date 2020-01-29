@@ -33,6 +33,8 @@ import com.palantir.conjure.java.api.errors.RemoteException;
  */
 public interface Observer {
     void success(Response value);
+
     void failure(RemoteException error);
+
     void exception(Throwable throwable);
 }

@@ -24,5 +24,6 @@ import java.util.List;
 public interface SampleService {
 
     SampleObject objectToObject(String path, OffsetDateTime header, List<ResourceIdentifier> query, SampleObject body);
+
     void voidToVoid();
 }

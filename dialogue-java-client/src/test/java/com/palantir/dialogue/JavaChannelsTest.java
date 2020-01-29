@@ -29,9 +29,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 @RunWith(MockitoJUnitRunner.class)
 public final class JavaChannelsTest extends AbstractChannelTest {
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"),
-            Paths.get("src/test/resources/keyStore.jks"),
-            "keystore");
+            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
     @Override
     Channel createChannel(URL baseUrl) {
