@@ -18,6 +18,8 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.palantir.tokens.auth.AuthHeader;
+import com.palantir.tokens.auth.BearerToken;
 import org.junit.Test;
 
 public final class RequestTest {
@@ -26,5 +28,16 @@ public final class RequestTest {
     public void testRequestHeaderInsensitivity() {
         Request request = Request.builder().putHeaderParams("Foo", "bar").build();
         assertThat(request.headerParams()).containsKey("foo");
+    }
+
+    @Test
+    public void testHeadersAreRedacted() {
+        String sentinel = "shouldnotbelogged";
+        BearerToken token = BearerToken.valueOf(sentinel);
+        Request request = Request.builder()
+                .putHeaderParams("authorization", AuthHeader.of(token).toString())
+                .putHeaderParams("other", token.toString())
+                .build();
+        assertThat(request).asString().doesNotContain(sentinel);
     }
 }

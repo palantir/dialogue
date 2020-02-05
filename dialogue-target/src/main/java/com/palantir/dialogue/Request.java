@@ -74,8 +74,8 @@ public final class Request {
     @Override
     public String toString() {
         return "Request{"
-                + "headerParams="
-                + headerParams
+                + "headerParamsSize="
+                + headerParams.size()
                 + ", queryParams="
                 + queryParams
                 + ", pathParams="
