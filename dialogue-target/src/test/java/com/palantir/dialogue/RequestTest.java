@@ -27,10 +27,7 @@ public final class RequestTest {
     @Test
     public void testRequestHeaderInsensitivity() {
         Request request = Request.builder().putHeaderParams("Foo", "bar").build();
-        assertThat(request.headerParams())
-                .containsKey("foo")
-                .containsKey("FOO")
-                .containsKey("Foo");
+        assertThat(request.headerParams()).containsKey("foo").containsKey("FOO").containsKey("Foo");
     }
 
     @Test
