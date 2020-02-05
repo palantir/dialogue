@@ -28,6 +28,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -182,7 +183,7 @@ final class QueuedChannel implements Channel {
 
         @Override
         public InputStream body() {
-            return InputStream.nullInputStream();
+            return new ByteArrayInputStream(new byte[0]);
         }
 
         @Override

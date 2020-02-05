@@ -53,7 +53,7 @@ final class InstrumentedChannel implements Channel {
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
         Futures.addCallback(
                 response,
-                new FutureCallback<>() {
+                new FutureCallback<Response>() {
                     @Override
                     public void onSuccess(@Nullable Response _result) {
                         record(endpoint);
