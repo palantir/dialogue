@@ -17,5 +17,6 @@ dependencies {
     testCompile 'org.mockito:mockito-core'
 
     annotationProcessor 'org.immutables:value'
+    testAnnotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'
 }

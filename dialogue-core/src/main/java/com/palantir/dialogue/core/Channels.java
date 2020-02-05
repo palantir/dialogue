@@ -35,6 +35,7 @@ public final class Channels {
                 .map(channel -> new DeprecationWarningChannel(channel, metrics))
                 .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
                 .map(TracedRequestChannel::new)
+                .map(ContentDecodingChannel::new)
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(ImmutableList.toImmutableList());
 
