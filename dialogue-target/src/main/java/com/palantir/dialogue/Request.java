@@ -74,8 +74,9 @@ public final class Request {
     @Override
     public String toString() {
         return "Request{"
-                + "headerParamsSize="
-                + headerParams.size()
+                // Values are excluded to avoid the risk of logging credentials
+                + "headerParamsKeys="
+                + headerParams.keySet()
                 + ", queryParams="
                 + queryParams
                 + ", pathParams="
