@@ -84,7 +84,6 @@ public final class HttpChannel implements Channel {
         // Fill request body and set HTTP method
         switch (endpoint.httpMethod()) {
             case GET:
-                Preconditions.checkArgument(!request.body().isPresent(), "GET endpoints must not have a request body");
                 httpRequest.GET();
                 break;
             case POST:
@@ -94,8 +93,6 @@ public final class HttpChannel implements Channel {
                 httpRequest.PUT(toBody(request));
                 break;
             case DELETE:
-                Preconditions.checkArgument(
-                        !request.body().isPresent(), "DELETE endpoints must not have a request body");
                 httpRequest.DELETE();
                 break;
         }
