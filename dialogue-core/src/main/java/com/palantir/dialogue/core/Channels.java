@@ -38,9 +38,12 @@ public final class Channels {
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(ImmutableList.toImmutableList());
 
-        return new UserAgentChannel(
-                new RetryingChannel(
-                        new QueuedChannel(new RoundRobinChannel(limitedChannels), DispatcherMetrics.of(metrics))),
-                userAgent);
+        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(metrics));
+        channel = new RetryingChannel(channel);
+        channel = new UserAgentChannel(channel, userAgent);
+        channel = new NeverThrowChannel(channel);
+
+        return channel;
     }
 }

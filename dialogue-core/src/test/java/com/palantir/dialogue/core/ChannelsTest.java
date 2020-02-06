@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
@@ -42,6 +43,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
 public final class ChannelsTest {
+
+    public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
 
     @Mock
     private Channel delegate;
@@ -79,10 +82,7 @@ public final class ChannelsTest {
 
     @Before
     public void before() {
-        channel = Channels.create(
-                ImmutableList.of(delegate),
-                UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")),
-                new DefaultTaggedMetricRegistry());
+        channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, new DefaultTaggedMetricRegistry());
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
         when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
@@ -91,5 +91,43 @@ public final class ChannelsTest {
     @Test
     public void testRequestMakesItThrough() throws ExecutionException, InterruptedException {
         assertThat(channel.execute(endpoint, request).get()).isEqualTo(response);
+    }
+
+    @Test
+    public void bad_channel_throwing_an_exception_still_returns_a_future() {
+        Channel badUserImplementation = new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+                throw new IllegalStateException("Always throw");
+            }
+        };
+
+        channel =
+                Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
+
+        // this should never throw
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        // only when we access things do we allow exceptions
+        assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void bad_channel_throwing_an_error_still_returns_a_future() {
+        Channel badUserImplementation = new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+                throw new NoClassDefFoundError("something is broken");
+            }
+        };
+
+        channel =
+                Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
+
+        // this should never throw
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        // only when we access things do we allow exceptions
+        assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(NoClassDefFoundError.class);
     }
 }

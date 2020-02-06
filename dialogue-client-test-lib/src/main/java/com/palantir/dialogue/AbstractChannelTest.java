@@ -26,8 +26,8 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -204,9 +204,8 @@ public abstract class AbstractChannelTest {
     public void get_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> channel.execute(endpoint, request))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("GET endpoints must not have a request body");
+        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
+                .hasMessageContaining("GET endpoints must not have a request body");
     }
 
     @Test
@@ -227,9 +226,8 @@ public abstract class AbstractChannelTest {
     public void delete_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> channel.execute(endpoint, request))
-                .isInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("DELETE endpoints must not have a request body");
+        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
+                .hasMessageContaining("DELETE endpoints must not have a request body");
     }
 
     @Test
