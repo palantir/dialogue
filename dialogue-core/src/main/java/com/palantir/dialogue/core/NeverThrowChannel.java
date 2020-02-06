@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  */
 final class NeverThrowChannel implements Channel {
 
-    private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
+    private static final Logger log = LoggerFactory.getLogger(NeverThrowChannel.class);
     private final Channel delegate;
 
     NeverThrowChannel(Channel delegate) {

@@ -97,12 +97,12 @@ public final class ChannelsTest {
     public void bad_channels_cant_throw() {
         Channel badUserImplementation = new Channel() {
             @Override
-            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
                 throw new IllegalStateException("Always throw");
             }
         };
 
-        Channel channel =
+        channel =
                 Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
 
         // this should never throw
