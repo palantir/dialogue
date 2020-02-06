@@ -2,8 +2,6 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
 apply plugin: 'com.palantir.metric-schema'
 
-sourceCompatibility = 11
-
 dependencies {
     compile project(':dialogue-target')
     compile 'com.github.ben-manes.caffeine:caffeine'

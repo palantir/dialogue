@@ -32,6 +32,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -92,7 +93,7 @@ public class RetryingChannelTest {
     private static final class TestResponse implements Response {
         @Override
         public InputStream body() {
-            return InputStream.nullInputStream();
+            return new ByteArrayInputStream(new byte[0]);
         }
 
         @Override
