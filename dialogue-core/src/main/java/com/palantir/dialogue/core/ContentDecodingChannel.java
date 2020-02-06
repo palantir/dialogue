@@ -29,7 +29,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -174,21 +173,6 @@ final class ContentDecodingChannel implements Channel {
         }
 
         @Override
-        public byte[] readAllBytes() throws IOException {
-            return getDelegate().readAllBytes();
-        }
-
-        @Override
-        public byte[] readNBytes(int len) throws IOException {
-            return getDelegate().readNBytes(len);
-        }
-
-        @Override
-        public int readNBytes(byte[] buffer, int off, int len) throws IOException {
-            return getDelegate().readNBytes(buffer, off, len);
-        }
-
-        @Override
         public long skip(long requested) throws IOException {
             return getDelegate().skip(requested);
         }
@@ -221,11 +205,6 @@ final class ContentDecodingChannel implements Channel {
         @Override
         public boolean markSupported() {
             return getDelegateSafely().markSupported();
-        }
-
-        @Override
-        public long transferTo(OutputStream out) throws IOException {
-            return getDelegate().transferTo(out);
         }
 
         @Override
