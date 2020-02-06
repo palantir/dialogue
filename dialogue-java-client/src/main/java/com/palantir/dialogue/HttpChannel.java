@@ -99,7 +99,6 @@ public final class HttpChannel implements Channel {
         // Fill headers
         request.headerParams().forEach(httpRequest::header);
 
-        httpRequest.header("accept-encoding", "gzip");
         request.body().ifPresent(body -> httpRequest.header("content-type", body.contentType()));
         httpRequest.timeout(requestTimeout);
 
