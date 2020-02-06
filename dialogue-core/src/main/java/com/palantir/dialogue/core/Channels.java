@@ -42,6 +42,7 @@ public final class Channels {
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(metrics));
         channel = new RetryingChannel(channel);
         channel = new UserAgentChannel(channel, userAgent);
+        channel = new NeverThrowChannel(channel);
 
         return channel;
     }
