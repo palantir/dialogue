@@ -42,11 +42,8 @@ final class NeverThrowChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         try {
             return delegate.execute(endpoint, request);
-        } catch (RuntimeException e) {
-            log.error(
-                    "Exception thrown from dialogue channel, which should never happen. This may be a bug in the"
-                            + " channel implementation",
-                    e);
+        } catch (RuntimeException | Error e) {
+            log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
             return Futures.immediateFailedFuture(e);
         }
     }
