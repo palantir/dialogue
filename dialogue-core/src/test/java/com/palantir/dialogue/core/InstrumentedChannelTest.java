@@ -63,7 +63,7 @@ public final class InstrumentedChannelTest {
                 .build();
         Timer timer = registry.timer(name);
 
-        assertThat(timer.getCount()).isEqualTo(0);
+        assertThat(timer.getCount()).isZero();
 
         // Successful execution
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(null));
