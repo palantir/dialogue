@@ -28,7 +28,6 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -206,9 +205,7 @@ public abstract class AbstractChannelTest {
         endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
-                .hasCauseInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("com.palantir.logsafe.exceptions.SafeIllegalArgumentException: "
-                        + "GET endpoints must not have a request body");
+                .hasMessageContaining("GET endpoints must not have a request body");
     }
 
     @Test
@@ -230,9 +227,7 @@ public abstract class AbstractChannelTest {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
         assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
-                .hasCauseInstanceOf(SafeIllegalArgumentException.class)
-                .hasMessage("com.palantir.logsafe.exceptions.SafeIllegalArgumentException: "
-                        + "DELETE endpoints must not have a request body");
+                .hasMessageContaining("DELETE endpoints must not have a request body");
     }
 
     @Test
