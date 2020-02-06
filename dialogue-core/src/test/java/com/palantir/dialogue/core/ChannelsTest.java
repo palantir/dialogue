@@ -94,7 +94,7 @@ public final class ChannelsTest {
     }
 
     @Test
-    public void bad_channels_cant_throw() {
+    public void bad_channel_throwing_an_exception_still_returns_a_future() {
         Channel badUserImplementation = new Channel() {
             @Override
             public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
@@ -110,5 +110,24 @@ public final class ChannelsTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void bad_channel_throwing_an_error_still_returns_a_future() {
+        Channel badUserImplementation = new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+                throw new NoClassDefFoundError("something is broken");
+            }
+        };
+
+        channel =
+                Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
+
+        // this should never throw
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        // only when we access things do we allow exceptions
+        assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(NoClassDefFoundError.class);
     }
 }
