@@ -147,11 +147,11 @@ public class QueuedChannelTest {
 
         queuedChannel.execute(endpoint, request);
         assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(1);
-        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isZero();
 
         queuedChannel.execute(endpoint, request);
         assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(2);
-        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isZero();
     }
 
     @Test
@@ -159,12 +159,12 @@ public class QueuedChannelTest {
         mockHasCapacity();
 
         queuedChannel.execute(endpoint, request);
-        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isZero();
         assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(1);
 
         futureResponse.set(mockResponse);
-        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isEqualTo(0);
-        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isEqualTo(0);
+        assertThat(gaugeValue(NUM_QUEUED_METRIC)).isZero();
+        assertThat(gaugeValue(NUM_RUNNING_METRICS)).isZero();
     }
 
     @SuppressWarnings("unchecked")

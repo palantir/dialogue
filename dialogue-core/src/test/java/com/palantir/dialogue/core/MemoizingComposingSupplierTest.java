@@ -46,15 +46,15 @@ public class MemoizingComposingSupplierTest {
     @Test
     public void testValueUnchanged() {
         value.set(0);
-        assertThat(supplier.get()).isEqualTo(0);
-        assertThat(supplier.get()).isEqualTo(0);
+        assertThat(supplier.get()).isZero();
+        assertThat(supplier.get()).isZero();
         assertThat(timesInvoked.get()).isEqualTo(1);
     }
 
     @Test
     public void testValueChanged() {
         value.set(0);
-        assertThat(supplier.get()).isEqualTo(0);
+        assertThat(supplier.get()).isZero();
         value.set(1);
         assertThat(supplier.get()).isEqualTo(1);
 
