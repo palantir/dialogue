@@ -23,7 +23,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -35,14 +34,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
@@ -66,18 +60,12 @@ import org.slf4j.LoggerFactory;
  */
 final class QueuedChannel implements Channel {
 
-    private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
     private final BlockingDeque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
-    private final ScheduledExecutorService backgroundScheduler = Executors.newSingleThreadScheduledExecutor(
-            new ThreadFactoryBuilder()
-                    .setNameFormat("dialogue-request-scheduler")
-                    .setDaemon(false)
-                    .build());
 
     QueuedChannel(LimitedChannel channel, DispatcherMetrics metrics) {
         this(channel, 1_000, metrics);
@@ -88,17 +76,6 @@ final class QueuedChannel implements Channel {
     QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
         this.delegate = delegate;
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
-        this.backgroundScheduler.scheduleWithFixedDelay(
-                () -> {
-                    try {
-                        schedule();
-                    } catch (Exception e) {
-                        log.error("Uncaught exception while scheduling request. This is a programming error.", e);
-                    }
-                },
-                100,
-                100,
-                TimeUnit.MILLISECONDS);
 
         metrics.callsQueued(queuedCalls::size);
         metrics.callsRunning(numRunningRequests::get);
@@ -109,6 +86,16 @@ final class QueuedChannel implements Channel {
      */
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        // Optimistically avoid the queue in the fast path.
+        // Queuing adds contention between threads and should be avoided unless we need to shed load.
+        Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+        if (maybeResult.isPresent()) {
+            ListenableFuture<Response> result = maybeResult.get();
+            numRunningRequests.incrementAndGet();
+            result.addListener(this::onCompletion, DIRECT);
+            return result;
+        }
+
         DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
 
         if (!queuedCalls.offer(components)) {
@@ -118,6 +105,11 @@ final class QueuedChannel implements Channel {
         schedule();
 
         return components.response();
+    }
+
+    private void onCompletion() {
+        numRunningRequests.decrementAndGet();
+        schedule();
     }
 
     /**
