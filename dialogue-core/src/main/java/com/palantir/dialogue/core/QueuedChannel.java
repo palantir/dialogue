@@ -44,8 +44,6 @@ import org.immutables.value.Value;
  * <ol>
  *     <li>On submission - allows execution when there is available capacity</li>
  *     <li>On request completion - allows execution when capacity has now become available</li>
- *     <li>Periodically (eg: every 100ms) - allows execution when there may have been no capaciy and no in-flight
- *     requests</li>
  * </ol>
  *
  * This implementation was chosen over alternatives for the following reasons:
