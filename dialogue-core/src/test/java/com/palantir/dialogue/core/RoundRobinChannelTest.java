@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
@@ -25,6 +26,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import java.util.Optional;
 import org.junit.Before;
 import org.junit.Test;
@@ -88,6 +90,8 @@ public class RoundRobinChannelTest {
     public void testNoChannelsConfigured() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of());
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
+        assertThatThrownBy(
+                        () -> loadBalancer.maybeExecute(endpoint, request).get().get())
+                .hasCauseInstanceOf(SafeIoException.class);
     }
 }

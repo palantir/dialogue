@@ -17,10 +17,12 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,7 +42,7 @@ final class RoundRobinChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         if (delegates.isEmpty()) {
-            return Optional.empty();
+            return Optional.of(Futures.immediateFailedFuture(new SafeIoException("No targets are available")));
         }
 
         int host = currentHost.getAndUpdate(value -> toIndex(value + 1));
