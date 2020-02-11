@@ -19,16 +19,17 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 interface Statistics {
 
     /** Returns a statisticId, to allow us to record info at the beginning and end of a request. */
-    long recordStart(Upstream upstream, Endpoint endpoint, Request request, Object from);
+    InFlightStage recordStart(Upstream upstream, Endpoint endpoint, Request request);
 
-    void recordSuccess(long statisticId, Response request);
-
-    void recordFailure(long statisticId, Throwable throwable);
+    interface InFlightStage {
+        void recordComplete(@Nullable Response response, @Nullable Throwable throwable);
+    }
 
     // TODO(dfox): allow recording more detailed statistics about the body upload  / download time?
 
