@@ -11,7 +11,6 @@ com.palantir.ri:resource-identifier = 1.1.0
 com.palantir.safe-logging:* = 1.13.0
 com.palantir.tokens:auth-tokens = 3.6.1
 com.palantir.tracing:* = 4.3.0
-com.squareup.okhttp3:* = 3.14.1
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.8.3
 org.slf4j:* = 1.7.30
@@ -24,6 +23,7 @@ org.mockito:mockito-core = 3.2.4
 javax.ws.rs:javax.ws.rs-api = 2.0
 org.apache.commons:commons-lang3 = 3.9
 
-# conflicts
-com.google.errorprone:* = 2.3.4
-org.checkerframework:checker-qual = 2.5.3
+# dependency-upgrader:OFF
+# Match conjure-java-runtime okhttp version
+com.squareup.okhttp3:* = 3.13.1
+# dependency-upgrader:ON
