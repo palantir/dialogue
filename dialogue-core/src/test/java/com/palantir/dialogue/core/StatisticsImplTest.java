@@ -18,26 +18,42 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.io.ByteArrayInputStream;
+import java.io.Closeable;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.Test;
 
 public class StatisticsImplTest {
 
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
+    Ticker ticker = Ticker.systemTicker();
 
     Statistics.Upstream node1 = ImmutableUpstream.of("node1");
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
+
+    private static final StatisticsImpl.Randomness DETERMINISTIC = new StatisticsImpl.Randomness() {
+        @Override
+        public <T> Optional<T> selectRandom(List<T> list) {
+            return list.stream().findFirst();
+        }
+    };
 
     @Test
     public void no_history_pick_first_node() {
@@ -117,6 +133,33 @@ public class StatisticsImplTest {
         assertThat(stats.getBest(endpoint)).hasValue(node2);
     }
 
+    @Test
+    public void deterministic_time() {
+        ticker = mock(Ticker.class);
+        StatisticsImpl stats = stats(node1, node2);
+
+        for (int i = 0; i < 200; i++) {
+            stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
+        }
+
+        when(ticker.read()).thenReturn(Duration.ofMinutes(1).toNanos());
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, "1.56.0"), null);
+
+        assertThat(stats.computeBest(endpoint)).hasValue(node1);
+    }
+
+    @Test
+    public void deterministic_time2() {
+        try (SimulatedScheduler scheduler = new SimulatedScheduler()) {
+            Ticker ticker = scheduler.ticker();
+
+            
+            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 20, TimeUnit.MINUTES);
+            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 1, TimeUnit.MILLISECONDS);
+            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 1, TimeUnit.HOURS);
+        }
+    }
+
     private Response response(int status, String version) {
         return new Response() {
             @Override
@@ -139,13 +182,66 @@ public class StatisticsImplTest {
         };
     }
 
-    private static StatisticsImpl stats(Statistics.Upstream... upstreams) {
-        StatisticsImpl.Randomness randomness = new StatisticsImpl.Randomness() {
-            @Override
-            public <T> Optional<T> selectRandom(List<T> list) {
-                return list.stream().findFirst();
-            }
-        };
-        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), randomness);
+    private StatisticsImpl stats(Statistics.Upstream... upstreams) {
+        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), DETERMINISTIC, ticker);
+    }
+
+    /** Combined ticker and scheduler. */
+    private static class SimulatedScheduler implements Closeable {
+
+        private final DeterministicScheduler delegate = new DeterministicScheduler();
+        private final TestTicker ticker = new TestTicker();
+
+        public SimulatedScheduler() {}
+
+        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+            long scheduleTime = ticker.read();
+            long delayNanos = unit.toNanos(delay);
+
+            return delegate.schedule(
+                    new Runnable() {
+                        @Override
+                        public void run() {
+                            try {
+                                ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
+                                command.run();
+                            } catch (Exception e) {
+                                System.out.println(e);
+                            }
+                        }
+                    },
+                    delay,
+                    unit);
+        }
+
+        public Ticker ticker() {
+            return ticker; // read only!
+        }
+
+        public void advanceTo(Duration duration) {
+            delegate.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
+            ticker.advanceTo(duration);
+        }
+
+        @Override
+        public void close() {
+            advanceTo(Duration.ofNanos(Long.MAX_VALUE));
+        }
+    }
+
+    private static class TestTicker implements Ticker {
+        private long nanos = 0;
+
+        @Override
+        public long read() {
+            return nanos;
+        }
+
+        public void advanceTo(Duration duration) {
+            long newNanos = duration.toNanos();
+            Preconditions.checkArgument(newNanos >= nanos,
+                    "TestTicker time may not go backwards. Current: " + nanos + " update: " + newNanos);
+            nanos = newNanos;
+        }
     }
 }

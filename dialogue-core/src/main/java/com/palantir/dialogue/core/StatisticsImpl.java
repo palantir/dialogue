@@ -64,15 +64,19 @@ final class StatisticsImpl implements Statistics {
 
     private final Randomness randomness;
     private final Ticker caffeineTicker;
-    private final CodahaleClock codahaleClock;
+    private final Clock codahaleClock;
 
-    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness) {
+    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness, Ticker caffeineTicker) {
+        // TODO(dfox): switch to a builder before these parameters get out of hand
         this.upstreams = upstreams;
         this.randomness = randomness;
-        this.caffeineTicker = Ticker.systemTicker();
-        this.codahaleClock = new CodahaleClock(caffeineTicker);
-        this.perEndpoint =
-                Caffeine.newBuilder().maximumSize(1000).ticker(caffeineTicker).build(endpoint -> new PerEndpointData());
+        this.caffeineTicker = caffeineTicker;
+        this.codahaleClock =
+                caffeineTicker == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(caffeineTicker);
+        this.perEndpoint = Caffeine.newBuilder()
+                .maximumSize(1000)
+                .ticker(caffeineTicker)
+                .build(endpoint -> new PerEndpointData());
         cachedBest = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(5))
                 .ticker(caffeineTicker)
@@ -83,10 +87,12 @@ final class StatisticsImpl implements Statistics {
         <T> Optional<T> selectRandom(List<T> list);
     }
 
-    private Reservoir newReservoir() {
+    private ExponentiallyDecayingReservoir newReservoir() {
         // defaults copied from ExponentiallyDecayingReservoir
         int numberOfSamplesToStore = 1028;
         double exponentialDecayFactor = 0.015;
+
+        // this class does in fact use a ThreadLocalRandom#nextDouble() to detemine whether a sample overwrites
         return new ExponentiallyDecayingReservoir(numberOfSamplesToStore, exponentialDecayFactor, codahaleClock);
     }
 
@@ -200,14 +206,14 @@ final class StatisticsImpl implements Statistics {
             }
         }
 
+        // TODO(dfox): if we have negative confidence a node will be successful, avoid randomly selecting that one?
         return randomness.selectRandom(upstreams.get());
     }
 
     private static class CodahaleClock extends Clock {
-        private static final long initialMillis = System.currentTimeMillis();
         private final Ticker caffeineTicker;
 
-        private CodahaleClock(Ticker caffeineTicker) {
+        CodahaleClock(Ticker caffeineTicker) {
             this.caffeineTicker = caffeineTicker;
         }
 
@@ -218,7 +224,7 @@ final class StatisticsImpl implements Statistics {
 
         @Override
         public long getTime() {
-            return initialMillis + TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
+            return TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
         }
     }
 }
