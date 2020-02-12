@@ -73,10 +73,8 @@ final class StatisticsImpl implements Statistics {
         this.caffeineTicker = caffeineTicker;
         this.codahaleClock =
                 caffeineTicker == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(caffeineTicker);
-        this.perEndpoint = Caffeine.newBuilder()
-                .maximumSize(1000)
-                .ticker(caffeineTicker)
-                .build(endpoint -> new PerEndpointData());
+        this.perEndpoint =
+                Caffeine.newBuilder().maximumSize(1000).ticker(caffeineTicker).build(endpoint -> new PerEndpointData());
         cachedBest = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(5))
                 .ticker(caffeineTicker)
