@@ -98,11 +98,9 @@ final class StatisticsImpl implements Statistics {
 
     @Override
     public InFlightStage recordStart(Upstream upstream, Endpoint endpoint, Request _request) {
-        long startNanos = caffeineTicker.read();
         return new InFlightStage() {
             @Override
             public void recordComplete(Response response, Throwable throwable) {
-                System.out.println("request duration " + Duration.ofNanos(caffeineTicker.read() - startNanos));
                 if (response != null) {
 
                     String version = response.getFirstHeader("server").orElse("unknown-version"); // opt?

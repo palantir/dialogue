@@ -25,7 +25,6 @@ import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -156,26 +155,38 @@ public class StatisticsImplTest {
     @Test
     public void deterministic_time2() {
         try (SimulatedScheduler scheduler = new SimulatedScheduler()) {
-
             StatisticsImpl stats =
                     new StatisticsImpl(() -> ImmutableList.of(node1, node2), DETERMINISTIC, scheduler.ticker());
 
-            ListenableScheduledFuture<Statistics.InFlightStage> stage1 =
-                    scheduler.schedule(() -> stats.recordStart(node1, endpoint, request), 10, TimeUnit.SECONDS);
-            ListenableFuture<?> stage2 = Futures.transformAsync(
-                    stage1,
-                    stage -> scheduler.schedule(
-                            () -> stage.recordComplete(response(200, "1.56.0"), null), 1, TimeUnit.HOURS),
-                    MoreExecutors.directExecutor());
+            // fire off a request every second
+            int numSeconds = 50;
+            for (int i = 0; i < numSeconds; i++) {
+                ListenableScheduledFuture<Statistics.InFlightStage> startedFuture = scheduler.schedule(
+                        () -> {
+                            return stats.recordStart(node1, endpoint, request);
+                        },
+                        i,
+                        TimeUnit.SECONDS);
 
-            Futures.addCallback(
-                    stage2,
-                    DialogueFutures.onSuccess(foo -> {
+                Futures.transformAsync(
+                        startedFuture,
+                        stage -> scheduler.schedule(
+                                () -> {
+                                    stage.recordComplete(response(200, "1.56.0"), null);
+                                },
+                                1,
+                                TimeUnit.MILLISECONDS),
+                        MoreExecutors.directExecutor());
+            }
+
+            scheduler.schedule(
+                    () -> {
                         System.out.println("The time is "
                                 + Duration.ofNanos(scheduler.ticker().read()));
                         System.out.println(stats.getBest(endpoint));
-                    }),
-                    MoreExecutors.directExecutor());
+                    },
+                    numSeconds,
+                    TimeUnit.SECONDS);
         }
     }
 
