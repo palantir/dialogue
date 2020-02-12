@@ -80,6 +80,29 @@ public class StatisticsImplTest {
         assertThat(upstream).hasValue(node2);
     }
 
+    @Test
+    public void no_server_header_still_works() {
+        StatisticsImpl stats = stats(node1, node2);
+
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, null), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(200, null), null);
+
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node2);
+    }
+
+    @Test
+    public void no_server_header_then_header() {
+        StatisticsImpl stats = stats(node1, node2);
+
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, null), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(200, null), null);
+        stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
+
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node1);
+    }
+
     private Response response(int status, String version) {
         return new Response() {
             @Override
@@ -94,6 +117,9 @@ public class StatisticsImplTest {
 
             @Override
             public Map<String, List<String>> headers() {
+                if (version == null) {
+                    return ImmutableMap.of();
+                }
                 return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
             }
         };
