@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.errorprone.annotations.CheckReturnValue;
@@ -27,9 +28,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
@@ -48,13 +51,22 @@ import javax.annotation.Nullable;
  */
 final class StatisticsImpl implements Statistics {
 
-    private volatile ImmutableList<Upstream> upstreams = ImmutableList.of();
+    private final Supplier<ImmutableList<Upstream>> upstreams;
 
-    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint =
-            Caffeine.newBuilder().maximumSize(1000).build(endpoint -> new PerEndpointData());
+    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint = Caffeine.newBuilder()
+            .maximumSize(1000)
+            .build(endpoint -> new PerEndpointData());
 
-    public void updateUpstreams(ImmutableList<Upstream> value) {
-        this.upstreams = value;
+    /**
+     * Computing the 'best' upstream for a given endpoint involves trawling through our statistics, which is a bit
+     * computationally expensive, so when things are going well, we only do it at most once every 5 seconds. If two
+     * nodes are performing well, this is the fastest we could switch to a better performing node.
+     */
+    private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest =
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(5)).build(this::computeBest);
+
+    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams) {
+        this.upstreams = upstreams;
     }
 
     @Override
@@ -67,6 +79,12 @@ final class StatisticsImpl implements Statistics {
                     String version = response.getFirstHeader("server").orElse("unknown-version"); // opt?
                     int changeInConfidence = changeInConfidence(response);
                     perEndpoint.get(endpoint).get(upstream).update(version, changeInConfidence);
+
+                    if (changeInConfidence < 0) {
+                        // if we've had to penalize an upstream, we ensure that the next caller to this endpoint
+                        // knows this has happened
+                        cachedBest.invalidate(endpoint);
+                    }
 
                 } else if (throwable != null) {
                     // TODO(dfox): do we penalize upstreams for what is likely a client-side misconfiguration?
@@ -121,10 +139,14 @@ final class StatisticsImpl implements Statistics {
         }
     }
 
-    // TODO(dfox): cache this method until there's a failure on an endpoint
+    Optional<Upstream> getBest(Endpoint endpoint) {
+        return cachedBest.get(endpoint);
+    }
+
     // TODO(dfox): introduce some jitter so that we explore other
     // TODO(dfox): this method iterates over possibly changing caches. can it not?
-    public Optional<Upstream> selectBestUpstreamFor(Endpoint endpoint) {
+    @VisibleForTesting
+    Optional<Upstream> computeBest(Endpoint endpoint) {
         Optional<Map.Entry<Upstream, Double>> max = perEndpoint.get(endpoint).perUpstream.asMap().entrySet().stream()
                 .flatMap(entry -> {
                     Upstream upstream = entry.getKey();
@@ -157,6 +179,7 @@ final class StatisticsImpl implements Statistics {
             }
         }
 
-        return upstreams.stream().findFirst();
+        // TODO(dfox): don't always pick the first when we have no idea!
+        return upstreams.get().stream().findFirst();
     }
 }

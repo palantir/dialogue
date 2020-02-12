@@ -42,7 +42,7 @@ public class StatisticsImplTest {
     @Test
     public void no_history_pick_first_node() {
         StatisticsImpl stats = stats(node1, node2);
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node1);
     }
 
@@ -52,7 +52,7 @@ public class StatisticsImplTest {
 
         stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
 
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node1);
     }
 
@@ -64,7 +64,7 @@ public class StatisticsImplTest {
 
         stats.recordStart(node2, endpoint, request).recordComplete(response(200, "1.56.0"), null);
 
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node2);
     }
 
@@ -76,7 +76,7 @@ public class StatisticsImplTest {
         stats.recordStart(node2, endpoint, request).recordComplete(response(500, "1.56.0"), null);
         stats.recordStart(node2, endpoint, request).recordComplete(response(200, "1.56.1"), null);
 
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node2);
     }
 
@@ -87,7 +87,7 @@ public class StatisticsImplTest {
         stats.recordStart(node1, endpoint, request).recordComplete(response(500, null), null);
         stats.recordStart(node2, endpoint, request).recordComplete(response(200, null), null);
 
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node2);
     }
 
@@ -99,8 +99,22 @@ public class StatisticsImplTest {
         stats.recordStart(node2, endpoint, request).recordComplete(response(200, null), null);
         stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
 
-        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        Optional<Statistics.Upstream> upstream = stats.getBest(endpoint);
         assertThat(upstream).hasValue(node1);
+    }
+
+    @Test
+    public void get_best_is_actually_cached() {
+        StatisticsImpl stats = stats(node1, node2);
+
+        stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(200, "1.56.0"), null);
+        assertThat(stats.computeBest(endpoint)).hasValue(node1);
+        assertThat(stats.getBest(endpoint)).hasValue(node1);
+
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, "1.56.0"), null);
+        assertThat(stats.computeBest(endpoint)).hasValue(node2);
+        assertThat(stats.getBest(endpoint)).hasValue(node2);
     }
 
     private Response response(int status, String version) {
@@ -126,8 +140,6 @@ public class StatisticsImplTest {
     }
 
     private static StatisticsImpl stats(Statistics.Upstream... upstreams) {
-        StatisticsImpl stats = new StatisticsImpl();
-        stats.updateUpstreams(ImmutableList.copyOf(upstreams));
-        return stats;
+        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams));
     }
 }
