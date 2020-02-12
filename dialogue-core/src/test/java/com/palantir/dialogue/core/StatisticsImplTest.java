@@ -40,11 +40,17 @@ public class StatisticsImplTest {
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
 
     @Test
-    public void when_one_node_is_happy_pick_that_node() {
-        StatisticsImpl stats = new StatisticsImpl();
+    public void no_history_pick_first_node() {
+        StatisticsImpl stats = stats(node1, node2);
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node1);
+    }
 
-        stats.recordStart(node1, endpoint, request)
-                .recordComplete(response(200, "1.56.0"), null);
+    @Test
+    public void when_one_node_is_happy_pick_that_node() {
+        StatisticsImpl stats = stats(node1, node2);
+
+        stats.recordStart(node1, endpoint, request).recordComplete(response(200, "1.56.0"), null);
 
         Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
         assertThat(upstream).hasValue(node1);
@@ -52,13 +58,11 @@ public class StatisticsImplTest {
 
     @Test
     public void when_one_node_throws_500s_pick_the_other() {
-        StatisticsImpl stats = new StatisticsImpl();
+        StatisticsImpl stats = stats(node1, node2);
 
-        stats.recordStart(node1, endpoint, request)
-                .recordComplete(response(500, "1.56.0"), null);
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, "1.56.0"), null);
 
-        stats.recordStart(node2, endpoint, request)
-                .recordComplete(response(200, "1.56.0"), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(200, "1.56.0"), null);
 
         Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
         assertThat(upstream).hasValue(node2);
@@ -66,13 +70,11 @@ public class StatisticsImplTest {
 
     @Test
     public void when_both_nodes_failing_but_new_version_deployed_pick_the_new_version() {
-        StatisticsImpl stats = new StatisticsImpl();
+        StatisticsImpl stats = stats(node1, node2);
 
-        stats.recordStart(node1, endpoint, request)
-                .recordComplete(response(500, "1.56.0"), null);
-
-        stats.recordStart(node2, endpoint, request)
-                .recordComplete(response(200, "1.56.0"), null);
+        stats.recordStart(node1, endpoint, request).recordComplete(response(500, "1.56.0"), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(500, "1.56.0"), null);
+        stats.recordStart(node2, endpoint, request).recordComplete(response(200, "1.56.1"), null);
 
         Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
         assertThat(upstream).hasValue(node2);
@@ -95,5 +97,11 @@ public class StatisticsImplTest {
                 return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
             }
         };
+    }
+
+    private static StatisticsImpl stats(Statistics.Upstream... upstreams) {
+        StatisticsImpl stats = new StatisticsImpl();
+        stats.updateUpstreams(ImmutableList.copyOf(upstreams));
+        return stats;
     }
 }
