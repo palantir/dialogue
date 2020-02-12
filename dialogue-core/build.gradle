@@ -17,6 +17,7 @@ dependencies {
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.mockito:mockito-core'
     testImplementation 'org.jmock:jmock'
+    testImplementation 'org.knowm.xchart:xchart'
 
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'
