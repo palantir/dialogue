@@ -24,6 +24,11 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -34,7 +39,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.Test;
@@ -151,12 +156,26 @@ public class StatisticsImplTest {
     @Test
     public void deterministic_time2() {
         try (SimulatedScheduler scheduler = new SimulatedScheduler()) {
-            Ticker ticker = scheduler.ticker();
 
-            
-            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 20, TimeUnit.MINUTES);
-            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 1, TimeUnit.MILLISECONDS);
-            scheduler.schedule(() -> System.out.println(Duration.ofNanos(ticker.read())), 1, TimeUnit.HOURS);
+            StatisticsImpl stats =
+                    new StatisticsImpl(() -> ImmutableList.of(node1, node2), DETERMINISTIC, scheduler.ticker());
+
+            ListenableScheduledFuture<Statistics.InFlightStage> stage1 =
+                    scheduler.schedule(() -> stats.recordStart(node1, endpoint, request), 10, TimeUnit.SECONDS);
+            ListenableFuture<?> stage2 = Futures.transformAsync(
+                    stage1,
+                    stage -> scheduler.schedule(
+                            () -> stage.recordComplete(response(200, "1.56.0"), null), 1, TimeUnit.HOURS),
+                    MoreExecutors.directExecutor());
+
+            Futures.addCallback(
+                    stage2,
+                    DialogueFutures.onSuccess(foo -> {
+                        System.out.println("The time is "
+                                + Duration.ofNanos(scheduler.ticker().read()));
+                        System.out.println(stats.getBest(endpoint));
+                    }),
+                    MoreExecutors.directExecutor());
         }
     }
 
@@ -189,26 +208,36 @@ public class StatisticsImplTest {
     /** Combined ticker and scheduler. */
     private static class SimulatedScheduler implements Closeable {
 
-        private final DeterministicScheduler delegate = new DeterministicScheduler();
+        private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
+        private final ListeningScheduledExecutorService listenableExecutor =
+                MoreExecutors.listeningDecorator(deterministicExecutor);
         private final TestTicker ticker = new TestTicker();
 
-        public SimulatedScheduler() {}
-
-        public ScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+        public <T> ListenableScheduledFuture<T> schedule(Callable<T> command, long delay, TimeUnit unit) {
             long scheduleTime = ticker.read();
             long delayNanos = unit.toNanos(delay);
 
-            return delegate.schedule(
-                    new Runnable() {
-                        @Override
-                        public void run() {
+            return listenableExecutor.schedule(
+                    new Callable<T>() {
+                        public T call() throws Exception {
                             try {
                                 ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                                command.run();
+                                return command.call();
                             } catch (Exception e) {
                                 System.out.println(e);
+                                throw e;
                             }
                         }
+                    },
+                    delay,
+                    unit);
+        }
+
+        public ListenableScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
+            return schedule(
+                    () -> {
+                        command.run();
+                        return null;
                     },
                     delay,
                     unit);
@@ -219,7 +248,7 @@ public class StatisticsImplTest {
         }
 
         public void advanceTo(Duration duration) {
-            delegate.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
+            deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
             ticker.advanceTo(duration);
         }
 
@@ -239,7 +268,8 @@ public class StatisticsImplTest {
 
         public void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
-            Preconditions.checkArgument(newNanos >= nanos,
+            Preconditions.checkArgument(
+                    newNanos >= nanos,
                     "TestTicker time may not go backwards. Current: " + nanos + " update: " + newNanos);
             nanos = newNanos;
         }
