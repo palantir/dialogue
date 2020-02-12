@@ -63,21 +63,21 @@ final class StatisticsImpl implements Statistics {
     private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest;
 
     private final Randomness randomness;
-    private final Ticker caffeineTicker;
+    private final Ticker clock;
     private final Clock codahaleClock;
 
-    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness, Ticker caffeineTicker) {
+    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness, Ticker clock) {
         // TODO(dfox): switch to a builder before these parameters get out of hand
         this.upstreams = upstreams;
         this.randomness = randomness;
-        this.caffeineTicker = caffeineTicker;
+        this.clock = clock;
         this.codahaleClock =
-                caffeineTicker == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(caffeineTicker);
+                clock == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(clock);
         this.perEndpoint =
-                Caffeine.newBuilder().maximumSize(1000).ticker(caffeineTicker).build(endpoint -> new PerEndpointData());
+                Caffeine.newBuilder().maximumSize(1000).ticker(clock).build(endpoint -> new PerEndpointData());
         cachedBest = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(5))
-                .ticker(caffeineTicker)
+                .ticker(clock)
                 .build(this::computeBest);
     }
 
@@ -120,7 +120,7 @@ final class StatisticsImpl implements Statistics {
 
     private class PerEndpointData {
         private final LoadingCache<Upstream, PerUpstreamData> perUpstream =
-                Caffeine.newBuilder().maximumSize(100).ticker(caffeineTicker).build(upstream -> new PerUpstreamData());
+                Caffeine.newBuilder().maximumSize(100).ticker(clock).build(upstream -> new PerUpstreamData());
 
         @CheckReturnValue
         PerUpstreamData get(Upstream upstream) {
@@ -132,7 +132,7 @@ final class StatisticsImpl implements Statistics {
         private volatile String lastSeenVersion;
 
         private final LoadingCache<String, Reservoir> perVersion =
-                Caffeine.newBuilder().maximumSize(10).ticker(caffeineTicker).build(version -> newReservoir());
+                Caffeine.newBuilder().maximumSize(10).ticker(clock).build(version -> newReservoir());
 
         // TODO(dfox): include timing data in here too!
 

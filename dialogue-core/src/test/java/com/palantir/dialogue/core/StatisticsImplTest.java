@@ -21,26 +21,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.io.ByteArrayInputStream;
-import java.io.Closeable;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.junit.Test;
 
 public class StatisticsImplTest {
@@ -156,7 +151,7 @@ public class StatisticsImplTest {
     public void deterministic_time2() {
         try (SimulatedScheduler scheduler = new SimulatedScheduler()) {
             StatisticsImpl stats =
-                    new StatisticsImpl(() -> ImmutableList.of(node1, node2), DETERMINISTIC, scheduler.ticker());
+                    new StatisticsImpl(() -> ImmutableList.of(node1, node2), DETERMINISTIC, scheduler.clock());
 
             // fire off a request every second
             int numSeconds = 50;
@@ -182,7 +177,7 @@ public class StatisticsImplTest {
             scheduler.schedule(
                     () -> {
                         System.out.println("The time is "
-                                + Duration.ofNanos(scheduler.ticker().read()));
+                                + Duration.ofNanos(scheduler.clock().read()));
                         System.out.println(stats.getBest(endpoint));
                     },
                     numSeconds,
@@ -214,75 +209,5 @@ public class StatisticsImplTest {
 
     private StatisticsImpl stats(Statistics.Upstream... upstreams) {
         return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), DETERMINISTIC, ticker);
-    }
-
-    /** Combined ticker and scheduler. */
-    private static class SimulatedScheduler implements Closeable {
-
-        private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
-        private final ListeningScheduledExecutorService listenableExecutor =
-                MoreExecutors.listeningDecorator(deterministicExecutor);
-        private final TestTicker ticker = new TestTicker();
-
-        public <T> ListenableScheduledFuture<T> schedule(Callable<T> command, long delay, TimeUnit unit) {
-            long scheduleTime = ticker.read();
-            long delayNanos = unit.toNanos(delay);
-
-            return listenableExecutor.schedule(
-                    new Callable<T>() {
-                        public T call() throws Exception {
-                            try {
-                                ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                                return command.call();
-                            } catch (Exception e) {
-                                System.out.println(e);
-                                throw e;
-                            }
-                        }
-                    },
-                    delay,
-                    unit);
-        }
-
-        public ListenableScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-            return schedule(
-                    () -> {
-                        command.run();
-                        return null;
-                    },
-                    delay,
-                    unit);
-        }
-
-        public Ticker ticker() {
-            return ticker; // read only!
-        }
-
-        public void advanceTo(Duration duration) {
-            deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
-            ticker.advanceTo(duration);
-        }
-
-        @Override
-        public void close() {
-            advanceTo(Duration.ofNanos(Long.MAX_VALUE));
-        }
-    }
-
-    private static class TestTicker implements Ticker {
-        private long nanos = 0;
-
-        @Override
-        public long read() {
-            return nanos;
-        }
-
-        public void advanceTo(Duration duration) {
-            long newNanos = duration.toNanos();
-            Preconditions.checkArgument(
-                    newNanos >= nanos,
-                    "TestTicker time may not go backwards. Current: " + nanos + " update: " + newNanos);
-            nanos = newNanos;
-        }
     }
 }
