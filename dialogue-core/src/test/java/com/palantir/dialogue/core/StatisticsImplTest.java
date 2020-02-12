@@ -16,9 +16,9 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Endpoint;
@@ -28,6 +28,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Test;
 
 public class StatisticsImplTest {
@@ -38,24 +39,43 @@ public class StatisticsImplTest {
     Statistics.Upstream node1 = ImmutableUpstream.of("node1");
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
 
-    // @Test
-    // public void when_both_nodes_are_borked() {
-    //     StatisticsImpl stats = new StatisticsImpl(() -> ImmutableList.of(node1, node2), Ticker.systemTicker());
-    //
-    //     stats.recordStart(node1, endpoint, request)
-    //             .recordComplete(Optional.of(response(500, "1.56.0")), Optional.empty());
-    //
-    //     stats.recordStart(node2, endpoint, request)
-    //             .recordComplete(Optional.of(response(500, "1.56.1")), Optional.empty());
-    //
-    //     Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint, request);
-    //     assertThat(upstream).isEmpty();
-    // }
+    @Test
+    public void when_one_node_is_happy_pick_that_node() {
+        StatisticsImpl stats = new StatisticsImpl();
+
+        stats.recordStart(node1, endpoint, request)
+                .recordComplete(response(200, "1.56.0"), null);
+
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node1);
+    }
 
     @Test
-    public void foo() throws InterruptedException {
-        ExponentiallyDecayingReservoir reservoir = new ExponentiallyDecayingReservoir();
-        System.out.println(Math.floor(reservoir.getSnapshot().getMean() * 100) / 100);
+    public void when_one_node_throws_500s_pick_the_other() {
+        StatisticsImpl stats = new StatisticsImpl();
+
+        stats.recordStart(node1, endpoint, request)
+                .recordComplete(response(500, "1.56.0"), null);
+
+        stats.recordStart(node2, endpoint, request)
+                .recordComplete(response(200, "1.56.0"), null);
+
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node2);
+    }
+
+    @Test
+    public void when_both_nodes_failing_but_new_version_deployed_pick_the_new_version() {
+        StatisticsImpl stats = new StatisticsImpl();
+
+        stats.recordStart(node1, endpoint, request)
+                .recordComplete(response(500, "1.56.0"), null);
+
+        stats.recordStart(node2, endpoint, request)
+                .recordComplete(response(200, "1.56.0"), null);
+
+        Optional<Statistics.Upstream> upstream = stats.selectBestUpstreamFor(endpoint);
+        assertThat(upstream).hasValue(node2);
     }
 
     private Response response(int status, String version) {
