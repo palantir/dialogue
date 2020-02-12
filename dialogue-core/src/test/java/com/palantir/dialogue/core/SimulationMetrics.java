@@ -46,6 +46,10 @@ import org.knowm.xchart.XYChartBuilder;
 import org.knowm.xchart.XYSeries;
 import org.knowm.xchart.style.Styler;
 
+/**
+ * This is a combination metric registry, reporter, logger and renderer, all hooked up to
+ * {@link SimulatedScheduler#clock()}.
+ */
 final class SimulationMetrics {
 
     private final SimulatedScheduler simulation;
@@ -64,7 +68,7 @@ final class SimulationMetrics {
     public Meter meter(String name) {
         Meter meter = new Meter(simulation.codahaleClock());
         Meter existing = meters.put(name, meter);
-        Preconditions.checkState(existing == null);
+        Preconditions.checkState(existing == null, "Meter already exists", name);
         return meter;
     }
 
@@ -82,16 +86,15 @@ final class SimulationMetrics {
 
         measurements.get(X_AXIS).add(seconds);
         meters.forEach((name, metric) -> {
-            measurements.get(name).add(metric.getOneMinuteRate());
+            measurements.get(name + ".1m").add(metric.getOneMinuteRate());
+            // measurements.get(name + ".count").add((double) metric.getCount());
         });
 
         if (keepRunning.get()) {
             simulation.schedule(
-                    () -> reportInfinitely(keepRunning, interval),
-                    interval.toNanos(),
-                    TimeUnit.NANOSECONDS);
+                    () -> reportInfinitely(keepRunning, interval), interval.toNanos(), TimeUnit.NANOSECONDS);
         } else {
-            System.out.println("Shut down reporter");
+            System.out.println("SimulationMetrics reporter stopped");
         }
     }
 
@@ -101,10 +104,7 @@ final class SimulationMetrics {
         List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
 
         try (BufferedWriter writer = Files.newBufferedWriter(
-                file,
-                StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING)) {
+                file, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING)) {
 
             writer.write(X_AXIS);
             for (String column : columns) {
@@ -132,7 +132,7 @@ final class SimulationMetrics {
         Stopwatch sw = Stopwatch.createStarted();
         try {
             BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
-            System.out.println("Generated " + file + " (" + sw.elapsed(TimeUnit.MILLISECONDS) + "millis)");
+            System.out.println("Generated " + file + " (" + sw.elapsed(TimeUnit.MILLISECONDS) + " millis)");
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -143,7 +143,7 @@ final class SimulationMetrics {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
-                .title(getClass().getSimpleName())
+                // .title(getClass().getSimpleName())
                 .xAxisTitle(X_AXIS)
                 // .yAxisTitle("Y axis")
                 .build();
@@ -151,14 +151,14 @@ final class SimulationMetrics {
         // Customize Chart
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
+        chart.getStyler().setMarkerSize(1);
         chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
         chart.getStyler().setPlotMargin(0);
         chart.getStyler().setPlotContentSize(.95);
 
         Map<String, ArrayList<Double>> map = measurements.asMap();
         double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
-        List<String> columns =
-                ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
+        List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
 
         for (String column : columns) {
             double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
