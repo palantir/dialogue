@@ -140,6 +140,12 @@ public class StatisticsImplTest {
     }
 
     private static StatisticsImpl stats(Statistics.Upstream... upstreams) {
-        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams));
+        StatisticsImpl.Randomness randomness = new StatisticsImpl.Randomness() {
+            @Override
+            public <T> Optional<T> selectRandom(List<T> list) {
+                return list.stream().findFirst();
+            }
+        };
+        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), randomness);
     }
 }

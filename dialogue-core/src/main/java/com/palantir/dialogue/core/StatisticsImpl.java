@@ -30,6 +30,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -44,18 +45,15 @@ import javax.annotation.Nullable;
  * - confidence decays over time
  *
  * TODO(dfox): put in ticker to make all this stuff deterministic
- *
- * data layout is "endpoint -> upstream -> version -> confidence"
- *
- * we want to query by endpoint and find the upstream with the best score
+ * TODO(dfox): balance the feedback loop of confidence with spreading load to other nodes
  */
 final class StatisticsImpl implements Statistics {
 
     private final Supplier<ImmutableList<Upstream>> upstreams;
+    private final Randomness randomness;
 
-    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint = Caffeine.newBuilder()
-            .maximumSize(1000)
-            .build(endpoint -> new PerEndpointData());
+    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint =
+            Caffeine.newBuilder().maximumSize(1000).build(endpoint -> new PerEndpointData());
 
     /**
      * Computing the 'best' upstream for a given endpoint involves trawling through our statistics, which is a bit
@@ -65,8 +63,9 @@ final class StatisticsImpl implements Statistics {
     private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(5)).build(this::computeBest);
 
-    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams) {
+    StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness) {
         this.upstreams = upstreams;
+        this.randomness = randomness;
     }
 
     @Override
@@ -179,7 +178,10 @@ final class StatisticsImpl implements Statistics {
             }
         }
 
-        // TODO(dfox): don't always pick the first when we have no idea!
-        return upstreams.get().stream().findFirst();
+        return randomness.selectRandom(upstreams.get());
+    }
+
+    interface Randomness {
+        <T> Optional<T> selectRandom(List<T> list);
     }
 }
