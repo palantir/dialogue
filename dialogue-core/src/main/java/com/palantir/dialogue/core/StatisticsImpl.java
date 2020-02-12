@@ -16,7 +16,9 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Clock;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
+import com.codahale.metrics.Reservoir;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -34,6 +36,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -51,8 +54,6 @@ import javax.annotation.Nullable;
 final class StatisticsImpl implements Statistics {
 
     private final Supplier<ImmutableList<Upstream>> upstreams;
-    private final Randomness randomness;
-    private final Ticker ticker;
     private final LoadingCache<Endpoint, PerEndpointData> perEndpoint;
     /**
      * Computing the 'best' upstream for a given endpoint involves trawling through our statistics, which is a bit
@@ -61,20 +62,32 @@ final class StatisticsImpl implements Statistics {
      */
     private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest;
 
+    private final Randomness randomness;
+    private final Ticker caffeineTicker;
+    private final CodahaleClock codahaleClock;
+
     StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness) {
         this.upstreams = upstreams;
         this.randomness = randomness;
-        this.ticker = Ticker.systemTicker();
+        this.caffeineTicker = Ticker.systemTicker();
+        this.codahaleClock = new CodahaleClock(caffeineTicker);
         this.perEndpoint =
-                Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build(endpoint -> new PerEndpointData());
+                Caffeine.newBuilder().maximumSize(1000).ticker(caffeineTicker).build(endpoint -> new PerEndpointData());
         cachedBest = Caffeine.newBuilder()
                 .expireAfterWrite(Duration.ofSeconds(5))
-                .ticker(ticker)
+                .ticker(caffeineTicker)
                 .build(this::computeBest);
     }
 
     interface Randomness {
         <T> Optional<T> selectRandom(List<T> list);
+    }
+
+    private Reservoir newReservoir() {
+        // defaults copied from ExponentiallyDecayingReservoir
+        int numberOfSamplesToStore = 1028;
+        double exponentialDecayFactor = 0.015;
+        return new ExponentiallyDecayingReservoir(numberOfSamplesToStore, exponentialDecayFactor, codahaleClock);
     }
 
     @Override
@@ -103,7 +116,7 @@ final class StatisticsImpl implements Statistics {
 
     private class PerEndpointData {
         private final LoadingCache<Upstream, PerUpstreamData> perUpstream =
-                Caffeine.newBuilder().maximumSize(100).ticker(ticker).build(upstream -> new PerUpstreamData());
+                Caffeine.newBuilder().maximumSize(100).ticker(caffeineTicker).build(upstream -> new PerUpstreamData());
 
         @CheckReturnValue
         PerUpstreamData get(Upstream upstream) {
@@ -114,15 +127,13 @@ final class StatisticsImpl implements Statistics {
     private class PerUpstreamData {
         private volatile String lastSeenVersion;
 
-        private final LoadingCache<String, ExponentiallyDecayingReservoir> perVersion = Caffeine.newBuilder()
-                .maximumSize(10)
-                .ticker(ticker)
-                .build(version -> new ExponentiallyDecayingReservoir());
+        private final LoadingCache<String, Reservoir> perVersion =
+                Caffeine.newBuilder().maximumSize(10).ticker(caffeineTicker).build(version -> newReservoir());
 
         // TODO(dfox): include timing data in here too!
 
         void update(String version, long changeInConfidence) {
-            ExponentiallyDecayingReservoir reservoir = perVersion.get(version);
+            Reservoir reservoir = perVersion.get(version);
             reservoir.update(changeInConfidence);
             lastSeenVersion = version;
         }
@@ -167,8 +178,7 @@ final class StatisticsImpl implements Statistics {
                     Preconditions.checkNotNull(version, "TODO figure out logic here", SafeArg.of("v", version));
                     // maybe we just average the confidence for all the other versions? most recent version?
 
-                    @Nullable
-                    ExponentiallyDecayingReservoir reservoir = perUpstreamData.perVersion.getIfPresent(version);
+                    @Nullable Reservoir reservoir = perUpstreamData.perVersion.getIfPresent(version);
                     if (reservoir == null) {
                         System.out.println("[findbest] no data about upstream & version " + upstream + ", " + version);
                         return Stream.empty();
@@ -191,5 +201,24 @@ final class StatisticsImpl implements Statistics {
         }
 
         return randomness.selectRandom(upstreams.get());
+    }
+
+    private static class CodahaleClock extends Clock {
+        private static final long initialMillis = System.currentTimeMillis();
+        private final Ticker caffeineTicker;
+
+        private CodahaleClock(Ticker caffeineTicker) {
+            this.caffeineTicker = caffeineTicker;
+        }
+
+        @Override
+        public long getTick() {
+            return caffeineTicker.read(); // effectively System.nanoTime()
+        }
+
+        @Override
+        public long getTime() {
+            return initialMillis + TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
+        }
     }
 }
