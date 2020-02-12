@@ -27,7 +27,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 
-/** Combined ticker and scheduler. */
+/** Combined ScheduledExecutorService and Clock. */
 final class SimulatedScheduler implements Closeable {
 
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();

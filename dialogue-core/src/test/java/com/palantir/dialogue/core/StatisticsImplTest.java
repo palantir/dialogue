@@ -194,20 +194,22 @@ public class StatisticsImplTest {
                     node1,
                     SimulationServer.builder()
                             .name("node1")
+                            .simulation(simulation)
                             .response(response(200, "1.56.0"))
-                            .responseTime(Duration.ofMillis(111))
+                            .responseTime(Duration.ofSeconds(2))
                             .build(),
                     node2,
                     SimulationServer.builder()
                             .name("node2")
+                            .simulation(simulation)
                             .response(response(200, "1.56.1"))
-                            .responseTime(Duration.ofMillis(222))
+                            .responseTime(Duration.ofSeconds(1))
                             .build());
 
             StatisticsImpl stats = stats(simulation.clock(), node1, node2);
 
             // fire off numRequests in a hot loop
-            int numRequests = 5;
+            int numRequests = 50;
             ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
             for (int i = 0; i < numRequests; i++) {
                 roundTrip = Futures.transformAsync(

@@ -16,43 +16,54 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 public final class SimulationServer {
+    private final Builder config;
 
-    private final Builder builder;
-
-    private SimulationServer(Builder builder) {
-        this.builder = builder;
+    private SimulationServer(Builder config) {
+        this.config = config;
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public ListenableFuture<Response> handleRequest(Endpoint endpoint, Request request) {
-        // TODO(dfox): use the response time delay!
-        return Futures.immediateFuture(builder.response);
+    public ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request) {
+        System.out.println(config.name + " received a request");
+        return config.simulation.schedule(
+                () -> {
+                    System.out.println(config.name + " writing a response after " + config.responseTime);
+                    return config.response;
+                },
+                config.responseTime.toNanos(),
+                TimeUnit.NANOSECONDS);
     }
 
     @Override
     public String toString() {
-        return "SimulationServer{name=" + builder.name + '}';
+        return "SimulationServer{name=" + config.name + '}';
     }
 
     public static class Builder {
 
         private String name;
+        private SimulatedScheduler simulation;
         private Response response;
         private Duration responseTime;
 
         Builder name(String value) {
             name = value;
+            return this;
+        }
+
+        Builder simulation(SimulatedScheduler value) {
+            simulation = value;
             return this;
         }
 
