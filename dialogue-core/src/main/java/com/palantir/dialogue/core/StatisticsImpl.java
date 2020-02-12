@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.ExponentiallyDecayingReservoir;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
@@ -51,21 +52,29 @@ final class StatisticsImpl implements Statistics {
 
     private final Supplier<ImmutableList<Upstream>> upstreams;
     private final Randomness randomness;
-
-    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint =
-            Caffeine.newBuilder().maximumSize(1000).build(endpoint -> new PerEndpointData());
-
+    private final Ticker ticker;
+    private final LoadingCache<Endpoint, PerEndpointData> perEndpoint;
     /**
      * Computing the 'best' upstream for a given endpoint involves trawling through our statistics, which is a bit
      * computationally expensive, so when things are going well, we only do it at most once every 5 seconds. If two
      * nodes are performing well, this is the fastest we could switch to a better performing node.
      */
-    private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest =
-            Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(5)).build(this::computeBest);
+    private final LoadingCache<Endpoint, Optional<Upstream>> cachedBest;
 
     StatisticsImpl(Supplier<ImmutableList<Upstream>> upstreams, Randomness randomness) {
         this.upstreams = upstreams;
         this.randomness = randomness;
+        this.ticker = Ticker.systemTicker();
+        this.perEndpoint =
+                Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build(endpoint -> new PerEndpointData());
+        cachedBest = Caffeine.newBuilder()
+                .expireAfterWrite(Duration.ofSeconds(5))
+                .ticker(ticker)
+                .build(this::computeBest);
+    }
+
+    interface Randomness {
+        <T> Optional<T> selectRandom(List<T> list);
     }
 
     @Override
@@ -92,9 +101,9 @@ final class StatisticsImpl implements Statistics {
         };
     }
 
-    private static class PerEndpointData {
+    private class PerEndpointData {
         private final LoadingCache<Upstream, PerUpstreamData> perUpstream =
-                Caffeine.newBuilder().maximumSize(100).build(upstream -> new PerUpstreamData());
+                Caffeine.newBuilder().maximumSize(100).ticker(ticker).build(upstream -> new PerUpstreamData());
 
         @CheckReturnValue
         PerUpstreamData get(Upstream upstream) {
@@ -102,11 +111,13 @@ final class StatisticsImpl implements Statistics {
         }
     }
 
-    private static class PerUpstreamData {
+    private class PerUpstreamData {
         private volatile String lastSeenVersion;
 
-        private final LoadingCache<String, ExponentiallyDecayingReservoir> perVersion =
-                Caffeine.newBuilder().maximumSize(10).build(version -> new ExponentiallyDecayingReservoir());
+        private final LoadingCache<String, ExponentiallyDecayingReservoir> perVersion = Caffeine.newBuilder()
+                .maximumSize(10)
+                .ticker(ticker)
+                .build(version -> new ExponentiallyDecayingReservoir());
 
         // TODO(dfox): include timing data in here too!
 
@@ -138,6 +149,7 @@ final class StatisticsImpl implements Statistics {
         }
     }
 
+    // TODO(dfox): should this know about the history with retries etc
     Optional<Upstream> getBest(Endpoint endpoint) {
         return cachedBest.get(endpoint);
     }
@@ -179,9 +191,5 @@ final class StatisticsImpl implements Statistics {
         }
 
         return randomness.selectRandom(upstreams.get());
-    }
-
-    interface Randomness {
-        <T> Optional<T> selectRandom(List<T> list);
     }
 }
