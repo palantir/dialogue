@@ -20,6 +20,7 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Preconditions;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -39,6 +40,11 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.knowm.xchart.BitmapEncoder;
+import org.knowm.xchart.XYChart;
+import org.knowm.xchart.XYChartBuilder;
+import org.knowm.xchart.XYSeries;
+import org.knowm.xchart.style.Styler;
 
 final class SimulationMetrics {
 
@@ -68,6 +74,25 @@ final class SimulationMetrics {
         AtomicBoolean keepRunning = new AtomicBoolean(true);
         reportInfinitely(keepRunning, interval);
         return () -> keepRunning.set(false);
+    }
+
+    private void reportInfinitely(AtomicBoolean keepRunning, Duration interval) {
+        long nanos = simulation.clock().read();
+        double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
+
+        measurements.get(X_AXIS).add(seconds);
+        meters.forEach((name, metric) -> {
+            measurements.get(name).add(metric.getOneMinuteRate());
+        });
+
+        if (keepRunning.get()) {
+            simulation.schedule(
+                    () -> reportInfinitely(keepRunning, interval),
+                    interval.toNanos(),
+                    TimeUnit.NANOSECONDS);
+        } else {
+            System.out.println("Shut down reporter");
+        }
     }
 
     public void dumpCsv(Path file) {
@@ -101,22 +126,44 @@ final class SimulationMetrics {
         }
     }
 
-    private void reportInfinitely(AtomicBoolean keepRunning, Duration interval) {
-        long nanos = simulation.clock().read();
-        double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
+    public void dumpPng(Path file) {
+        XYChart chart = createChart();
 
-        measurements.get(X_AXIS).add(seconds);
-        meters.forEach((name, metric) -> {
-            measurements.get(name).add(metric.getOneMinuteRate());
-        });
-
-        if (keepRunning.get()) {
-            simulation.schedule(
-                    () -> reportInfinitely(keepRunning, interval),
-                    interval.toNanos(),
-                    TimeUnit.NANOSECONDS);
-        } else {
-            System.out.println("Shut down reporter");
+        Stopwatch sw = Stopwatch.createStarted();
+        try {
+            BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
+            System.out.println("Generated " + file + " (" + sw.elapsed(TimeUnit.MILLISECONDS) + "millis)");
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
+    }
+
+    private XYChart createChart() {
+        // Create Chart
+        XYChart chart = new XYChartBuilder()
+                .width(800)
+                .height(600)
+                .title(getClass().getSimpleName())
+                .xAxisTitle(X_AXIS)
+                // .yAxisTitle("Y axis")
+                .build();
+
+        // Customize Chart
+        chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
+        chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
+        chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
+        chart.getStyler().setPlotMargin(0);
+        chart.getStyler().setPlotContentSize(.95);
+
+        Map<String, ArrayList<Double>> map = measurements.asMap();
+        double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
+        List<String> columns =
+                ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
+
+        for (String column : columns) {
+            double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
+            chart.addSeries(column, xAxis, series);
+        }
+        return chart;
     }
 }

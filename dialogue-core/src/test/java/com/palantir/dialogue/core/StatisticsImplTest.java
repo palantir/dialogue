@@ -241,7 +241,8 @@ public class StatisticsImplTest {
             roundTrip.addListener(
                     () -> {
                         stopReporting.run();
-                        simulation.metrics().dumpCsv(Paths.get("./csv"));
+                        // simulation.metrics().dumpCsv(Paths.get("./csv"));
+                        simulation.metrics().dumpPng(Paths.get("./metrics.png"));
                     },
                     MoreExecutors.directExecutor());
         }
