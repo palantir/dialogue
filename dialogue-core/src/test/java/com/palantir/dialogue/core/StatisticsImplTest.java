@@ -24,6 +24,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
@@ -185,6 +186,57 @@ public class StatisticsImplTest {
         }
     }
 
+    @Test
+    public void big_simulation() {
+        try (SimulatedScheduler simulation = new SimulatedScheduler()) {
+
+            ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer = ImmutableMap.of(
+                    node1,
+                    SimulationServer.builder()
+                            .name("node1")
+                            .response(response(200, "1.56.0"))
+                            .responseTime(Duration.ofMillis(111))
+                            .build(),
+                    node2,
+                    SimulationServer.builder()
+                            .name("node2")
+                            .response(response(200, "1.56.1"))
+                            .responseTime(Duration.ofMillis(222))
+                            .build());
+
+            StatisticsImpl stats = stats(simulation.clock(), node1, node2);
+
+            // fire off numRequests in a hot loop
+            int numRequests = 5;
+            ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
+            for (int i = 0; i < numRequests; i++) {
+                roundTrip = Futures.transformAsync(
+                        roundTrip,
+                        number -> {
+                            Optional<Statistics.Upstream> best = stats.computeBest(endpoint);
+                            assertThat(best).isPresent();
+
+                            Statistics.Upstream upstream = best.get();
+                            SimulationServer server = nodeToServer.get(upstream);
+                            System.out.printf(
+                                    "time=%d request=#%d upstream=%s%n",
+                                    simulation.clock().read(), number, server);
+
+                            Statistics.InFlightStage inFlight = stats.recordStart(upstream, endpoint, request);
+                            ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
+                            return Futures.transformAsync(
+                                    serverFuture,
+                                    resp -> {
+                                        inFlight.recordComplete(resp, null);
+                                        return Futures.immediateFuture(number + 1);
+                                    },
+                                    MoreExecutors.directExecutor());
+                        },
+                        MoreExecutors.directExecutor());
+            }
+        }
+    }
+
     private Response response(int status, String version) {
         return new Response() {
             @Override
@@ -209,5 +261,9 @@ public class StatisticsImplTest {
 
     private StatisticsImpl stats(Statistics.Upstream... upstreams) {
         return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), DETERMINISTIC, ticker);
+    }
+
+    private StatisticsImpl stats(Ticker clock, Statistics.Upstream... upstreams) {
+        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), DETERMINISTIC, clock);
     }
 }
