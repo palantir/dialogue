@@ -36,7 +36,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
@@ -206,23 +205,5 @@ final class StatisticsImpl implements Statistics {
 
         // TODO(dfox): if we have negative confidence a node will be successful, avoid randomly selecting that one?
         return randomness.selectRandom(upstreams.get());
-    }
-
-    private static class CodahaleClock extends Clock {
-        private final Ticker caffeineTicker;
-
-        CodahaleClock(Ticker caffeineTicker) {
-            this.caffeineTicker = caffeineTicker;
-        }
-
-        @Override
-        public long getTick() {
-            return caffeineTicker.read(); // effectively System.nanoTime()
-        }
-
-        @Override
-        public long getTime() {
-            return TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
-        }
     }
 }

@@ -69,6 +69,8 @@ final class SimulatedScheduler implements Closeable {
         return ticker; // read only!
     }
 
+    public CodahaleClock codahaleClock() { return new CodahaleClock(ticker); }
+
     public void advanceTo(Duration duration) {
         deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
         ticker.advanceTo(duration);
