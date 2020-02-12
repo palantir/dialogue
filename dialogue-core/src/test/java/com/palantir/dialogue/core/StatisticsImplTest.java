@@ -32,6 +32,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
@@ -208,6 +209,7 @@ public class StatisticsImplTest {
 
             StatisticsImpl stats = stats(simulation.clock(), node1, node2);
 
+            Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
             // fire off numRequests in a hot loop
             int numRequests = 50;
             ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
@@ -236,6 +238,12 @@ public class StatisticsImplTest {
                         },
                         MoreExecutors.directExecutor());
             }
+            roundTrip.addListener(
+                    () -> {
+                        stopReporting.run();
+                        simulation.metrics().dumpCsv(Paths.get("./csv"));
+                    },
+                    MoreExecutors.directExecutor());
         }
     }
 

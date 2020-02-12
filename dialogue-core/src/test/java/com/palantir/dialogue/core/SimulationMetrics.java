@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.CheckReturnValue;
 import java.io.BufferedWriter;
-import java.io.Closeable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -64,16 +63,14 @@ final class SimulationMetrics {
     }
 
     @CheckReturnValue
-    public Closeable startReporting(Duration interval) {
+    public Runnable startReporting(Duration interval) {
         meters = ImmutableMap.copyOf(meters); // just to make sure nobody tries to create any more after we start!
-        AtomicBoolean keepRunning = new AtomicBoolean();
+        AtomicBoolean keepRunning = new AtomicBoolean(true);
         reportInfinitely(keepRunning, interval);
         return () -> keepRunning.set(false);
     }
 
-    public void dumpCsv(Path file) throws IOException {
-        Files.createDirectories(file.getParent());
-
+    public void dumpCsv(Path file) {
         ConcurrentMap<String, ArrayList<Double>> map = measurements.asMap();
         ArrayList<Double> xAxis = map.get(X_AXIS);
         List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
@@ -88,8 +85,8 @@ final class SimulationMetrics {
             for (String column : columns) {
                 writer.write(',');
                 writer.write(column);
-                writer.newLine();
             }
+            writer.newLine();
 
             for (int i = 0; i < xAxis.size(); i++) {
                 writer.write(Double.toString(xAxis.get(i)));
@@ -99,6 +96,8 @@ final class SimulationMetrics {
                 }
                 writer.newLine();
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -116,6 +115,8 @@ final class SimulationMetrics {
                     () -> reportInfinitely(keepRunning, interval),
                     interval.toNanos(),
                     TimeUnit.NANOSECONDS);
+        } else {
+            System.out.println("Shut down reporter");
         }
     }
 }

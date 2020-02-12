@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -25,9 +26,11 @@ import java.util.concurrent.TimeUnit;
 
 public final class SimulationServer {
     private final Builder config;
+    private final Meter requestRate;
 
     private SimulationServer(Builder config) {
         this.config = config;
+        requestRate = config.simulation.metrics().meter(config.name);
     }
 
     public static Builder builder() {
@@ -35,7 +38,7 @@ public final class SimulationServer {
     }
 
     public ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request) {
-        System.out.println(config.name + " received a request");
+        requestRate.mark();
         return config.simulation.schedule(
                 () -> {
                     System.out.println(config.name + " writing a response after " + config.responseTime);

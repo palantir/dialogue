@@ -34,6 +34,7 @@ final class SimulatedScheduler implements Closeable {
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
     private final TestTicker ticker = new TestTicker();
+    private final SimulationMetrics metrics = new SimulationMetrics(this);
 
     public <T> ListenableScheduledFuture<T> schedule(Callable<T> command, long delay, TimeUnit unit) {
         long scheduleTime = ticker.read();
@@ -70,6 +71,10 @@ final class SimulatedScheduler implements Closeable {
     }
 
     public CodahaleClock codahaleClock() { return new CodahaleClock(ticker); }
+
+    public SimulationMetrics metrics() {
+        return metrics;
+    }
 
     public void advanceTo(Duration duration) {
         deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
