@@ -83,6 +83,7 @@ final class SimulationMetrics {
         return () -> keepRunning.set(false);
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     private void reportInfinitely(AtomicBoolean keepRunning, Duration interval) {
         long nanos = simulation.clock().read();
         double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
@@ -103,7 +104,7 @@ final class SimulationMetrics {
 
     public void dumpCsv(Path file) {
         ConcurrentMap<String, ArrayList<Double>> map = measurements.asMap();
-        ArrayList<Double> xAxis = map.get(X_AXIS);
+        List<Double> xAxis = map.get(X_AXIS);
         List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
 
         try (BufferedWriter writer = Files.newBufferedWriter(

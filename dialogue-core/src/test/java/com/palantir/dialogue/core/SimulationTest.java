@@ -28,12 +28,8 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import org.junit.Test;
 
@@ -41,17 +37,9 @@ public class SimulationTest {
 
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
-    Ticker ticker = Ticker.systemTicker();
 
     Statistics.Upstream node1 = ImmutableUpstream.of("node1");
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
-
-    private static final StatisticsImpl.Randomness DETERMINISTIC = new StatisticsImpl.Randomness() {
-        @Override
-        public <T> Optional<T> selectRandom(List<T> list) {
-            return list.stream().findFirst();
-        }
-    };
 
     @Test
     public void big_simulation() {
@@ -77,11 +65,8 @@ public class SimulationTest {
                     .responseTime(Duration.ofSeconds(1))
                     .build();
 
-            ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer = ImmutableMap.of(
-                    node1,
-                    server1,
-                    node2,
-                    server2);
+            ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer =
+                    ImmutableMap.of(node1, server1, node2, server2);
 
             StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
 
@@ -103,7 +88,8 @@ public class SimulationTest {
                                     "time=%d request=#%d upstream=%s%n",
                                     simulation.clock().read(), number, server);
 
-                            Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
+                            Statistics.InFlightStage inFlight =
+                                    thingWeAreTesting.recordStart(upstream, endpoint, request);
                             ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
                             return Futures.transformAsync(
                                     serverFuture,
@@ -125,29 +111,11 @@ public class SimulationTest {
         }
     }
 
-    private static Response response(int status, String version) {
-        return new Response() {
-            @Override
-            public InputStream body() {
-                return new ByteArrayInputStream(new byte[0]);
-            }
-
-            @Override
-            public int code() {
-                return status;
-            }
-
-            @Override
-            public Map<String, List<String>> headers() {
-                if (version == null) {
-                    return ImmutableMap.of();
-                }
-                return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
-            }
-        };
+    public static StatisticsImpl stats(Ticker clock, Statistics.Upstream... upstreams) {
+        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), SimulationUtils.DETERMINISTIC, clock);
     }
 
-    private static StatisticsImpl stats(Ticker clock, Statistics.Upstream... upstreams) {
-        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), DETERMINISTIC, clock);
+    private static Response response(int status, String version) {
+        return SimulationUtils.response(status, version);
     }
 }

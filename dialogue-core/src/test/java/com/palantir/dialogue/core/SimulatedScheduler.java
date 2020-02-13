@@ -42,6 +42,7 @@ final class SimulatedScheduler implements Closeable {
 
         return listenableExecutor.schedule(
                 new Callable<T>() {
+                    @Override
                     public T call() throws Exception {
                         try {
                             ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
@@ -70,7 +71,9 @@ final class SimulatedScheduler implements Closeable {
         return ticker; // read only!
     }
 
-    public CodahaleClock codahaleClock() { return new CodahaleClock(ticker); }
+    public CodahaleClock codahaleClock() {
+        return new CodahaleClock(ticker);
+    }
 
     public SimulationMetrics metrics() {
         return metrics;
@@ -86,7 +89,7 @@ final class SimulatedScheduler implements Closeable {
         advanceTo(Duration.ofNanos(Long.MAX_VALUE));
     }
 
-    private static class TestTicker implements Ticker {
+    private static final class TestTicker implements Ticker {
         private long nanos = 0;
 
         @Override
@@ -97,8 +100,7 @@ final class SimulatedScheduler implements Closeable {
         public void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
             Preconditions.checkArgument(
-                    newNanos >= nanos,
-                    "TestTicker time may not go backwards. Current: " + nanos + " update: " + newNanos);
+                    newNanos >= nanos, "TestTicker time may not go backwards current=%s new=%s", nanos, newNanos);
             nanos = newNanos;
         }
     }

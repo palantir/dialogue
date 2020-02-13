@@ -17,11 +17,11 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -34,10 +34,10 @@ final class BasicSimulationServer implements SimulationServer {
     private final Meter requestRate;
 
     private BasicSimulationServer(Builder builder) {
-        this.metricName = Preconditions.checkNotNull(builder.metricName);
-        this.simulation = Preconditions.checkNotNull(builder.simulation);
-        this.response = Preconditions.checkNotNull(builder.response);
-        this.responseTime = Preconditions.checkNotNull(builder.responseTime);
+        this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
+        this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
+        this.response = Preconditions.checkNotNull(builder.response, "response");
+        this.responseTime = Preconditions.checkNotNull(builder.responseTime, "responseTime");
         this.requestRate = builder.simulation.metrics().meter(builder.metricName);
     }
 

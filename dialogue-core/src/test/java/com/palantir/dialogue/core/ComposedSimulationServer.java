@@ -75,7 +75,7 @@ final class ComposedSimulationServer implements SimulationServer {
             private int count = 0;
 
             @Override
-            public boolean switchover(Ticker clock) {
+            public boolean switchover(Ticker _clock) {
                 return count++ >= numRequests;
             }
         };

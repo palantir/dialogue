@@ -39,18 +39,23 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * heuristic: probability of success in a <endpoint,upstream,version> combo increases slowly,
- * - successful responses (200s) increase confidence by 1
- * - failures (500s) decrease confidence by 10
- * - client side exceptions decrease confidence by 20
- * - confidence decays over time
+ * Heuristic: probability of success in a (endpoint,upstream,version) combo increases slowly.
+ * <ul>
+ * <li>successful responses (200s) increase confidence by 1
+ * <li>failures (500s) decrease confidence by 10
+ * <li>client side exceptions decrease confidence by 20
+ * <li>confidence decays over time
+ * </ul>
  *
- * TODO(dfox): put in ticker to make all this stuff deterministic
  * TODO(dfox): balance the feedback loop of confidence with spreading load to other nodes
  */
+@SuppressWarnings("Slf4jLogsafeArgs")
 final class StatisticsImpl implements Statistics {
+    private static final Logger log = LoggerFactory.getLogger(StatisticsImpl.class);
 
     private final Supplier<ImmutableList<Upstream>> upstreams;
     private final LoadingCache<Endpoint, PerEndpointData> perEndpoint;
@@ -70,8 +75,7 @@ final class StatisticsImpl implements Statistics {
         this.upstreams = upstreams;
         this.randomness = randomness;
         this.clock = clock;
-        this.codahaleClock =
-                clock == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(clock);
+        this.codahaleClock = clock == Ticker.systemTicker() ? Clock.defaultClock() : new CodahaleClock(clock);
         this.perEndpoint =
                 Caffeine.newBuilder().maximumSize(1000).ticker(clock).build(endpoint -> new PerEndpointData());
         cachedBest = Caffeine.newBuilder()
@@ -117,7 +121,7 @@ final class StatisticsImpl implements Statistics {
         };
     }
 
-    private class PerEndpointData {
+    private final class PerEndpointData {
         private final LoadingCache<Upstream, PerUpstreamData> perUpstream =
                 Caffeine.newBuilder().maximumSize(100).ticker(clock).build(upstream -> new PerUpstreamData());
 
@@ -127,7 +131,7 @@ final class StatisticsImpl implements Statistics {
         }
     }
 
-    private class PerUpstreamData {
+    private final class PerUpstreamData {
         private volatile String lastSeenVersion;
 
         private final LoadingCache<String, Reservoir> perVersion =
@@ -142,6 +146,7 @@ final class StatisticsImpl implements Statistics {
         }
     }
 
+    @SuppressWarnings("CyclomaticComplexity")
     private static int changeInConfidence(Response response) {
         switch (response.code()) {
             case 200:
@@ -183,12 +188,12 @@ final class StatisticsImpl implements Statistics {
 
                     @Nullable Reservoir reservoir = perUpstreamData.perVersion.getIfPresent(version);
                     if (reservoir == null) {
-                        System.out.println("[findbest] no data about upstream & version " + upstream + ", " + version);
+                        log.info("[findbest] no data about upstream={}, version={}", upstream, version);
                         return Stream.empty();
                     }
 
                     double mean = reservoir.getSnapshot().getMean();
-                    System.out.println("[findbest] Confidence for " + upstream + ", " + version + " " + mean);
+                    log.info("[findbest] Confidence={} for upstream={}, version={}", mean, upstream, version);
                     return Stream.of(Maps.immutableEntry(entry.getKey(), mean));
                 })
                 .max(Comparator.comparingDouble(e -> e.getValue()));
@@ -199,7 +204,7 @@ final class StatisticsImpl implements Statistics {
             if (confidence > 0) {
                 return Optional.of(bestSoFar.getKey());
             } else {
-                System.out.println("[selectBest] confidence is crap, just picking first " + confidence);
+                log.info("[selectBest] confidence is crap ({}), just picking first", confidence);
             }
         }
 
