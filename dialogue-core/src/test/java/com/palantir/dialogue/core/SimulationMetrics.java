@@ -16,7 +16,9 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Stopwatch;
@@ -25,6 +27,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.CheckReturnValue;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -55,7 +59,7 @@ final class SimulationMetrics {
     private static final Logger log = LoggerFactory.getLogger(SimulationMetrics.class);
 
     private final Simulation simulation;
-    private Map<String, Meter> meters = new HashMap<>();
+    private Map<String, Metric> metrics = new HashMap<>();
 
     // each of these is a named column
     private final LoadingCache<String, ArrayList<Double>> measurements =
@@ -68,19 +72,35 @@ final class SimulationMetrics {
     }
 
     public Meter meter(String name) {
-        if (!meters.containsKey(name)) {
+        if (!metrics.containsKey(name)) {
             Meter freshMeter = new Meter(simulation.codahaleClock());
-            meters.put(name, freshMeter);
+            metrics.put(name, freshMeter);
             return freshMeter;
         } else {
             // have to support 'get existing' because multiple servers inside a composite might be named 'node1'
-            return meters.get(name);
+            Metric metric = metrics.get(name);
+            Preconditions.checkState(
+                    metric instanceof Meter, "Existing metric wasn't a meter", SafeArg.of("name", name));
+            return (Meter) metric;
+        }
+    }
+
+    public Counter counter(String name) {
+        if (!metrics.containsKey(name)) {
+            Counter fresh = new Counter();
+            metrics.put(name, fresh);
+            return fresh;
+        } else {
+            Metric metric = metrics.get(name);
+            Preconditions.checkState(
+                    metric instanceof Counter, "Existing metric wasn't a Counter", SafeArg.of("name", name));
+            return (Counter) metric;
         }
     }
 
     @CheckReturnValue
     public Runnable startReporting(Duration interval) {
-        meters = ImmutableMap.copyOf(meters); // just to make sure nobody tries to create any more after we start!
+        metrics = ImmutableMap.copyOf(metrics); // just to make sure nobody tries to create any more after we start!
         AtomicBoolean keepRunning = new AtomicBoolean(true);
         reportInfinitely(keepRunning, interval);
         return () -> keepRunning.set(false);
@@ -92,9 +112,17 @@ final class SimulationMetrics {
         double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
 
         measurements.get(X_AXIS).add(seconds);
-        meters.forEach((name, metric) -> {
-            // measurements.get(name + ".1m").add(metric.getOneMinuteRate());
-            measurements.get(name + ".count").add((double) metric.getCount());
+        metrics.forEach((name, metric) -> {
+
+            if (metric instanceof Meter) {
+                // measurements.get(name + ".1m").add(((Meter) metric).getOneMinuteRate());
+                // measurements.get(name + ".count").add((double) ((Meter) metric).getCount());
+            } else if (metric instanceof Counter) {
+                measurements.get(name + ".count").add((double) ((Counter) metric).getCount());
+            } else {
+                log.error("Unknown metric type {} {}", name, metric);
+            }
+
         });
 
         if (keepRunning.get()) {
@@ -158,7 +186,7 @@ final class SimulationMetrics {
         // Customize Chart
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
-        chart.getStyler().setMarkerSize(1);
+        chart.getStyler().setMarkerSize(5);
         chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
         chart.getStyler().setPlotMargin(0);
         chart.getStyler().setPlotContentSize(.95);

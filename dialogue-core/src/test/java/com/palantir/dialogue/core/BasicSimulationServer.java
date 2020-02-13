@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.palantir.dialogue.Endpoint;
@@ -36,13 +37,15 @@ final class BasicSimulationServer implements SimulationServer {
     private final Response response;
     private final Duration responseTime;
     private final Meter requestRate;
+    private final Counter activeRequests;
 
     private BasicSimulationServer(Builder builder) {
         this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
         this.response = Preconditions.checkNotNull(builder.response, "response");
         this.responseTime = Preconditions.checkNotNull(builder.responseTime, "responseTime");
-        this.requestRate = builder.simulation.metrics().meter(builder.metricName);
+        this.requestRate = simulation.metrics().meter(metricName);
+        this.activeRequests = simulation.metrics().counter(metricName + ".active");
     }
 
     public static Builder builder() {
@@ -51,6 +54,7 @@ final class BasicSimulationServer implements SimulationServer {
 
     @Override
     public ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request) {
+        activeRequests.inc();
         requestRate.mark();
         return simulation.schedule(
                 () -> {
@@ -60,6 +64,7 @@ final class BasicSimulationServer implements SimulationServer {
                             metricName,
                             response.code(),
                             responseTime);
+                    activeRequests.dec();
                     return response;
                 },
                 responseTime.toNanos(),
