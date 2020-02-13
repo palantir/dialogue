@@ -44,12 +44,15 @@ import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
 import org.knowm.xchart.XYSeries;
 import org.knowm.xchart.style.Styler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This is a combination metric registry, reporter, logger and renderer, all hooked up to
  * {@link SimulatedScheduler#clock()}.
  */
 final class SimulationMetrics {
+    private static final Logger log = LoggerFactory.getLogger(SimulationMetrics.class);
 
     private final SimulatedScheduler simulation;
     private Map<String, Meter> meters = new HashMap<>();
@@ -98,7 +101,7 @@ final class SimulationMetrics {
             simulation.schedule(
                     () -> reportInfinitely(keepRunning, interval), interval.toNanos(), TimeUnit.NANOSECONDS);
         } else {
-            System.out.println("SimulationMetrics reporter stopped");
+            log.info("SimulationMetrics reporter stopped");
         }
     }
 
@@ -136,7 +139,7 @@ final class SimulationMetrics {
         Stopwatch sw = Stopwatch.createStarted();
         try {
             BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
-            System.out.println("Generated " + file + " (" + sw.elapsed(TimeUnit.MILLISECONDS) + " millis)");
+            log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

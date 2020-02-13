@@ -26,10 +26,13 @@ import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Combined ScheduledExecutorService and Clock. */
 final class SimulatedScheduler implements Closeable {
 
+    private static final Logger log = LoggerFactory.getLogger(SimulatedScheduler.class);
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
@@ -48,7 +51,7 @@ final class SimulatedScheduler implements Closeable {
                             ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
                             return command.call();
                         } catch (Exception e) {
-                            System.out.println(e);
+                            log.error("Uncaught error", e);
                             throw e;
                         }
                     }

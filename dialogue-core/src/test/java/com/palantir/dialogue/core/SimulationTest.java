@@ -28,18 +28,22 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Optional;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class SimulationTest {
+    private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
 
     Statistics.Upstream node1 = ImmutableUpstream.of("node1");
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
+    private Instant realStart = Instant.now();
 
     @Test
     public void big_simulation() {
@@ -84,9 +88,11 @@ public class SimulationTest {
 
                             Statistics.Upstream upstream = best.get();
                             SimulationServer server = nodeToServer.get(upstream);
-                            System.out.printf(
-                                    "time=%d request=#%d upstream=%s%n",
-                                    simulation.clock().read(), number, server);
+                            log.info(
+                                    "time={} request={} upstream={}",
+                                    simulation.clock().read(),
+                                    number,
+                                    server);
 
                             Statistics.InFlightStage inFlight =
                                     thingWeAreTesting.recordStart(upstream, endpoint, request);
@@ -104,8 +110,13 @@ public class SimulationTest {
             roundTrip.addListener(
                     () -> {
                         stopReporting.run();
+                        log.info(
+                                "Simulation finished. Real time={}, simulation time={}",
+                                Duration.between(realStart, Instant.now()),
+                                Duration.ofNanos(simulation.clock().read()));
+
                         // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                        simulation.metrics().dumpPng(Paths.get("./metrics.png"));
+                        // simulation.metrics().dumpPng(Paths.get("./metrics.png"));
                     },
                     MoreExecutors.directExecutor());
         }

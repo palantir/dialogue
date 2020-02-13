@@ -25,8 +25,12 @@ import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class BasicSimulationServer implements SimulationServer {
+    private static final Logger log = LoggerFactory.getLogger(BasicSimulationServer.class);
+
     private final String metricName;
     private final SimulatedScheduler simulation;
     private final Response response;
@@ -50,14 +54,12 @@ final class BasicSimulationServer implements SimulationServer {
         requestRate.mark();
         return simulation.schedule(
                 () -> {
-                    System.out.println("time="
-                            + simulation.clock().read()
-                            + " server="
-                            + metricName
-                            + " status="
-                            + response.code()
-                            + " duration="
-                            + responseTime);
+                    log.info(
+                            "time={} server={} status={} duration={}",
+                            simulation.clock().read(),
+                            metricName,
+                            response.code(),
+                            responseTime);
                     return response;
                 },
                 responseTime.toNanos(),

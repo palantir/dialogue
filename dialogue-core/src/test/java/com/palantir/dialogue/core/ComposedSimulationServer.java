@@ -22,12 +22,15 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * In order to allow server behavior to change during a simulation, we can just switch between two basic servers at
  * some cutover point.
  */
 final class ComposedSimulationServer implements SimulationServer {
+    private static final Logger log = LoggerFactory.getLogger(ComposedSimulationServer.class);
 
     private final Ticker clock;
     private final SimulationServer first;
@@ -48,12 +51,12 @@ final class ComposedSimulationServer implements SimulationServer {
         boolean switchoverNow = predicate.switchover(clock);
         if (switchoverNow && !switchedOver) {
             switchedOver = true;
-            System.out.println("cutting over from first=" + first + " -> second=" + second);
+            log.info("cutting over from first={} -> second={}", first, second);
         }
 
         if (!switchoverNow && switchedOver) {
             switchedOver = false;
-            System.out.println("cutting back from second=" + second + " -> first=" + first);
+            log.info("cutting back from second={} -> first={}", second, first);
         }
 
         SimulationServer server = switchedOver ? second : first;
