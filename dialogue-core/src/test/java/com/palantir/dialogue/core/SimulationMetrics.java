@@ -49,12 +49,12 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a combination metric registry, reporter, logger and renderer, all hooked up to
- * {@link SimulatedScheduler#clock()}.
+ * {@link Simulation#clock()}.
  */
 final class SimulationMetrics {
     private static final Logger log = LoggerFactory.getLogger(SimulationMetrics.class);
 
-    private final SimulatedScheduler simulation;
+    private final Simulation simulation;
     private Map<String, Meter> meters = new HashMap<>();
 
     // each of these is a named column
@@ -63,7 +63,7 @@ final class SimulationMetrics {
 
     private static final String X_AXIS = "time_sec";
 
-    SimulationMetrics(SimulatedScheduler simulation) {
+    SimulationMetrics(Simulation simulation) {
         this.simulation = simulation;
     }
 

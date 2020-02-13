@@ -32,7 +32,7 @@ final class BasicSimulationServer implements SimulationServer {
     private static final Logger log = LoggerFactory.getLogger(BasicSimulationServer.class);
 
     private final String metricName;
-    private final SimulatedScheduler simulation;
+    private final Simulation simulation;
     private final Response response;
     private final Duration responseTime;
     private final Meter requestRate;
@@ -74,7 +74,7 @@ final class BasicSimulationServer implements SimulationServer {
     public static class Builder {
 
         private String metricName;
-        private SimulatedScheduler simulation;
+        private Simulation simulation;
         private Response response;
         private Duration responseTime;
         private Function<Builder, SimulationServer> finalStep = BasicSimulationServer::new;
@@ -84,7 +84,7 @@ final class BasicSimulationServer implements SimulationServer {
             return this;
         }
 
-        Builder simulation(SimulatedScheduler value) {
+        Builder simulation(Simulation value) {
             simulation = value;
             return this;
         }

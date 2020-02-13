@@ -47,7 +47,7 @@ public class SimulationTest {
 
     @Test
     public void big_simulation() {
-        try (SimulatedScheduler simulation = new SimulatedScheduler()) {
+        try (Simulation simulation = new Simulation()) {
 
             SimulationServer server1 = SimulationServer.builder()
                     .metricName("server1")

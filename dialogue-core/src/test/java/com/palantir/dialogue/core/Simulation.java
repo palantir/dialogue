@@ -30,9 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Combined ScheduledExecutorService and Clock. */
-final class SimulatedScheduler implements Closeable {
+final class Simulation implements Closeable {
 
-    private static final Logger log = LoggerFactory.getLogger(SimulatedScheduler.class);
+    private static final Logger log = LoggerFactory.getLogger(Simulation.class);
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
