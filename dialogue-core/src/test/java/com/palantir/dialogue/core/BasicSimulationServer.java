@@ -58,7 +58,7 @@ final class BasicSimulationServer implements SimulationServer {
         requestRate.mark();
         return simulation.schedule(
                 () -> {
-                    log.info(
+                    log.debug(
                             "time={} server={} status={} duration={}",
                             simulation.clock().read(),
                             metricName,

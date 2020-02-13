@@ -18,25 +18,31 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.time.Duration;
 import java.util.Comparator;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class PreferLowestUpstreamUtilization implements Statistics {
+    private static final Logger log = LoggerFactory.getLogger(PreferLowestUpstreamUtilization.class);
 
     private final LoadingCache<Upstream, AtomicInteger> active =
             Caffeine.newBuilder().maximumSize(1000).build(upstream -> new AtomicInteger());
-
     private final Supplier<ImmutableList<Upstream>> upstreams;
+    private final Ticker clock;
 
-    public PreferLowestUpstreamUtilization(Supplier<ImmutableList<Upstream>> upstreams) {
+    public PreferLowestUpstreamUtilization(Supplier<ImmutableList<Upstream>> upstreams, Ticker clock) {
         this.upstreams = upstreams;
+        this.clock = clock;
     }
 
     @Override
@@ -52,7 +58,11 @@ public final class PreferLowestUpstreamUtilization implements Statistics {
     }
 
     public Optional<Upstream> getBest(Endpoint _endpoint) {
-        return upstreams.get().stream()
+        Optional<Upstream> best = upstreams.get().stream()
                 .min(Comparator.comparingInt(upstream -> active.get(upstream).get()));
+        log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), best.get(), active.asMap());
+
+        // TODO(dfox): tiebreaking currently always picks the first upstream when they have the same utilization
+        return best;
     }
 }

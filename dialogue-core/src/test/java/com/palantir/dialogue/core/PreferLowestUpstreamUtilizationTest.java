@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -62,6 +63,6 @@ public class PreferLowestUpstreamUtilizationTest {
     }
 
     private PreferLowestUpstreamUtilization construct() {
-        return new PreferLowestUpstreamUtilization(() -> upstreams);
+        return new PreferLowestUpstreamUtilization(() -> upstreams, Ticker.disabledTicker());
     }
 }

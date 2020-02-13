@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
-import com.codahale.metrics.Counter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -58,7 +57,7 @@ public class SimulationTest {
                     .metricName("server1")
                     .simulation(simulation)
                     .response(response(200, "1.56.0"))
-                    .responseTime(Duration.ofSeconds(2))
+                    .responseTime(Duration.ofMillis(200))
                     .untilTime(Duration.ofSeconds(5))
                     .response(response(500, "1.56.1")) // simulating a bad blue/green here
                     .responseTime(Duration.ofSeconds(20))
@@ -71,13 +70,13 @@ public class SimulationTest {
                     .metricName("server2")
                     .simulation(simulation)
                     .response(response(200, "1.56.0"))
-                    .responseTime(Duration.ofSeconds(1))
+                    .responseTime(Duration.ofMillis(400))
                     .build();
 
             nodeToServer = ImmutableMap.of(node1, server1, node2, server2);
 
             PreferLowestUpstreamUtilization thingWeAreTesting =
-                    new PreferLowestUpstreamUtilization(() -> ImmutableList.of(node1, node2));
+                    new PreferLowestUpstreamUtilization(() -> ImmutableList.of(node1, node2), simulation.clock());
             // StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
 
             fireOffBatches(simulation, thingWeAreTesting, 100, 4, Duration.ofMillis(100));
@@ -93,7 +92,7 @@ public class SimulationTest {
             int batchSize,
             Duration batchDelay) {
 
-        Counter requestStarted = simulation.metrics().counter("test.request.started");
+        // Counter requestStarted = simulation.metrics().counter("test.request.started");
 
         Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
 
@@ -106,10 +105,13 @@ public class SimulationTest {
                             Statistics.Upstream upstream =
                                     thingWeAreTesting.getBest(endpoint).get();
 
-                            log.debug("time={} best={}", Duration.ofNanos(simulation.clock().read()), upstream);
+                            log.debug(
+                                    "time={} best={}",
+                                    Duration.ofNanos(simulation.clock().read()),
+                                    upstream);
                             SimulationServer server = nodeToServer.get(upstream);
 
-                            requestStarted.inc();
+                            // requestStarted.inc();
                             Statistics.InFlightStage inFlight =
                                     thingWeAreTesting.recordStart(upstream, endpoint, request);
                             ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
