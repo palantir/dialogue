@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.google.common.base.Preconditions;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -66,10 +65,14 @@ final class SimulationMetrics {
     }
 
     public Meter meter(String name) {
-        Meter meter = new Meter(simulation.codahaleClock());
-        Meter existing = meters.put(name, meter);
-        Preconditions.checkState(existing == null, "Meter already exists", name);
-        return meter;
+        if (!meters.containsKey(name)) {
+            Meter freshMeter = new Meter(simulation.codahaleClock());
+            meters.put(name, freshMeter);
+            return freshMeter;
+        } else {
+            // have to support 'get existing' because multiple servers inside a composite might be named 'node1'
+            return meters.get(name);
+        }
     }
 
     @CheckReturnValue
@@ -86,8 +89,8 @@ final class SimulationMetrics {
 
         measurements.get(X_AXIS).add(seconds);
         meters.forEach((name, metric) -> {
-            measurements.get(name + ".1m").add(metric.getOneMinuteRate());
-            // measurements.get(name + ".count").add((double) metric.getCount());
+            // measurements.get(name + ".1m").add(metric.getOneMinuteRate());
+            measurements.get(name + ".count").add((double) metric.getCount());
         });
 
         if (keepRunning.get()) {

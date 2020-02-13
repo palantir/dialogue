@@ -57,28 +57,38 @@ public class SimulationTest {
     public void big_simulation() {
         try (SimulatedScheduler simulation = new SimulatedScheduler()) {
 
+            SimulationServer server1 = SimulationServer.builder()
+                    .metricName("server1")
+                    .simulation(simulation)
+                    .response(response(200, "1.56.0"))
+                    .responseTime(Duration.ofSeconds(2))
+                    .untilNthRequest(10)
+                    .response(response(500, "1.56.1")) // simulating a bad blue/green here
+                    .responseTime(Duration.ofSeconds(20))
+                    .untilNthRequest(20)
+                    .response(response(200, "1.56.0"))
+                    .responseTime(Duration.ofSeconds(2))
+                    .build();
+
+            SimulationServer server2 = SimulationServer.builder()
+                    .metricName("server2")
+                    .simulation(simulation)
+                    .response(response(200, "1.56.0"))
+                    .responseTime(Duration.ofSeconds(1))
+                    .build();
+
             ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer = ImmutableMap.of(
                     node1,
-                    SimulationServer.builder()
-                            .name("node1")
-                            .simulation(simulation)
-                            .response(response(200, "1.56.0"))
-                            .responseTime(Duration.ofSeconds(2))
-                            .build(),
+                    server1,
                     node2,
-                    SimulationServer.builder()
-                            .name("node2")
-                            .simulation(simulation)
-                            .response(response(200, "1.56.1"))
-                            .responseTime(Duration.ofSeconds(1))
-                            .build());
+                    server2);
 
-            StatisticsImpl thingWeAreTesting = stats(simulation.clock(), node1, node2);
+            StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
 
             Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
 
             // fire off numRequests in a hot loop
-            int numRequests = 50;
+            int numRequests = 30;
             ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
             for (int i = 0; i < numRequests; i++) {
                 roundTrip = Futures.transformAsync(

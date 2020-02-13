@@ -1,0 +1,92 @@
+/*
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.palantir.dialogue.core;
+
+import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import java.time.Duration;
+
+/**
+ * In order to allow server behavior to change during a simulation, we can just switch between two basic servers at
+ * some cutover point.
+ */
+final class ComposedSimulationServer implements SimulationServer {
+
+    private final Ticker clock;
+    private final SimulationServer first;
+    private final SimulationServer second;
+    private final SwitchoverPredicate predicate;
+    private boolean switchedOver = false;
+
+    ComposedSimulationServer(
+            Ticker clock, SimulationServer first, SimulationServer second, SwitchoverPredicate predicate) {
+        this.clock = clock;
+        this.first = first;
+        this.second = second;
+        this.predicate = predicate;
+    }
+
+    @Override
+    public ListenableScheduledFuture<Response> handleRequest(Endpoint endpoint, Request request) {
+        boolean switchoverNow = predicate.switchover(clock);
+        if (switchoverNow && !switchedOver) {
+            switchedOver = true;
+            System.out.println("cutting over from first=" + first + " -> second=" + second);
+        }
+
+        if (!switchoverNow && switchedOver) {
+            switchedOver = false;
+            System.out.println("cutting back from second=" + second + " -> first=" + first);
+        }
+
+        SimulationServer server = switchedOver ? second : first;
+        return server.handleRequest(endpoint, request);
+    }
+
+    @Override
+    public String toString() {
+        return "ComposedSimulationServer{" + "first=" + first + ", second=" + second + '}';
+    }
+
+    // can be stateful!
+    interface SwitchoverPredicate {
+        boolean switchover(Ticker clock);
+    }
+
+    static SwitchoverPredicate nthRequest(int numRequests) {
+        return new SwitchoverPredicate() {
+            private int count = 0;
+
+            @Override
+            public boolean switchover(Ticker clock) {
+                return count++ >= numRequests;
+            }
+        };
+    }
+
+    static SwitchoverPredicate time(Duration cutover) {
+        return new SwitchoverPredicate() {
+            @Override
+            public boolean switchover(Ticker clock) {
+                return clock.read() >= cutover.toNanos();
+            }
+        };
+    }
+}

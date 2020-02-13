@@ -16,74 +16,15 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.time.Duration;
-import java.util.concurrent.TimeUnit;
 
-public final class SimulationServer {
-    private final Builder config;
-    private final Meter requestRate;
+public interface SimulationServer {
+    ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request);
 
-    private SimulationServer(Builder config) {
-        this.config = config;
-        requestRate = config.simulation.metrics().meter(config.name);
-    }
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request) {
-        requestRate.mark();
-        return config.simulation.schedule(
-                () -> {
-                    System.out.println(config.name + " writing a response after " + config.responseTime);
-                    return config.response;
-                },
-                config.responseTime.toNanos(),
-                TimeUnit.NANOSECONDS);
-    }
-
-    @Override
-    public String toString() {
-        return "SimulationServer{name=" + config.name + '}';
-    }
-
-    public static class Builder {
-
-        private String name;
-        private SimulatedScheduler simulation;
-        private Response response;
-        private Duration responseTime;
-
-        Builder name(String value) {
-            name = value;
-            return this;
-        }
-
-        Builder simulation(SimulatedScheduler value) {
-            simulation = value;
-            return this;
-        }
-
-        /** What response should we return. */
-        Builder response(Response value) {
-            response = value;
-            return this;
-        }
-
-        /** How long should responses take. */
-        Builder responseTime(Duration value) {
-            responseTime = value;
-            return this;
-        }
-
-        SimulationServer build() {
-            return new SimulationServer(this);
-        }
+    static BasicSimulationServer.Builder builder() {
+        return BasicSimulationServer.builder();
     }
 }
