@@ -28,9 +28,12 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -44,6 +47,7 @@ public class SimulationTest {
     Statistics.Upstream node1 = ImmutableUpstream.of("node1");
     Statistics.Upstream node2 = ImmutableUpstream.of("node2");
     private Instant realStart = Instant.now();
+    private ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer;
 
     @Test
     public void big_simulation() {
@@ -57,9 +61,9 @@ public class SimulationTest {
                     .untilNthRequest(10)
                     .response(response(500, "1.56.1")) // simulating a bad blue/green here
                     .responseTime(Duration.ofSeconds(20))
-                    .untilNthRequest(20)
-                    .response(response(200, "1.56.0"))
-                    .responseTime(Duration.ofSeconds(2))
+                    // .untilNthRequest(20)
+                    // .response(response(200, "1.56.0"))
+                    // .responseTime(Duration.ofSeconds(2))
                     .build();
 
             SimulationServer server2 = SimulationServer.builder()
@@ -69,57 +73,119 @@ public class SimulationTest {
                     .responseTime(Duration.ofSeconds(1))
                     .build();
 
-            ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer =
-                    ImmutableMap.of(node1, server1, node2, server2);
+            nodeToServer = ImmutableMap.of(node1, server1, node2, server2);
 
-            StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
+            PreferLowestUpstreamUtilization thingWeAreTesting =
+                    new PreferLowestUpstreamUtilization(() -> ImmutableList.of(node1, node2));
+            // StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
 
-            Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
+            fireOffBatches(simulation, thingWeAreTesting, 100, 4, Duration.ofMillis(100));
 
-            // fire off numRequests in a hot loop
-            int numRequests = 30;
-            ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
-            for (int i = 0; i < numRequests; i++) {
-                roundTrip = Futures.transformAsync(
-                        roundTrip,
-                        number -> {
-                            Optional<Statistics.Upstream> best = thingWeAreTesting.computeBest(endpoint);
-                            assertThat(best).isPresent();
+            // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
+        }
+    }
 
-                            Statistics.Upstream upstream = best.get();
+    private void fireOffBatches(
+            Simulation simulation,
+            PreferLowestUpstreamUtilization thingWeAreTesting,
+            int numBatches,
+            int batchSize,
+            Duration batchDelay) {
+
+        Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
+
+        int total = numBatches * batchSize;
+        AtomicInteger outstanding = new AtomicInteger(total);
+        for (int batchNum = 0; batchNum < numBatches; batchNum++) {
+            simulation.schedule(
+                    () -> {
+                        for (int i = 0; i < batchSize; i++) {
+                            Statistics.Upstream upstream =
+                                    thingWeAreTesting.getBest(endpoint).get();
+
+                            log.debug("time={} best={}", Duration.ofNanos(simulation.clock().read()), upstream);
                             SimulationServer server = nodeToServer.get(upstream);
-                            log.info(
-                                    "time={} request={} upstream={}",
-                                    simulation.clock().read(),
-                                    number,
-                                    server);
 
                             Statistics.InFlightStage inFlight =
                                     thingWeAreTesting.recordStart(upstream, endpoint, request);
                             ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
-                            return Futures.transformAsync(
+                            serverFuture.addListener(() -> {}, MoreExecutors.directExecutor());
+
+                            Futures.transformAsync(
                                     serverFuture,
                                     resp -> {
                                         inFlight.recordComplete(resp, null);
-                                        return Futures.immediateFuture(number + 1);
+
+                                        if (outstanding.decrementAndGet() == 0) {
+                                            stopReporting.run();
+                                            log.info(
+                                                    "Simulation finished. Total requests={} Real time={}, simulation "
+                                                            + "time={}",
+                                                    total,
+                                                    Duration.between(realStart, Instant.now()),
+                                                    Duration.ofNanos(
+                                                            simulation.clock().read()));
+
+                                            // simulation.metrics().dumpCsv(Paths.get("./csv"));
+                                            simulation.metrics().dumpPng(Paths.get("./par.png"));
+                                        }
+
+                                        return Futures.immediateFuture(null);
                                     },
                                     MoreExecutors.directExecutor());
-                        },
-                        MoreExecutors.directExecutor());
-            }
-            roundTrip.addListener(
-                    () -> {
-                        stopReporting.run();
-                        log.info(
-                                "Simulation finished. Real time={}, simulation time={}",
-                                Duration.between(realStart, Instant.now()),
-                                Duration.ofNanos(simulation.clock().read()));
+                        }
+                    },
+                    batchNum * batchDelay.toNanos(),
+                    TimeUnit.NANOSECONDS);
+        }
+    }
 
-                        // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                        // simulation.metrics().dumpPng(Paths.get("./metrics.png"));
+    private void fireOffSerialRequests(
+            Simulation simulation, PreferLowestUpstreamUtilization thingWeAreTesting, int numRequests) {
+
+        Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
+
+        // fire off numRequests in a hot loop
+        ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
+        for (int i = 0; i < numRequests; i++) {
+            roundTrip = Futures.transformAsync(
+                    roundTrip,
+                    number -> {
+                        Optional<Statistics.Upstream> best = thingWeAreTesting.getBest(endpoint);
+                        assertThat(best).isPresent();
+
+                        Statistics.Upstream upstream = best.get();
+                        SimulationServer server = nodeToServer.get(upstream);
+                        log.info(
+                                "time={} request={} upstream={}",
+                                simulation.clock().read(),
+                                number,
+                                server);
+
+                        Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
+                        ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
+                        return Futures.transformAsync(
+                                serverFuture,
+                                resp -> {
+                                    inFlight.recordComplete(resp, null);
+                                    return Futures.immediateFuture(number + 1);
+                                },
+                                MoreExecutors.directExecutor());
                     },
                     MoreExecutors.directExecutor());
         }
+        roundTrip.addListener(
+                () -> {
+                    stopReporting.run();
+                    log.info(
+                            "Simulation finished. Real time={}, simulation time={}",
+                            Duration.between(realStart, Instant.now()),
+                            Duration.ofNanos(simulation.clock().read()));
+
+                    // simulation.metrics().dumpCsv(Paths.get("./csv"));
+                    simulation.metrics().dumpPng(Paths.get("./metrics.png"));
+                },
+                MoreExecutors.directExecutor());
     }
 
     public static StatisticsImpl stats(Ticker clock, Statistics.Upstream... upstreams) {
