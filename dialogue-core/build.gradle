@@ -16,9 +16,6 @@ dependencies {
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.mockito:mockito-core'
-    testImplementation 'org.jmock:jmock'
-    testImplementation 'org.knowm.xchart:xchart'
-    testImplementation 'org.slf4j:slf4j-simple'
 
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'
