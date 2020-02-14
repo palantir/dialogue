@@ -43,6 +43,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.knowm.xchart.BitmapEncoder;
 import org.knowm.xchart.XYChart;
 import org.knowm.xchart.XYChartBuilder;
@@ -115,10 +118,10 @@ final class SimulationMetrics {
         metrics.forEach((name, metric) -> {
 
             if (metric instanceof Meter) {
-                // measurements.get(name + ".1m").add(((Meter) metric).getOneMinuteRate());
-                // measurements.get(name + ".count").add((double) ((Meter) metric).getCount());
+                // measurements.get(name + ".meter.1m").add(((Meter) metric).getOneMinuteRate());
+                // measurements.get(name + ".meter.count").add((double) ((Meter) metric).getCount());
             } else if (metric instanceof Counter) {
-                measurements.get(name + ".count").add((double) ((Counter) metric).getCount());
+                measurements.get(name + ".counter.count").add((double) ((Counter) metric).getCount());
             } else {
                 log.error("Unknown metric type {} {}", name, metric);
             }
@@ -162,19 +165,10 @@ final class SimulationMetrics {
     }
 
     public void dumpPng(Path file) {
-        XYChart chart = createChart();
-
-        Stopwatch sw = Stopwatch.createStarted();
-        try {
-            BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
-            log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        dumpPng(file, Pattern.compile(".*\\.counter\\.count").asPredicate());
     }
 
-    private XYChart createChart() {
-        // Create Chart
+    public void dumpPng(Path file, Predicate<String> predicate) {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
@@ -183,7 +177,6 @@ final class SimulationMetrics {
                 // .yAxisTitle("Y axis")
                 .build();
 
-        // Customize Chart
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
         chart.getStyler().setMarkerSize(5);
@@ -193,12 +186,26 @@ final class SimulationMetrics {
 
         Map<String, ArrayList<Double>> map = measurements.asMap();
         double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
-        List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
+        List<String> columns = map.keySet().stream()
+                .filter(name -> !name.equals(X_AXIS))
+                .filter(predicate)
+                .collect(Collectors.toList());
 
         for (String column : columns) {
             double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
             chart.addSeries(column, xAxis, series);
         }
-        return chart;
+
+        emitChart(file, chart);
+    }
+
+    private static void emitChart(Path file, XYChart chart) {
+        Stopwatch sw = Stopwatch.createStarted();
+        try {
+            BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
+            log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

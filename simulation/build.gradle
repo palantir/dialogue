@@ -15,6 +15,6 @@ dependencies {
 
     testRuntimeOnly 'org.slf4j:slf4j-simple'
 
-  // annotationProcessor 'org.immutables:value'
-  // compile 'org.immutables:value::annotations'
+    annotationProcessor 'org.immutables:value'
+    compile 'org.immutables:value::annotations'
 }
