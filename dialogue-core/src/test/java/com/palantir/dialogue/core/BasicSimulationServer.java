@@ -53,7 +53,7 @@ final class BasicSimulationServer implements SimulationServer {
     }
 
     @Override
-    public ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request) {
+    public ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request _request) {
         activeRequests.inc();
         requestRate.mark();
         return simulation.schedule(

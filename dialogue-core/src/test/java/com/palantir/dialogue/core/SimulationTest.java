@@ -25,15 +25,19 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,7 +83,52 @@ public class SimulationTest {
                     new PreferLowestUpstreamUtilization(() -> ImmutableList.of(node1, node2), simulation.clock());
             // StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
 
-            fireOffBatches(simulation, thingWeAreTesting, 100, 4, Duration.ofMillis(100));
+            // fireOffBatches(simulation, thingWeAreTesting, 100, 4, Duration.ofMillis(100));
+
+            // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
+        }
+    }
+
+    @Test
+    public void concurrency_limiters() {
+        try (Simulation simulation = new Simulation()) {
+
+            SimulationServer server1 = SimulationServer.builder()
+                    .metricName("fast_server")
+                    .simulation(simulation)
+                    .response(response(200, "1.56.0"))
+                    .responseTime(Duration.ofMillis(200))
+                    .build();
+
+            SimulationServer server2 = SimulationServer.builder()
+                    .metricName("bad_server")
+                    .simulation(simulation)
+                    .response(response(200, "1.56.0"))
+                    .responseTime(Duration.ofMillis(5000))
+                    .untilTime(Duration.ofSeconds(50))
+                    .response(response(429, "1.56.0"))
+                    .build();
+
+            ImmutableList<Channel> servers = ImmutableList.of(server1, server2);
+
+
+
+            List<LimitedChannel> limitedChannels = servers.stream()
+                    .map(c -> new ConcurrencyLimitedChannel(
+                            c, () -> ConcurrencyLimitedChannel.createLimiter(simulation.clock()::read)))
+                    // this is a no-op concurrency limiter:
+                    // .map(c -> new LimitedChannel() {
+                    //     @Override
+                    //     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                    //         return Optional.of(c.execute(endpoint, request));
+                    //     }
+                    // })
+                    .collect(Collectors.toList());
+            LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+            channel = new RetryingChannel(channel);
+
+            fireOffBatches(simulation, channel, 1000, 4, Duration.ofMillis(100));
 
             // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
         }
@@ -87,7 +136,7 @@ public class SimulationTest {
 
     private void fireOffBatches(
             Simulation simulation,
-            PreferLowestUpstreamUtilization thingWeAreTesting,
+            Channel channel,
             int numBatches,
             int batchSize,
             Duration batchDelay) {
@@ -102,26 +151,12 @@ public class SimulationTest {
             simulation.schedule(
                     () -> {
                         for (int i = 0; i < batchSize; i++) {
-                            Statistics.Upstream upstream =
-                                    thingWeAreTesting.getBest(endpoint).get();
 
-                            log.debug(
-                                    "time={} best={}",
-                                    Duration.ofNanos(simulation.clock().read()),
-                                    upstream);
-                            SimulationServer server = nodeToServer.get(upstream);
-
-                            // requestStarted.inc();
-                            Statistics.InFlightStage inFlight =
-                                    thingWeAreTesting.recordStart(upstream, endpoint, request);
-                            ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
-                            serverFuture.addListener(() -> {}, MoreExecutors.directExecutor());
+                            ListenableFuture<Response> serverFuture = channel.execute(endpoint, request);
 
                             Futures.transformAsync(
                                     serverFuture,
                                     resp -> {
-                                        inFlight.recordComplete(resp, null);
-
                                         if (outstanding.decrementAndGet() == 0) {
                                             stopReporting.run();
                                             log.info(
@@ -169,7 +204,7 @@ public class SimulationTest {
                                 server);
 
                         Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
-                        ListenableFuture<Response> serverFuture = server.handleRequest(endpoint, request);
+                        ListenableFuture<Response> serverFuture = server.execute(endpoint, request);
                         return Futures.transformAsync(
                                 serverFuture,
                                 resp -> {

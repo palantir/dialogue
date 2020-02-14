@@ -47,7 +47,7 @@ final class ComposedSimulationServer implements SimulationServer {
     }
 
     @Override
-    public ListenableScheduledFuture<Response> handleRequest(Endpoint endpoint, Request request) {
+    public ListenableScheduledFuture<Response> execute(Endpoint endpoint, Request request) {
         boolean switchoverNow = predicate.switchover(clock);
         if (switchoverNow && !switchedOver) {
             switchedOver = true;
@@ -60,7 +60,7 @@ final class ComposedSimulationServer implements SimulationServer {
         }
 
         SimulationServer server = switchedOver ? second : first;
-        return server.handleRequest(endpoint, request);
+        return server.execute(endpoint, request);
     }
 
     @Override

@@ -58,7 +58,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         return new ConcurrencyLimitedChannel(delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME));
     }
 
-    private static Limiter<Void> createLimiter(Supplier<Long> nanoTimeClock) {
+    @VisibleForTesting
+    static Limiter<Void> createLimiter(Supplier<Long> nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)

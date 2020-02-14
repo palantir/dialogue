@@ -17,12 +17,14 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 
-public interface SimulationServer {
-    ListenableScheduledFuture<Response> handleRequest(Endpoint _endpoint, Request _request);
+public interface SimulationServer extends Channel {
+    @Override
+    ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request _request);
 
     static BasicSimulationServer.Builder builder() {
         return BasicSimulationServer.builder();
