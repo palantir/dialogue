@@ -16,15 +16,16 @@
 
 package com.palantir.dialogue;
 
-import java.io.InputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.util.OptionalLong;
 
 public interface RequestBody {
-    /** The number of bytes in the {@link #content}, or absent if unknown. */
+    /** The number of bytes in the {@link #writeTo}, or absent if unknown. */
     OptionalLong length();
 
     /** The content of this request body, possibly empty. */
-    InputStream content();
+    void writeTo(OutputStream output) throws IOException;
 
     /** A HTTP/Conjure content type (e.g., "application/json") indicating the type of content. */
     String contentType();

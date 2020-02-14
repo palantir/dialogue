@@ -28,9 +28,8 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -72,8 +71,8 @@ public abstract class AbstractChannelTest {
         }
 
         @Override
-        public InputStream content() {
-            return new ByteArrayInputStream(CONTENT);
+        public void writeTo(OutputStream output) throws IOException {
+            output.write(CONTENT);
         }
 
         @Override

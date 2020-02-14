@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import org.junit.Test;
 
@@ -25,10 +26,9 @@ public final class EmptyBodyTest {
 
     @Test
     public void testSerialization() throws IOException {
-        assertThat(EmptyBody.serializer("application/json")
-                        .serialize(EmptyBody.INSTANCE)
-                        .content())
-                .hasContent("");
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        EmptyBody.serializer("application/json").serialize(EmptyBody.INSTANCE).writeTo(baos);
+        assertThat(baos.toByteArray()).isEmpty();
         assertThat(EmptyBody.serializer("application/json")
                         .serialize(EmptyBody.INSTANCE)
                         .length())

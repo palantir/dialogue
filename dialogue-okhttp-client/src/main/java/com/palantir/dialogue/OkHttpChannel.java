@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
@@ -61,7 +60,7 @@ public final class OkHttpChannel implements Channel {
 
             @Override
             public void writeTo(BufferedSink sink) throws IOException {
-                ByteStreams.copy(body.content(), sink.outputStream());
+                body.writeTo(sink.outputStream());
             }
         };
     }
