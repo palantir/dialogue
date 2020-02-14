@@ -39,22 +39,18 @@ final class Simulation implements Closeable {
     private final TestTicker ticker = new TestTicker();
     private final SimulationMetrics metrics = new SimulationMetrics(this);
 
+    public Simulation() {
+        Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
+    }
+
     public <T> ListenableScheduledFuture<T> schedule(Callable<T> command, long delay, TimeUnit unit) {
         long scheduleTime = ticker.read();
         long delayNanos = unit.toNanos(delay);
 
         return listenableExecutor.schedule(
-                new Callable<T>() {
-                    @Override
-                    public T call() throws Exception {
-                        try {
-                            ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                            return command.call();
-                        } catch (Exception e) {
-                            log.error("Uncaught error", e);
-                            throw e;
-                        }
-                    }
+                () -> {
+                    ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
+                    return command.call();
                 },
                 delay,
                 unit);
