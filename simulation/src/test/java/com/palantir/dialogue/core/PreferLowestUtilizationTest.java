@@ -26,7 +26,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import org.junit.Test;
 
-public class PreferLowestUpstreamUtilizationTest {
+public class PreferLowestUtilizationTest {
 
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
@@ -35,13 +35,13 @@ public class PreferLowestUpstreamUtilizationTest {
     Channel node1 = mock(Channel.class);
     ImmutableList<Channel> upstreams = ImmutableList.of(node0, node1);
 
-    PreferLowestUpstreamUtilization foo = construct();
+    PreferLowestUtilization foo = construct();
 
     @Test
     public void pick_lowest_utilization() {
-        foo.recordStart(0, endpoint, request);
-        foo.recordStart(0, endpoint, request);
-        foo.recordStart(0, endpoint, request);
+        foo.recordStart(node0, endpoint, request);
+        foo.recordStart(node0, endpoint, request);
+        foo.recordStart(node0, endpoint, request);
 
         assertThat(foo.getBest(endpoint)).hasValue(node1);
     }
@@ -55,15 +55,15 @@ public class PreferLowestUpstreamUtilizationTest {
 
     @Test
     public void completed_requests_are_recorded_properly() {
-        foo.recordStart(1, endpoint, request);
-        foo.recordStart(0, endpoint, request).recordComplete(null, null);
-        foo.recordStart(0, endpoint, request).recordComplete(null, null);
-        foo.recordStart(0, endpoint, request).recordComplete(null, null);
+        foo.recordStart(node1, endpoint, request);
+        foo.recordStart(node0, endpoint, request).recordComplete(null, null);
+        foo.recordStart(node0, endpoint, request).recordComplete(null, null);
+        foo.recordStart(node0, endpoint, request).recordComplete(null, null);
 
         assertThat(foo.getBest(endpoint)).hasValue(node0);
     }
 
-    private PreferLowestUpstreamUtilization construct() {
-        return new PreferLowestUpstreamUtilization(upstreams, Ticker.disabledTicker());
+    private PreferLowestUtilization construct() {
+        return new PreferLowestUtilization(upstreams, Ticker.disabledTicker());
     }
 }

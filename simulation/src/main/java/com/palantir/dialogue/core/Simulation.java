@@ -18,13 +18,21 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,5 +110,42 @@ final class Simulation implements Closeable {
                     newNanos >= nanos, "TestTicker time may not go backwards current=%s new=%s", nanos, newNanos);
             nanos = newNanos;
         }
+    }
+
+    public ListenableFuture<Void> runParallelRequests(Channel channel, int numBatches, int batchSize, Duration batchDelay) {
+        Endpoint endpoint = null;
+        Request request = null;
+
+        Runnable stopReporting = metrics().startReporting(Duration.ofSeconds(1));
+
+        SettableFuture<Void> done = SettableFuture.create();
+        done.addListener(stopReporting, MoreExecutors.directExecutor());
+
+        int total = numBatches * batchSize;
+        AtomicInteger outstanding = new AtomicInteger(total);
+        for (int batchNum = 0; batchNum < numBatches; batchNum++) {
+            schedule(
+                    () -> {
+                        for (int i = 0; i < batchSize; i++) {
+
+                            ListenableFuture<Response> serverFuture = channel.execute(endpoint, request);
+
+                            Futures.transformAsync(
+                                    serverFuture,
+                                    resp -> {
+                                        if (outstanding.decrementAndGet() == 0) {
+                                            done.set(null);
+                                        }
+
+                                        return Futures.immediateFuture(null);
+                                    },
+                                    MoreExecutors.directExecutor());
+                        }
+                    },
+                    batchNum * batchDelay.toNanos(),
+                    TimeUnit.NANOSECONDS);
+        }
+
+        return done;
     }
 }

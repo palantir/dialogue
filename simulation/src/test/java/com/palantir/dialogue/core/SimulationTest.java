@@ -32,6 +32,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -59,12 +60,6 @@ public class SimulationTest {
                     .simulation(simulation)
                     .response(response(200, "1.56.0"))
                     .responseTime(Duration.ofMillis(200))
-                    .untilTime(Duration.ofSeconds(5))
-                    .response(response(500, "1.56.1")) // simulating a bad blue/green here
-                    .responseTime(Duration.ofSeconds(20))
-                    // .untilNthRequest(20)
-                    // .response(response(200, "1.56.0"))
-                    // .responseTime(Duration.ofSeconds(2))
                     .build();
 
             SimulationServer server2 = SimulationServer.builder()
@@ -75,10 +70,16 @@ public class SimulationTest {
                     .build();
 
             LimitedChannel idea =
-                    new PreferLowestUpstreamUtilization(ImmutableList.of(server1, server2), simulation.clock());
+                    new PreferLowestUtilization(ImmutableList.of(server1, server2), simulation.clock());
             Channel channel = dontTolerateLimits(idea);
 
-            fireOffBatches(simulation, channel, 100, 4, Duration.ofMillis(100));
+            ListenableFuture<Void> done = simulation.runParallelRequests(channel, 100, 4, Duration.ofMillis(100));
+
+            done.addListener(
+                    () -> {
+                        simulation.metrics().dumpPng(Paths.get("big_simulation.png"));
+                    },
+                    MoreExecutors.directExecutor());
         }
     }
 
@@ -235,7 +236,8 @@ public class SimulationTest {
     //                             number,
     //                             server);
     //
-    //                     Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
+    //                     Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint,
+    // request);
     //                     ListenableFuture<Response> serverFuture = server.execute(endpoint, request);
     //                     return Futures.transformAsync(
     //                             serverFuture,

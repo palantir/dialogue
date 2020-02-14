@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
  * TODO(dfox): balance the feedback loop of confidence with spreading load to other nodes
  */
 @SuppressWarnings("Slf4jLogsafeArgs")
-final class StatisticsImpl implements Statistics {
+final class StatisticsImpl {
     private static final Logger log = LoggerFactory.getLogger(StatisticsImpl.class);
 
     private final Supplier<ImmutableList<Upstream>> upstreams;
@@ -97,9 +97,8 @@ final class StatisticsImpl implements Statistics {
         return new ExponentiallyDecayingReservoir(numberOfSamplesToStore, exponentialDecayFactor, codahaleClock);
     }
 
-    @Override
-    public InFlightStage recordStart(Upstream upstream, Endpoint endpoint, Request _request) {
-        return new InFlightStage() {
+    public Statistics.InFlightStage recordStart(Upstream upstream, Endpoint endpoint, Request _request) {
+        return new Statistics.InFlightStage() {
             @Override
             public void recordComplete(Response response, Throwable throwable) {
                 if (response != null) {
@@ -210,5 +209,9 @@ final class StatisticsImpl implements Statistics {
 
         // TODO(dfox): if we have negative confidence a node will be successful, avoid randomly selecting that one?
         return randomness.selectRandom(upstreams.get());
+    }
+
+    interface Upstream {
+
     }
 }

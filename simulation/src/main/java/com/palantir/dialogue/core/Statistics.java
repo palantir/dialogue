@@ -16,30 +16,57 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Optional;
 import javax.annotation.Nullable;
-import org.immutables.value.Value;
 
-interface Statistics {
+interface Statistics extends LimitedChannel {
 
-    /** Returns a statisticId, to allow us to record info at the beginning and end of a request. */
-    InFlightStage recordStart(Upstream upstream, Endpoint endpoint, Request request);
+    /** Returns an interface that allow us to record info at the beginning and end of a request. */
+    // TODO(dfox): this doesn't allow tracking info about LimitedChannels, only a Channel
+    InFlightStage recordStart(Channel channel, Endpoint endpoint, Request request);
 
     interface InFlightStage {
         void recordComplete(@Nullable Response response, @Nullable Throwable throwable);
+        // TODO(dfox): allow recording more detailed statistics about the body upload / download time?
     }
 
-    // TODO(dfox): allow recording more detailed statistics about the body upload  / download time?
+    /** Return the index of the best channel. */
+    Optional<Channel> getBest(Endpoint endpoint);
 
-    /**
-     * Represents a connection to some upstream server. Should be OK to have multiple upstreams pointing
-     * to one host if they have different cipher suites / proxy info / timeouts / protocol specs (h1/h2).
-     */
-    @Value.Immutable
-    interface Upstream {
-        @Value.Parameter
-        String uri();
+    @Override
+    default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        Optional<Channel> best = getBest(endpoint);
+        if (!best.isPresent()) {
+            return Optional.empty();
+        }
+
+        Channel channel = best.get();
+
+        Statistics.InFlightStage inFlightStage = recordStart(channel, endpoint, request);
+        ListenableFuture<Response> response = channel.execute(endpoint, request);
+        Futures.addCallback(
+                response,
+                new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response result) {
+                        inFlightStage.recordComplete(result, null);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        inFlightStage.recordComplete(null, throwable);
+                    }
+                },
+                MoreExecutors.directExecutor());
+
+        return Optional.of(response);
     }
 }
