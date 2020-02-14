@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
 import com.codahale.metrics.Histogram;
@@ -24,7 +23,6 @@ import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.codahale.metrics.Snapshot;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -34,11 +32,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -52,10 +48,7 @@ public class SimulationTest {
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
 
-    Statistics.Upstream node1 = ImmutableUpstream.of("node1");
-    Statistics.Upstream node2 = ImmutableUpstream.of("node2");
     private Instant realStart = Instant.now();
-    private ImmutableMap<Statistics.Upstream, SimulationServer> nodeToServer;
 
     @Test
     public void big_simulation() {
@@ -81,15 +74,11 @@ public class SimulationTest {
                     .responseTime(Duration.ofMillis(400))
                     .build();
 
-            nodeToServer = ImmutableMap.of(node1, server1, node2, server2);
+            LimitedChannel idea =
+                    new PreferLowestUpstreamUtilization(ImmutableList.of(server1, server2), simulation.clock());
+            Channel channel = dontTolerateLimits(idea);
 
-            PreferLowestUpstreamUtilization thingWeAreTesting =
-                    new PreferLowestUpstreamUtilization(() -> ImmutableList.of(node1, node2), simulation.clock());
-            // StatisticsImpl thingWeAreTesting = stats(simulation.clock(), this.node1, this.node2);
-
-            // fireOffBatches(simulation, thingWeAreTesting, 100, 4, Duration.ofMillis(100));
-
-            // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
+            fireOffBatches(simulation, channel, 100, 4, Duration.ofMillis(100));
         }
     }
 
@@ -161,7 +150,18 @@ public class SimulationTest {
         }
     }
 
-    private Channel testInstrumentation(Histogram histogram, Ticker clock, Channel channel) {
+    private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
+        return new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                return limitedChannel
+                        .maybeExecute(endpoint, request)
+                        .orElseThrow(() -> new RuntimeException("Got limited :("));
+            }
+        };
+    }
+
+    private static Channel testInstrumentation(Histogram histogram, Ticker clock, Channel channel) {
         return new Channel() {
             @Override
             public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
@@ -213,57 +213,53 @@ public class SimulationTest {
         return done;
     }
 
-    private void fireOffSerialRequests(
-            Simulation simulation, PreferLowestUpstreamUtilization thingWeAreTesting, int numRequests) {
-
-        Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
-
-        // fire off numRequests in a hot loop
-        ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
-        for (int i = 0; i < numRequests; i++) {
-            roundTrip = Futures.transformAsync(
-                    roundTrip,
-                    number -> {
-                        Optional<Statistics.Upstream> best = thingWeAreTesting.getBest(endpoint);
-                        assertThat(best).isPresent();
-
-                        Statistics.Upstream upstream = best.get();
-                        SimulationServer server = nodeToServer.get(upstream);
-                        log.info(
-                                "time={} request={} upstream={}",
-                                simulation.clock().read(),
-                                number,
-                                server);
-
-                        Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
-                        ListenableFuture<Response> serverFuture = server.execute(endpoint, request);
-                        return Futures.transformAsync(
-                                serverFuture,
-                                resp -> {
-                                    inFlight.recordComplete(resp, null);
-                                    return Futures.immediateFuture(number + 1);
-                                },
-                                MoreExecutors.directExecutor());
-                    },
-                    MoreExecutors.directExecutor());
-        }
-        roundTrip.addListener(
-                () -> {
-                    stopReporting.run();
-                    log.info(
-                            "Simulation finished. Real time={}, simulation time={}",
-                            Duration.between(realStart, Instant.now()),
-                            Duration.ofNanos(simulation.clock().read()));
-
-                    // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                    simulation.metrics().dumpPng(Paths.get("./metrics.png"));
-                },
-                MoreExecutors.directExecutor());
-    }
-
-    public static StatisticsImpl stats(Ticker clock, Statistics.Upstream... upstreams) {
-        return new StatisticsImpl(() -> ImmutableList.copyOf(upstreams), SimulationUtils.DETERMINISTIC, clock);
-    }
+    // private void fireOffSerialRequests(
+    //         Simulation simulation, PreferLowestUpstreamUtilization thingWeAreTesting, int numRequests) {
+    //
+    //     Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
+    //
+    //     // fire off numRequests in a hot loop
+    //     ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
+    //     for (int i = 0; i < numRequests; i++) {
+    //         roundTrip = Futures.transformAsync(
+    //                 roundTrip,
+    //                 number -> {
+    //                     Optional<Statistics.Upstream> best = thingWeAreTesting.getBest(endpoint);
+    //                     assertThat(best).isPresent();
+    //
+    //                     Statistics.Upstream upstream = best.get();
+    //                     SimulationServer server = nodeToServer.get(upstream);
+    //                     log.info(
+    //                             "time={} request={} upstream={}",
+    //                             simulation.clock().read(),
+    //                             number,
+    //                             server);
+    //
+    //                     Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint, request);
+    //                     ListenableFuture<Response> serverFuture = server.execute(endpoint, request);
+    //                     return Futures.transformAsync(
+    //                             serverFuture,
+    //                             resp -> {
+    //                                 inFlight.recordComplete(resp, null);
+    //                                 return Futures.immediateFuture(number + 1);
+    //                             },
+    //                             MoreExecutors.directExecutor());
+    //                 },
+    //                 MoreExecutors.directExecutor());
+    //     }
+    //     roundTrip.addListener(
+    //             () -> {
+    //                 stopReporting.run();
+    //                 log.info(
+    //                         "Simulation finished. Real time={}, simulation time={}",
+    //                         Duration.between(realStart, Instant.now()),
+    //                         Duration.ofNanos(simulation.clock().read()));
+    //
+    //                 // simulation.metrics().dumpCsv(Paths.get("./csv"));
+    //                 simulation.metrics().dumpPng(Paths.get("./metrics.png"));
+    //             },
+    //             MoreExecutors.directExecutor());
+    // }
 
     private static Response response(int status, String version) {
         return SimulationUtils.response(status, version);

@@ -118,8 +118,8 @@ final class SimulationMetrics {
         metrics.forEach((name, metric) -> {
 
             if (metric instanceof Meter) {
-                // measurements.get(name + ".meter.1m").add(((Meter) metric).getOneMinuteRate());
-                // measurements.get(name + ".meter.count").add((double) ((Meter) metric).getCount());
+                measurements.get(name + ".meter.1m").add(((Meter) metric).getOneMinuteRate());
+                measurements.get(name + ".meter.count").add((double) ((Meter) metric).getCount());
             } else if (metric instanceof Counter) {
                 measurements.get(name + ".counter.count").add((double) ((Counter) metric).getCount());
             } else {

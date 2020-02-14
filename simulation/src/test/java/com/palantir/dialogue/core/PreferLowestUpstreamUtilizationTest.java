@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import org.junit.Test;
@@ -30,39 +31,39 @@ public class PreferLowestUpstreamUtilizationTest {
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
 
-    Statistics.Upstream node1 = ImmutableUpstream.of("node1");
-    Statistics.Upstream node2 = ImmutableUpstream.of("node2");
-    ImmutableList<Statistics.Upstream> upstreams = ImmutableList.of(node1, node2);
+    Channel node0 = mock(Channel.class);
+    Channel node1 = mock(Channel.class);
+    ImmutableList<Channel> upstreams = ImmutableList.of(node0, node1);
 
     PreferLowestUpstreamUtilization foo = construct();
 
     @Test
     public void pick_lowest_utilization() {
-        foo.recordStart(node1, endpoint, request);
-        foo.recordStart(node1, endpoint, request);
-        foo.recordStart(node1, endpoint, request);
+        foo.recordStart(0, endpoint, request);
+        foo.recordStart(0, endpoint, request);
+        foo.recordStart(0, endpoint, request);
 
-        assertThat(foo.getBest(endpoint)).hasValue(node2);
+        assertThat(foo.getBest(endpoint)).hasValue(node1);
     }
 
     @Test
     public void pick_first_when_all_empty() {
         // TODO(dfox): should there be a way of expressing 'no preference' when there are zero active reqs? might be
         //  helpful when combining with other strategies
-        assertThat(foo.getBest(endpoint)).hasValue(node1);
+        assertThat(foo.getBest(endpoint)).hasValue(node0);
     }
 
     @Test
     public void completed_requests_are_recorded_properly() {
-        foo.recordStart(node2, endpoint, request);
-        foo.recordStart(node1, endpoint, request).recordComplete(null, null);
-        foo.recordStart(node1, endpoint, request).recordComplete(null, null);
-        foo.recordStart(node1, endpoint, request).recordComplete(null, null);
+        foo.recordStart(1, endpoint, request);
+        foo.recordStart(0, endpoint, request).recordComplete(null, null);
+        foo.recordStart(0, endpoint, request).recordComplete(null, null);
+        foo.recordStart(0, endpoint, request).recordComplete(null, null);
 
-        assertThat(foo.getBest(endpoint)).hasValue(node1);
+        assertThat(foo.getBest(endpoint)).hasValue(node0);
     }
 
     private PreferLowestUpstreamUtilization construct() {
-        return new PreferLowestUpstreamUtilization(() -> upstreams, Ticker.disabledTicker());
+        return new PreferLowestUpstreamUtilization(upstreams, Ticker.disabledTicker());
     }
 }
