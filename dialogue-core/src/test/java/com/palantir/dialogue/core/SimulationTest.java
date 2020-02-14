@@ -19,12 +19,16 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
+import com.codahale.metrics.Histogram;
+import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
+import com.codahale.metrics.Snapshot;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -111,7 +115,8 @@ public class SimulationTest {
 
             ImmutableList<Channel> servers = ImmutableList.of(server1, server2);
 
-
+            Histogram histogram =
+                    new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
 
             List<LimitedChannel> limitedChannels = servers.stream()
                     .map(c -> new ConcurrencyLimitedChannel(
@@ -119,7 +124,8 @@ public class SimulationTest {
                     // this is a no-op concurrency limiter:
                     // .map(c -> new LimitedChannel() {
                     //     @Override
-                    //     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                    //     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request)
+                    // {
                     //         return Optional.of(c.execute(endpoint, request));
                     //     }
                     // })
@@ -127,23 +133,57 @@ public class SimulationTest {
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             channel = new RetryingChannel(channel);
+            channel = testInstrumentation(histogram, simulation.clock(), channel);
 
-            fireOffBatches(simulation, channel, 1000, 4, Duration.ofMillis(100));
+            SettableFuture<Void> done = fireOffBatches(simulation, channel, 1000, 4, Duration.ofMillis(100));
+
+            done.addListener(
+                    () -> {
+                        log.info(
+                                "Simulation finished. Real time={}, simulation time={}",
+                                Duration.between(realStart, Instant.now()),
+                                Duration.ofNanos(simulation.clock().read()));
+
+                        Snapshot snapshot = histogram.getSnapshot();
+                        log.info(
+                                "Client-side metrics min={} mean={} p95={} max={}",
+                                Duration.ofNanos(snapshot.getMin()),
+                                Duration.ofNanos((long) snapshot.getMean()),
+                                Duration.ofNanos((long) snapshot.get95thPercentile()),
+                                Duration.ofNanos(snapshot.getMax()));
+
+                        // simulation.metrics().dumpCsv(Paths.get("./csv"));
+                        // simulation.metrics().dumpPng(Paths.get("./par.png"));
+                    },
+                    MoreExecutors.directExecutor());
 
             // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
         }
     }
 
-    private void fireOffBatches(
-            Simulation simulation,
-            Channel channel,
-            int numBatches,
-            int batchSize,
-            Duration batchDelay) {
+    private Channel testInstrumentation(Histogram histogram, Ticker clock, Channel channel) {
+        return new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                long start = clock.read();
+                ListenableFuture<Response> future = channel.execute(endpoint, request);
+                future.addListener(
+                        () -> {
+                            histogram.update(clock.read() - start);
+                        },
+                        MoreExecutors.directExecutor());
+                return future;
+            }
+        };
+    }
 
-        // Counter requestStarted = simulation.metrics().counter("test.request.started");
+    private SettableFuture<Void> fireOffBatches(
+            Simulation simulation, Channel channel, int numBatches, int batchSize, Duration batchDelay) {
 
         Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
+
+        SettableFuture<Void> done = SettableFuture.create();
+        done.addListener(stopReporting, MoreExecutors.directExecutor());
 
         int total = numBatches * batchSize;
         AtomicInteger outstanding = new AtomicInteger(total);
@@ -158,17 +198,7 @@ public class SimulationTest {
                                     serverFuture,
                                     resp -> {
                                         if (outstanding.decrementAndGet() == 0) {
-                                            stopReporting.run();
-                                            log.info(
-                                                    "Simulation finished. Total requests={} Real time={}, simulation "
-                                                            + "time={}",
-                                                    total,
-                                                    Duration.between(realStart, Instant.now()),
-                                                    Duration.ofNanos(
-                                                            simulation.clock().read()));
-
-                                            // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                                            simulation.metrics().dumpPng(Paths.get("./par.png"));
+                                            done.set(null);
                                         }
 
                                         return Futures.immediateFuture(null);
@@ -179,6 +209,8 @@ public class SimulationTest {
                     batchNum * batchDelay.toNanos(),
                     TimeUnit.NANOSECONDS);
         }
+
+        return done;
     }
 
     private void fireOffSerialRequests(
