@@ -42,6 +42,7 @@ import java.util.function.Supplier;
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Void NO_CONTEXT = null;
+    private static final Supplier<Long> SYSTEM_NANOTIME = System::nanoTime;
 
     private final Channel delegate;
     private final LoadingCache<Endpoint, Limiter<Void>> limiters;
@@ -54,10 +55,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {
-        return new ConcurrencyLimitedChannel(delegate, ConcurrencyLimitedChannel::createLimiter);
+        return new ConcurrencyLimitedChannel(delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME));
     }
 
-    private static Limiter<Void> createLimiter() {
+    private static Limiter<Void> createLimiter(Supplier<Long> nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)
@@ -68,6 +69,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
                 .build();
         return SimpleLimiter.newBuilder()
+                .clock(nanoTimeClock)
                 .limit(WindowedLimit.newBuilder().build(aimdLimit))
                 .build();
     }
