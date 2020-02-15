@@ -164,7 +164,7 @@ final class SimulationMetrics {
         }
     }
 
-    public void dumpPng(Path file, Pattern metricNameRegex) {
+    public XYChart chart(Pattern metricNameRegex) {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
@@ -193,13 +193,16 @@ final class SimulationMetrics {
             chart.addSeries(column, xAxis, series);
         }
 
-        emitChart(file, chart);
+        return chart;
     }
 
-    private static void emitChart(Path file, XYChart chart) {
+    public static final void png(String file, XYChart... charts) {
         Stopwatch sw = Stopwatch.createStarted();
         try {
-            BitmapEncoder.saveBitmap(chart, file.toString(), BitmapEncoder.BitmapFormat.PNG);
+            int rows = charts.length;
+            int cols = 1;
+            BitmapEncoder.saveBitmap(
+                    ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
             log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
         } catch (IOException e) {
             throw new RuntimeException(e);

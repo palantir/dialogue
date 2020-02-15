@@ -27,7 +27,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
@@ -163,8 +162,10 @@ public class SimulationTest {
     @After
     public void after() {
         SimulationMetrics metrics = simulation.metrics();
-        metrics.dumpPng(Paths.get("[active]" + testName.getMethodName() + ".png"), Pattern.compile("active"));
-        metrics.dumpPng(Paths.get("[counts]" + testName.getMethodName() + ".png"), Pattern.compile("request.*count"));
+        SimulationMetrics.png(
+                testName.getMethodName() + ".png",
+                metrics.chart(Pattern.compile("active")),
+                metrics.chart(Pattern.compile("request.*count")));
     }
 
     private static Response response(int status) {
