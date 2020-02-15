@@ -29,6 +29,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -44,6 +45,8 @@ public final class Benchmark {
     private Simulation simulation;
     private Function<Integer, ListenableFuture<Response>> channel;
     private final List<Runnable> onCompletion = new ArrayList<>();
+
+    private final Random random = new Random(12345L);
 
     private Benchmark() {}
 
@@ -85,7 +88,7 @@ public final class Benchmark {
         Instant realStart = Instant.now();
         SettableFuture<Void> done = SettableFuture.create();
 
-        int numMetricSamples = 100;
+        int numMetricSamples = 200;
         int checkPoint = numRequests / numMetricSamples;
 
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
@@ -130,7 +133,8 @@ public final class Benchmark {
                                         done.set(null);
                                     }
 
-                                    if (requestNum % checkPoint == 0) {
+                                    // we sample metrics with a little jitter to avoid misleading harmonic graphs
+                                    if ((requestNum + random.nextInt(checkPoint)) % checkPoint == 0) {
                                         log.debug("Reporting metrics at requestNum={}", requestNum);
                                         simulation.metrics().report();
                                     }

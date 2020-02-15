@@ -41,10 +41,12 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
             Caffeine.newBuilder().maximumSize(1000).build(upstream -> new AtomicInteger());
     private final ImmutableList<Channel> channels;
     private final Ticker clock;
+    private final Randomness randomness;
 
-    public PreferLowestUtilization(ImmutableList<Channel> channels, Ticker clock) {
+    public PreferLowestUtilization(ImmutableList<Channel> channels, Ticker clock, Randomness randomness) {
         this.channels = channels;
         this.clock = clock;
+        this.randomness = randomness;
     }
 
     @Override
@@ -78,8 +80,7 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
             }
         }
 
-        // TODO(dfox): tiebreaking currently always picks the first upstream when they have the same utilization
-        Channel bestChannel = best.get(0);
+        Channel bestChannel = randomness.selectRandom(best).get();
         log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), best, active.asMap());
         return Optional.of(bestChannel);
     }

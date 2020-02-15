@@ -64,6 +64,6 @@ public class PreferLowestUtilizationTest {
     }
 
     private PreferLowestUtilization construct() {
-        return new PreferLowestUtilization(upstreams, Ticker.disabledTicker());
+        return new PreferLowestUtilization(upstreams, Ticker.disabledTicker(), SimulationUtils.DETERMINISTIC);
     }
 }

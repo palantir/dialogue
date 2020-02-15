@@ -21,17 +21,29 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Response;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 
 public final class SimulationUtils {
 
     @SuppressWarnings("UnnecessaryAnonymousClass")
-    public static final StatisticsImpl.Randomness DETERMINISTIC = new StatisticsImpl.Randomness() {
+    public static final Randomness DETERMINISTIC = new Randomness() {
+
+        private final Random random = new Random(12345L);
+
         @Override
         public <T> Optional<T> selectRandom(List<T> list) {
-            return list.stream().findFirst();
+            if (list.size() == 1) {
+                return Optional.of(list.get(0)); // perf optimization
+            }
+
+            List<T> shuffleMe = new ArrayList<>(list);
+            Collections.shuffle(shuffleMe, random);
+            return shuffleMe.stream().findFirst();
         }
     };
 

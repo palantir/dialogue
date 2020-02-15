@@ -33,7 +33,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Comparator;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
@@ -82,10 +81,6 @@ final class StatisticsImpl {
                 .expireAfterWrite(Duration.ofSeconds(5))
                 .ticker(clock)
                 .build(this::computeBest);
-    }
-
-    interface Randomness {
-        <T> Optional<T> selectRandom(List<T> list);
     }
 
     private ExponentiallyDecayingReservoir newReservoir() {

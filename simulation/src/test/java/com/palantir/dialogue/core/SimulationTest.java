@@ -82,16 +82,20 @@ public class SimulationTest {
                     .simulation(simulation)
                     // at this point, the server starts returning failures very slowly
                     .untilTime(Duration.ofSeconds(3))
-                    .responseTime(Duration.ofMillis(100))
+                    .responseTime(Duration.ofMillis(500))
                     .response(response(429))
+                    // then we start erroring very fast
+                    .untilTime(Duration.ofSeconds(15))
+                    .responseTime(Duration.ofMillis(15))
+                    .response(response(500))
                     .build()
         };
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         Benchmark.builder()
-                .numRequests(1000) // something weird happens at 1811... bug in DeterministicScheduler?
-                .requestsPerSecond(150)
+                .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
+                .requestsPerSecond(100)
                 .channel(i -> channel.execute(endpoint, request("req-" + i)))
                 .simulation(simulation)
                 .onCompletion(() -> {
@@ -114,7 +118,8 @@ public class SimulationTest {
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
-        LimitedChannel idea = new PreferLowestUtilization(ImmutableList.copyOf(channels), sim.clock());
+        LimitedChannel idea =
+                new PreferLowestUtilization(ImmutableList.copyOf(channels), sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
     }
 
