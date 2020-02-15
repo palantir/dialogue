@@ -20,7 +20,6 @@ import static org.mockito.Mockito.mock;
 
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
-import com.codahale.metrics.Snapshot;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,10 +31,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.nio.file.Paths;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,8 +44,6 @@ public class SimulationTest {
 
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
-
-    private Instant realStart = Instant.now();
 
     @Test
     public void big_simulation() {
@@ -100,12 +97,10 @@ public class SimulationTest {
                     .response(response(429))
                     .build();
 
-            ImmutableList<Channel> servers = ImmutableList.of(server1, server2);
-
             Histogram histogram =
                     new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
 
-            List<LimitedChannel> limitedChannels = servers.stream()
+            List<LimitedChannel> limitedChannels = Stream.of(server1, server2)
                     .map(c -> new ConcurrencyLimitedChannel(
                             c, () -> ConcurrencyLimitedChannel.createLimiter(simulation.clock()::read)))
                     // this is a no-op concurrency limiter:
@@ -127,19 +122,6 @@ public class SimulationTest {
 
             done.addListener(
                     () -> {
-                        log.info(
-                                "Simulation finished. Real time={}, simulation time={}",
-                                Duration.between(realStart, Instant.now()),
-                                Duration.ofNanos(simulation.clock().read()));
-
-                        Snapshot snapshot = histogram.getSnapshot();
-                        log.info(
-                                "Client-side metrics min={} mean={} p95={} max={}",
-                                Duration.ofNanos(snapshot.getMin()),
-                                Duration.ofNanos((long) snapshot.getMean()),
-                                Duration.ofNanos((long) snapshot.get95thPercentile()),
-                                Duration.ofNanos(snapshot.getMax()));
-
                         // simulation.metrics().dumpCsv(Paths.get("./csv"));
                         simulation.metrics().dumpPng(Paths.get("./par.png"));
                     },
