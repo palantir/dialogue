@@ -32,11 +32,12 @@ import org.slf4j.LoggerFactory;
 final class BasicSimulationServer implements SimulationServer {
     private static final Logger log = LoggerFactory.getLogger(BasicSimulationServer.class);
 
-    private final String metricName;
     private final Simulation simulation;
-    private final Response response;
+    private final String metricName;
     private final Meter requestMeter;
     private final Counter activeRequests;
+
+    private final Response response;
     private final Function<BasicSimulationServer, Duration> responseTime;
 
     private BasicSimulationServer(Builder builder) {

@@ -90,30 +90,23 @@ public class SimulationTest {
         }
     }
 
-    @After
-    public void after() {
-        SimulationMetrics metrics = simulation.metrics();
-        metrics.dumpPng(Paths.get(testName.getMethodName() + "-active.png"), Pattern.compile("active"));
-        metrics.dumpPng(Paths.get(testName.getMethodName() + "-counts.png"), Pattern.compile("request.*count"));
-    }
-
     @Test
     public void simplest_possible_case() {
         Channel[] servers = {
             SimulationServer.builder()
-                    .metricName("a_fast")
+                    .metricName("fast")
                     .response(response(200))
                     .responseTimeConstant(Duration.ofMillis(600)) // this isn't very realistic
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
-                    .metricName("b_medium")
+                    .metricName("medium")
                     .response(response(200))
                     .responseTimeConstant(Duration.ofMillis(800))
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
-                    .metricName("c_slightly_slow")
+                    .metricName("slightly_slow")
                     .response(response(200))
                     .responseTimeConstant(Duration.ofMillis(1000))
                     .simulation(simulation)
@@ -163,13 +156,14 @@ public class SimulationTest {
                 .requestsPerSecond(200)
                 .channel(i -> channel.execute(endpoint, request("req-" + i)))
                 .simulation(simulation)
-                .onCompletion(() -> {
-                    simulation.metrics().dumpPng(Paths.get(strategy + "-active.png"), Pattern.compile("active"));
-                    simulation
-                            .metrics()
-                            .dumpPng(Paths.get(strategy + "-counts.png"), Pattern.compile("request.*count"));
-                })
                 .run();
+    }
+
+    @After
+    public void after() {
+        SimulationMetrics metrics = simulation.metrics();
+        metrics.dumpPng(Paths.get("[active]" + testName.getMethodName() + ".png"), Pattern.compile("active"));
+        metrics.dumpPng(Paths.get("[counts]" + testName.getMethodName() + ".png"), Pattern.compile("request.*count"));
     }
 
     private static Response response(int status) {
