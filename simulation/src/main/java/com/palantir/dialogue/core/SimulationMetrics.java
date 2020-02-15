@@ -168,7 +168,6 @@ final class SimulationMetrics {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
-                // .title(getClass().getSimpleName())
                 .xAxisTitle(X_AXIS)
                 // .yAxisTitle("Y axis")
                 .build();

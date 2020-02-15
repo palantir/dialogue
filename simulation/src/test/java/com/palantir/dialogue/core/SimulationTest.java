@@ -41,6 +41,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.knowm.xchart.XYChart;
 
 /**
  * The following sccenarios are probably worth testing.
@@ -65,18 +66,19 @@ import org.junit.runners.Parameterized;
 public class SimulationTest {
     private static final Endpoint endpoint = mock(Endpoint.class);
 
-    @Rule
-    public final TestName testName = new TestName();
-
-    Simulation simulation = new Simulation();
-
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
         return Strategy.values();
     }
 
+    @Rule
+    public final TestName testName = new TestName();
+
     @Parameterized.Parameter
     public Strategy strategy;
+
+    private final Simulation simulation = new Simulation();
+    private Benchmark.BenchmarkResult result;
 
     public enum Strategy {
         LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
@@ -115,7 +117,7 @@ public class SimulationTest {
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
-        Benchmark.builder()
+        result = Benchmark.builder()
                 .numRequests(2000)
                 .requestsPerSecond(50)
                 .channel(i -> channel.execute(endpoint, request("req-" + i)))
@@ -151,7 +153,7 @@ public class SimulationTest {
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
-        Benchmark.builder()
+        result = Benchmark.builder()
                 .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
                 .requestsPerSecond(200)
                 .channel(i -> channel.execute(endpoint, request("req-" + i)))
@@ -161,11 +163,16 @@ public class SimulationTest {
 
     @After
     public void after() {
-        SimulationMetrics metrics = simulation.metrics();
-        SimulationMetrics.png(
-                testName.getMethodName() + ".png",
-                metrics.chart(Pattern.compile("active")),
-                metrics.chart(Pattern.compile("request.*count")));
+        String title = String.format(
+                "%s client_mean=%s success=%s%%",
+                strategy, Duration.ofNanos((long) result.clientHistogram().getMean()), result.successPercentage());
+
+        XYChart chart1 = simulation.metrics().chart(Pattern.compile("active"));
+        chart1.setTitle(title);
+
+        XYChart chart2 = simulation.metrics().chart(Pattern.compile("request.*count"));
+
+        SimulationMetrics.png(testName.getMethodName() + ".png", chart1, chart2);
     }
 
     private static Response response(int status) {
@@ -179,13 +186,11 @@ public class SimulationTest {
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
-        ImmutableList<LimitedChannel> chans =
-                Arrays.stream(channels)
-                        .map(SimulationTest::noOpLimitedChannel)
-                        .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(10), sim.clock()))
-                        .collect(ImmutableList.toImmutableList());
-        LimitedChannel idea =
-                new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
+        ImmutableList<LimitedChannel> chans = Arrays.stream(channels)
+                .map(SimulationTest::noOpLimitedChannel)
+                .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(10), sim.clock()))
+                .collect(ImmutableList.toImmutableList());
+        LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
     }
 
