@@ -36,7 +36,7 @@ final class BasicSimulationServer implements SimulationServer {
     private final Simulation simulation;
     private final Response response;
     private final Duration responseTime;
-    private final Meter requestRate;
+    private final Meter requestMeter;
     private final Counter activeRequests;
 
     private BasicSimulationServer(Builder builder) {
@@ -44,8 +44,8 @@ final class BasicSimulationServer implements SimulationServer {
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
         this.response = Preconditions.checkNotNull(builder.response, "response");
         this.responseTime = Preconditions.checkNotNull(builder.responseTime, "responseTime");
-        this.requestRate = simulation.metrics().meter(metricName);
-        this.activeRequests = simulation.metrics().counter(metricName + ".active");
+        this.requestMeter = simulation.metrics().meter(String.format("[%s] request", metricName));
+        this.activeRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
     }
 
     public static Builder builder() {
@@ -55,7 +55,7 @@ final class BasicSimulationServer implements SimulationServer {
     @Override
     public ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request _request) {
         activeRequests.inc();
-        requestRate.mark();
+        requestMeter.mark();
         return simulation.schedule(
                 () -> {
                     log.debug(

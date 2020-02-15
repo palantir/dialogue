@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.knowm.xchart.BitmapEncoder;
@@ -117,10 +116,10 @@ final class SimulationMetrics {
         measurements.get(X_AXIS).add(seconds);
         metrics.forEach((name, metric) -> {
             if (metric instanceof Meter) {
-                measurements.get(name + ".meter.1m").add(((Meter) metric).getOneMinuteRate());
-                measurements.get(name + ".meter.count").add((double) ((Meter) metric).getCount());
+                measurements.get(name + ".1m").add(((Meter) metric).getOneMinuteRate());
+                measurements.get(name + ".count").add((double) ((Meter) metric).getCount());
             } else if (metric instanceof Counter) {
-                measurements.get(name + ".counter.count").add((double) ((Counter) metric).getCount());
+                measurements.get(name + ".count").add((double) ((Counter) metric).getCount());
             } else {
                 log.error("Unknown metric type {} {}", name, metric);
             }
@@ -165,11 +164,7 @@ final class SimulationMetrics {
         }
     }
 
-    public void dumpPng(Path file) {
-        dumpPng(file, Pattern.compile(".*\\.counter\\.count").asPredicate());
-    }
-
-    public void dumpPng(Path file, Predicate<String> predicate) {
+    public void dumpPng(Path file, Pattern metricNameRegex) {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
@@ -189,7 +184,8 @@ final class SimulationMetrics {
         double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
         List<String> columns = map.keySet().stream()
                 .filter(name -> !name.equals(X_AXIS))
-                .filter(predicate)
+                .filter(metricNameRegex.asPredicate())
+                .sorted()
                 .collect(Collectors.toList());
 
         for (String column : columns) {

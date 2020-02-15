@@ -17,6 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Snapshot;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
@@ -24,7 +26,9 @@ import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -79,41 +83,57 @@ public final class Benchmark {
 
     public ListenableFuture<Void> schedule() {
         Instant realStart = Instant.now();
+        SettableFuture<Void> done = SettableFuture.create();
 
         Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
         onCompletion(stopReporting);
 
-        SettableFuture<Void> done = SettableFuture.create();
-
-        int[] outstanding = new int[] {numRequests}; // don't need atomicinteger as we only have one thread
-        Runnable maybeMarkFinished = () -> {
-            outstanding[0] -= 1;
-            if (outstanding[0] == 0) {
-                done.set(null);
-            }
-        };
-
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
         Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
 
-        IntStream.range(0, numRequests).forEach(requestNum -> {
-            simulation.schedule(
-                    () -> {
-                        ListenableFuture<Response> serverFuture = histogramChannel.apply(requestNum);
-                        serverFuture.addListener(maybeMarkFinished, MoreExecutors.directExecutor());
-                        return null;
-                    },
-                    requestNum * intervalBetweenRequests.toNanos(),
-                    TimeUnit.NANOSECONDS);
-        });
+        int[] outstanding = new int[] {numRequests};
+        Map<String, Integer> statusCodes = new HashMap<>();
+
+        IntStream.range(0, numRequests).forEach(requestNum -> simulation.schedule(
+                () -> {
+                    ListenableFuture<Response> future = histogramChannel.apply(requestNum);
+                    Futures.addCallback(
+                            future,
+                            new FutureCallback<Response>() {
+                                @Override
+                                public void onSuccess(Response response) {
+                                    statusCodes.compute(
+                                            Integer.toString(response.code()), (c, num) -> num == null ? 0 : num + 1);
+                                }
+
+                                @Override
+                                public void onFailure(Throwable throwable) {
+                                    statusCodes.compute(
+                                            throwable.getClass().toString(), (c, num) -> num == null ? 0 : num + 1);
+                                }
+                            },
+                            MoreExecutors.directExecutor());
+                    future.addListener(
+                            () -> {
+                                outstanding[0] -= 1;
+                                if (outstanding[0] == 0) {
+                                    done.set(null);
+                                }
+                            },
+                            MoreExecutors.directExecutor());
+                    return null;
+                },
+                requestNum * intervalBetweenRequests.toNanos(),
+                TimeUnit.NANOSECONDS));
 
         onCompletion(() -> {
             Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
             log.info(
-                    "Finished simulation: client_mean={}, time={}, real_time={}",
+                    "Finished simulation: client_mean={}, end_time={}, codes={} ({} ms)", // return typed stats?
                     Duration.ofNanos((long) snapshot.getMean()),
                     Duration.ofNanos(simulation.clock().read()),
-                    Duration.between(realStart, Instant.now()));
+                    statusCodes,
+                    Duration.between(realStart, Instant.now()).toMillis());
         });
 
         onCompletion.forEach(runnable -> done.addListener(runnable, MoreExecutors.directExecutor()));

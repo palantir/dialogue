@@ -30,6 +30,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.Test;
@@ -52,7 +53,7 @@ public class SimulationTest {
     public Strategy strategy;
 
     @Test
-    public void fast_and_slow() {
+    public void fast_and_slow_broken_server() {
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("fast")
@@ -63,8 +64,12 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("slow")
                     .response(response(200))
-                    .responseTime(Duration.ofSeconds(20)) // <- mega slow!
+                    .responseTime(Duration.ofMillis(200))
                     .simulation(simulation)
+                    // at this point, the server starts returning failures very slowly
+                    .untilTime(Duration.ofSeconds(30))
+                    .responseTime(Duration.ofSeconds(20))
+                    .response(response(500))
                     .build()
         };
 
@@ -76,7 +81,10 @@ public class SimulationTest {
                 .channel(i -> channel.execute(endpoint, request))
                 .simulation(simulation)
                 .onCompletion(() -> {
-                    simulation.metrics().dumpPng(Paths.get(strategy + ".png"));
+                    simulation.metrics().dumpPng(Paths.get(strategy + "-active.png"), Pattern.compile("active"));
+                    simulation
+                            .metrics()
+                            .dumpPng(Paths.get(strategy + "-counts.png"), Pattern.compile("request.*count"));
                 })
                 .run();
     }
