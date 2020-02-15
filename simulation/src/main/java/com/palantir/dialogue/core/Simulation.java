@@ -24,15 +24,13 @@ import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,10 +110,8 @@ final class Simulation implements Closeable {
         }
     }
 
-    public ListenableFuture<Void> runParallelRequests(Channel channel, int numBatches, int batchSize, Duration batchDelay) {
-        Endpoint endpoint = null;
-        Request request = null;
-
+    public ListenableFuture<Void> runParallelRequests(
+            Supplier<ListenableFuture<Response>> execute, int numBatches, int batchSize, Duration batchDelay) {
         Runnable stopReporting = metrics().startReporting(Duration.ofSeconds(1));
 
         SettableFuture<Void> done = SettableFuture.create();
@@ -128,7 +124,7 @@ final class Simulation implements Closeable {
                     () -> {
                         for (int i = 0; i < batchSize; i++) {
 
-                            ListenableFuture<Response> serverFuture = channel.execute(endpoint, request);
+                            ListenableFuture<Response> serverFuture = execute.get();
 
                             Futures.transformAsync(
                                     serverFuture,

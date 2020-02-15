@@ -23,10 +23,8 @@ import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.codahale.metrics.Snapshot;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -37,7 +35,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import org.junit.Test;
 import org.slf4j.Logger;
@@ -58,22 +55,22 @@ public class SimulationTest {
             SimulationServer server1 = SimulationServer.builder()
                     .metricName("server1")
                     .simulation(simulation)
-                    .response(response(200, "1.56.0"))
+                    .response(response(200))
                     .responseTime(Duration.ofMillis(200))
                     .build();
 
             SimulationServer server2 = SimulationServer.builder()
                     .metricName("server2")
                     .simulation(simulation)
-                    .response(response(200, "1.56.0"))
+                    .response(response(200))
                     .responseTime(Duration.ofMillis(400))
                     .build();
 
-            LimitedChannel idea =
-                    new PreferLowestUtilization(ImmutableList.of(server1, server2), simulation.clock());
+            LimitedChannel idea = new PreferLowestUtilization(ImmutableList.of(server1, server2), simulation.clock());
             Channel channel = dontTolerateLimits(idea);
 
-            ListenableFuture<Void> done = simulation.runParallelRequests(channel, 100, 4, Duration.ofMillis(100));
+            ListenableFuture<Void> done = simulation.runParallelRequests(
+                    () -> channel.execute(endpoint, request), 100, 4, Duration.ofMillis(100));
 
             done.addListener(
                     () -> {
@@ -90,17 +87,17 @@ public class SimulationTest {
             SimulationServer server1 = SimulationServer.builder()
                     .metricName("fast_server")
                     .simulation(simulation)
-                    .response(response(200, "1.56.0"))
+                    .response(response(200))
                     .responseTime(Duration.ofMillis(200))
                     .build();
 
             SimulationServer server2 = SimulationServer.builder()
                     .metricName("bad_server")
                     .simulation(simulation)
-                    .response(response(200, "1.56.0"))
+                    .response(response(200))
                     .responseTime(Duration.ofMillis(5000))
                     .untilTime(Duration.ofSeconds(50))
-                    .response(response(429, "1.56.0"))
+                    .response(response(429))
                     .build();
 
             ImmutableList<Channel> servers = ImmutableList.of(server1, server2);
@@ -123,9 +120,10 @@ public class SimulationTest {
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             channel = new RetryingChannel(channel);
-            channel = testInstrumentation(histogram, simulation.clock(), channel);
+            Channel channel1 = testInstrumentation(histogram, simulation.clock(), channel);
 
-            SettableFuture<Void> done = fireOffBatches(simulation, channel, 1000, 4, Duration.ofMillis(100));
+            ListenableFuture<Void> done = simulation.runParallelRequests(
+                    () -> channel1.execute(endpoint, request), 1000, 4, Duration.ofMillis(100));
 
             done.addListener(
                     () -> {
@@ -143,11 +141,9 @@ public class SimulationTest {
                                 Duration.ofNanos(snapshot.getMax()));
 
                         // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                        // simulation.metrics().dumpPng(Paths.get("./par.png"));
+                        simulation.metrics().dumpPng(Paths.get("./par.png"));
                     },
                     MoreExecutors.directExecutor());
-
-            // fireOffSerialRequests(simulation, thingWeAreTesting, 30);
         }
     }
 
@@ -178,92 +174,7 @@ public class SimulationTest {
         };
     }
 
-    private SettableFuture<Void> fireOffBatches(
-            Simulation simulation, Channel channel, int numBatches, int batchSize, Duration batchDelay) {
-
-        Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
-
-        SettableFuture<Void> done = SettableFuture.create();
-        done.addListener(stopReporting, MoreExecutors.directExecutor());
-
-        int total = numBatches * batchSize;
-        AtomicInteger outstanding = new AtomicInteger(total);
-        for (int batchNum = 0; batchNum < numBatches; batchNum++) {
-            simulation.schedule(
-                    () -> {
-                        for (int i = 0; i < batchSize; i++) {
-
-                            ListenableFuture<Response> serverFuture = channel.execute(endpoint, request);
-
-                            Futures.transformAsync(
-                                    serverFuture,
-                                    resp -> {
-                                        if (outstanding.decrementAndGet() == 0) {
-                                            done.set(null);
-                                        }
-
-                                        return Futures.immediateFuture(null);
-                                    },
-                                    MoreExecutors.directExecutor());
-                        }
-                    },
-                    batchNum * batchDelay.toNanos(),
-                    TimeUnit.NANOSECONDS);
-        }
-
-        return done;
-    }
-
-    // private void fireOffSerialRequests(
-    //         Simulation simulation, PreferLowestUpstreamUtilization thingWeAreTesting, int numRequests) {
-    //
-    //     Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
-    //
-    //     // fire off numRequests in a hot loop
-    //     ListenableFuture<Integer> roundTrip = Futures.immediateFuture(0);
-    //     for (int i = 0; i < numRequests; i++) {
-    //         roundTrip = Futures.transformAsync(
-    //                 roundTrip,
-    //                 number -> {
-    //                     Optional<Statistics.Upstream> best = thingWeAreTesting.getBest(endpoint);
-    //                     assertThat(best).isPresent();
-    //
-    //                     Statistics.Upstream upstream = best.get();
-    //                     SimulationServer server = nodeToServer.get(upstream);
-    //                     log.info(
-    //                             "time={} request={} upstream={}",
-    //                             simulation.clock().read(),
-    //                             number,
-    //                             server);
-    //
-    //                     Statistics.InFlightStage inFlight = thingWeAreTesting.recordStart(upstream, endpoint,
-    // request);
-    //                     ListenableFuture<Response> serverFuture = server.execute(endpoint, request);
-    //                     return Futures.transformAsync(
-    //                             serverFuture,
-    //                             resp -> {
-    //                                 inFlight.recordComplete(resp, null);
-    //                                 return Futures.immediateFuture(number + 1);
-    //                             },
-    //                             MoreExecutors.directExecutor());
-    //                 },
-    //                 MoreExecutors.directExecutor());
-    //     }
-    //     roundTrip.addListener(
-    //             () -> {
-    //                 stopReporting.run();
-    //                 log.info(
-    //                         "Simulation finished. Real time={}, simulation time={}",
-    //                         Duration.between(realStart, Instant.now()),
-    //                         Duration.ofNanos(simulation.clock().read()));
-    //
-    //                 // simulation.metrics().dumpCsv(Paths.get("./csv"));
-    //                 simulation.metrics().dumpPng(Paths.get("./metrics.png"));
-    //             },
-    //             MoreExecutors.directExecutor());
-    // }
-
-    private static Response response(int status, String version) {
-        return SimulationUtils.response(status, version);
+    private static Response response(int status) {
+        return SimulationUtils.response(status, "1.0.0");
     }
 }
