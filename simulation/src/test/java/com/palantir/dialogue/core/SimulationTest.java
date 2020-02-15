@@ -18,9 +18,6 @@ package com.palantir.dialogue.core;
 
 import static org.mockito.Mockito.mock;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -32,101 +29,73 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
+import java.util.Optional;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.Test;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+@RunWith(Parameterized.class)
 public class SimulationTest {
-    private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
+    @Parameterized.Parameters(name = "{0}")
+    public static Strategy[] data() {
+        return Strategy.values();
+    }
+
+    @Parameterized.Parameter
+    public Strategy strategy;
+
+    public enum Strategy {
+        LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
+        CONCURRENCY_LIMITER(SimulationTest::concurrencyLimiter),
+        ROUND_ROBIN(SimulationTest::roundRobin);
+
+        private final BiFunction<Simulation, Channel[], Channel> getChannel;
+
+        Strategy(BiFunction<Simulation, Channel[], Channel> getChannel) {
+            this.getChannel = getChannel;
+        }
+    }
+
+    Simulation simulation = new Simulation();
     Endpoint endpoint = mock(Endpoint.class);
     Request request = mock(Request.class);
 
     @Test
-    public void big_simulation() {
-        try (Simulation simulation = new Simulation()) {
+    public void scenario() {
+        SimulationServer server1 = SimulationServer.builder()
+                .metricName("server1")
+                .simulation(simulation)
+                .response(response(200))
+                .responseTime(Duration.ofMillis(200))
+                .build();
 
-            SimulationServer server1 = SimulationServer.builder()
-                    .metricName("server1")
-                    .simulation(simulation)
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(200))
-                    .build();
+        SimulationServer server2 = SimulationServer.builder()
+                .metricName("server2")
+                .simulation(simulation)
+                .response(response(200))
+                .responseTime(Duration.ofSeconds(20))
+                .build();
 
-            SimulationServer server2 = SimulationServer.builder()
-                    .metricName("server2")
-                    .simulation(simulation)
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(400))
-                    .build();
+        Channel channel = strategy.getChannel.apply(simulation, new Channel[] {server1, server2});
 
-            LimitedChannel idea = new PreferLowestUtilization(ImmutableList.of(server1, server2), simulation.clock());
-            Channel channel = dontTolerateLimits(idea);
+        ListenableFuture<Void> done = Benchmark.builder()
+                .numRequests(1000)
+                .requestsPerSecond(20)
+                .channel(i -> channel.execute(endpoint, request))
+                .simulation(simulation)
+                .run();
 
-            ListenableFuture<Void> done = simulation.runParallelRequests(
-                    () -> channel.execute(endpoint, request), 100, 4, Duration.ofMillis(100));
+        done.addListener(
+                () -> {
+                    simulation.metrics().dumpPng(Paths.get(strategy + ".png"));
+                },
+                MoreExecutors.directExecutor());
 
-            done.addListener(
-                    () -> {
-                        simulation.metrics().dumpPng(Paths.get("big_simulation.png"));
-                    },
-                    MoreExecutors.directExecutor());
-        }
-    }
-
-    @Test
-    public void concurrency_limiters() {
-        try (Simulation simulation = new Simulation()) {
-
-            SimulationServer server1 = SimulationServer.builder()
-                    .metricName("fast_server")
-                    .simulation(simulation)
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(200))
-                    .build();
-
-            SimulationServer server2 = SimulationServer.builder()
-                    .metricName("bad_server")
-                    .simulation(simulation)
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(5000))
-                    .untilTime(Duration.ofSeconds(50))
-                    .response(response(429))
-                    .build();
-
-            Histogram histogram =
-                    new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
-
-            List<LimitedChannel> limitedChannels = Stream.of(server1, server2)
-                    .map(c -> new ConcurrencyLimitedChannel(
-                            c, () -> ConcurrencyLimitedChannel.createLimiter(simulation.clock()::read)))
-                    // this is a no-op concurrency limiter:
-                    // .map(c -> new LimitedChannel() {
-                    //     @Override
-                    //     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request)
-                    // {
-                    //         return Optional.of(c.execute(endpoint, request));
-                    //     }
-                    // })
-                    .collect(Collectors.toList());
-            LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            channel = new RetryingChannel(channel);
-            Channel channel1 = testInstrumentation(histogram, simulation.clock(), channel);
-
-            ListenableFuture<Void> done = simulation.runParallelRequests(
-                    () -> channel1.execute(endpoint, request), 1000, 4, Duration.ofMillis(100));
-
-            done.addListener(
-                    () -> {
-                        // simulation.metrics().dumpCsv(Paths.get("./csv"));
-                        simulation.metrics().dumpPng(Paths.get("./par.png"));
-                    },
-                    MoreExecutors.directExecutor());
-        }
+        simulation.run();
     }
 
     private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
@@ -140,23 +109,31 @@ public class SimulationTest {
         };
     }
 
-    private static Channel testInstrumentation(Histogram histogram, Ticker clock, Channel channel) {
-        return new Channel() {
-            @Override
-            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                long start = clock.read();
-                ListenableFuture<Response> future = channel.execute(endpoint, request);
-                future.addListener(
-                        () -> {
-                            histogram.update(clock.read() - start);
-                        },
-                        MoreExecutors.directExecutor());
-                return future;
-            }
-        };
-    }
-
     private static Response response(int status) {
         return SimulationUtils.response(status, "1.0.0");
+    }
+
+    private static Channel lowestUtilization(Simulation sim, Channel... channels) {
+        LimitedChannel idea = new PreferLowestUtilization(ImmutableList.copyOf(channels), sim.clock());
+        return dontTolerateLimits(idea);
+    }
+
+    private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
+        List<LimitedChannel> limitedChannels = Stream.of(channels)
+                .map(c -> new ConcurrencyLimitedChannel(
+                        c, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
+                .collect(Collectors.toList());
+        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+        return new RetryingChannel(channel);
+    }
+
+    private static Channel roundRobin(Simulation sim, Channel... channels) {
+        List<LimitedChannel> limitedChannels = Stream.of(channels)
+                .map(c -> (LimitedChannel) (endpoint, request) -> Optional.of(c.execute(endpoint, request)))
+                .collect(Collectors.toList());
+        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+        return new RetryingChannel(channel);
     }
 }

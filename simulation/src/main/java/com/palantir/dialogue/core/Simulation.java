@@ -16,30 +16,20 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Histogram;
-import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
-import com.codahale.metrics.Snapshot;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.base.Preconditions;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
-import com.palantir.dialogue.Response;
-import java.io.Closeable;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Combined ScheduledExecutorService and Clock. */
-final class Simulation implements Closeable {
+final class Simulation {
 
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
@@ -93,8 +83,7 @@ final class Simulation implements Closeable {
         ticker.advanceTo(duration);
     }
 
-    @Override
-    public void close() {
+    public void run() {
         advanceTo(Duration.ofNanos(Long.MAX_VALUE));
     }
 
@@ -111,76 +100,6 @@ final class Simulation implements Closeable {
             Preconditions.checkArgument(
                     newNanos >= nanos, "TestTicker time may not go backwards current=%s new=%s", nanos, newNanos);
             nanos = newNanos;
-        }
-    }
-
-    public ListenableFuture<Void> runParallelRequests(
-            Supplier<ListenableFuture<Response>> channel, int numBatches, int batchSize, Duration batchDelay) {
-        Instant realStart = Instant.now();
-        SettableFuture<Void> done = SettableFuture.create();
-
-        Runnable stopReporting = metrics().startReporting(Duration.ofSeconds(1));
-        done.addListener(stopReporting, MoreExecutors.directExecutor());
-
-        InstrumentedChannel instrumentedChannel = new InstrumentedChannel(channel);
-
-        int total = numBatches * batchSize;
-        AtomicInteger outstanding = new AtomicInteger(total);
-        for (int batchNum = 0; batchNum < numBatches; batchNum++) {
-            schedule(
-                    () -> {
-                        for (int i = 0; i < batchSize; i++) {
-                            ListenableFuture<Response> serverFuture = instrumentedChannel.get();
-
-                            serverFuture.addListener(
-                                    () -> {
-                                        if (outstanding.decrementAndGet() == 0) {
-                                            done.set(null);
-                                        }
-                                    },
-                                    MoreExecutors.directExecutor());
-                        }
-                    },
-                    batchNum * batchDelay.toNanos(),
-                    TimeUnit.NANOSECONDS);
-        }
-
-        done.addListener(
-                () -> {
-                    log.info(
-                            "Simulation finished. Num requests={} Real time={}, simulation time={}",
-                            total,
-                            Duration.between(realStart, Instant.now()),
-                            Duration.ofNanos(clock().read()));
-
-                    Snapshot snapshot = instrumentedChannel.histogram.getSnapshot();
-                    log.info(
-                            "Client-side metrics min={} mean={} p95={} max={}",
-                            Duration.ofNanos(snapshot.getMin()),
-                            Duration.ofNanos((long) snapshot.getMean()),
-                            Duration.ofNanos((long) snapshot.get95thPercentile()),
-                            Duration.ofNanos(snapshot.getMax()));
-                },
-                MoreExecutors.directExecutor());
-
-        return done;
-    }
-
-    private class InstrumentedChannel implements Supplier<ListenableFuture<Response>> {
-        private final Histogram histogram =
-                new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, codahaleClock));
-        private final Supplier<ListenableFuture<Response>> channel;
-
-        private InstrumentedChannel(Supplier<ListenableFuture<Response>> channel) {
-            this.channel = channel;
-        }
-
-        @Override
-        public ListenableFuture<Response> get() {
-            long start = ticker.read();
-            ListenableFuture<Response> future = channel.get();
-            future.addListener(() -> histogram.update(ticker.read() - start), MoreExecutors.directExecutor());
-            return future;
         }
     }
 }

@@ -80,7 +80,7 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
 
         // TODO(dfox): tiebreaking currently always picks the first upstream when they have the same utilization
         Channel bestChannel = best.get(0);
-        log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), best, active.asMap());
+        log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), best, active.asMap());
         return Optional.of(bestChannel);
     }
 }

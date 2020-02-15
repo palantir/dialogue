@@ -131,8 +131,6 @@ final class SimulationMetrics {
         if (keepRunning.get()) {
             simulation.schedule(
                     () -> reportInfinitely(keepRunning, interval), interval.toNanos(), TimeUnit.NANOSECONDS);
-        } else {
-            log.info("SimulationMetrics reporter stopped");
         }
     }
 
