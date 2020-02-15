@@ -116,7 +116,6 @@ final class SimulationMetrics {
 
         measurements.get(X_AXIS).add(seconds);
         metrics.forEach((name, metric) -> {
-
             if (metric instanceof Meter) {
                 measurements.get(name + ".meter.1m").add(((Meter) metric).getOneMinuteRate());
                 measurements.get(name + ".meter.count").add((double) ((Meter) metric).getCount());
@@ -125,12 +124,16 @@ final class SimulationMetrics {
             } else {
                 log.error("Unknown metric type {} {}", name, metric);
             }
-
         });
 
         if (keepRunning.get()) {
             simulation.schedule(
-                    () -> reportInfinitely(keepRunning, interval), interval.toNanos(), TimeUnit.NANOSECONDS);
+                    () -> {
+                        reportInfinitely(keepRunning, interval);
+                        return null;
+                    },
+                    interval.toNanos(),
+                    TimeUnit.NANOSECONDS);
         }
     }
 

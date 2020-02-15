@@ -23,6 +23,8 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -33,10 +35,11 @@ import org.slf4j.LoggerFactory;
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
 
-    private int requestsPerSecond;
-    private int numRequests;
+    private int requestsPerSecond = 1000;
+    private int numRequests = 20;
     private Simulation simulation;
     private Function<Integer, ListenableFuture<Response>> channel;
+    private final List<Runnable> onCompletion = new ArrayList<>();
 
     private Benchmark() {}
 
@@ -64,12 +67,23 @@ public final class Benchmark {
         return this;
     }
 
-    public ListenableFuture<Void> run() {
+    public Benchmark onCompletion(Runnable runnable) {
+        onCompletion.add(runnable);
+        return this;
+    }
+
+    public void run() {
+        schedule();
+        simulation.runClockToInfinity();
+    }
+
+    public ListenableFuture<Void> schedule() {
         Instant realStart = Instant.now();
-        SettableFuture<Void> done = SettableFuture.create();
 
         Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
-        done.addListener(stopReporting, MoreExecutors.directExecutor());
+        onCompletion(stopReporting);
+
+        SettableFuture<Void> done = SettableFuture.create();
 
         int[] outstanding = new int[] {numRequests}; // don't need atomicinteger as we only have one thread
         Runnable maybeMarkFinished = () -> {
@@ -81,27 +95,28 @@ public final class Benchmark {
 
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
         Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
+
         IntStream.range(0, numRequests).forEach(requestNum -> {
             simulation.schedule(
                     () -> {
                         ListenableFuture<Response> serverFuture = histogramChannel.apply(requestNum);
                         serverFuture.addListener(maybeMarkFinished, MoreExecutors.directExecutor());
+                        return null;
                     },
                     requestNum * intervalBetweenRequests.toNanos(),
                     TimeUnit.NANOSECONDS);
         });
 
-        done.addListener(
-                () -> {
-                    Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
-                    log.info(
-                            "Finished simulation: num={} time={}, mean={}, real time={}",
-                            numRequests,
-                            Duration.ofNanos(simulation.clock().read()),
-                            Duration.ofNanos((long) snapshot.getMean()),
-                            Duration.between(realStart, Instant.now()));
-                },
-                MoreExecutors.directExecutor());
+        onCompletion(() -> {
+            Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
+            log.info(
+                    "Finished simulation: client_mean={}, time={}, real_time={}",
+                    Duration.ofNanos((long) snapshot.getMean()),
+                    Duration.ofNanos(simulation.clock().read()),
+                    Duration.between(realStart, Instant.now()));
+        });
+
+        onCompletion.forEach(runnable -> done.addListener(runnable, MoreExecutors.directExecutor()));
 
         return done;
     }

@@ -29,4 +29,5 @@ public interface SimulationServer extends Channel {
     static BasicSimulationServer.Builder builder() {
         return BasicSimulationServer.builder();
     }
+
 }

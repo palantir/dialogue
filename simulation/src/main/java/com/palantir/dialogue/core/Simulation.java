@@ -32,10 +32,11 @@ import org.slf4j.LoggerFactory;
 final class Simulation {
 
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
+
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
-    private final TestTicker ticker = new TestTicker();
+    private final TestCaffeineTicker ticker = new TestCaffeineTicker();
     private final SimulationMetrics metrics = new SimulationMetrics(this);
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
 
@@ -56,16 +57,6 @@ final class Simulation {
                 unit);
     }
 
-    public ListenableScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        return schedule(
-                () -> {
-                    command.run();
-                    return null;
-                },
-                delay,
-                unit);
-    }
-
     public Ticker clock() {
         return ticker; // read only!
     }
@@ -78,16 +69,16 @@ final class Simulation {
         return metrics;
     }
 
-    public void advanceTo(Duration duration) {
+    public void runClockToInfinity() {
+        advanceTo(Duration.ofNanos(Long.MAX_VALUE));
+    }
+
+    private void advanceTo(Duration duration) {
         deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
         ticker.advanceTo(duration);
     }
 
-    public void run() {
-        advanceTo(Duration.ofNanos(Long.MAX_VALUE));
-    }
-
-    private static final class TestTicker implements Ticker {
+    private static final class TestCaffeineTicker implements Ticker {
         private long nanos = 0;
 
         @Override
@@ -101,5 +92,9 @@ final class Simulation {
                     newNanos >= nanos, "TestTicker time may not go backwards current=%s new=%s", nanos, newNanos);
             nanos = newNanos;
         }
+    }
+
+    public BasicSimulationServer.Builder newServer() {
+        return SimulationServer.builder().simulation(this);
     }
 }

@@ -20,7 +20,6 @@ import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -40,6 +39,10 @@ import org.junit.runners.Parameterized;
 @RunWith(Parameterized.class)
 public class SimulationTest {
 
+    Simulation simulation = new Simulation();
+    Endpoint endpoint = mock(Endpoint.class);
+    Request request = mock(Request.class);
+
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
         return Strategy.values();
@@ -47,6 +50,36 @@ public class SimulationTest {
 
     @Parameterized.Parameter
     public Strategy strategy;
+
+    @Test
+    public void fast_and_slow() {
+        Channel[] servers = {
+            SimulationServer.builder()
+                    .metricName("fast")
+                    .response(response(200))
+                    .responseTime(Duration.ofMillis(200))
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("slow")
+                    .response(response(200))
+                    .responseTime(Duration.ofSeconds(20)) // <- mega slow!
+                    .simulation(simulation)
+                    .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        Benchmark.builder()
+                .numRequests(1000)
+                .requestsPerSecond(20)
+                .channel(i -> channel.execute(endpoint, request))
+                .simulation(simulation)
+                .onCompletion(() -> {
+                    simulation.metrics().dumpPng(Paths.get(strategy + ".png"));
+                })
+                .run();
+    }
 
     public enum Strategy {
         LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
@@ -58,55 +91,6 @@ public class SimulationTest {
         Strategy(BiFunction<Simulation, Channel[], Channel> getChannel) {
             this.getChannel = getChannel;
         }
-    }
-
-    Simulation simulation = new Simulation();
-    Endpoint endpoint = mock(Endpoint.class);
-    Request request = mock(Request.class);
-
-    @Test
-    public void scenario() {
-        SimulationServer server1 = SimulationServer.builder()
-                .metricName("server1")
-                .simulation(simulation)
-                .response(response(200))
-                .responseTime(Duration.ofMillis(200))
-                .build();
-
-        SimulationServer server2 = SimulationServer.builder()
-                .metricName("server2")
-                .simulation(simulation)
-                .response(response(200))
-                .responseTime(Duration.ofSeconds(20))
-                .build();
-
-        Channel channel = strategy.getChannel.apply(simulation, new Channel[] {server1, server2});
-
-        ListenableFuture<Void> done = Benchmark.builder()
-                .numRequests(1000)
-                .requestsPerSecond(20)
-                .channel(i -> channel.execute(endpoint, request))
-                .simulation(simulation)
-                .run();
-
-        done.addListener(
-                () -> {
-                    simulation.metrics().dumpPng(Paths.get(strategy + ".png"));
-                },
-                MoreExecutors.directExecutor());
-
-        simulation.run();
-    }
-
-    private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
-        return new Channel() {
-            @Override
-            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                return limitedChannel
-                        .maybeExecute(endpoint, request)
-                        .orElseThrow(() -> new RuntimeException("Got limited :("));
-            }
-        };
     }
 
     private static Response response(int status) {
@@ -135,5 +119,16 @@ public class SimulationTest {
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
         return new RetryingChannel(channel);
+    }
+
+    private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
+        return new Channel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                return limitedChannel
+                        .maybeExecute(endpoint, request)
+                        .orElseThrow(() -> new RuntimeException("Got limited :("));
+            }
+        };
     }
 }
