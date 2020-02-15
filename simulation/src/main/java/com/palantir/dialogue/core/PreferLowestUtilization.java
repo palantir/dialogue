@@ -20,11 +20,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -35,40 +32,27 @@ import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class PreferLowestUtilization implements LimitedChannel, Statistics {
+public final class PreferLowestUtilization implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PreferLowestUtilization.class);
 
     // integers are indexes into the 'channels' list
-    private final LoadingCache<Channel, AtomicInteger> active =
+    private final LoadingCache<LimitedChannel, AtomicInteger> active =
             Caffeine.newBuilder().maximumSize(1000).build(upstream -> new AtomicInteger());
-    private final ImmutableList<Channel> channels;
+    private final ImmutableList<LimitedChannel> channels;
     private final Ticker clock;
     private final Randomness randomness;
 
-    public PreferLowestUtilization(ImmutableList<Channel> channels, Ticker clock, Randomness randomness) {
+    public PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Ticker clock, Randomness randomness) {
         this.channels = channels;
         this.clock = clock;
         this.randomness = randomness;
 
-        for (Channel channel : channels) {
+        for (LimitedChannel channel : channels) {
             active.get(channel); // prefills the cache
         }
-    }
-
-    @Override
-    public Statistics.InFlightStage recordStart(Channel upstream, Endpoint _endpoint, Request _request) {
-        AtomicInteger atomicInteger = active.get(upstream);
-        atomicInteger.incrementAndGet();
-        return new Statistics.InFlightStage() {
-            @Override
-            public void recordComplete(@Nullable Response _response, @Nullable Throwable _throwable) {
-                atomicInteger.decrementAndGet();
-            }
-        };
     }
 
     @Override
@@ -79,7 +63,7 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
 
         // we accumulate everything right now (which is probably quite expensive), but it allows us to move on to the
         // next-best channel if our preferred one refuses
-        Map<Integer, ImmutableList<Channel>> channelsByActive = active.asMap().entrySet().stream()
+        Map<Integer, ImmutableList<LimitedChannel>> channelsByActive = active.asMap().entrySet().stream()
                 .collect(Collectors.toMap(
                         entry -> entry.getValue().get(),
                         entry -> ImmutableList.of(entry.getKey()),
@@ -88,41 +72,31 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
 
         // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
         for (Integer activeCount : channelsByActive.keySet()) {
-            ImmutableList<Channel> candidates = channelsByActive.get(activeCount);
-            List<Channel> tiebroken = randomness.shuffle(candidates);
-            for (Channel channel : tiebroken) {
-                log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, active.asMap());
-                ListenableFuture<Response> timed = wrapChannel(endpoint, request, channel);
-                return Optional.of(timed);
+            ImmutableList<LimitedChannel> candidates = channelsByActive.get(activeCount);
+            List<LimitedChannel> tiebroken = randomness.shuffle(candidates);
+            for (LimitedChannel channel : tiebroken) {
+                log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
+
+                AtomicInteger atomicInteger = active.get(channel);
+
+                Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+                if (maybeResponse.isPresent()) {
+                    ListenableFuture<Response> response = maybeResponse.get();
+                    atomicInteger.incrementAndGet();
+                    response.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
+                    return Optional.of(response);
+                }
+
+                // we have to undo the atomicInteger thing we eagerly incremented.
+                atomicInteger.decrementAndGet();
             }
         }
 
-        // every single channel refused :(
-        log.info("Every single thingy refused {}", channelsByActive);
+        log.info("Every single channel refused :( {}", channelsByActive);
         return Optional.empty();
     }
 
-    private static ImmutableList<Channel> merge(List<Channel> left, List<Channel> right) {
-        return ImmutableList.<Channel>builder().addAll(left).addAll(right).build();
-    }
-
-    private ListenableFuture<Response> wrapChannel(Endpoint endpoint, Request request, Channel channel) {
-        InFlightStage inFlightStage = recordStart(channel, endpoint, request);
-        ListenableFuture<Response> response = channel.execute(endpoint, request);
-        Futures.addCallback(
-                response,
-                new FutureCallback<Response>() {
-                    @Override
-                    public void onSuccess(Response result) {
-                        inFlightStage.recordComplete(result, null);
-                    }
-
-                    @Override
-                    public void onFailure(Throwable throwable) {
-                        inFlightStage.recordComplete(null, throwable);
-                    }
-                },
-                MoreExecutors.directExecutor());
-        return response;
+    private static <T> ImmutableList<T> merge(List<T> left, List<T> right) {
+        return ImmutableList.<T>builder().addAll(left).addAll(right).build();
     }
 }

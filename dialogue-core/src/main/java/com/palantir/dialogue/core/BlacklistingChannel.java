@@ -78,4 +78,9 @@ final class BlacklistingChannel implements LimitedChannel {
             isBlacklisted.put(KEY, VALUE);
         }
     }
+
+    @Override
+    public String toString() {
+        return "BlacklistingChannel{delegate=" + delegate + '}';
+    }
 }

@@ -29,6 +29,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -177,13 +178,13 @@ public class SimulationTest {
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
-        // ImmutableList<LimitedChannel> chans =
-        //         Arrays.stream(channels)
-        //                 .map(c -> noOpLimitedChannel(c))
-        //                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(3), sim.clock()))
-        //                 .collect(ImmutableList.toImmutableList());
+        ImmutableList<LimitedChannel> chans =
+                Arrays.stream(channels)
+                        .map(SimulationTest::noOpLimitedChannel)
+                        // .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(3), sim.clock()))
+                        .collect(ImmutableList.toImmutableList());
         LimitedChannel idea =
-                new PreferLowestUtilization(ImmutableList.copyOf(channels), sim.clock(), SimulationUtils.DETERMINISTIC);
+                new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
     }
 
