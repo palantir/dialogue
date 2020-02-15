@@ -124,7 +124,7 @@ public class SimulationTest {
     }
 
     @Test
-    public void slow_failures_then_revert() {
+    public void slow_503s_then_revert() {
         int capacity = 60;
         Channel[] servers = {
             SimulationServer.builder()
@@ -141,7 +141,7 @@ public class SimulationTest {
                     // at this point, the server starts returning failures very slowly
                     .untilTime(Duration.ofSeconds(3))
                     .responseTimeUpToCapacity(Duration.ofSeconds(1), capacity)
-                    .response(response(500))
+                    .response(response(503))
                     // then we revert
                     .untilTime(Duration.ofSeconds(10))
                     .response(response(200))
@@ -182,7 +182,7 @@ public class SimulationTest {
         ImmutableList<LimitedChannel> chans =
                 Arrays.stream(channels)
                         .map(SimulationTest::noOpLimitedChannel)
-                        // .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(3), sim.clock()))
+                        .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(10), sim.clock()))
                         .collect(ImmutableList.toImmutableList());
         LimitedChannel idea =
                 new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
