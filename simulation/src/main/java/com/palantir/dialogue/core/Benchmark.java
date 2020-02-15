@@ -25,14 +25,13 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
+import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,7 +43,6 @@ public final class Benchmark {
     private int numRequests = 20;
     private Simulation simulation;
     private Function<Integer, ListenableFuture<Response>> channel;
-    private final List<Runnable> onCompletion = new ArrayList<>();
 
     private final Random random = new Random(12345L);
 
@@ -74,19 +72,15 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark onCompletion(Runnable runnable) {
-        onCompletion.add(runnable);
-        return this;
-    }
-
-    public void run() {
-        schedule();
+    public BenchmarkResult run() {
+        SettableFuture<BenchmarkResult> result = schedule();
         simulation.runClockToInfinity();
+        return Futures.getUnchecked(result);
     }
 
-    public ListenableFuture<Void> schedule() {
+    public SettableFuture<BenchmarkResult> schedule() {
         Instant realStart = Instant.now();
-        SettableFuture<Void> done = SettableFuture.create();
+        SettableFuture<BenchmarkResult> done = SettableFuture.create();
 
         int numMetricSamples = 200;
         int checkPoint = numRequests / numMetricSamples;
@@ -96,11 +90,53 @@ public final class Benchmark {
 
         int[] outstanding = new int[] {numRequests};
         Map<String, Integer> statusCodes = new HashMap<>();
+        Runnable maybeTerminate = () -> {
+            outstanding[0] -= 1;
+            if (outstanding[0] == 0) {
+                BenchmarkResult result = ImmutableBenchmarkResult.builder()
+                        .clientHistogram(histogramChannel.getHistogram().getSnapshot())
+                        .endTime(Duration.ofNanos(simulation.clock().read()))
+                        .statusCodes(statusCodes)
+                        .successPercentage(Math.round(statusCodes.get("200") * 1000d / numRequests) / 10d)
+                        .build();
+                log.info(
+                        "Finished simulation: client_mean={}, end_time={}, success={}% codes={} ({} ms)",
+                        Duration.ofNanos((long) result.clientHistogram().getMean()),
+                        result.endTime(),
+                        result.successPercentage(),
+                        result.statusCodes(),
+                        Duration.between(realStart, Instant.now()));
+                done.set(result);
+            }
+            // TODO(dfox): backstop in case one of the requests never comes back??
+        };
 
         IntStream.range(0, numRequests).forEach(requestNum -> {
             if (requestNum % checkPoint == 0) {
                 log.debug("Scheduling request {}", requestNum);
             }
+
+            Runnable reportMetrics = () -> {
+                // we sample metrics with a little jitter to avoid misleading harmonic graphs
+                if ((requestNum + random.nextInt(checkPoint)) % checkPoint == 0) {
+                    log.debug("Reporting metrics at requestNum={}", requestNum);
+                    simulation.metrics().report();
+                }
+            };
+
+            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    log.warn("requestNum={}", requestNum, throwable);
+                    statusCodes.compute(throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
+                }
+            };
+
             simulation.schedule(
                     () -> {
                         log.debug(
@@ -108,58 +144,26 @@ public final class Benchmark {
                                 simulation.clock().read(),
                                 requestNum);
                         ListenableFuture<Response> future = histogramChannel.apply(requestNum);
-                        Futures.addCallback(
-                                future,
-                                new FutureCallback<Response>() {
-                                    @Override
-                                    public void onSuccess(Response response) {
-                                        statusCodes.compute(
-                                                Integer.toString(response.code()),
-                                                (c, num) -> num == null ? 1 : num + 1);
-                                    }
 
-                                    @Override
-                                    public void onFailure(Throwable throwable) {
-                                        log.warn("requestNum={}", requestNum, throwable);
-                                        statusCodes.compute(
-                                                throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
-                                    }
-                                },
-                                MoreExecutors.directExecutor());
-                        future.addListener(
-                                () -> {
-                                    outstanding[0] -= 1;
-                                    if (outstanding[0] == 0) {
-                                        done.set(null);
-                                    }
-
-                                    // we sample metrics with a little jitter to avoid misleading harmonic graphs
-                                    if ((requestNum + random.nextInt(checkPoint)) % checkPoint == 0) {
-                                        log.debug("Reporting metrics at requestNum={}", requestNum);
-                                        simulation.metrics().report();
-                                    }
-                                },
-                                MoreExecutors.directExecutor());
+                        Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                        future.addListener(reportMetrics, MoreExecutors.directExecutor());
+                        future.addListener(maybeTerminate, MoreExecutors.directExecutor());
                     },
                     requestNum * intervalBetweenRequests.toNanos(),
                     TimeUnit.NANOSECONDS);
         });
 
-        onCompletion(() -> {
-            Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
-
-            log.info(
-                    "Finished simulation: client_mean={}, end_time={}, success={}% codes={} ({} ms)", // return typed
-                    // stats?
-                    Duration.ofNanos((long) snapshot.getMean()),
-                    Duration.ofNanos(simulation.clock().read()),
-                    Math.round(statusCodes.get("200") * 1000d / numRequests) / 10d,
-                    statusCodes,
-                    Duration.between(realStart, Instant.now()).toMillis());
-        });
-
-        onCompletion.forEach(runnable -> done.addListener(runnable, MoreExecutors.directExecutor()));
-
         return done;
+    }
+
+    @Value.Immutable
+    interface BenchmarkResult {
+        Snapshot clientHistogram();
+
+        Duration endTime();
+
+        Map<String, Integer> statusCodes();
+
+        double successPercentage();
     }
 }

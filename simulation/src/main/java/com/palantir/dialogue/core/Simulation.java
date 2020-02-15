@@ -86,7 +86,7 @@ final class Simulation {
     }
 
     public void runClockToInfinity() {
-        deterministicExecutor.tick(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
+        deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);
     }
 
     private static final class TestCaffeineTicker implements Ticker {
