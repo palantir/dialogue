@@ -58,26 +58,26 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("fast")
                     .response(response(200))
-                    .responseTime(Duration.ofMillis(200))
+                    .responseTime(Duration.ofMillis(500))
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
                     .metricName("slow")
                     .response(response(200))
-                    .responseTime(Duration.ofMillis(200))
+                    .responseTime(Duration.ofMillis(500))
                     .simulation(simulation)
                     // at this point, the server starts returning failures very slowly
-                    .untilTime(Duration.ofSeconds(30))
-                    .responseTime(Duration.ofSeconds(20))
-                    .response(response(500))
+                    .untilTime(Duration.ofSeconds(12))
+                    // .responseTime(Duration.ofSeconds(20))
+                    .response(response(429))
                     .build()
         };
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         Benchmark.builder()
-                .numRequests(1000)
-                .requestsPerSecond(20)
+                .numRequests(5000)
+                .requestsPerSecond(200)
                 .channel(i -> channel.execute(endpoint, request))
                 .simulation(simulation)
                 .onCompletion(() -> {

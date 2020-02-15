@@ -103,13 +103,13 @@ public final class Benchmark {
                                 @Override
                                 public void onSuccess(Response response) {
                                     statusCodes.compute(
-                                            Integer.toString(response.code()), (c, num) -> num == null ? 0 : num + 1);
+                                            Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
                                 }
 
                                 @Override
                                 public void onFailure(Throwable throwable) {
                                     statusCodes.compute(
-                                            throwable.getClass().toString(), (c, num) -> num == null ? 0 : num + 1);
+                                            throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
                                 }
                             },
                             MoreExecutors.directExecutor());
@@ -128,10 +128,13 @@ public final class Benchmark {
 
         onCompletion(() -> {
             Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
+
             log.info(
-                    "Finished simulation: client_mean={}, end_time={}, codes={} ({} ms)", // return typed stats?
+                    "Finished simulation: client_mean={}, end_time={}, success={}% codes={} ({} ms)", // return typed
+                    // stats?
                     Duration.ofNanos((long) snapshot.getMean()),
                     Duration.ofNanos(simulation.clock().read()),
+                    Math.round(statusCodes.get("200") * 100d / numRequests),
                     statusCodes,
                     Duration.between(realStart, Instant.now()).toMillis());
         });
