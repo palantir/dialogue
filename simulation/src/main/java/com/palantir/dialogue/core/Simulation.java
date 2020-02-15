@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -48,10 +47,27 @@ final class Simulation {
         long scheduleTime = ticker.read();
         long delayNanos = unit.toNanos(delay);
 
+        RuntimeException exceptionForStackTrace = new RuntimeException();
+
         return listenableExecutor.schedule(
                 () -> {
-                    ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                    return command.call();
+                    try {
+                        ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
+                        return command.call();
+                    } catch (Throwable e) {
+                        e.addSuppressed(exceptionForStackTrace);
+                        throw e;
+                    }
+                },
+                delay,
+                unit);
+    }
+
+    public <T> ListenableScheduledFuture<T> schedule(Runnable command, long delay, TimeUnit unit) {
+        return schedule(
+                () -> {
+                    command.run();
+                    return null;
                 },
                 delay,
                 unit);
@@ -70,12 +86,7 @@ final class Simulation {
     }
 
     public void runClockToInfinity() {
-        advanceTo(Duration.ofNanos(Long.MAX_VALUE));
-    }
-
-    private void advanceTo(Duration duration) {
-        deterministicExecutor.tick(duration.toNanos(), TimeUnit.NANOSECONDS);
-        ticker.advanceTo(duration);
+        deterministicExecutor.tick(Long.MAX_VALUE, TimeUnit.NANOSECONDS);
     }
 
     private static final class TestCaffeineTicker implements Ticker {
@@ -88,13 +99,11 @@ final class Simulation {
 
         public void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
-            Preconditions.checkArgument(
-                    newNanos >= nanos, "TestTicker time may not go backwards current=%s new=%s", nanos, newNanos);
+            if (newNanos < nanos) {
+                throw new RuntimeException(
+                        String.format("TestTicker time may not go backwards current=%s new=%s", nanos, newNanos));
+            }
             nanos = newNanos;
         }
-    }
-
-    public BasicSimulationServer.Builder newServer() {
-        return SimulationServer.builder().simulation(this);
     }
 }

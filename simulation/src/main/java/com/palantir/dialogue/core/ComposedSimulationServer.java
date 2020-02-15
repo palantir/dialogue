@@ -51,12 +51,12 @@ final class ComposedSimulationServer implements SimulationServer {
         boolean switchoverNow = predicate.switchover(clock);
         if (switchoverNow && !switchedOver) {
             switchedOver = true;
-            log.info("cutting over from first={} -> second={}", first, second);
+            log.info("time={} cutting over from first={} -> second={}", clock.read(), first, second);
         }
 
         if (!switchoverNow && switchedOver) {
             switchedOver = false;
-            log.info("cutting back from second={} -> first={}", second, first);
+            log.info("time={} cutting back from second={} -> first={}", clock.read(), second, first);
         }
 
         SimulationServer server = switchedOver ? second : first;

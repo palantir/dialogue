@@ -85,8 +85,8 @@ public final class Benchmark {
         Instant realStart = Instant.now();
         SettableFuture<Void> done = SettableFuture.create();
 
-        Runnable stopReporting = simulation.metrics().startReporting(Duration.ofSeconds(1));
-        onCompletion(stopReporting);
+        int numMetricSamples = 100;
+        int checkPoint = numRequests / numMetricSamples;
 
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
         Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
@@ -94,37 +94,52 @@ public final class Benchmark {
         int[] outstanding = new int[] {numRequests};
         Map<String, Integer> statusCodes = new HashMap<>();
 
-        IntStream.range(0, numRequests).forEach(requestNum -> simulation.schedule(
-                () -> {
-                    ListenableFuture<Response> future = histogramChannel.apply(requestNum);
-                    Futures.addCallback(
-                            future,
-                            new FutureCallback<Response>() {
-                                @Override
-                                public void onSuccess(Response response) {
-                                    statusCodes.compute(
-                                            Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
-                                }
+        IntStream.range(0, numRequests).forEach(requestNum -> {
+            if (requestNum % checkPoint == 0) {
+                log.debug("Scheduling request {}", requestNum);
+            }
+            simulation.schedule(
+                    () -> {
+                        log.debug(
+                                "time={} kicking off request {}",
+                                simulation.clock().read(),
+                                requestNum);
+                        ListenableFuture<Response> future = histogramChannel.apply(requestNum);
+                        Futures.addCallback(
+                                future,
+                                new FutureCallback<Response>() {
+                                    @Override
+                                    public void onSuccess(Response response) {
+                                        statusCodes.compute(
+                                                Integer.toString(response.code()),
+                                                (c, num) -> num == null ? 1 : num + 1);
+                                    }
 
-                                @Override
-                                public void onFailure(Throwable throwable) {
-                                    statusCodes.compute(
-                                            throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
-                                }
-                            },
-                            MoreExecutors.directExecutor());
-                    future.addListener(
-                            () -> {
-                                outstanding[0] -= 1;
-                                if (outstanding[0] == 0) {
-                                    done.set(null);
-                                }
-                            },
-                            MoreExecutors.directExecutor());
-                    return null;
-                },
-                requestNum * intervalBetweenRequests.toNanos(),
-                TimeUnit.NANOSECONDS));
+                                    @Override
+                                    public void onFailure(Throwable throwable) {
+                                        log.warn("requestNum={}", requestNum, throwable);
+                                        statusCodes.compute(
+                                                throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
+                                    }
+                                },
+                                MoreExecutors.directExecutor());
+                        future.addListener(
+                                () -> {
+                                    outstanding[0] -= 1;
+                                    if (outstanding[0] == 0) {
+                                        done.set(null);
+                                    }
+
+                                    if (requestNum % checkPoint == 0) {
+                                        log.debug("Reporting metrics at requestNum={}", requestNum);
+                                        simulation.metrics().report();
+                                    }
+                                },
+                                MoreExecutors.directExecutor());
+                    },
+                    requestNum * intervalBetweenRequests.toNanos(),
+                    TimeUnit.NANOSECONDS);
+        });
 
         onCompletion(() -> {
             Snapshot snapshot = histogramChannel.getHistogram().getSnapshot();
@@ -134,7 +149,7 @@ public final class Benchmark {
                     // stats?
                     Duration.ofNanos((long) snapshot.getMean()),
                     Duration.ofNanos(simulation.clock().read()),
-                    Math.round(statusCodes.get("200") * 100d / numRequests),
+                    Math.round(statusCodes.get("200") * 1000d / numRequests) / 10d,
                     statusCodes,
                     Duration.between(realStart, Instant.now()).toMillis());
         });

@@ -211,7 +211,5 @@ final class StatisticsImpl {
         return randomness.selectRandom(upstreams.get());
     }
 
-    interface Upstream {
-
-    }
+    interface Upstream {}
 }

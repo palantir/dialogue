@@ -17,8 +17,10 @@
 package com.palantir.dialogue.core;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -52,43 +54,6 @@ public class SimulationTest {
     @Parameterized.Parameter
     public Strategy strategy;
 
-    @Test
-    public void fast_and_slow_broken_server() {
-        Channel[] servers = {
-            SimulationServer.builder()
-                    .metricName("fast")
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(500))
-                    .simulation(simulation)
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("slow")
-                    .response(response(200))
-                    .responseTime(Duration.ofMillis(500))
-                    .simulation(simulation)
-                    // at this point, the server starts returning failures very slowly
-                    .untilTime(Duration.ofSeconds(12))
-                    // .responseTime(Duration.ofSeconds(20))
-                    .response(response(429))
-                    .build()
-        };
-
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
-        Benchmark.builder()
-                .numRequests(5000)
-                .requestsPerSecond(200)
-                .channel(i -> channel.execute(endpoint, request))
-                .simulation(simulation)
-                .onCompletion(() -> {
-                    simulation.metrics().dumpPng(Paths.get(strategy + "-active.png"), Pattern.compile("active"));
-                    simulation
-                            .metrics()
-                            .dumpPng(Paths.get(strategy + "-counts.png"), Pattern.compile("request.*count"));
-                })
-                .run();
-    }
-
     public enum Strategy {
         LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
         CONCURRENCY_LIMITER(SimulationTest::concurrencyLimiter),
@@ -101,8 +66,51 @@ public class SimulationTest {
         }
     }
 
+    @Test
+    public void fast_and_slow_broken_server() {
+        Channel[] servers = {
+            SimulationServer.builder()
+                    .metricName("fast")
+                    .response(response(200))
+                    .responseTime(Duration.ofMillis(60))
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("slow")
+                    .response(response(200))
+                    .responseTime(Duration.ofMillis(60))
+                    .simulation(simulation)
+                    // at this point, the server starts returning failures very slowly
+                    .untilTime(Duration.ofSeconds(3))
+                    .responseTime(Duration.ofMillis(100))
+                    .response(response(429))
+                    .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        Benchmark.builder()
+                .numRequests(1000) // something weird happens at 1811... bug in DeterministicScheduler?
+                .requestsPerSecond(150)
+                .channel(i -> channel.execute(endpoint, request("req-" + i)))
+                .simulation(simulation)
+                .onCompletion(() -> {
+                    simulation.metrics().dumpPng(Paths.get(strategy + "-active.png"), Pattern.compile("active"));
+                    simulation
+                            .metrics()
+                            .dumpPng(Paths.get(strategy + "-counts.png"), Pattern.compile("request.*count"));
+                })
+                .run();
+    }
+
     private static Response response(int status) {
         return SimulationUtils.response(status, "1.0.0");
+    }
+
+    private static Request request(String traceId) {
+        Request req = mock(Request.class);
+        when(req.headerParams()).thenReturn(ImmutableMap.of("X-B3-TraceId", traceId));
+        return req;
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {

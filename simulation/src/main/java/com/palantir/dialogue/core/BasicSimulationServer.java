@@ -53,17 +53,18 @@ final class BasicSimulationServer implements SimulationServer {
     }
 
     @Override
-    public ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request _request) {
+    public ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request request) {
         activeRequests.inc();
         requestMeter.mark();
         return simulation.schedule(
                 () -> {
                     log.debug(
-                            "time={} server={} status={} duration={}",
+                            "time={} server={} status={} duration={} traceid={}",
                             simulation.clock().read(),
                             metricName,
                             response.code(),
-                            responseTime);
+                            responseTime,
+                            request != null ? request.headerParams().get("X-B3-TraceId") : null);
                     activeRequests.dec();
                     return response;
                 },

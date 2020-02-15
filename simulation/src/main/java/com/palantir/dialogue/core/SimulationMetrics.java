@@ -23,10 +23,8 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
-import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.io.BufferedWriter;
@@ -35,14 +33,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.knowm.xchart.BitmapEncoder;
@@ -100,16 +96,30 @@ final class SimulationMetrics {
         }
     }
 
-    @CheckReturnValue
-    public Runnable startReporting(Duration interval) {
-        metrics = ImmutableMap.copyOf(metrics); // just to make sure nobody tries to create any more after we start!
-        AtomicBoolean keepRunning = new AtomicBoolean(true);
-        reportInfinitely(keepRunning, interval);
-        return () -> keepRunning.set(false);
-    }
+    // @CheckReturnValue
+    // public Runnable startReporting(Duration interval) {
+    //     metrics = ImmutableMap.copyOf(metrics); // just to make sure nobody tries to create any more after we start!
+    //     AtomicBoolean keepRunning = new AtomicBoolean(true);
+    //     reportInfinitely(keepRunning, interval);
+    //     return () -> keepRunning.set(false);
+    // }
+    //
+    // @SuppressWarnings("FutureReturnValueIgnored")
+    // private void reportInfinitely(AtomicBoolean keepRunning, Duration interval) {
+    //     report();
+    //
+    //     if (keepRunning.get()) {
+    //         simulation.schedule(
+    //                 () -> {
+    //                     reportInfinitely(keepRunning, interval);
+    //                     return null;
+    //                 },
+    //                 interval.toNanos(),
+    //                 TimeUnit.NANOSECONDS);
+    //     }
+    // }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
-    private void reportInfinitely(AtomicBoolean keepRunning, Duration interval) {
+    public void report() {
         long nanos = simulation.clock().read();
         double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
 
@@ -124,16 +134,6 @@ final class SimulationMetrics {
                 log.error("Unknown metric type {} {}", name, metric);
             }
         });
-
-        if (keepRunning.get()) {
-            simulation.schedule(
-                    () -> {
-                        reportInfinitely(keepRunning, interval);
-                        return null;
-                    },
-                    interval.toNanos(),
-                    TimeUnit.NANOSECONDS);
-        }
     }
 
     public void dumpCsv(Path file) {
