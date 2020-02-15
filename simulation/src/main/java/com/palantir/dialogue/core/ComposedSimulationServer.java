@@ -65,7 +65,8 @@ final class ComposedSimulationServer implements SimulationServer {
 
     @Override
     public String toString() {
-        return "ComposedSimulationServer{" + "first=" + first + ", second=" + second + '}';
+        SimulationServer current = switchedOver ? second : first;
+        return current.toString();
     }
 
     // can be stateful!

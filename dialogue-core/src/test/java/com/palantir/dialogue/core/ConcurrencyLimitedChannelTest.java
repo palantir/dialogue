@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.SettableFuture;
 import com.netflix.concurrency.limits.Limiter;
+import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -47,7 +48,7 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private Limiter<Void> limiter;
+    private SimpleLimiter<Void> limiter;
 
     @Mock
     private Limiter.Listener listener;

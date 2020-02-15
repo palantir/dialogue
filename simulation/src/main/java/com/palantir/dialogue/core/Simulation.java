@@ -100,9 +100,10 @@ final class Simulation {
         public void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
             if (newNanos < nanos) {
-                throw new RuntimeException(
-                        String.format("TestTicker time may not go backwards current=%s new=%s", nanos, newNanos));
+                log.error("TestTicker time may not go backwards current={} new={}", nanos, newNanos);
+                return;
             }
+
             nanos = newNanos;
         }
     }

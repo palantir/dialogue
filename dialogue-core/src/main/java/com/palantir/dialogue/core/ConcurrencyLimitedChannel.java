@@ -45,10 +45,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Supplier<Long> SYSTEM_NANOTIME = System::nanoTime;
 
     private final Channel delegate;
-    private final LoadingCache<Endpoint, Limiter<Void>> limiters;
+    private final LoadingCache<Endpoint, SimpleLimiter<Void>> limiters;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(Channel delegate, Supplier<Limiter<Void>> limiterSupplier) {
+    ConcurrencyLimitedChannel(Channel delegate, Supplier<SimpleLimiter<Void>> limiterSupplier) {
         this.delegate = delegate;
         this.limiters =
                 Caffeine.newBuilder().expireAfterAccess(Duration.ofMinutes(5)).build(key -> limiterSupplier.get());
@@ -59,7 +59,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    static Limiter<Void> createLimiter(Supplier<Long> nanoTimeClock) {
+    static SimpleLimiter<Void> createLimiter(Supplier<Long> nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)
@@ -77,7 +77,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener ->
+        SimpleLimiter<Void> limiter = limiters.get(endpoint);
+        return limiter.acquire(NO_CONTEXT).map(listener ->
                 DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), new LimiterCallback(listener)));
     }
 

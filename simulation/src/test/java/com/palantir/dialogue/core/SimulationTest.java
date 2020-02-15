@@ -35,16 +35,40 @@ import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+/**
+ * The following sccenarios are probably worth testing.
+ * <ol>
+ *     <li>Normal operation: some node node is maybe 10-20% slower (e.g. maybe it's further away)
+ *     <li>Fast failures with revert: upgrading one node means everything gets insta 500'd (also 503 / 429)
+ *     <li>Slow failures with revert: One node suddenly starts taking 1 minute to return, or possibly starts black
+ *     holing traffic (e.g. some horrible spike in traffic / STW GC)
+ * </ol>
+ *
+ * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
+ * We usually have O(10) upstream nodes.
+ *
+ * Goals:
+ * <ol>
+ *     <li>Minimize user-perceived failures
+ *     <li>Minimize user-perceived mean response
+ *     <li>Minimize server CPU time spent
+ * </ol>
+ */
 @RunWith(Parameterized.class)
 public class SimulationTest {
+    private static final Endpoint endpoint = mock(Endpoint.class);
+
+    @Rule
+    public final TestName testName = new TestName();
 
     Simulation simulation = new Simulation();
-    Endpoint endpoint = mock(Endpoint.class);
-    Request request = mock(Request.class);
 
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
@@ -66,28 +90,69 @@ public class SimulationTest {
         }
     }
 
+    @After
+    public void after() {
+        SimulationMetrics metrics = simulation.metrics();
+        metrics.dumpPng(Paths.get(testName.getMethodName() + "-active.png"), Pattern.compile("active"));
+        metrics.dumpPng(Paths.get(testName.getMethodName() + "-counts.png"), Pattern.compile("request.*count"));
+    }
+
     @Test
-    public void fast_and_slow_broken_server() {
+    public void simplest_possible_case() {
+        Channel[] servers = {
+            SimulationServer.builder()
+                    .metricName("a_fast")
+                    .response(response(200))
+                    .responseTimeConstant(Duration.ofMillis(600)) // this isn't very realistic
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("b_medium")
+                    .response(response(200))
+                    .responseTimeConstant(Duration.ofMillis(800))
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("c_slightly_slow")
+                    .response(response(200))
+                    .responseTimeConstant(Duration.ofMillis(1000))
+                    .simulation(simulation)
+                    .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        Benchmark.builder()
+                .numRequests(2000)
+                .requestsPerSecond(50)
+                .channel(i -> channel.execute(endpoint, request("req-" + i)))
+                .simulation(simulation)
+                .run();
+    }
+
+    @Test
+    public void slow_failures_then_revert() {
+        int capacity = 60;
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("fast")
                     .response(response(200))
-                    .responseTime(Duration.ofMillis(60))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
-                    .metricName("slow")
+                    .metricName("slow_failures_then_revert")
                     .response(response(200))
-                    .responseTime(Duration.ofMillis(60))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
                     .simulation(simulation)
                     // at this point, the server starts returning failures very slowly
                     .untilTime(Duration.ofSeconds(3))
-                    .responseTime(Duration.ofMillis(500))
-                    .response(response(429))
-                    // then we start erroring very fast
-                    .untilTime(Duration.ofSeconds(15))
-                    .responseTime(Duration.ofMillis(15))
+                    .responseTimeUpToCapacity(Duration.ofSeconds(1), capacity)
                     .response(response(500))
+                    // then we revert
+                    .untilTime(Duration.ofSeconds(10))
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
                     .build()
         };
 
@@ -95,7 +160,7 @@ public class SimulationTest {
 
         Benchmark.builder()
                 .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
-                .requestsPerSecond(100)
+                .requestsPerSecond(200)
                 .channel(i -> channel.execute(endpoint, request("req-" + i)))
                 .simulation(simulation)
                 .onCompletion(() -> {

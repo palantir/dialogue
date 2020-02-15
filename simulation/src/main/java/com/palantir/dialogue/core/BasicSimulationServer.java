@@ -35,9 +35,9 @@ final class BasicSimulationServer implements SimulationServer {
     private final String metricName;
     private final Simulation simulation;
     private final Response response;
-    private final Duration responseTime;
     private final Meter requestMeter;
     private final Counter activeRequests;
+    private final Function<BasicSimulationServer, Duration> responseTime;
 
     private BasicSimulationServer(Builder builder) {
         this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
@@ -56,6 +56,7 @@ final class BasicSimulationServer implements SimulationServer {
     public ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request request) {
         activeRequests.inc();
         requestMeter.mark();
+        Duration duration = responseTime.apply(this);
         return simulation.schedule(
                 () -> {
                     log.debug(
@@ -63,18 +64,18 @@ final class BasicSimulationServer implements SimulationServer {
                             simulation.clock().read(),
                             metricName,
                             response.code(),
-                            responseTime,
+                            duration,
                             request != null ? request.headerParams().get("X-B3-TraceId") : null);
                     activeRequests.dec();
                     return response;
                 },
-                responseTime.toNanos(),
+                duration.toNanos(),
                 TimeUnit.NANOSECONDS);
     }
 
     @Override
     public String toString() {
-        return "SimulationServer{name=" + metricName + '}';
+        return metricName;
     }
 
     public static class Builder {
@@ -82,7 +83,7 @@ final class BasicSimulationServer implements SimulationServer {
         private String metricName;
         private Simulation simulation;
         private Response response;
-        private Duration responseTime;
+        private Function<BasicSimulationServer, Duration> responseTime;
         private Function<Builder, SimulationServer> finalStep = BasicSimulationServer::new;
 
         Builder metricName(String value) {
@@ -101,9 +102,28 @@ final class BasicSimulationServer implements SimulationServer {
             return this;
         }
 
-        /** How long should responses take. */
-        Builder responseTime(Duration value) {
-            responseTime = value;
+        /** BEWARE: servers don't actually behave like this! */
+        Builder responseTimeConstant(Duration duration) {
+            responseTime = server -> duration;
+            return this;
+        }
+
+        /**
+         * This heuristic delivers the goal 'responseTime' only when the server is under zero load. At a certain
+         * number of concurrent requests (the 'capacity'), the response time will double. Above this, the server
+         * returns 5x response time to simulate overloading.
+         */
+        Builder responseTimeUpToCapacity(Duration bestCase, int capacity) {
+            responseTime = server -> {
+                long expected = bestCase.toNanos();
+                long inflight = server.activeRequests.getCount();
+
+                if (inflight > capacity) {
+                    return Duration.ofNanos(5 * expected); // above stated 'capacity', server dies a brutal death
+                }
+
+                return Duration.ofNanos(expected + (expected * inflight) / capacity);
+            };
             return this;
         }
 
@@ -130,7 +150,7 @@ final class BasicSimulationServer implements SimulationServer {
 
             nextBuilder.metricName(metricName);
             nextBuilder.simulation(simulation);
-            nextBuilder.responseTime(responseTime);
+            nextBuilder.responseTime = responseTime;
             nextBuilder.response(response);
             return nextBuilder;
         }
