@@ -188,11 +188,11 @@ public class SimulationTest {
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
         ImmutableList<LimitedChannel> chans = Arrays.stream(channels)
                 .map(SimulationTest::noOpLimitedChannel)
-                .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(10), sim.clock()))
+                .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
         LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
-    }
+    }   
 
     private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
         List<LimitedChannel> limitedChannels = Stream.of(channels)
