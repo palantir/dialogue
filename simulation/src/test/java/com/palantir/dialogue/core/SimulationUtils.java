@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 
 public final class SimulationUtils {
@@ -36,14 +35,14 @@ public final class SimulationUtils {
         private final Random random = new Random(12345L);
 
         @Override
-        public <T> Optional<T> selectRandom(List<T> list) {
-            if (list.size() == 1) {
-                return Optional.of(list.get(0)); // perf optimization
+        public <T> List<T> shuffle(List<T> list) {
+            if (list.size() == 1 || list.isEmpty()) {
+                return list;
             }
 
             List<T> shuffleMe = new ArrayList<>(list);
             Collections.shuffle(shuffleMe, random);
-            return shuffleMe.stream().findFirst();
+            return shuffleMe;
         }
     };
 

@@ -177,6 +177,11 @@ public class SimulationTest {
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
+        // ImmutableList<LimitedChannel> chans =
+        //         Arrays.stream(channels)
+        //                 .map(c -> noOpLimitedChannel(c))
+        //                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(3), sim.clock()))
+        //                 .collect(ImmutableList.toImmutableList());
         LimitedChannel idea =
                 new PreferLowestUtilization(ImmutableList.copyOf(channels), sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
@@ -208,6 +213,15 @@ public class SimulationTest {
                 return limitedChannel
                         .maybeExecute(endpoint, request)
                         .orElseThrow(() -> new RuntimeException("Got limited :("));
+            }
+        };
+    }
+
+    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
+        return new LimitedChannel() {
+            @Override
+            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                return Optional.of(delegate.execute(endpoint, request));
             }
         };
     }

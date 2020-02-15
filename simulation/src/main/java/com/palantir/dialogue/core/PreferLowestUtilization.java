@@ -20,15 +20,21 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +53,10 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
         this.channels = channels;
         this.clock = clock;
         this.randomness = randomness;
+
+        for (Channel channel : channels) {
+            active.get(channel); // prefills the cache
+        }
     }
 
     @Override
@@ -61,27 +71,58 @@ public final class PreferLowestUtilization implements LimitedChannel, Statistics
         };
     }
 
-    public Optional<Channel> getBest(Endpoint _endpoint) {
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         if (channels.isEmpty()) {
             return Optional.empty();
         }
 
-        int lowest = Integer.MAX_VALUE;
-        List<Channel> best = new ArrayList<>(); // store multiple so we can tiebreak
-        for (Channel channel : channels) {
-            int currentActiveRequests = active.get(channel).get();
+        // we accumulate everything right now (which is probably quite expensive), but it allows us to move on to the
+        // next-best channel if our preferred one refuses
+        Map<Integer, ImmutableList<Channel>> channelsByActive = active.asMap().entrySet().stream()
+                .collect(Collectors.toMap(
+                        entry -> entry.getValue().get(),
+                        entry -> ImmutableList.of(entry.getKey()),
+                        PreferLowestUtilization::merge,
+                        () -> new TreeMap<>()));
 
-            if (currentActiveRequests < lowest) {
-                lowest = currentActiveRequests;
-                best.clear();
-                best.add(channel);
-            } else if (currentActiveRequests == lowest) {
-                best.add(channel);
+        // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
+        for (Integer activeCount : channelsByActive.keySet()) {
+            ImmutableList<Channel> candidates = channelsByActive.get(activeCount);
+            List<Channel> tiebroken = randomness.shuffle(candidates);
+            for (Channel channel : tiebroken) {
+                log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, active.asMap());
+                ListenableFuture<Response> timed = wrapChannel(endpoint, request, channel);
+                return Optional.of(timed);
             }
         }
 
-        Channel bestChannel = randomness.selectRandom(best).get();
-        log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), best, active.asMap());
-        return Optional.of(bestChannel);
+        // every single channel refused :(
+        log.info("Every single thingy refused {}", channelsByActive);
+        return Optional.empty();
+    }
+
+    private static ImmutableList<Channel> merge(List<Channel> left, List<Channel> right) {
+        return ImmutableList.<Channel>builder().addAll(left).addAll(right).build();
+    }
+
+    private ListenableFuture<Response> wrapChannel(Endpoint endpoint, Request request, Channel channel) {
+        InFlightStage inFlightStage = recordStart(channel, endpoint, request);
+        ListenableFuture<Response> response = channel.execute(endpoint, request);
+        Futures.addCallback(
+                response,
+                new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response result) {
+                        inFlightStage.recordComplete(result, null);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        inFlightStage.recordComplete(null, throwable);
+                    }
+                },
+                MoreExecutors.directExecutor());
+        return response;
     }
 }

@@ -17,8 +17,7 @@
 package com.palantir.dialogue.core;
 
 import java.util.List;
-import java.util.Optional;
 
 interface Randomness {
-    <T> Optional<T> selectRandom(List<T> list);
+    <T> List<T> shuffle(List<T> list);
 }
