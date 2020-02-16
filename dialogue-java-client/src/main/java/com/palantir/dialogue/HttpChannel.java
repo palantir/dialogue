@@ -16,11 +16,9 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.base.Strings;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,24 +43,7 @@ public final class HttpChannel implements Channel {
     private HttpChannel(HttpClient client, URL baseUrl, Duration requestTimeout) {
         this.client = client;
         this.requestTimeout = requestTimeout;
-        // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty",
-                UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty",
-                UnsafeArg.of("ref", baseUrl.getRef()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
-        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
-                .host(baseUrl.getHost())
-                .port(baseUrl.getPort());
-        String strippedBasePath = stripSlashes(baseUrl.getPath());
-        if (!strippedBasePath.isEmpty()) {
-            this.baseUrl.encodedPathSegments(strippedBasePath);
-        }
+        this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
     public static HttpChannel of(HttpClient client, URL baseUrl) {
@@ -157,18 +138,6 @@ public final class HttpChannel implements Channel {
             return HttpRequest.BodyPublishers.ofInputStream(request.body().get()::content);
         } else {
             return HttpRequest.BodyPublishers.noBody();
-        }
-    }
-
-    private String stripSlashes(String path) {
-        if (path.isEmpty()) {
-            return path;
-        } else if (path.equals("/")) {
-            return "";
-        } else {
-            int stripStart = path.startsWith("/") ? 1 : 0;
-            int stripEnd = path.endsWith("/") ? 1 : 0;
-            return path.substring(stripStart, path.length() - stripEnd);
         }
     }
 
