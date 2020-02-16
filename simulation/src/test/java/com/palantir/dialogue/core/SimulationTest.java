@@ -346,8 +346,7 @@ public class SimulationTest {
                 .map(SimulationTest::noOpLimitedChannel)
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
-        LimitedChannel limited =
-                new PreferLowestUtilization(limitedChannels, sim.clock(), SimulationUtils.newPseudoRandom());
+        LimitedChannel limited = new PreferLowestUtilization(limitedChannels, SimulationUtils.newPseudoRandom());
         limited = instrumentClient(limited, sim.metrics()); // just for debugging
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
         // Channel channel = dontTolerateLimits(limited);
@@ -396,7 +395,7 @@ public class SimulationTest {
         };
     }
 
-    private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
+    static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
         return new Channel() {
             @Override
             public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {

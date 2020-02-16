@@ -23,6 +23,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -106,7 +108,10 @@ final class BlacklistingChannel implements LimitedChannel {
         public void onSuccess(Response response) {
             // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
             if (response.code() == 503 || response.code() == 500) {
-                log.info("Blacklisting {} due to status code {}", delegate, response.code());
+                log.info(
+                        "Blacklisting {} due to status code {}",
+                        UnsafeArg.of("delegate", delegate),
+                        SafeArg.of("code", response.code()));
                 blacklist();
             } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
                 log.debug("Probation is complete");

@@ -16,12 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 import com.codahale.metrics.Snapshot;
-import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -31,6 +26,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -74,7 +70,7 @@ public final class Benchmark {
 
     public Benchmark sendUntil(Duration cutoff) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        long num = cutoff.dividedBy(requestInterval);
+        long num = cutoff.toNanos() / requestInterval.toNanos();
         requestStream = infiniteRequests(requestInterval).limit(num);
         stopWhenNumReceived(num);
         return this;
@@ -116,7 +112,7 @@ public final class Benchmark {
             }
 
             @Override
-            public void update(Duration time, int requestsStarted, int responsesReceived) {
+            public void update(Duration _time, int _requestsStarted, int responsesReceived) {
                 if (responsesReceived >= numReceived) {
                     future.set(null);
                 }
@@ -125,6 +121,7 @@ public final class Benchmark {
         return this;
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     public Benchmark abortAfter(Duration cutoff) {
         simulation.schedule(
                 () -> {
@@ -151,7 +148,7 @@ public final class Benchmark {
         Map<String, Integer> statusCodes = new HashMap<>();
 
         requestStream.forEach(req -> {
-            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<>() {
+            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
                     statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
@@ -167,10 +164,7 @@ public final class Benchmark {
             simulation.schedule(
                     () -> {
                         log.info(
-                                "time={} starting num={} {}",
-                                simulation.clock().read(),
-                                req.number(),
-                                req);
+                                "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
                         ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 
@@ -267,8 +261,8 @@ public final class Benchmark {
     }
 
     static Request constructRequest(int number) {
-        Request req = mock(Request.class);
-        when(req.headerParams()).thenReturn(ImmutableMap.of("X-B3-TraceId", "req-" + number));
-        return req;
+        return Request.builder()
+                .putHeaderParams("X-B3-TraceId", "req-" + number)
+                .build();
     }
 }

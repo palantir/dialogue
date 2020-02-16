@@ -28,6 +28,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -76,7 +77,7 @@ final class SimulationServer implements Channel {
             resp.addListener(globalActiveRequests::dec, MoreExecutors.directExecutor());
             Futures.addCallback(
                     resp,
-                    new FutureCallback<>() {
+                    new FutureCallback<Response>() {
                         @Override
                         public void onSuccess(Response result) {
                             log.debug(
@@ -88,7 +89,7 @@ final class SimulationServer implements Channel {
                         }
 
                         @Override
-                        public void onFailure(Throwable t) {}
+                        public void onFailure(Throwable _throwable) {}
                     },
                     MoreExecutors.directExecutor());
 
@@ -97,7 +98,7 @@ final class SimulationServer implements Channel {
 
         log.error("No handler available for request {}", request);
         globalActiveRequests.dec();
-        return Futures.immediateFailedFuture(new RuntimeException("No handler"));
+        return Futures.immediateFailedFuture(new SafeRuntimeException("No handler"));
     }
 
     @Override

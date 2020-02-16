@@ -78,7 +78,6 @@ final class SimulationMetrics {
     public Meter meter(String name) {
         if (!metrics.containsKey(name)) {
             Meter freshMeter = new Meter(simulation.codahaleClock());
-            System.out.println("constructed fresh meter " + name);
             metrics.put(name, freshMeter);
             return freshMeter;
         } else {
@@ -143,7 +142,8 @@ final class SimulationMetrics {
 
         measurements.get(X_AXIS).add(seconds);
 
-        // Set<Integer> differentSizes = measurements.asMap().values().stream().map(List::size).collect(Collectors.toSet());
+        // Set<Integer> differentSizes =
+        // measurements.asMap().values().stream().map(List::size).collect(Collectors.toSet());
         // if (differentSizes.size() > 1) {
         //     String info = measurements.asMap().entrySet().stream()
         //             .map(e -> e.getKey() + ":" + e.getValue().size())

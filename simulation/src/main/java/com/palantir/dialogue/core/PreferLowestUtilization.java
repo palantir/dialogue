@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -41,12 +40,10 @@ public final class PreferLowestUtilization implements LimitedChannel {
     private final LoadingCache<LimitedChannel, AtomicInteger> active =
             Caffeine.newBuilder().maximumSize(1000).build(upstream -> new AtomicInteger());
     private final ImmutableList<LimitedChannel> channels;
-    private final Ticker clock;
     private final Randomness randomness;
 
-    public PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Ticker clock, Randomness randomness) {
+    public PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Randomness randomness) {
         this.channels = channels;
-        this.clock = clock;
         this.randomness = randomness;
     }
 
@@ -63,7 +60,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
             int activeRequests = active.get(channel).get();
             channelsByActive.compute(activeRequests, (key, existing) -> {
                 if (existing == null) {
-                    ArrayList<LimitedChannel> list = new ArrayList<>();
+                    List<LimitedChannel> list = new ArrayList<>();
                     list.add(channel);
                     return list;
                 } else {

@@ -26,6 +26,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -76,7 +77,7 @@ final class RetryingChannel implements Channel {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
             if (result.code() == 503 || result.code() == 500) {
-                retryOrFail(() -> new RuntimeException("Retries exhausted"));
+                retryOrFail(() -> new SafeRuntimeException("Retries exhausted"));
                 return;
             }
 

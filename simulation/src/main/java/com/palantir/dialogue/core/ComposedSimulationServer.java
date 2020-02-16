@@ -39,8 +39,7 @@ final class ComposedSimulationServer implements Channel {
     private final SwitchoverPredicate predicate;
     private boolean switchedOver = false;
 
-    ComposedSimulationServer(
-            Ticker clock, Channel first, Channel second, SwitchoverPredicate predicate) {
+    ComposedSimulationServer(Ticker clock, Channel first, Channel second, SwitchoverPredicate predicate) {
         this.clock = clock;
         this.first = first;
         this.second = second;
