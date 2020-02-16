@@ -36,6 +36,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -66,8 +67,8 @@ public abstract class AbstractChannelTest {
 
     private final RequestBody body = new RequestBody() {
         @Override
-        public Optional<Long> length() {
-            return Optional.of((long) CONTENT.length);
+        public OptionalLong length() {
+            return OptionalLong.of(CONTENT.length);
         }
 
         @Override
