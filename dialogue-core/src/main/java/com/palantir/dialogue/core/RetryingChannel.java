@@ -55,24 +55,24 @@ final class RetryingChannel implements Channel {
         SettableFuture<Response> future = SettableFuture.create();
 
         Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
-        FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
+        FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
         Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
 
         return future;
     }
 
-    private final class RetryingCallback<T> implements FutureCallback<T> {
+    private final class RetryingCallback implements FutureCallback<Response> {
         private final AtomicInteger failures = new AtomicInteger(0);
-        private final Supplier<ListenableFuture<T>> runnable;
-        private final SettableFuture<T> delegate;
+        private final Supplier<ListenableFuture<Response>> runnable;
+        private final SettableFuture<Response> delegate;
 
-        private RetryingCallback(Supplier<ListenableFuture<T>> runnable, SettableFuture<T> delegate) {
+        private RetryingCallback(Supplier<ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
             this.runnable = runnable;
             this.delegate = delegate;
         }
 
         @Override
-        public void onSuccess(T result) {
+        public void onSuccess(Response result) {
             delegate.set(result);
         }
 
