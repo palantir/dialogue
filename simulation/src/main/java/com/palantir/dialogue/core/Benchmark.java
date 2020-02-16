@@ -16,16 +16,24 @@
 
 package com.palantir.dialogue.core;
 
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
 import com.codahale.metrics.Snapshot;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -37,12 +45,17 @@ import org.slf4j.LoggerFactory;
 /** Constant rate. */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
+    private static final Endpoint ENDPOINT = mock(Endpoint.class);
+
+    private Simulation simulation;
+    private Channel channel;
 
     private int requestsPerSecond;
     private int numRequests;
-    private Simulation simulation;
-    private Function<Integer, ListenableFuture<Response>> channel;
-    private ShouldStopPredicate shouldStop;
+    private Function<Integer, Request> requestSupplier = Benchmark::constructRequest;
+
+    private ShouldStopPredicate benchmarkFinished;
+    private Iterable<ScheduledRequest> requestStream = this::constantRate; // not used yet
 
     private Benchmark() {}
 
@@ -65,13 +78,13 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark channel(Function<Integer, ListenableFuture<Response>> channelExecute) {
-        channel = channelExecute;
+    public Benchmark channel(Channel value) {
+        channel = value;
         return this;
     }
 
     public Benchmark stopWhenAllRequestsReturn() {
-        shouldStop = (time, _requestsStarted, responsesReceived) ->
+        benchmarkFinished = (time, _requestsStarted, responsesReceived) ->
                 (time.compareTo(Duration.ofDays(1)) > 0) || responsesReceived >= numRequests;
         return this;
     }
@@ -97,7 +110,7 @@ public final class Benchmark {
         Runnable maybeTerminate = () -> {
             responsesReceived[0] += 1;
 
-            if (shouldStop.shouldStop(
+            if (benchmarkFinished.shouldStop(
                     Duration.ofNanos(simulation.clock().read()), requestsStarted[0], responsesReceived[0])) {
                 BenchmarkResult result = ImmutableBenchmarkResult.builder()
                         .clientHistogram(histogramChannel.getHistogram().getSnapshot())
@@ -140,7 +153,8 @@ public final class Benchmark {
                                 "time={} kicking off request {}",
                                 simulation.clock().read(),
                                 requestNum);
-                        ListenableFuture<Response> future = histogramChannel.apply(requestNum);
+                        Request req = requestSupplier.apply(requestNum);
+                        ListenableFuture<Response> future = histogramChannel.execute(ENDPOINT, req);
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
@@ -151,6 +165,28 @@ public final class Benchmark {
         });
 
         return done;
+    }
+
+    private Iterator<ScheduledRequest> constantRate() {
+        return new Iterator<ScheduledRequest>() {
+            private int current = 0;
+
+            @Override
+            public boolean hasNext() {
+                return current < numRequests;
+            }
+
+            @Override
+            public ScheduledRequest next() {
+                ScheduledRequest next = ImmutableScheduledRequest.builder()
+                        .request(requestSupplier.apply(current))
+                        .sendTime(Duration.ofSeconds(1).dividedBy(requestsPerSecond).multipliedBy(current))
+                        .build();
+
+                current += 1;
+                return next;
+            }
+        };
     }
 
     @Value.Immutable
@@ -167,4 +203,18 @@ public final class Benchmark {
     interface ShouldStopPredicate {
         boolean shouldStop(Duration time, int requestsStarted, int responsesReceived);
     }
+
+    @Value.Immutable
+    interface ScheduledRequest {
+        Duration sendTime();
+
+        Request request();
+    }
+
+    static Request constructRequest(int number) {
+        Request req = mock(Request.class);
+        when(req.headerParams()).thenReturn(ImmutableMap.of("X-B3-TraceId", "req-" + number));
+        return req;
+    }
+
 }

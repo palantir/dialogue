@@ -20,30 +20,32 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
-final class HistogramChannel implements Function<Integer, ListenableFuture<Response>> {
+final class HistogramChannel implements Channel {
     private final Simulation simulation;
     private final Histogram histogram; // beware unit is nanos!
-    private final Function<Integer, ListenableFuture<Response>> channel;
+    private final Channel channel;
 
-    HistogramChannel(Simulation simulation, Function<Integer, ListenableFuture<Response>> channel) {
+    HistogramChannel(Simulation simulation, Channel channel) {
         this.simulation = simulation;
         this.channel = channel;
         histogram = new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
     }
 
-    @Override
-    public ListenableFuture<Response> apply(Integer integer) {
-        long start = simulation.clock().read();
-        ListenableFuture<Response> future = channel.apply(integer);
-        future.addListener(() -> histogram.update(simulation.clock().read() - start), MoreExecutors.directExecutor());
-        return future;
-    }
-
     public Histogram getHistogram() {
         return histogram;
+    }
+
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        long start = simulation.clock().read();
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+        future.addListener(() -> histogram.update(simulation.clock().read() - start), MoreExecutors.directExecutor());
+        return future;
     }
 }

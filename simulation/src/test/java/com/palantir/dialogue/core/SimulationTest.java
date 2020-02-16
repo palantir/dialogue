@@ -128,7 +128,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(2000)
                 .requestsPerSecond(50)
-                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .channel(channel)
                 .simulation(simulation)
                 .run();
     }
@@ -164,7 +164,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
                 .requestsPerSecond(200)
-                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .channel(channel)
                 .simulation(simulation)
                 .run();
     }
@@ -200,7 +200,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(3000)
                 .requestsPerSecond(200)
-                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .channel(channel)
                 .simulation(simulation)
                 .run();
     }
@@ -234,7 +234,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(4000)
                 .requestsPerSecond(200)
-                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .channel(channel)
                 .simulation(simulation)
                 .run();
     }
@@ -274,7 +274,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(400)
                 .requestsPerSecond(20)
-                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .channel(channel)
                 .simulation(simulation)
                 .run();
     }
