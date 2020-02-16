@@ -195,13 +195,12 @@ final class SimulationMetrics {
         return chart;
     }
 
-    public static final void png(String file, XYChart... charts) {
+    public static void png(String file, XYChart... charts) {
         Stopwatch sw = Stopwatch.createStarted();
         try {
             int rows = charts.length;
             int cols = 1;
-            BitmapEncoder.saveBitmap(
-                    ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
+            BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
             log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
         } catch (IOException e) {
             throw new RuntimeException(e);

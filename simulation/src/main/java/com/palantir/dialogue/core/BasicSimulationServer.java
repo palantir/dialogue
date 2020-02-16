@@ -103,7 +103,7 @@ final class BasicSimulationServer implements SimulationServer {
             return this;
         }
 
-        /** BEWARE: servers don't actually behave like this! */
+        /** BEWARE: servers don't actually behave like this. */
         Builder responseTimeConstant(Duration duration) {
             responseTime = server -> duration;
             return this;

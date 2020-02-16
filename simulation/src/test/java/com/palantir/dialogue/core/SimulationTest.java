@@ -64,7 +64,7 @@ import org.knowm.xchart.XYChart;
  */
 @RunWith(Parameterized.class)
 public class SimulationTest {
-    private static final Endpoint endpoint = mock(Endpoint.class);
+    private static final Endpoint ENDPOINT = mock(Endpoint.class);
 
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
@@ -80,6 +80,7 @@ public class SimulationTest {
     private final Simulation simulation = new Simulation();
     private Benchmark.BenchmarkResult result;
 
+    @SuppressWarnings("ImmutableEnumChecker")
     public enum Strategy {
         LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
         CONCURRENCY_LIMITER(SimulationTest::concurrencyLimiter),
@@ -120,7 +121,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(2000)
                 .requestsPerSecond(50)
-                .channel(i -> channel.execute(endpoint, request("req-" + i)))
+                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
                 .simulation(simulation)
                 .run();
     }
@@ -156,7 +157,7 @@ public class SimulationTest {
         result = Benchmark.builder()
                 .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
                 .requestsPerSecond(200)
-                .channel(i -> channel.execute(endpoint, request("req-" + i)))
+                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
                 .simulation(simulation)
                 .run();
     }
@@ -190,7 +191,7 @@ public class SimulationTest {
                 .map(SimulationTest::noOpLimitedChannel)
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
-        LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
+        LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.newPseudoRandom());
         return dontTolerateLimits(idea);
     }
 
@@ -206,7 +207,7 @@ public class SimulationTest {
 
     private static Channel roundRobin(Simulation sim, Channel... channels) {
         List<LimitedChannel> limitedChannels = Stream.of(channels)
-                .map(c -> (LimitedChannel) (endpoint, request) -> Optional.of(c.execute(endpoint, request)))
+                .map(c -> (LimitedChannel) (e, r) -> Optional.of(c.execute(e, r)))
                 .collect(Collectors.toList());
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));

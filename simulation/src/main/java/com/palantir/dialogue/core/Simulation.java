@@ -39,7 +39,7 @@ final class Simulation {
     private final SimulationMetrics metrics = new SimulationMetrics(this);
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
 
-    public Simulation() {
+    Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
     }
 
@@ -97,7 +97,7 @@ final class Simulation {
             return nanos;
         }
 
-        public void advanceTo(Duration duration) {
+        void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
             if (newNanos < nanos) {
                 log.error("TestTicker time may not go backwards current={} new={}", nanos, newNanos);

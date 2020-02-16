@@ -78,6 +78,7 @@ public final class Benchmark {
         return Futures.getUnchecked(result);
     }
 
+    @SuppressWarnings("FutureReturnValueIgnored")
     public SettableFuture<BenchmarkResult> schedule() {
         Instant realStart = Instant.now();
         SettableFuture<BenchmarkResult> done = SettableFuture.create();

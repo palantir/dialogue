@@ -18,3 +18,7 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'
 }
+
+tasks.withType(JavaCompile) {
+    options.errorprone.errorproneArgs += '-Xep:Slf4jLogsafeArgs:OFF'
+}
