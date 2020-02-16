@@ -88,52 +88,50 @@ public final class Benchmark {
     }
 
     public Benchmark stopWhenNumReceived(long numReceived) {
-        benchmarkFinished = (time, _requestsStarted, responsesReceived) ->
-                (time.compareTo(Duration.ofDays(1)) > 0) || responsesReceived >= numReceived;
+        SettableFuture<Void> future = SettableFuture.create();
+        benchmarkFinished = new ShouldStopPredicate() {
+            @Override
+            public SettableFuture<Void> getFuture() {
+                return future;
+            }
+
+            @Override
+            public void update(Duration time, int requestsStarted, int responsesReceived) {
+                if (responsesReceived >= numReceived) {
+                    future.set(null);
+                }
+            }
+        };
+        return this;
+    }
+
+    public Benchmark abortAfter(Duration cutoff) {
+        simulation.schedule(
+                () -> {
+                    benchmarkFinished.getFuture().set(null);
+                },
+                cutoff.toNanos(),
+                TimeUnit.NANOSECONDS);
         return this;
     }
 
     public BenchmarkResult run() {
-        SettableFuture<BenchmarkResult> result = schedule();
+        ListenableFuture<BenchmarkResult> result = schedule();
         simulation.runClockToInfinity();
         return Futures.getUnchecked(result);
     }
 
     @SuppressWarnings("FutureReturnValueIgnored")
-    public SettableFuture<BenchmarkResult> schedule() {
+    public ListenableFuture<BenchmarkResult> schedule() {
         Instant realStart = Instant.now();
-        SettableFuture<BenchmarkResult> done = SettableFuture.create();
-
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
 
         int[] requestsStarted = new int[] {0};
         int[] responsesReceived = new int[] {0};
-
         Map<String, Integer> statusCodes = new HashMap<>();
-        Runnable maybeTerminate = () -> {
-            responsesReceived[0] += 1;
-
-            if (benchmarkFinished.shouldStop(
-                    Duration.ofNanos(simulation.clock().read()), requestsStarted[0], responsesReceived[0])) {
-                BenchmarkResult result = ImmutableBenchmarkResult.builder()
-                        .clientHistogram(histogramChannel.getHistogram().getSnapshot())
-                        .endTime(Duration.ofNanos(simulation.clock().read()))
-                        .statusCodes(statusCodes)
-                        .successPercentage(Math.round(statusCodes.get("200") * 1000d / responsesReceived[0]) / 10d)
-                        .build();
-                log.info(
-                        "Finished simulation: client_mean={}, end_time={}, success={}% codes={} ({} ms)",
-                        Duration.ofNanos((long) result.clientHistogram().getMean()),
-                        result.endTime(),
-                        result.successPercentage(),
-                        result.statusCodes(),
-                        Duration.between(realStart, Instant.now()));
-                done.set(result);
-            }
-        };
 
         requestStream.forEach(req -> {
-            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
+            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<>() {
                 @Override
                 public void onSuccess(Response response) {
                     statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
@@ -156,13 +154,46 @@ public final class Benchmark {
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                        future.addListener(maybeTerminate, MoreExecutors.directExecutor());
+                        future.addListener(
+                                () -> {
+                                    responsesReceived[0] += 1;
+                                    benchmarkFinished.update(
+                                            Duration.ofNanos(simulation.clock().read()),
+                                            requestsStarted[0],
+                                            responsesReceived[0]);
+                                },
+                                MoreExecutors.directExecutor());
                     },
                     req.sendTime().toNanos(),
                     TimeUnit.NANOSECONDS);
         });
 
-        return done;
+        benchmarkFinished.getFuture().addListener(simulation.metrics()::report, MoreExecutors.directExecutor());
+
+        return Futures.transform(
+                benchmarkFinished.getFuture(),
+                v -> {
+                    BenchmarkResult result = ImmutableBenchmarkResult.builder()
+                            .clientHistogram(histogramChannel.getHistogram().getSnapshot())
+                            .endTime(Duration.ofNanos(simulation.clock().read()))
+                            .statusCodes(statusCodes)
+                            .successPercentage(Math.round(statusCodes.get("200") * 1000d / requestsStarted[0]) / 10d)
+                            .numSent(requestsStarted[0])
+                            .numReceived(responsesReceived[0])
+                            .build();
+                    log.info(
+                            "Finished simulation: client_mean={}, end_time={}, success={}% received={}/{} codes={} "
+                                    + "({} ms)",
+                            Duration.ofNanos((long) result.clientHistogram().getMean()),
+                            result.endTime(),
+                            result.successPercentage(),
+                            result.numReceived(),
+                            result.numSent(),
+                            result.statusCodes(),
+                            Duration.between(realStart, Instant.now()));
+                    return result;
+                },
+                MoreExecutors.directExecutor());
     }
 
     private Stream<ScheduledRequest> infiniteRequests(Duration interval) {
@@ -184,10 +215,16 @@ public final class Benchmark {
         Map<String, Integer> statusCodes();
 
         double successPercentage();
+
+        int numSent();
+
+        int numReceived();
     }
 
     interface ShouldStopPredicate {
-        boolean shouldStop(Duration time, int requestsStarted, int responsesReceived);
+        SettableFuture<Void> getFuture();
+
+        void update(Duration time, int requestsStarted, int responsesReceived);
     }
 
     @Value.Immutable

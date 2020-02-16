@@ -17,12 +17,10 @@
 package com.palantir.dialogue.core;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -241,7 +239,6 @@ public class SimulationTest {
 
     @Test
     public void all_nodes_500() {
-        int capacity = 60;
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("node1")
@@ -279,6 +276,37 @@ public class SimulationTest {
                 .run();
     }
 
+    @Test
+    public void black_hole() {
+        Channel[] servers = {
+                SimulationServer.builder()
+                        .metricName("node1")
+                        .response(response(200))
+                        .responseTimeConstant(Duration.ofMillis(600))
+                        .simulation(simulation)
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("node2_black_hole")
+                        .response(response(200))
+                        .responseTimeConstant(Duration.ofMillis(600))
+                        .simulation(simulation)
+                        // at this point, the server is effectively a black hole
+                        .untilTime(Duration.ofSeconds(3))
+                        .responseTimeConstant(Duration.ofDays(1))
+                        .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(20)
+                .sendUntil(Duration.ofSeconds(10))
+                .abortAfter(Duration.ofSeconds(30))
+                .channel(channel)
+                .run();
+    }
+
     @After
     public void after() {
         String title = String.format(
@@ -300,12 +328,6 @@ public class SimulationTest {
 
     private static Response response(int status) {
         return SimulationUtils.response(status, "1.0.0");
-    }
-
-    private static Request request(String traceId) {
-        Request req = mock(Request.class);
-        when(req.headerParams()).thenReturn(ImmutableMap.of("X-B3-TraceId", traceId));
-        return req;
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {

@@ -62,7 +62,7 @@ final class SimulationServer implements Channel {
         simulation.metrics().report();
         return simulation.schedule(
                 () -> {
-                    log.info(
+                    log.debug(
                             "time={} server={} status={} duration={} traceid={}",
                             Duration.ofNanos(simulation.clock().read()),
                             metricName,
