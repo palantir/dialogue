@@ -25,7 +25,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,8 +47,7 @@ final class BlacklistingChannel implements LimitedChannel {
     private final Duration duration;
     private final Ticker ticker;
 
-    private volatile OptionalLong blacklistedUntilNanos = OptionalLong.empty();
-    private volatile Optional<Probation> probation = Optional.empty();
+    private volatile BlacklistState state = NoRestrictions.INSTANCE;
 
     BlacklistingChannel(LimitedChannel delegate, Duration duration) {
         this(delegate, duration, Ticker.systemTicker());
@@ -64,15 +62,16 @@ final class BlacklistingChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (isCurrentlyBlacklisted()) {
+        if (state instanceof BlacklistUntil && stillBlacklisted((BlacklistUntil) state)) {
             return Optional.empty();
         }
 
-        if (probation.isPresent()) {
-            if (probation.get().acquireStartPermit()) {
+        if (state instanceof Probation) {
+            Probation probation = (Probation) state;
+            if (probation.acquireStartPermit()) {
                 log.debug("Probation channel request allowed");
-                return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
-                        future, new BlacklistingCallback(Optional.of(probation.get()))));
+                return delegate.maybeExecute(endpoint, request).map(future ->
+                        DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.of(probation))));
             } else {
                 log.debug("Probation channel request not allowed");
                 return Optional.empty();
@@ -84,36 +83,16 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     private void blacklist() {
-        log.debug("Detected failure, blacklisting channel");
-        blacklistedUntilNanos = OptionalLong.of(ticker.read() + duration.toNanos());
-        probation = Optional.empty();
+        state = new BlacklistUntil(ticker.read() + duration.toNanos());
     }
 
-    private void unblacklistAndBeginProbation() {
-        log.debug("This channel is no longer blacklisted, beginning probation");
-        blacklistedUntilNanos = OptionalLong.empty();
-        probation = Optional.of(new Probation(NUM_PROBATION_REQUESTS));
-    }
-
-    private void finishProbation() {
-        log.debug("Probation is complete");
-        probation = Optional.empty();
-    }
-
-    private boolean isCurrentlyBlacklisted() {
-        if (blacklistedUntilNanos.isPresent()) {
-            long untilNanos = blacklistedUntilNanos.getAsLong();
-            long currentNanos = ticker.read();
-            if (currentNanos < untilNanos) {
-                log.debug("This channel is blacklisted");
-                return true;
-            }
-
-            unblacklistAndBeginProbation();
-            return false;
-        } else {
-            return false;
+    private boolean stillBlacklisted(BlacklistUntil blacklistUntil) {
+        if (ticker.read() < blacklistUntil.untilNanos) {
+            return true;
         }
+
+        state = new Probation(NUM_PROBATION_REQUESTS);
+        return false;
     }
 
     private final class BlacklistingCallback implements FutureCallback<Response> {
@@ -129,7 +108,8 @@ final class BlacklistingChannel implements LimitedChannel {
             if (response.code() == 503) {
                 blacklist();
             } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
-                finishProbation();
+                log.debug("Probation is complete");
+                state = NoRestrictions.INSTANCE;
             }
         }
 
@@ -144,21 +124,36 @@ final class BlacklistingChannel implements LimitedChannel {
         return "BlacklistingChannel{delegate=" + delegate + '}';
     }
 
-    private static final class Probation {
+    // I wish java had union types
+    interface BlacklistState {}
+
+    private enum NoRestrictions implements BlacklistState {
+        INSTANCE
+    }
+
+    private static final class BlacklistUntil implements BlacklistState {
+        private final long untilNanos;
+
+        private BlacklistUntil(long untilNanos) {
+            this.untilNanos = untilNanos;
+        }
+    }
+
+    private static final class Probation implements BlacklistState {
         private final AtomicInteger startPermits;
         private final AtomicInteger successesRequired;
 
-        public Probation(int number) {
+        Probation(int number) {
             startPermits = new AtomicInteger(number);
             successesRequired = new AtomicInteger(number);
         }
 
-        public boolean acquireStartPermit() {
+        boolean acquireStartPermit() {
             int newStarts = startPermits.decrementAndGet();
             return newStarts >= 0;
         }
 
-        public boolean checkIfProbationIsComplete() {
+        boolean checkIfProbationIsComplete() {
             int remaining = successesRequired.decrementAndGet();
             return remaining <= 0;
         }
