@@ -17,6 +17,7 @@ package com.palantir.dialogue.hc4;
 
 import com.google.common.base.Strings;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -30,6 +31,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
@@ -37,11 +39,11 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import org.apache.http.Header;
+import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.RequestBuilder;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.message.BasicHeader;
 
 final class ApacheHttpClientChannel implements BlockingChannel {
 
@@ -61,13 +63,7 @@ final class ApacheHttpClientChannel implements BlockingChannel {
                 UnsafeArg.of("ref", baseUrl.getRef()));
         Preconditions.checkArgument(
                 null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
-        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
-                .host(baseUrl.getHost())
-                .port(baseUrl.getPort());
-        String strippedBasePath = stripSlashes(baseUrl.getPath());
-        if (!strippedBasePath.isEmpty()) {
-            this.baseUrl.encodedPathSegments(strippedBasePath);
-        }
+        this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
     @Override
@@ -92,9 +88,7 @@ final class ApacheHttpClientChannel implements BlockingChannel {
                 throw new SafeIllegalArgumentException("DELETE endpoints must not have a request body");
             }
             RequestBody body = request.body().get();
-            builder.setEntity(
-                    new InputStreamEntity(
-                            body.content(), body.length().orElse(-1L), ContentType.parse(body.contentType())));
+            builder.setEntity(new RequestBodyEntity(body));
         }
         return new HttpClientResponse(client.execute(builder.build()));
     }
@@ -111,18 +105,6 @@ final class ApacheHttpClientChannel implements BlockingChannel {
                 return RequestBuilder.delete(url.toString());
         }
         throw new SafeIllegalArgumentException("Unknown request method", SafeArg.of("method", endpoint.httpMethod()));
-    }
-
-    private String stripSlashes(String path) {
-        if (path.isEmpty()) {
-            return path;
-        } else if (path.equals("/")) {
-            return "";
-        } else {
-            int stripStart = path.startsWith("/") ? 1 : 0;
-            int stripEnd = path.endsWith("/") ? 1 : 0;
-            return path.substring(stripStart, path.length() - stripEnd);
-        }
     }
 
     private static final class HttpClientResponse implements Response {
@@ -169,6 +151,67 @@ final class ApacheHttpClientChannel implements BlockingChannel {
                 return Optional.ofNullable(first.getValue());
             }
             return Optional.empty();
+        }
+    }
+
+    private static final class RequestBodyEntity implements HttpEntity {
+
+        private final RequestBody requestBody;
+        private final Header contentType;
+
+        RequestBodyEntity(RequestBody requestBody) {
+            this.requestBody = requestBody;
+            this.contentType = new BasicHeader(Headers.CONTENT_TYPE, requestBody.contentType());
+        }
+
+        @Override
+        public boolean isRepeatable() {
+            return false;
+        }
+
+        @Override
+        public boolean isChunked() {
+            return true;
+        }
+
+        @Override
+        public long getContentLength() {
+            // unknown
+            return -1;
+        }
+
+        @Override
+        public Header getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public Header getContentEncoding() {
+            return null;
+        }
+
+        @Override
+        public InputStream getContent() throws UnsupportedOperationException {
+            throw new UnsupportedOperationException("getContent is not supported, writeTo should be used");
+        }
+
+        @Override
+        public void writeTo(OutputStream outStream) throws IOException {
+            requestBody.writeTo(outStream);
+        }
+
+        @Override
+        public boolean isStreaming() {
+            // Applies to responses.
+            return false;
+        }
+
+        @Override
+        public void consumeContent() {}
+
+        @Override
+        public String toString() {
+            return "RequestBodyEntity{requestBody=" + requestBody + '}';
         }
     }
 }

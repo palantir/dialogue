@@ -16,7 +16,6 @@
 package com.palantir.dialogue.httpurlconnection;
 
 import com.google.common.base.Strings;
-import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
@@ -61,13 +60,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
                 UnsafeArg.of("ref", baseUrl.getRef()));
         Preconditions.checkArgument(
                 null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
-        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
-                .host(baseUrl.getHost())
-                .port(baseUrl.getPort());
-        String strippedBasePath = stripSlashes(baseUrl.getPath());
-        if (!strippedBasePath.isEmpty()) {
-            this.baseUrl.encodedPathSegments(strippedBasePath);
-        }
+        this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
     @Override
@@ -118,29 +111,13 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
                 throw new SafeIllegalArgumentException("DELETE endpoints must not have a request body");
             }
             RequestBody body = request.body().get();
-            if (body.length().isPresent()) {
-                connection.setFixedLengthStreamingMode(body.length().getAsLong());
-            } else {
-                connection.setChunkedStreamingMode(1024 * 8);
-            }
+            connection.setChunkedStreamingMode(1024 * 8);
             connection.setRequestProperty("content-type", body.contentType());
             try (OutputStream requestBodyStream = connection.getOutputStream()) {
-                ByteStreams.copy(body.content(), requestBodyStream);
+                body.writeTo(requestBodyStream);
             }
         }
         return new HttpUrlConnectionResponse(connection);
-    }
-
-    private String stripSlashes(String path) {
-        if (path.isEmpty()) {
-            return path;
-        } else if (path.equals("/")) {
-            return "";
-        } else {
-            int stripStart = path.startsWith("/") ? 1 : 0;
-            int stripEnd = path.endsWith("/") ? 1 : 0;
-            return path.substring(stripStart, path.length() - stripEnd);
-        }
     }
 
     @Override
