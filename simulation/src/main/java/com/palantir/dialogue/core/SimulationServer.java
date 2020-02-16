@@ -16,17 +16,146 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
+import java.time.Duration;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public interface SimulationServer extends Channel {
+final class SimulationServer implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(SimulationServer.class);
+
+    private final Simulation simulation;
+    private final String metricName;
+    private final Meter requestMeter;
+    private final Counter activeRequests;
+
+    private final Response response;
+    private final Function<SimulationServer, Duration> responseTime;
+
+    private SimulationServer(Builder builder) {
+        this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
+        this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
+        this.response = Preconditions.checkNotNull(builder.response, "response");
+        this.responseTime = Preconditions.checkNotNull(builder.responseTime, "responseTime");
+        this.requestMeter = simulation.metrics().meter(String.format("[%s] request", metricName));
+        this.activeRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
     @Override
-    ListenableScheduledFuture<Response> execute(Endpoint _endpoint, Request _request);
+    public ListenableFuture<Response> execute(Endpoint _endpoint, Request request) {
+        activeRequests.inc();
+        requestMeter.mark();
+        Duration duration = responseTime.apply(this);
+        simulation.metrics().report();
+        return simulation.schedule(
+                () -> {
+                    log.info(
+                            "time={} server={} status={} duration={} traceid={}",
+                            Duration.ofNanos(simulation.clock().read()),
+                            metricName,
+                            response.code(),
+                            duration,
+                            request != null ? request.headerParams().get("X-B3-TraceId") : null);
+                    activeRequests.dec();
+                    return response;
+                },
+                duration.toNanos(),
+                TimeUnit.NANOSECONDS);
+    }
 
-    static BasicSimulationServer.Builder builder() {
-        return BasicSimulationServer.builder();
+    @Override
+    public String toString() {
+        return metricName;
+    }
+
+    public static class Builder {
+
+        private String metricName;
+        private Simulation simulation;
+        private Response response;
+        private Function<SimulationServer, Duration> responseTime;
+        private Function<Builder, Channel> finalStep = SimulationServer::new;
+
+        Builder metricName(String value) {
+            metricName = value;
+            return this;
+        }
+
+        Builder simulation(Simulation value) {
+            simulation = value;
+            return this;
+        }
+
+        /** What response should we return. */
+        Builder response(Response value) {
+            response = value;
+            return this;
+        }
+
+        /** BEWARE: servers don't actually behave like this. */
+        Builder responseTimeConstant(Duration duration) {
+            responseTime = server -> duration;
+            return this;
+        }
+
+        /**
+         * This heuristic delivers the goal 'responseTime' only when the server is under zero load. At a certain
+         * number of concurrent requests (the 'capacity'), the response time will double. Above this, the server
+         * returns 5x response time to simulate overloading.
+         */
+        Builder responseTimeUpToCapacity(Duration bestCase, int capacity) {
+            responseTime = server -> {
+                long expected = bestCase.toNanos();
+                long inflight = server.activeRequests.getCount();
+
+                if (inflight > capacity) {
+                    return Duration.ofNanos(5 * expected); // above stated 'capacity', server dies a brutal death
+                }
+
+                return Duration.ofNanos(expected + (expected * inflight) / capacity);
+            };
+            return this;
+        }
+
+        Channel build() {
+            return finalStep.apply(this);
+        }
+
+        Builder untilNthRequest(int nthRequest) {
+            return until(ComposedSimulationServer.nthRequest(nthRequest));
+        }
+
+        Builder untilTime(Duration cutover) {
+            return until(ComposedSimulationServer.time(cutover));
+        }
+
+        private Builder until(ComposedSimulationServer.SwitchoverPredicate predicate) {
+            Channel server1 = build();
+
+            Builder nextBuilder = builder();
+            nextBuilder.finalStep = server2Builder -> {
+                SimulationServer server2 = new SimulationServer(server2Builder);
+                return new ComposedSimulationServer(simulation.clock(), server1, server2, predicate);
+            };
+
+            nextBuilder.metricName(metricName);
+            nextBuilder.simulation(simulation);
+            nextBuilder.responseTime = responseTime;
+            nextBuilder.response(response);
+            return nextBuilder;
+        }
     }
 }

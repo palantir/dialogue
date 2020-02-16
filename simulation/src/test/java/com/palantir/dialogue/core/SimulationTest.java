@@ -60,7 +60,7 @@ import org.knowm.xchart.XYChart;
  * </ol>
  *
  * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
- * We usually have O(10) upstream nodes.
+ * We usually have O(10) upstream nodes. Live-reloading node list shouldn't go crazy.
  *
  * Goals:
  * <ol>

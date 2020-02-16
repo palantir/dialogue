@@ -17,7 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -29,17 +30,17 @@ import org.slf4j.LoggerFactory;
  * In order to allow server behavior to change during a simulation, we can just switch between two basic servers at
  * some cutover point.
  */
-final class ComposedSimulationServer implements SimulationServer {
+final class ComposedSimulationServer implements Channel {
     private static final Logger log = LoggerFactory.getLogger(ComposedSimulationServer.class);
 
     private final Ticker clock;
-    private final SimulationServer first;
-    private final SimulationServer second;
+    private final Channel first;
+    private final Channel second;
     private final SwitchoverPredicate predicate;
     private boolean switchedOver = false;
 
     ComposedSimulationServer(
-            Ticker clock, SimulationServer first, SimulationServer second, SwitchoverPredicate predicate) {
+            Ticker clock, Channel first, Channel second, SwitchoverPredicate predicate) {
         this.clock = clock;
         this.first = first;
         this.second = second;
@@ -47,7 +48,7 @@ final class ComposedSimulationServer implements SimulationServer {
     }
 
     @Override
-    public ListenableScheduledFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         boolean switchoverNow = predicate.switchover(clock);
         if (switchoverNow && !switchedOver) {
             switchedOver = true;
@@ -59,13 +60,13 @@ final class ComposedSimulationServer implements SimulationServer {
             log.info("time={} cutting back from second={} -> first={}", clock.read(), second, first);
         }
 
-        SimulationServer server = switchedOver ? second : first;
+        Channel server = switchedOver ? second : first;
         return server.execute(endpoint, request);
     }
 
     @Override
     public String toString() {
-        SimulationServer current = switchedOver ? second : first;
+        Channel current = switchedOver ? second : first;
         return current.toString();
     }
 
