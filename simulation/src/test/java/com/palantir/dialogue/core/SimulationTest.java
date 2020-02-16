@@ -198,8 +198,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .requestsPerSecond(200)
-                .numRequests(3000)
+                .requestsPerSecond(250)
+                .sendUntil(Duration.ofSeconds(15))
                 .channel(channel)
                 .simulation(simulation)
                 .run();
