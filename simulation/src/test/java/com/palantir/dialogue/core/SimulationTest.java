@@ -101,7 +101,7 @@ public class SimulationTest {
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("fast")
-                    .newHandler()
+                    .handler()
                     .response(response(200))
                     .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
                     .simulation(simulation)
@@ -313,12 +313,49 @@ public class SimulationTest {
                 .run();
     }
 
+    @Test
+    public void one_endpoint_dies_on_each_server() {
+        Endpoint endpoint1 = SimulationUtils.endpoint("e1");
+        Endpoint endpoint2 = SimulationUtils.endpoint("e2");
+
+        Channel[] servers = {
+            SimulationServer.builder()
+                    .metricName("server_where_e1_breaks")
+                    .simulation(simulation)
+                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .untilTime(Duration.ofSeconds(5))
+                    .handler(endpoint1, h -> h.response(response(500)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("server_where_e2_breaks")
+                    .simulation(simulation)
+                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .untilTime(Duration.ofSeconds(5))
+                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(response(500)).responseTimeConstant(Duration.ofMillis(600)))
+                    .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(20)
+                .sendUntil(Duration.ofSeconds(10))
+                .endpoints(endpoint1, endpoint2)
+                .abortAfter(Duration.ofMinutes(1))
+                .channel(channel)
+                .run();
+    }
+
     @After
     public void after() {
-        Duration meanMillis =
-                Duration.ofNanos((long) result.clientHistogram().getMean());
-        String title = String.format(
-                "%s client_mean=%s success=%s%%", strategy, meanMillis, result.successPercentage());
+        Duration meanMillis = Duration.ofNanos((long) result.clientHistogram().getMean());
+        String title =
+                String.format("%s client_mean=%s success=%s%%", strategy, meanMillis, result.successPercentage());
 
         XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
         activeRequests.setTitle(title);

@@ -20,6 +20,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Snapshot;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -44,7 +45,6 @@ import org.slf4j.LoggerFactory;
 /** Constant rate. */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
-    private static final Endpoint ENDPOINT = mock(Endpoint.class);
 
     private Simulation simulation;
     private Channel channel;
@@ -65,15 +65,26 @@ public final class Benchmark {
     }
 
     public Benchmark numRequests(int numRequests) {
+        Preconditions.checkState(requestStream == null, "Already set up requests");
         requestStream = infiniteRequests(requestInterval).limit(numRequests);
         stopWhenNumReceived(numRequests);
         return this;
     }
 
     public Benchmark sendUntil(Duration cutoff) {
+        Preconditions.checkState(requestStream == null, "Already set up requests");
         long num = cutoff.dividedBy(requestInterval);
         requestStream = infiniteRequests(requestInterval).limit(num);
         stopWhenNumReceived(num);
+        return this;
+    }
+
+    public Benchmark endpoints(Endpoint... endpoints) {
+        Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
+        requestStream = requestStream.map(req -> ImmutableScheduledRequest.builder()
+                .from(req)
+                .endpoint(endpoints[req.number() % endpoints.length])
+                .build());
         return this;
     }
 
@@ -150,7 +161,7 @@ public final class Benchmark {
                                 "time={} kicking off request {}",
                                 simulation.clock().read(),
                                 req.number());
-                        ListenableFuture<Response> future = histogramChannel.execute(ENDPOINT, req.request());
+                        ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
@@ -177,7 +188,8 @@ public final class Benchmark {
                             .clientHistogram(histogramChannel.getHistogram().getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
-                            .successPercentage(Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
+                            .successPercentage(
+                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
                             .numSent(requestsStarted[0])
                             .numReceived(responsesReceived[0])
                             .build();
@@ -229,11 +241,19 @@ public final class Benchmark {
 
     @Value.Immutable
     interface ScheduledRequest {
-        int number();
 
+        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
+
+        int number();
+    
         Duration sendTime();
 
         Request request();
+
+        @Value.Default
+        default Endpoint endpoint() {
+            return ENDPOINT;
+        }
     }
 
     static Request constructRequest(int number) {

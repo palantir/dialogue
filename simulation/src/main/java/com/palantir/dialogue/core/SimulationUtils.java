@@ -18,7 +18,10 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.UrlBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -64,6 +67,33 @@ public final class SimulationUtils {
                     return ImmutableMap.of();
                 }
                 return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
+            }
+        };
+    }
+
+    public static Endpoint endpoint(String name) {
+        return new Endpoint() {
+            @Override
+            public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "service";
+            }
+
+            @Override
+            public String endpointName() {
+                return name;
+            }
+
+            @Override
+            public String version() {
+                return "1.0.0";
             }
         };
     }

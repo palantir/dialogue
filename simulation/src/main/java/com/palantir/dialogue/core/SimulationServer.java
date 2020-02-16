@@ -31,6 +31,7 @@ import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.slf4j.Logger;
@@ -121,14 +122,25 @@ final class SimulationServer implements Channel {
             return this;
         }
 
-        HandlerBuilder0 newHandler() {
+        Builder handler(Endpoint endpoint, Consumer<HandlerBuilder0> configureFunc) {
+            ServerHandler handler = new ServerHandler(this);
+            handler.endpoint(endpoint);
+            configureFunc.accept(handler);
+            handlers = ImmutableList.<ServerHandler>builder()
+                    .add(handler)
+                    .addAll(handlers)
+                    .build();
+            return this;
+        }
+
+        HandlerBuilder0 handler() {
             ServerHandler handlerBuilder = new ServerHandler(this);
             handlers = ImmutableList.of(handlerBuilder);
             return handlerBuilder;
         }
 
         HandlerBuilder1 response(Response response) {
-            HandlerBuilder0 builder0 = newHandler();
+            HandlerBuilder0 builder0 = handler();
             HandlerBuilder1 builder1 = builder0.response(response);
             return builder1;
         }
@@ -190,6 +202,12 @@ final class SimulationServer implements Channel {
         }
 
         @Override
+        public HandlerBuilder0 endpoint(Endpoint endpoint) {
+            predicate = e -> e.equals(endpoint);
+            return this;
+        }
+
+        @Override
         public HandlerBuilder1 response(Response resp) {
             this.response = resp;
             return this;
@@ -203,6 +221,8 @@ final class SimulationServer implements Channel {
     }
 
     public interface HandlerBuilder0 {
+        HandlerBuilder0 endpoint(Endpoint endpoint);
+
         HandlerBuilder1 response(Response resp);
     }
 
