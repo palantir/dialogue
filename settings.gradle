@@ -1,4 +1,5 @@
 rootProject.name = 'dialogue'
+include 'dialogue-blocking-channels'
 include 'dialogue-client-test-lib'
 include 'dialogue-core'
 include 'dialogue-example'
