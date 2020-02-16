@@ -27,7 +27,6 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -43,8 +42,6 @@ public final class Benchmark {
     private int numRequests = 20;
     private Simulation simulation;
     private Function<Integer, ListenableFuture<Response>> channel;
-
-    private final Random random = new Random(12345L);
 
     private Benchmark() {}
 
@@ -83,9 +80,6 @@ public final class Benchmark {
         Instant realStart = Instant.now();
         SettableFuture<BenchmarkResult> done = SettableFuture.create();
 
-        int numMetricSamples = 200;
-        int checkPoint = numRequests / numMetricSamples;
-
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
         Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
 
@@ -113,17 +107,9 @@ public final class Benchmark {
         };
 
         IntStream.range(0, numRequests).forEach(requestNum -> {
-            if (requestNum % checkPoint == 0) {
-                log.debug("Scheduling request {}", requestNum);
+            if (requestNum % (numRequests / 300) == 0) {
+                log.debug("Scheduling request {}", requestNum); // above 10k total requests, this gets really slow!
             }
-
-            Runnable reportMetrics = () -> {
-                // we sample metrics with a little jitter to avoid misleading harmonic graphs
-                if ((requestNum + random.nextInt(checkPoint)) % checkPoint == 0) {
-                    log.debug("Reporting metrics at requestNum={}", requestNum);
-                    simulation.metrics().report();
-                }
-            };
 
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
@@ -147,7 +133,6 @@ public final class Benchmark {
                         ListenableFuture<Response> future = histogramChannel.apply(requestNum);
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                        future.addListener(reportMetrics, MoreExecutors.directExecutor());
                         future.addListener(maybeTerminate, MoreExecutors.directExecutor());
                     },
                     requestNum * intervalBetweenRequests.toNanos(),

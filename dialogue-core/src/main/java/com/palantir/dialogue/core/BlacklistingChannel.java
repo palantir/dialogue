@@ -106,6 +106,7 @@ final class BlacklistingChannel implements LimitedChannel {
         public void onSuccess(Response response) {
             // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
             if (response.code() == 503 || response.code() == 500) {
+                log.info("Blacklisting {} due to status code {}", delegate, response.code());
                 blacklist();
             } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
                 log.debug("Probation is complete");

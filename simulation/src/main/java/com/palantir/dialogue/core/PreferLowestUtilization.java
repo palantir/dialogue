@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +77,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
         for (Integer activeCount : channelsByActive.keySet()) {
             List<LimitedChannel> candidates = channelsByActive.get(activeCount);
             for (LimitedChannel channel : candidates) {
-                log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
+                // log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
                 atomicInteger.incrementAndGet();

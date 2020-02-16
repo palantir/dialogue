@@ -19,6 +19,8 @@ package com.palantir.dialogue.core;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
@@ -244,7 +246,7 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node1")
                     .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
+                    .responseTimeConstant(Duration.ofMillis(600))
                     .simulation(simulation)
                     // at this point, the server starts returning failures at the same speed
                     .untilTime(Duration.ofSeconds(3))
@@ -256,7 +258,7 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node2")
                     .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
+                    .responseTimeConstant(Duration.ofMillis(600))
                     .simulation(simulation)
                     // at this point, the server starts returning failures at the same speed
                     .untilTime(Duration.ofSeconds(3))
@@ -283,12 +285,17 @@ public class SimulationTest {
                 "%s client_mean=%s success=%s%%",
                 strategy, Duration.ofNanos((long) result.clientHistogram().getMean()), result.successPercentage());
 
-        XYChart chart1 = simulation.metrics().chart(Pattern.compile("active"));
-        chart1.setTitle(title);
+        XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
+        activeRequests.setTitle(title);
 
-        XYChart chart2 = simulation.metrics().chart(Pattern.compile("request.*count"));
+        XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+        XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
 
-        SimulationMetrics.png(testName.getMethodName() + ".png", chart1, chart2);
+        SimulationMetrics.png(
+                testName.getMethodName() + ".png",
+                activeRequests,
+                serverRequestCount,
+                clientStuff);
     }
 
     private static Response response(int status) {
@@ -308,6 +315,7 @@ public class SimulationTest {
                 .collect(ImmutableList.toImmutableList());
         LimitedChannel limited =
                 new PreferLowestUtilization(limitedChannels, sim.clock(), SimulationUtils.newPseudoRandom());
+        limited = instrumentClient(limited, sim.metrics()); // just for debugging
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
         // Channel channel = dontTolerateLimits(limited);
         return new RetryingChannel(channel);
@@ -319,17 +327,41 @@ public class SimulationTest {
                         c, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
                 .collect(Collectors.toList());
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        limited = instrumentClient(limited, sim.metrics()); // just for debugging
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
         return new RetryingChannel(channel);
     }
 
     private static Channel roundRobin(Simulation sim, Channel... channels) {
         List<LimitedChannel> limitedChannels = Stream.of(channels)
-                .map(c -> (LimitedChannel) (e, r) -> Optional.of(c.execute(e, r)))
+                .map(SimulationTest::noOpLimitedChannel)
                 .collect(Collectors.toList());
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
         return new RetryingChannel(channel);
+    }
+
+    private static LimitedChannel instrumentClient(LimitedChannel delegate, SimulationMetrics metrics) {
+        Meter starts = metrics.meter("test_client.starts");
+        Counter metric = metrics.counter("test_client.refusals");
+        return new LimitedChannel() {
+
+            @Override
+            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                starts.mark();
+                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
+                if (!response.isPresent()) {
+                    metric.inc();
+                }
+                return response;
+            }
+
+            @Override
+            public String toString() {
+                return delegate.toString();
+            }
+        };
     }
 
     private static Channel dontTolerateLimits(LimitedChannel limitedChannel) {

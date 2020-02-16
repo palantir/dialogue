@@ -58,11 +58,12 @@ final class BasicSimulationServer implements SimulationServer {
         activeRequests.inc();
         requestMeter.mark();
         Duration duration = responseTime.apply(this);
+        simulation.metrics().report();
         return simulation.schedule(
                 () -> {
-                    log.debug(
+                    log.info(
                             "time={} server={} status={} duration={} traceid={}",
-                            simulation.clock().read(),
+                            Duration.ofNanos(simulation.clock().read()),
                             metricName,
                             response.code(),
                             duration,

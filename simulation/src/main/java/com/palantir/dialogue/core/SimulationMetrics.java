@@ -174,7 +174,7 @@ final class SimulationMetrics {
 
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
-        chart.getStyler().setMarkerSize(5);
+        chart.getStyler().setMarkerSize(3);
         chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
         chart.getStyler().setPlotMargin(0);
         chart.getStyler().setPlotContentSize(.95);
