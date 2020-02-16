@@ -107,11 +107,8 @@ final class SimulationServer implements Channel {
     }
 
     public static class Builder {
-
         private String metricName;
         private Simulation simulation;
-        private ResponseTimeFunction responseTime;
-        private Function<Builder, Channel> finalStep = SimulationServer::new;
         private ImmutableList<ServerHandler> handlers = ImmutableList.of();
 
         Builder metricName(String value) {
@@ -126,8 +123,8 @@ final class SimulationServer implements Channel {
 
         Builder handler(Function<HandlerBuilder0, ServerHandler> configureFunc) {
             handlers = ImmutableList.<ServerHandler>builder()
-                    .add(configureFunc.apply(new ServerHandler()))
                     .addAll(handlers)
+                    .add(configureFunc.apply(new ServerHandler()))
                     .build();
             return this;
         }
@@ -139,28 +136,26 @@ final class SimulationServer implements Channel {
             });
         }
 
-        Channel build() {
-            return finalStep.apply(this);
-        }
-
         Builder until(Duration cutover) {
-            return until(ComposedSimulationServer.time(cutover));
+            long cutoverNanos = cutover.toNanos();
+
+            for (ServerHandler handler : handlers) {
+                Predicate<Endpoint> existingPredicate = handler.predicate;
+                handler.predicate = endpoint -> {
+                    // we just add in this sneaky little precondition to all the existing handlers!
+                    if (simulation.clock().read() >= cutoverNanos) {
+                        return false;
+                    }
+
+                    return existingPredicate.test(endpoint);
+                };
+            }
+
+            return this;
         }
 
-        private Builder until(ComposedSimulationServer.SwitchoverPredicate predicate) {
-            Channel server1 = build();
-
-            Builder nextBuilder = builder();
-            nextBuilder.finalStep = server2Builder -> {
-                SimulationServer server2 = new SimulationServer(server2Builder);
-                return new ComposedSimulationServer(simulation.clock(), server1, server2, predicate);
-            };
-
-            nextBuilder.metricName(metricName);
-            nextBuilder.simulation(simulation);
-            nextBuilder.responseTime = responseTime;
-            nextBuilder.handlers = handlers;
-            return nextBuilder;
+        SimulationServer build() {
+            return new SimulationServer(this);
         }
     }
 
@@ -176,7 +171,7 @@ final class SimulationServer implements Channel {
 
         public Optional<ListenableFuture<Response>> maybeExecute(
                 SimulationServer server, Endpoint endpoint, Request _request) {
-            if (!predicate.test(endpoint)) {
+            if (predicate != null && !predicate.test(endpoint)) {
                 return Optional.empty();
             }
 

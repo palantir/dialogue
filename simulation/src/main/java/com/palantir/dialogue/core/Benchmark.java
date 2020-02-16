@@ -163,7 +163,7 @@ public final class Benchmark {
 
             simulation.schedule(
                     () -> {
-                        log.info(
+                        log.debug(
                                 "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
                         ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
