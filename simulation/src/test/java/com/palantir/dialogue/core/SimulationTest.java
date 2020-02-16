@@ -47,8 +47,11 @@ import org.knowm.xchart.XYChart;
  * The following sccenarios are probably worth testing.
  * <ol>
  *     <li>Normal operation: some node node is maybe 10-20% slower (e.g. maybe it's further away)
- *     <li>Fast failures with revert: upgrading one node means everything gets insta 500'd (also 503 / 429)
- *     <li>Slow failures with revert: One node suddenly starts taking 1 minute to return, or possibly starts black
+ *     <li>Fast failures (500/503/429) with revert: upgrading one node means everything gets insta 500'd (also 503 /
+ *     429)
+ *     <li>Slow failures (500/503/429) with revert: upgrading one node means all requests get slow and also return
+ *     bad errors
+ *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return, or possibly starts black
  *     holing traffic (e.g. some horrible spike in traffic / STW GC)
  * </ol>
  *
@@ -192,6 +195,40 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .numRequests(3000)
+                .requestsPerSecond(200)
+                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .simulation(simulation)
+                .run();
+    }
+
+    @Test
+    public void drastic_slowdown() {
+        int capacity = 60;
+        Channel[] servers = {
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .response(response(200))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .simulation(simulation)
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("fast_then_slow_then_fast")
+                        .response(response(200))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .simulation(simulation)
+                        // at this point, the server starts returning failures instantly
+                        .untilTime(Duration.ofSeconds(3))
+                        .responseTimeUpToCapacity(Duration.ofSeconds(10), capacity)
+                        // then we revert
+                        .untilTime(Duration.ofSeconds(10))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        result = Benchmark.builder()
+                .numRequests(4000)
                 .requestsPerSecond(200)
                 .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
                 .simulation(simulation)
