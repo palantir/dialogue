@@ -162,6 +162,42 @@ public class SimulationTest {
                 .run();
     }
 
+    @Test
+    public void fast_500s_then_revert() {
+        int capacity = 60;
+        Channel[] servers = {
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .response(response(200))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .simulation(simulation)
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("fast_500s_the_revert")
+                        .response(response(200))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .simulation(simulation)
+                        // at this point, the server starts returning failures instantly
+                        .untilTime(Duration.ofSeconds(3))
+                        .responseTimeUpToCapacity(Duration.ofMillis(10), capacity)
+                        .response(response(500))
+                        // then we revert
+                        .untilTime(Duration.ofSeconds(10))
+                        .response(response(200))
+                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                        .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        result = Benchmark.builder()
+                .numRequests(3000)
+                .requestsPerSecond(200)
+                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .simulation(simulation)
+                .run();
+    }
+
     @After
     public void after() {
         String title = String.format(
