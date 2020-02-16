@@ -177,7 +177,7 @@ public final class Benchmark {
                             .clientHistogram(histogramChannel.getHistogram().getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
-                            .successPercentage(Math.round(statusCodes.get("200") * 1000d / requestsStarted[0]) / 10d)
+                            .successPercentage(Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
                             .numSent(requestsStarted[0])
                             .numReceived(responsesReceived[0])
                             .build();

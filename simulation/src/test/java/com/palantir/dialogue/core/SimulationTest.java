@@ -97,23 +97,24 @@ public class SimulationTest {
 
     @Test
     public void simplest_possible_case() {
+        int capacity = 20;
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("fast")
                     .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600)) // this isn't very realistic
+                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
                     .metricName("medium")
                     .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(800))
+                    .responseTimeUpToCapacity(Duration.ofMillis(800), capacity)
                     .simulation(simulation)
                     .build(),
             SimulationServer.builder()
                     .metricName("slightly_slow")
                     .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(1000))
+                    .responseTimeUpToCapacity(Duration.ofMillis(1000), capacity)
                     .simulation(simulation)
                     .build()
         };
@@ -122,7 +123,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(50)
-                .sendUntil(Duration.ofSeconds(40))
+                .sendUntil(Duration.ofSeconds(20))
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -306,15 +307,16 @@ public class SimulationTest {
 
     @After
     public void after() {
+        Duration meanMillis =
+                Duration.ofNanos((long) result.clientHistogram().getMean());
         String title = String.format(
-                "%s client_mean=%s success=%s%%",
-                strategy, Duration.ofNanos((long) result.clientHistogram().getMean()), result.successPercentage());
+                "%s client_mean=%s success=%s%%", strategy, meanMillis, result.successPercentage());
 
         XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
         activeRequests.setTitle(title);
 
-        XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
         XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
+        XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
         SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
     }
