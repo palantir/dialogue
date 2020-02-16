@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import static org.mockito.Mockito.mock;
-
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
@@ -52,9 +50,9 @@ import org.knowm.xchart.XYChart;
  *     429)
  *     <li>Slow failures (500/503/429) with revert: upgrading one node means all requests get slow and also return
  *     bad errors
- *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return, or possibly starts black
- *     holing traffic (e.g. some horrible spike in traffic / STW GC)
+ *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return
  *     <li>All nodes return 500s briefly (ideally clients could queue up if they're willing to wait)
+ *     <li>Black hole: one node just starts accepting requests but never returning them
  * </ol>
  *
  * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
@@ -69,18 +67,17 @@ import org.knowm.xchart.XYChart;
  */
 @RunWith(Parameterized.class)
 public class SimulationTest {
-    private static final Endpoint ENDPOINT = mock(Endpoint.class);
 
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
         return Strategy.values();
     }
 
-    @Rule
-    public final TestName testName = new TestName();
-
     @Parameterized.Parameter
     public Strategy strategy;
+
+    @Rule
+    public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
     private Benchmark.BenchmarkResult result;
@@ -125,7 +122,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(50)
-                .numRequests(2000)
+                .sendUntil(Duration.ofSeconds(40))
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -161,7 +158,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(200)
-                .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
+                .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -231,7 +228,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(200)
-                .numRequests(4000)
+                .sendUntil(Duration.ofSeconds(20))
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -270,7 +267,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(20)
-                .numRequests(400)
+                .sendUntil(Duration.ofSeconds(20))
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -279,21 +276,21 @@ public class SimulationTest {
     @Test
     public void black_hole() {
         Channel[] servers = {
-                SimulationServer.builder()
-                        .metricName("node1")
-                        .response(response(200))
-                        .responseTimeConstant(Duration.ofMillis(600))
-                        .simulation(simulation)
-                        .build(),
-                SimulationServer.builder()
-                        .metricName("node2_black_hole")
-                        .response(response(200))
-                        .responseTimeConstant(Duration.ofMillis(600))
-                        .simulation(simulation)
-                        // at this point, the server is effectively a black hole
-                        .untilTime(Duration.ofSeconds(3))
-                        .responseTimeConstant(Duration.ofDays(1))
-                        .build()
+            SimulationServer.builder()
+                    .metricName("node1")
+                    .response(response(200))
+                    .responseTimeConstant(Duration.ofMillis(600))
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("node2_black_hole")
+                    .response(response(200))
+                    .responseTimeConstant(Duration.ofMillis(600))
+                    .simulation(simulation)
+                    // at this point, the server is effectively a black hole
+                    .untilTime(Duration.ofSeconds(3))
+                    .responseTimeConstant(Duration.ofDays(1))
+                    .build()
         };
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
@@ -302,7 +299,7 @@ public class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(20)
                 .sendUntil(Duration.ofSeconds(10))
-                .abortAfter(Duration.ofSeconds(30))
+                .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
                 .channel(channel)
                 .run();
     }
@@ -319,11 +316,7 @@ public class SimulationTest {
         XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
         XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
 
-        SimulationMetrics.png(
-                testName.getMethodName() + ".png",
-                activeRequests,
-                serverRequestCount,
-                clientStuff);
+        SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
     }
 
     private static Response response(int status) {
@@ -355,9 +348,8 @@ public class SimulationTest {
     }
 
     private static Channel roundRobin(Simulation sim, Channel... channels) {
-        List<LimitedChannel> limitedChannels = Stream.of(channels)
-                .map(SimulationTest::noOpLimitedChannel)
-                .collect(Collectors.toList());
+        List<LimitedChannel> limitedChannels =
+                Stream.of(channels).map(SimulationTest::noOpLimitedChannel).collect(Collectors.toList());
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
         limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
