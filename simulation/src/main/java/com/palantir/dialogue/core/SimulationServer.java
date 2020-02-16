@@ -41,15 +41,14 @@ final class SimulationServer implements Channel {
 
     private final Simulation simulation;
     private final String metricName;
-    private final Meter requestMeter;
-    private final Counter activeRequests;
+    private final Counter globalActiveRequests;
     private final ImmutableList<ServerHandler> handlers;
 
     private SimulationServer(Builder builder) {
         this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
-        this.requestMeter = simulation.metrics().meter(String.format("[%s] request", metricName));
-        this.activeRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
+
+        this.globalActiveRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
         Preconditions.checkState(!builder.handlers.isEmpty(), "Handlers can't be empty");
         this.handlers = ImmutableList.copyOf(builder.handlers);
     }
@@ -60,8 +59,11 @@ final class SimulationServer implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        activeRequests.inc();
-        requestMeter.mark();
+        Meter perEndpointRequests =
+                simulation.metrics().meter(String.format("[%s] [%s] request", metricName, endpoint.endpointName()));
+
+        globalActiveRequests.inc();
+        perEndpointRequests.mark();
         simulation.metrics().report();
 
         for (ServerHandler handler : handlers) {
@@ -71,7 +73,7 @@ final class SimulationServer implements Channel {
             }
 
             ListenableFuture<Response> resp = maybeResp.get();
-            resp.addListener(activeRequests::dec, MoreExecutors.directExecutor());
+            resp.addListener(globalActiveRequests::dec, MoreExecutors.directExecutor());
             Futures.addCallback(
                     resp,
                     new FutureCallback<>() {
@@ -94,7 +96,7 @@ final class SimulationServer implements Channel {
         }
 
         log.error("No handler available for request {}", request);
-        activeRequests.dec();
+        globalActiveRequests.dec();
         return Futures.immediateFailedFuture(new RuntimeException("No handler"));
     }
 
@@ -227,7 +229,7 @@ final class SimulationServer implements Channel {
         default ServerHandler linearResponseTime(Duration bestCase, int capacity) {
             return responseTime(server -> {
                 long expected = bestCase.toNanos();
-                long inflight = server.activeRequests.getCount();
+                long inflight = server.globalActiveRequests.getCount();
 
                 if (inflight > capacity) {
                     return Duration.ofNanos(5 * expected); // above stated 'capacity', server dies a brutal death

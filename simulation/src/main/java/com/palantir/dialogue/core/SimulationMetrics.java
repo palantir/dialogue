@@ -34,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -60,8 +61,8 @@ final class SimulationMetrics {
     private Map<String, Metric> metrics = new HashMap<>();
 
     // each of these is a named column
-    private final LoadingCache<String, ArrayList<Double>> measurements =
-            Caffeine.newBuilder().build(name -> new ArrayList<>());
+    private final LoadingCache<String, List<Double>> measurements =
+            Caffeine.newBuilder().build(name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
 
     private static final String X_AXIS = "time_sec";
 
@@ -69,9 +70,15 @@ final class SimulationMetrics {
         this.simulation = simulation;
     }
 
+    private int numMeasurements() {
+        List<Double> xAxis = measurements.getIfPresent(X_AXIS);
+        return (xAxis != null) ? xAxis.size() : 0;
+    }
+
     public Meter meter(String name) {
         if (!metrics.containsKey(name)) {
             Meter freshMeter = new Meter(simulation.codahaleClock());
+            System.out.println("constructed fresh meter " + name);
             metrics.put(name, freshMeter);
             return freshMeter;
         } else {
@@ -123,7 +130,6 @@ final class SimulationMetrics {
         long nanos = simulation.clock().read();
         double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
 
-        measurements.get(X_AXIS).add(seconds);
         metrics.forEach((name, metric) -> {
             if (metric instanceof Meter) {
                 measurements.get(name + ".1m").add(((Meter) metric).getOneMinuteRate());
@@ -134,10 +140,20 @@ final class SimulationMetrics {
                 log.error("Unknown metric type {} {}", name, metric);
             }
         });
+
+        measurements.get(X_AXIS).add(seconds);
+
+        // Set<Integer> differentSizes = measurements.asMap().values().stream().map(List::size).collect(Collectors.toSet());
+        // if (differentSizes.size() > 1) {
+        //     String info = measurements.asMap().entrySet().stream()
+        //             .map(e -> e.getKey() + ":" + e.getValue().size())
+        //             .collect(Collectors.joining(" "));
+        //     System.out.println(info);
+        // }
     }
 
     public void dumpCsv(Path file) {
-        ConcurrentMap<String, ArrayList<Double>> map = measurements.asMap();
+        ConcurrentMap<String, List<Double>> map = measurements.asMap();
         List<Double> xAxis = map.get(X_AXIS);
         List<String> columns = ImmutableList.copyOf(Sets.difference(map.keySet(), ImmutableSet.of(X_AXIS)));
 
@@ -165,12 +181,8 @@ final class SimulationMetrics {
     }
 
     public XYChart chart(Pattern metricNameRegex) {
-        XYChart chart = new XYChartBuilder()
-                .width(800)
-                .height(600)
-                .xAxisTitle(X_AXIS)
-                // .yAxisTitle("Y axis")
-                .build();
+        XYChart chart =
+                new XYChartBuilder().width(800).height(600).xAxisTitle(X_AXIS).build();
 
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
@@ -179,7 +191,7 @@ final class SimulationMetrics {
         chart.getStyler().setPlotMargin(0);
         chart.getStyler().setPlotContentSize(.95);
 
-        Map<String, ArrayList<Double>> map = measurements.asMap();
+        Map<String, List<Double>> map = measurements.asMap();
         double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
         List<String> columns = map.keySet().stream()
                 .filter(name -> !name.equals(X_AXIS))
@@ -189,6 +201,12 @@ final class SimulationMetrics {
 
         for (String column : columns) {
             double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
+            Preconditions.checkState(
+                    series.length == xAxis.length,
+                    "Series must all be same length",
+                    SafeArg.of("column", column),
+                    SafeArg.of("xaxis", xAxis.length),
+                    SafeArg.of("length", series.length));
             chart.addSeries(column, xAxis, series);
         }
 

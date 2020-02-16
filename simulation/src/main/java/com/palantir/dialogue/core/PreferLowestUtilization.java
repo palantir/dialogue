@@ -94,7 +94,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
             }
         }
 
-        log.info("Every single channel refused :( {}", channelsByActive);
+        log.debug("Every single channel refused :( {}", channelsByActive);
         return Optional.empty();
     }
 }
