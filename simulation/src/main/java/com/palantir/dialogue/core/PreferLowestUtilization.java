@@ -77,8 +77,8 @@ public final class PreferLowestUtilization implements LimitedChannel {
         // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
         for (Integer activeCount : channelsByActive.keySet()) {
             List<LimitedChannel> candidates = channelsByActive.get(activeCount);
-            // List<LimitedChannel> tiebroken = randomness.shuffle(candidates);
-            for (LimitedChannel channel : candidates) {
+            List<LimitedChannel> tiebreak = randomness.shuffle(candidates);
+            for (LimitedChannel channel : tiebreak) {
                 log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
@@ -98,9 +98,5 @@ public final class PreferLowestUtilization implements LimitedChannel {
 
         log.info("Every single channel refused :( {}", channelsByActive);
         return Optional.empty();
-    }
-
-    private static <T> ImmutableList<T> merge(List<T> left, List<T> right) {
-        return ImmutableList.<T>builder().addAll(left).addAll(right).build();
     }
 }

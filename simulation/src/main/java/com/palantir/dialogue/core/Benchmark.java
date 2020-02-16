@@ -133,7 +133,7 @@ public final class Benchmark {
 
                 @Override
                 public void onFailure(Throwable throwable) {
-                    log.warn("requestNum={}", requestNum, throwable);
+                    log.warn("Benchmark onFailure requestNum={}", requestNum, throwable);
                     statusCodes.compute(throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
                 }
             };

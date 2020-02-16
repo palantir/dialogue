@@ -21,6 +21,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -44,7 +45,7 @@ import org.junit.runners.Parameterized;
 import org.knowm.xchart.XYChart;
 
 /**
- * The following sccenarios are probably worth testing.
+ * The following sccenarios are important for good clients to handle.
  * <ol>
  *     <li>Normal operation: some node node is maybe 10-20% slower (e.g. maybe it's further away)
  *     <li>Fast failures (500/503/429) with revert: upgrading one node means everything gets insta 500'd (also 503 /
@@ -53,6 +54,7 @@ import org.knowm.xchart.XYChart;
  *     bad errors
  *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return, or possibly starts black
  *     holing traffic (e.g. some horrible spike in traffic / STW GC)
+ *     <li>All nodes return 500s briefly (ideally clients could queue up if they're willing to wait)
  * </ol>
  *
  * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
@@ -169,26 +171,26 @@ public class SimulationTest {
     public void fast_500s_then_revert() {
         int capacity = 60;
         Channel[] servers = {
-                SimulationServer.builder()
-                        .metricName("fast")
-                        .response(response(200))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .simulation(simulation)
-                        .build(),
-                SimulationServer.builder()
-                        .metricName("fast_500s_the_revert")
-                        .response(response(200))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .simulation(simulation)
-                        // at this point, the server starts returning failures instantly
-                        .untilTime(Duration.ofSeconds(3))
-                        .responseTimeUpToCapacity(Duration.ofMillis(10), capacity)
-                        .response(response(500))
-                        // then we revert
-                        .untilTime(Duration.ofSeconds(10))
-                        .response(response(200))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .build()
+            SimulationServer.builder()
+                    .metricName("fast")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("fast_500s_the_revert")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    // at this point, the server starts returning failures instantly
+                    .untilTime(Duration.ofSeconds(3))
+                    .responseTimeUpToCapacity(Duration.ofMillis(10), capacity)
+                    .response(response(500))
+                    // then we revert
+                    .untilTime(Duration.ofSeconds(10))
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .build()
         };
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
@@ -205,24 +207,64 @@ public class SimulationTest {
     public void drastic_slowdown() {
         int capacity = 60;
         Channel[] servers = {
-                SimulationServer.builder()
-                        .metricName("fast")
-                        .response(response(200))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .simulation(simulation)
-                        .build(),
-                SimulationServer.builder()
-                        .metricName("fast_then_slow_then_fast")
-                        .response(response(200))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .simulation(simulation)
-                        // at this point, the server starts returning failures instantly
-                        .untilTime(Duration.ofSeconds(3))
-                        .responseTimeUpToCapacity(Duration.ofSeconds(10), capacity)
-                        // then we revert
-                        .untilTime(Duration.ofSeconds(10))
-                        .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
-                        .build()
+            SimulationServer.builder()
+                    .metricName("fast")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("fast_then_slow_then_fast")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    // at this point, the server starts returning failures instantly
+                    .untilTime(Duration.ofSeconds(3))
+                    .responseTimeUpToCapacity(Duration.ofSeconds(10), capacity)
+                    // then we revert
+                    .untilTime(Duration.ofSeconds(10))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .build()
+        };
+
+        Channel channel = strategy.getChannel.apply(simulation, servers);
+
+        result = Benchmark.builder()
+                .numRequests(4000)
+                .requestsPerSecond(200)
+                .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
+                .simulation(simulation)
+                .run();
+    }
+
+    @Test
+    public void all_nodes_500() {
+        int capacity = 60;
+        Channel[] servers = {
+            SimulationServer.builder()
+                    .metricName("node1")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    // at this point, the server starts returning failures at the same speed
+                    .untilTime(Duration.ofSeconds(3))
+                    .response(response(500))
+                    // then we revert
+                    .untilTime(Duration.ofSeconds(10))
+                    .response(response(200))
+                    .build(),
+            SimulationServer.builder()
+                    .metricName("node2")
+                    .response(response(200))
+                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .simulation(simulation)
+                    // at this point, the server starts returning failures at the same speed
+                    .untilTime(Duration.ofSeconds(3))
+                    .response(response(500))
+                    // then we revert
+                    .untilTime(Duration.ofSeconds(10))
+                    .response(response(200))
+                    .build()
         };
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
@@ -264,8 +306,9 @@ public class SimulationTest {
                 .map(SimulationTest::noOpLimitedChannel)
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
-        LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.newPseudoRandom());
-        Channel channel = dontTolerateLimits(idea);
+        LimitedChannel limited = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.newPseudoRandom());
+        // Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+        Channel channel = dontTolerateLimits(limited);
         channel = new RetryingChannel(channel);
         return channel;
     }
@@ -293,9 +336,12 @@ public class SimulationTest {
         return new Channel() {
             @Override
             public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                return limitedChannel
-                        .maybeExecute(endpoint, request)
-                        .orElseThrow(() -> new RuntimeException("Got limited :("));
+                Optional<ListenableFuture<Response>> future = limitedChannel.maybeExecute(endpoint, request);
+                if (future.isPresent()) {
+                    return future.get();
+                }
+
+                return Futures.immediateFailedFuture(new RuntimeException("limited channel says no :("));
             }
         };
     }
