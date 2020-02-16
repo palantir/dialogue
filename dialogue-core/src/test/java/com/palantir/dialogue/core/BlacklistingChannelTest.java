@@ -80,6 +80,14 @@ public class BlacklistingChannelTest {
     }
 
     @Test
+    public void testBlacklistAfter500() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+
+        futureResponse.set(mockResponseWithCode(500));
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
     public void testBlacklistedForDuration() {
         assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
 
