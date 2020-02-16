@@ -121,7 +121,7 @@ final class BlacklistingChannel implements LimitedChannel {
 
     @Override
     public String toString() {
-        return "BlacklistingChannel{delegate=" + delegate + '}';
+        return "BlacklistingChannel{" + delegate + '}';
     }
 
     // I wish java had union types

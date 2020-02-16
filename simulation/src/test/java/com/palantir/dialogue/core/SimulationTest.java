@@ -244,7 +244,7 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node1")
                     .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
                     .simulation(simulation)
                     // at this point, the server starts returning failures at the same speed
                     .untilTime(Duration.ofSeconds(3))
@@ -256,7 +256,7 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node2")
                     .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
                     .simulation(simulation)
                     // at this point, the server starts returning failures at the same speed
                     .untilTime(Duration.ofSeconds(3))
@@ -270,8 +270,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(4000)
-                .requestsPerSecond(200)
+                .numRequests(400)
+                .requestsPerSecond(20)
                 .channel(i -> channel.execute(ENDPOINT, request("req-" + i)))
                 .simulation(simulation)
                 .run();
@@ -302,15 +302,15 @@ public class SimulationTest {
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
-        ImmutableList<LimitedChannel> chans = Arrays.stream(channels)
+        ImmutableList<LimitedChannel> limitedChannels = Arrays.stream(channels)
                 .map(SimulationTest::noOpLimitedChannel)
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
-        LimitedChannel limited = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.newPseudoRandom());
-        // Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-        Channel channel = dontTolerateLimits(limited);
-        channel = new RetryingChannel(channel);
-        return channel;
+        LimitedChannel limited =
+                new PreferLowestUtilization(limitedChannels, sim.clock(), SimulationUtils.newPseudoRandom());
+        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+        // Channel channel = dontTolerateLimits(limited);
+        return new RetryingChannel(channel);
     }
 
     private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
@@ -343,6 +343,11 @@ public class SimulationTest {
 
                 return Futures.immediateFailedFuture(new RuntimeException("limited channel says no :("));
             }
+
+            @Override
+            public String toString() {
+                return limitedChannel.toString();
+            }
         };
     }
 
@@ -351,6 +356,11 @@ public class SimulationTest {
             @Override
             public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
                 return Optional.of(delegate.execute(endpoint, request));
+            }
+
+            @Override
+            public String toString() {
+                return delegate.toString();
             }
         };
     }

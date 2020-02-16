@@ -79,7 +79,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
             List<LimitedChannel> candidates = channelsByActive.get(activeCount);
             List<LimitedChannel> tiebreak = randomness.shuffle(candidates);
             for (LimitedChannel channel : tiebreak) {
-                log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
+                log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
                 atomicInteger.incrementAndGet();
@@ -89,10 +89,10 @@ public final class PreferLowestUtilization implements LimitedChannel {
                     ListenableFuture<Response> response = maybeResponse.get();
                     response.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
                     return Optional.of(response);
+                } else {
+                    // we have to undo the atomicInteger thing we eagerly incremented.
+                    atomicInteger.decrementAndGet();
                 }
-
-                // we have to undo the atomicInteger thing we eagerly incremented.
-                atomicInteger.decrementAndGet();
             }
         }
 
