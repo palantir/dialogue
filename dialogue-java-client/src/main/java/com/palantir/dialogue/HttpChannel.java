@@ -58,7 +58,7 @@ public final class HttpChannel implements Channel {
                 null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
         this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
                 .host(baseUrl.getHost())
-                .port(baseUrl.getPort());
+                .port(getPortOrDefault(baseUrl));
         String strippedBasePath = stripSlashes(baseUrl.getPath());
         if (!strippedBasePath.isEmpty()) {
             this.baseUrl.encodedPathSegments(strippedBasePath);
@@ -195,5 +195,12 @@ public final class HttpChannel implements Channel {
         public int read(byte[] bytes, int off, int len) throws IOException {
             return delegate.get().read(bytes, off, len);
         }
+    }
+
+    private static int getPortOrDefault(URL url) {
+        if (url.getPort() == -1) {
+            return url.getDefaultPort();
+        }
+        return url.getPort();
     }
 }
