@@ -24,8 +24,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.io.ByteArrayInputStream;
@@ -93,7 +93,7 @@ public abstract class AbstractChannelTest {
         channel = createChannel(server.url("").url());
 
         when(request.body()).thenReturn(Optional.empty());
-        when(request.queryParams()).thenReturn(ImmutableMultimap.of());
+        when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
         server.enqueue(new MockResponse());
 
         endpoint = new FakeEndpoint();
@@ -179,7 +179,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void fillsQueryParameters() throws Exception {
-        when(request.queryParams()).thenReturn(ImmutableMultimap.of("a", "A1", "a", "A2", "b", "B"));
+        when(request.queryParams()).thenReturn(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"));
         channel.execute(endpoint, request);
 
         HttpUrl requestUrl = server.takeRequest().getRequestUrl();
@@ -192,7 +192,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void encodesQueryParameters() throws Exception {
         String mustEncode = "%^&/?a=A3&a=A4";
-        when(request.queryParams()).thenReturn(ImmutableMultimap.of(mustEncode, mustEncode));
+        when(request.queryParams()).thenReturn(ImmutableListMultimap.of(mustEncode, mustEncode));
         channel.execute(endpoint, request);
 
         HttpUrl url = server.takeRequest().getRequestUrl();

@@ -16,9 +16,10 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.palantir.logsafe.Preconditions;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.Optional;
 public final class Request {
 
     private final ImmutableSortedMap<String, String> headerParams;
-    private final ImmutableMultimap<String, String> queryParams;
+    private final ImmutableListMultimap<String, String> queryParams;
     private final ImmutableMap<String, String> pathParams;
     private final Optional<RequestBody> body;
 
@@ -53,7 +54,7 @@ public final class Request {
      * The URL query parameters headers for this request. These should *not* be URL-encoded and {@link Channel}s are
      * responsible for performing the appropriate encoding if necessary.
      */
-    public Multimap<String, String> queryParams() {
+    public ListMultimap<String, String> queryParams() {
         return queryParams;
     }
 
@@ -113,7 +114,7 @@ public final class Request {
     public static final class Builder {
         private ImmutableSortedMap.Builder<String, String> headerParams =
                 ImmutableSortedMap.orderedBy(String.CASE_INSENSITIVE_ORDER);
-        private ImmutableMultimap.Builder<String, String> queryParams = ImmutableMultimap.builder();
+        private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
 
@@ -167,7 +168,7 @@ public final class Request {
         }
 
         public Request.Builder queryParams(Multimap<String, ? extends String> entries) {
-            queryParams = ImmutableMultimap.builder();
+            queryParams = ImmutableListMultimap.builder();
             return putAllQueryParams(entries);
         }
 
