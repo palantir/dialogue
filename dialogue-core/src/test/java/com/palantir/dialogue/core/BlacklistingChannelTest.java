@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -69,6 +70,21 @@ public class BlacklistingChannelTest {
 
         futureResponse.setException(new IllegalStateException());
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
+    public void blacklisted_endpoint_doesnt_affect_other_endpoint() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+        futureResponse.setException(new IllegalStateException());
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        Endpoint endpoint2 = mock(Endpoint.class);
+        SettableFuture<Response> future2 = SettableFuture.create();
+        when(delegate.maybeExecute(endpoint2, request)).thenReturn(Optional.of(future2));
+        assertThat(channel.maybeExecute(endpoint2, request)).contains(future2);
+        futureResponse.setException(new IllegalStateException());
+
+        assertThat(channel.maybeExecute(endpoint2, request)).isPresent();
     }
 
     @Test

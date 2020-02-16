@@ -299,7 +299,7 @@ public class SimulationTest {
                     .simulation(simulation)
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(5))
+                    .until(Duration.ofSeconds(3))
                     .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
@@ -308,7 +308,7 @@ public class SimulationTest {
                     .simulation(simulation)
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(5))
+                    .until(Duration.ofSeconds(3))
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     .build()
@@ -318,7 +318,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond(20)
+                .requestsPerSecond(50)
                 .sendUntil(Duration.ofSeconds(10))
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
