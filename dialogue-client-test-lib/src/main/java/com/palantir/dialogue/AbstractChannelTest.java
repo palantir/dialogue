@@ -26,7 +26,6 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -58,7 +57,7 @@ public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
 
-    abstract Channel createChannel(URL baseUrl);
+    protected abstract Channel createChannel(URL baseUrl);
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -198,7 +197,7 @@ public abstract class AbstractChannelTest {
     public void get_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
+        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
                 .hasMessageContaining("GET endpoints must not have a request body");
     }
 
@@ -220,7 +219,7 @@ public abstract class AbstractChannelTest {
     public void delete_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
+        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
                 .hasMessageContaining("DELETE endpoints must not have a request body");
     }
 

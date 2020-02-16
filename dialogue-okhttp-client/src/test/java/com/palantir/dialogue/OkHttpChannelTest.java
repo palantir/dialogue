@@ -27,7 +27,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 public final class OkHttpChannelTest extends AbstractChannelTest {
 
     @Override
-    Channel createChannel(URL baseUrl) {
+    protected Channel createChannel(URL baseUrl) {
         OkHttpClient client = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(new Dispatcher(Executors.newSingleThreadExecutor()))
