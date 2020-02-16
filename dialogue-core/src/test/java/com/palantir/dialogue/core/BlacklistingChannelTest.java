@@ -103,6 +103,74 @@ public class BlacklistingChannelTest {
     }
 
     @Test
+    public void after_blacklisting_expires_only_5_requests_are_allowed_to_start() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+        futureResponse.set(mockResponseWithCode(503));
+
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        SettableFuture<Response> unresolvedResponse = SettableFuture.create();
+        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(unresolvedResponse));
+        when(ticker.read()).thenReturn(BLACKLIST_DURATION.toNanos());
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(unresolvedResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(unresolvedResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(unresolvedResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(unresolvedResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(unresolvedResponse);
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
+    public void after_blacklisting_expires_and_5_requests_pass_we_are_good_to_go_again() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+        futureResponse.set(mockResponseWithCode(503));
+
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        SettableFuture<Response> thisWillSucceed = SettableFuture.create();
+        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(thisWillSucceed));
+        when(ticker.read()).thenReturn(BLACKLIST_DURATION.toNanos());
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWillSucceed);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWillSucceed);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWillSucceed);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWillSucceed);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWillSucceed);
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        thisWillSucceed.set(mockResponseWithCode(200));
+
+        assertThat(channel.maybeExecute(endpoint, request)).isPresent();
+    }
+
+    @Test
+    public void failure_during_probation_puts_us_back_into_blacklisting() {
+        assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
+        futureResponse.set(mockResponseWithCode(503));
+
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        SettableFuture<Response> thisWill503 = SettableFuture.create();
+        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(thisWill503));
+        when(ticker.read()).thenReturn(BLACKLIST_DURATION.toNanos());
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWill503);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWill503);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWill503);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWill503);
+        assertThat(channel.maybeExecute(endpoint, request)).contains(thisWill503);
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+
+        thisWill503.set(mockResponseWithCode(503));
+
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+    }
+
+    @Test
     public void testConcurrentRequestsAllowed() {
         assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);
         assertThat(channel.maybeExecute(endpoint, request)).contains(futureResponse);

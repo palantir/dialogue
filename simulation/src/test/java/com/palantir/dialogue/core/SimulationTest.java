@@ -192,7 +192,7 @@ public class SimulationTest {
                 .collect(ImmutableList.toImmutableList());
         LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.DETERMINISTIC);
         return dontTolerateLimits(idea);
-    }   
+    }
 
     private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
         List<LimitedChannel> limitedChannels = Stream.of(channels)
