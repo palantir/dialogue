@@ -38,15 +38,16 @@ import org.slf4j.LoggerFactory;
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
 
-    private int requestsPerSecond = 1000;
-    private int numRequests = 20;
+    private int requestsPerSecond;
+    private int numRequests;
     private Simulation simulation;
     private Function<Integer, ListenableFuture<Response>> channel;
+    private ShouldStopPredicate shouldStop;
 
     private Benchmark() {}
 
     static Benchmark builder() {
-        return new Benchmark();
+        return new Benchmark().requestsPerSecond(1000).numRequests(20).stopWhenAllRequestsReturn();
     }
 
     public Benchmark requestsPerSecond(int rps) {
@@ -69,6 +70,12 @@ public final class Benchmark {
         return this;
     }
 
+    public Benchmark stopWhenAllRequestsReturn() {
+        shouldStop = (time, _requestsStarted, responsesReceived) ->
+                (time.compareTo(Duration.ofDays(1)) > 0) || responsesReceived >= numRequests;
+        return this;
+    }
+
     public BenchmarkResult run() {
         SettableFuture<BenchmarkResult> result = schedule();
         simulation.runClockToInfinity();
@@ -83,11 +90,15 @@ public final class Benchmark {
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
         Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
 
-        int[] outstanding = new int[] {numRequests};
+        int[] requestsStarted = new int[] {0};
+        int[] responsesReceived = new int[] {0};
+
         Map<String, Integer> statusCodes = new HashMap<>();
         Runnable maybeTerminate = () -> {
-            outstanding[0] -= 1;
-            if (outstanding[0] == 0) {
+            responsesReceived[0] += 1;
+
+            if (shouldStop.shouldStop(
+                    Duration.ofNanos(simulation.clock().read()), requestsStarted[0], responsesReceived[0])) {
                 BenchmarkResult result = ImmutableBenchmarkResult.builder()
                         .clientHistogram(histogramChannel.getHistogram().getSnapshot())
                         .endTime(Duration.ofNanos(simulation.clock().read()))
@@ -103,7 +114,6 @@ public final class Benchmark {
                         Duration.between(realStart, Instant.now()));
                 done.set(result);
             }
-            // TODO(dfox): backstop in case one of the requests never comes back??
         };
 
         IntStream.range(0, numRequests).forEach(requestNum -> {
@@ -131,6 +141,7 @@ public final class Benchmark {
                                 simulation.clock().read(),
                                 requestNum);
                         ListenableFuture<Response> future = histogramChannel.apply(requestNum);
+                        requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
                         future.addListener(maybeTerminate, MoreExecutors.directExecutor());
@@ -151,5 +162,9 @@ public final class Benchmark {
         Map<String, Integer> statusCodes();
 
         double successPercentage();
+    }
+
+    interface ShouldStopPredicate {
+        boolean shouldStop(Duration time, int requestsStarted, int responsesReceived);
     }
 }
