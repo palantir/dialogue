@@ -95,6 +95,11 @@ public final class SimulationUtils {
             public String version() {
                 return "1.0.0";
             }
+
+            @Override
+            public String toString() {
+                return endpointName();
+            }
         };
     }
 

@@ -320,7 +320,7 @@ public class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(20)
                 .sendUntil(Duration.ofSeconds(10))
-                .endpoints(endpoint1, endpoint2)
+                .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .channel(channel)
                 .run();

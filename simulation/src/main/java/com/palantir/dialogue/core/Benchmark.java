@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -79,12 +80,20 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark endpoints(Endpoint... endpoints) {
+    public Benchmark randomEndpoints(Endpoint... endpoints) {
+        return endpoints(true, endpoints);
+    }
+
+    public Benchmark endpoints(boolean randomize, Endpoint... endpoints) {
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
-        requestStream = requestStream.map(req -> ImmutableScheduledRequest.builder()
-                .from(req)
-                .endpoint(endpoints[req.number() % endpoints.length])
-                .build());
+        Random pseudoRandom = new Random(21876781263L);
+        requestStream = requestStream.map(req -> {
+            int index = randomize ? pseudoRandom.nextInt(endpoints.length) : req.number() % endpoints.length;
+            return ImmutableScheduledRequest.builder()
+                    .from(req)
+                    .endpoint(endpoints[index])
+                    .build();
+        });
         return this;
     }
 
@@ -157,10 +166,11 @@ public final class Benchmark {
 
             simulation.schedule(
                     () -> {
-                        log.debug(
-                                "time={} kicking off request {}",
+                        log.info(
+                                "time={} starting num={} {}",
                                 simulation.clock().read(),
-                                req.number());
+                                req.number(),
+                                req);
                         ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 
