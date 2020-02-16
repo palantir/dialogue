@@ -14,6 +14,7 @@ com.palantir.tracing:* = 4.3.0
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.8.3
 org.slf4j:* = 1.7.30
+org.apache.httpcomponents:httpclient = 4.5.11
 
 # test deps
 junit:junit = 4.12
