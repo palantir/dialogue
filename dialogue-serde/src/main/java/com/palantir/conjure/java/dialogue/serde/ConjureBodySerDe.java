@@ -37,6 +37,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
@@ -95,8 +96,8 @@ final class ConjureBodySerDe implements BodySerDe {
         Preconditions.checkNotNull(value, "A BinaryRequestBody value is required");
         return new RequestBody() {
             @Override
-            public Optional<Long> length() {
-                return Optional.empty();
+            public OptionalLong length() {
+                return OptionalLong.empty();
             }
 
             @Override
@@ -145,8 +146,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
             return new RequestBody() {
                 @Override
-                public Optional<Long> length() {
-                    return Optional.of((long) bytes.size());
+                public OptionalLong length() {
+                    return OptionalLong.of(bytes.size());
                 }
 
                 @Override

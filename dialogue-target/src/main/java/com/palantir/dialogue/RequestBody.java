@@ -17,11 +17,11 @@
 package com.palantir.dialogue;
 
 import java.io.InputStream;
-import java.util.Optional;
+import java.util.OptionalLong;
 
 public interface RequestBody {
     /** The number of bytes in the {@link #content}, or absent if unknown. */
-    Optional<Long> length();
+    OptionalLong length();
 
     /** The content of this request body, possibly empty. */
     InputStream content();

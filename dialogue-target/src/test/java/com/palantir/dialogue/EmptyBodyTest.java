@@ -32,7 +32,7 @@ public final class EmptyBodyTest {
         assertThat(EmptyBody.serializer("application/json")
                         .serialize(EmptyBody.INSTANCE)
                         .length())
-                .contains(0L);
+                .hasValue(0L);
         assertThat(EmptyBody.serializer("application/json")
                         .serialize(EmptyBody.INSTANCE)
                         .contentType())
