@@ -18,11 +18,8 @@ package com.palantir.dialogue;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.OptionalLong;
 
 public interface RequestBody {
-    /** The number of bytes in the {@link #writeTo}, or absent if unknown. */
-    OptionalLong length();
 
     /** The content of this request body, possibly empty. */
     void writeTo(OutputStream output) throws IOException;

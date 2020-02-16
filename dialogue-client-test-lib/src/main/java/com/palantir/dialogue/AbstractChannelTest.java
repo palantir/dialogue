@@ -35,7 +35,6 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -65,11 +64,6 @@ public abstract class AbstractChannelTest {
     public final MockWebServer server = new MockWebServer();
 
     private final RequestBody body = new RequestBody() {
-        @Override
-        public OptionalLong length() {
-            return OptionalLong.of(CONTENT.length);
-        }
-
         @Override
         public void writeTo(OutputStream output) throws IOException {
             output.write(CONTENT);

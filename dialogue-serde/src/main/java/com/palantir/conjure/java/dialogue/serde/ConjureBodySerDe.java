@@ -36,7 +36,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
@@ -94,10 +93,6 @@ final class ConjureBodySerDe implements BodySerDe {
     public RequestBody serialize(BinaryRequestBody value) {
         Preconditions.checkNotNull(value, "A BinaryRequestBody value is required");
         return new RequestBody() {
-            @Override
-            public OptionalLong length() {
-                return OptionalLong.empty();
-            }
 
             @Override
             public void writeTo(OutputStream output) throws IOException {
@@ -136,10 +131,6 @@ final class ConjureBodySerDe implements BodySerDe {
             Preconditions.checkNotNull(value, "cannot serialize null value");
 
             return new RequestBody() {
-                @Override
-                public OptionalLong length() {
-                    return OptionalLong.empty();
-                }
 
                 @Override
                 public void writeTo(OutputStream output) {

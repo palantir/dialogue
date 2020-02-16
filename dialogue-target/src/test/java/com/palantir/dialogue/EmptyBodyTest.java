@@ -31,10 +31,6 @@ public final class EmptyBodyTest {
         assertThat(baos.toByteArray()).isEmpty();
         assertThat(EmptyBody.serializer("application/json")
                         .serialize(EmptyBody.INSTANCE)
-                        .length())
-                .hasValue(0L);
-        assertThat(EmptyBody.serializer("application/json")
-                        .serialize(EmptyBody.INSTANCE)
                         .contentType())
                 .isEqualTo("application/json");
     }
