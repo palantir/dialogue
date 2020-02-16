@@ -119,7 +119,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
             }
             RequestBody body = request.body().get();
             if (body.length().isPresent()) {
-                connection.setFixedLengthStreamingMode(body.length().get());
+                connection.setFixedLengthStreamingMode(body.length().getAsLong());
             } else {
                 connection.setChunkedStreamingMode(1024 * 8);
             }

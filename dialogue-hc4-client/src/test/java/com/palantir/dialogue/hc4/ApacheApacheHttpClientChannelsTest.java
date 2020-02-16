@@ -28,7 +28,7 @@ import org.junit.runner.RunWith;
 import org.mockito.junit.MockitoJUnitRunner;
 
 @RunWith(MockitoJUnitRunner.class)
-public final class HttpClientChannelsTest extends AbstractChannelTest {
+public final class ApacheApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
@@ -39,7 +39,7 @@ public final class HttpClientChannelsTest extends AbstractChannelTest {
                 .addUris(baseUrl.toString())
                 .security(SSL_CONFIG)
                 .build();
-        return HttpClientChannels.create(
+        return ApacheHttpClientChannels.create(
                 ClientConfigurations.of(serviceConf),
                 UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
                 new DefaultTaggedMetricRegistry());

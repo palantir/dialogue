@@ -43,12 +43,12 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
 import org.apache.http.impl.client.CloseableHttpClient;
 
-final class HttpClientChannel implements BlockingChannel {
+final class ApacheHttpClientChannel implements BlockingChannel {
 
     private final CloseableHttpClient client;
     private final UrlBuilder baseUrl;
 
-    HttpClientChannel(CloseableHttpClient client, URL baseUrl) {
+    ApacheHttpClientChannel(CloseableHttpClient client, URL baseUrl) {
         this.client = client;
         // Sanitize path syntax and strip all irrelevant URL components
         Preconditions.checkArgument(

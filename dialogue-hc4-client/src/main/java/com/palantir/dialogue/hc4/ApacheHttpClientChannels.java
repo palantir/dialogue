@@ -34,9 +34,9 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 
-public final class HttpClientChannels {
+public final class ApacheHttpClientChannels {
 
-    private HttpClientChannels() {}
+    private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
         long socketTimeoutMillis =
@@ -65,7 +65,7 @@ public final class HttpClientChannels {
                 .setSSLHostnameVerifier(new DefaultHostnameVerifier())
                 .build();
         ImmutableList<Channel> channels = conf.uris().stream()
-                .map(uri -> BlockingChannelAdapter.of(new HttpClientChannel(client, url(uri))))
+                .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientChannel(client, url(uri))))
                 .collect(ImmutableList.toImmutableList());
 
         return Channels.create(channels, baseAgent, metrics);
