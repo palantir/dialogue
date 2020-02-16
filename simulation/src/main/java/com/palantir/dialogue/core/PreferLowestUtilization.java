@@ -78,11 +78,11 @@ public final class PreferLowestUtilization implements LimitedChannel {
                 log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
+                atomicInteger.incrementAndGet();
 
                 Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
                 if (maybeResponse.isPresent()) {
                     ListenableFuture<Response> response = maybeResponse.get();
-                    atomicInteger.incrementAndGet();
                     response.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
                     return Optional.of(response);
                 }
