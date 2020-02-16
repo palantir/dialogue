@@ -33,11 +33,10 @@ import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,27 +48,32 @@ public final class Benchmark {
 
     private Simulation simulation;
     private Channel channel;
-
-    private int requestsPerSecond;
-    private int numRequests;
+    private Duration requestInterval;
+    private Stream<ScheduledRequest> requestStream;
     private Function<Integer, Request> requestSupplier = Benchmark::constructRequest;
-
     private ShouldStopPredicate benchmarkFinished;
-    private Iterable<ScheduledRequest> requestStream = this::constantRate; // not used yet
 
     private Benchmark() {}
 
     static Benchmark builder() {
-        return new Benchmark().requestsPerSecond(1000).numRequests(20).stopWhenAllRequestsReturn();
+        return new Benchmark();
     }
 
     public Benchmark requestsPerSecond(int rps) {
-        requestsPerSecond = rps;
+        requestInterval = Duration.ofSeconds(1).dividedBy(rps);
         return this;
     }
 
-    public Benchmark numRequests(int value) {
-        numRequests = value;
+    public Benchmark numRequests(int numRequests) {
+        requestStream = infiniteRequests(requestInterval).limit(numRequests);
+        stopWhenNumReceived(numRequests);
+        return this;
+    }
+
+    public Benchmark sendUntil(Duration cutoff) {
+        long num = cutoff.dividedBy(requestInterval);
+        requestStream = infiniteRequests(requestInterval).limit(num);
+        stopWhenNumReceived(num);
         return this;
     }
 
@@ -83,9 +87,9 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark stopWhenAllRequestsReturn() {
+    public Benchmark stopWhenNumReceived(long numReceived) {
         benchmarkFinished = (time, _requestsStarted, responsesReceived) ->
-                (time.compareTo(Duration.ofDays(1)) > 0) || responsesReceived >= numRequests;
+                (time.compareTo(Duration.ofDays(1)) > 0) || responsesReceived >= numReceived;
         return this;
     }
 
@@ -101,7 +105,6 @@ public final class Benchmark {
         SettableFuture<BenchmarkResult> done = SettableFuture.create();
 
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
-        Duration intervalBetweenRequests = Duration.ofSeconds(1).dividedBy(requestsPerSecond);
 
         int[] requestsStarted = new int[] {0};
         int[] responsesReceived = new int[] {0};
@@ -116,7 +119,7 @@ public final class Benchmark {
                         .clientHistogram(histogramChannel.getHistogram().getSnapshot())
                         .endTime(Duration.ofNanos(simulation.clock().read()))
                         .statusCodes(statusCodes)
-                        .successPercentage(Math.round(statusCodes.get("200") * 1000d / numRequests) / 10d)
+                        .successPercentage(Math.round(statusCodes.get("200") * 1000d / responsesReceived[0]) / 10d)
                         .build();
                 log.info(
                         "Finished simulation: client_mean={}, end_time={}, success={}% codes={} ({} ms)",
@@ -129,11 +132,7 @@ public final class Benchmark {
             }
         };
 
-        IntStream.range(0, numRequests).forEach(requestNum -> {
-            if (requestNum % (numRequests / 300) == 0) {
-                log.debug("Scheduling request {}", requestNum); // above 10k total requests, this gets really slow!
-            }
-
+        requestStream.forEach(req -> {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
@@ -142,7 +141,7 @@ public final class Benchmark {
 
                 @Override
                 public void onFailure(Throwable throwable) {
-                    log.warn("Benchmark onFailure requestNum={}", requestNum, throwable);
+                    log.warn("Benchmark onFailure requestNum={}", req.number(), throwable);
                     statusCodes.compute(throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
                 }
             };
@@ -152,41 +151,28 @@ public final class Benchmark {
                         log.debug(
                                 "time={} kicking off request {}",
                                 simulation.clock().read(),
-                                requestNum);
-                        Request req = requestSupplier.apply(requestNum);
-                        ListenableFuture<Response> future = histogramChannel.execute(ENDPOINT, req);
+                                req.number());
+                        ListenableFuture<Response> future = histogramChannel.execute(ENDPOINT, req.request());
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
                         future.addListener(maybeTerminate, MoreExecutors.directExecutor());
                     },
-                    requestNum * intervalBetweenRequests.toNanos(),
+                    req.sendTime().toNanos(),
                     TimeUnit.NANOSECONDS);
         });
 
         return done;
     }
 
-    private Iterator<ScheduledRequest> constantRate() {
-        return new Iterator<ScheduledRequest>() {
-            private int current = 0;
-
-            @Override
-            public boolean hasNext() {
-                return current < numRequests;
-            }
-
-            @Override
-            public ScheduledRequest next() {
-                ScheduledRequest next = ImmutableScheduledRequest.builder()
-                        .request(requestSupplier.apply(current))
-                        .sendTime(Duration.ofSeconds(1).dividedBy(requestsPerSecond).multipliedBy(current))
-                        .build();
-
-                current += 1;
-                return next;
-            }
-        };
+    private Stream<ScheduledRequest> infiniteRequests(Duration interval) {
+        return Stream.iterate(0, current -> current + 1).map(number -> {
+            return ImmutableScheduledRequest.builder()
+                    .number(number)
+                    .request(requestSupplier.apply(number))
+                    .sendTime(interval.multipliedBy(number))
+                    .build();
+        });
     }
 
     @Value.Immutable
@@ -206,6 +192,8 @@ public final class Benchmark {
 
     @Value.Immutable
     interface ScheduledRequest {
+        int number();
+
         Duration sendTime();
 
         Request request();
@@ -216,5 +204,4 @@ public final class Benchmark {
         when(req.headerParams()).thenReturn(ImmutableMap.of("X-B3-TraceId", "req-" + number));
         return req;
     }
-
 }

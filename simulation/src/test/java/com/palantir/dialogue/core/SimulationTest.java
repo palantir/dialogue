@@ -126,8 +126,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(2000)
                 .requestsPerSecond(50)
+                .numRequests(2000)
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -162,8 +162,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
                 .requestsPerSecond(200)
+                .numRequests(3000) // something weird happens at 1811... bug in DeterministicScheduler?
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -198,8 +198,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(3000)
                 .requestsPerSecond(200)
+                .numRequests(3000)
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -232,8 +232,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(4000)
                 .requestsPerSecond(200)
+                .numRequests(4000)
                 .channel(channel)
                 .simulation(simulation)
                 .run();
@@ -272,8 +272,8 @@ public class SimulationTest {
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
         result = Benchmark.builder()
-                .numRequests(400)
                 .requestsPerSecond(20)
+                .numRequests(400)
                 .channel(channel)
                 .simulation(simulation)
                 .run();
