@@ -16,9 +16,7 @@
 
 package com.palantir.dialogue;
 
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.util.OptionalLong;
+import java.io.OutputStream;
 
 /** A singleton object that always serializes to an empty byte array. */
 public enum EmptyBody {
@@ -27,14 +25,7 @@ public enum EmptyBody {
     public static Serializer<EmptyBody> serializer(String contentType) {
         return value -> new RequestBody() {
             @Override
-            public OptionalLong length() {
-                return OptionalLong.of(0L);
-            }
-
-            @Override
-            public InputStream content() {
-                return new ByteArrayInputStream(new byte[] {});
-            }
+            public void writeTo(OutputStream _output) {}
 
             @Override
             public String contentType() {

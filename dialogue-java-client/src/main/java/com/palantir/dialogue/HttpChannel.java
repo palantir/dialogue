@@ -20,6 +20,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
@@ -135,7 +136,13 @@ public final class HttpChannel implements Channel {
 
     private static HttpRequest.BodyPublisher toBody(Request request) {
         if (request.body().isPresent()) {
-            return HttpRequest.BodyPublishers.ofInputStream(request.body().get()::content);
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            try {
+                request.body().get().writeTo(bytes);
+            } catch (IOException e) {
+                throw new SafeRuntimeException("Failed to create a BodyPublisher", e);
+            }
+            return HttpRequest.BodyPublishers.ofByteArray(bytes.toByteArray());
         } else {
             return HttpRequest.BodyPublishers.noBody();
         }
