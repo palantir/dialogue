@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 /**
- * Retries calls to the underlying channel upon failure.
+ * Immediately retries calls to the underlying channel upon failure.
  */
 final class RetryingChannel implements Channel {
     private static final int DEFAULT_MAX_RETRIES = 4;
@@ -73,15 +73,26 @@ final class RetryingChannel implements Channel {
 
         @Override
         public void onSuccess(Response result) {
+            // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
+            // a row
+            if (result.code() == 503 || result.code() == 500) {
+                retryOrFail(() -> new RuntimeException("Retries exhausted"));
+                return;
+            }
+
             delegate.set(result);
         }
 
         @Override
         public void onFailure(Throwable throwable) {
+            retryOrFail(() -> throwable);
+        }
+
+        private void retryOrFail(Supplier<Throwable> throwable) {
             if (failures.incrementAndGet() < maxRetries) {
                 Futures.addCallback(runnable.get(), this, DIRECT_EXECUTOR);
             } else {
-                delegate.setException(throwable);
+                delegate.setException(throwable.get());
             }
         }
     }

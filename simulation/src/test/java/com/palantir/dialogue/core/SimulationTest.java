@@ -265,7 +265,9 @@ public class SimulationTest {
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
         LimitedChannel idea = new PreferLowestUtilization(chans, sim.clock(), SimulationUtils.newPseudoRandom());
-        return dontTolerateLimits(idea);
+        Channel channel = dontTolerateLimits(idea);
+        channel = new RetryingChannel(channel);
+        return channel;
     }
 
     private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
