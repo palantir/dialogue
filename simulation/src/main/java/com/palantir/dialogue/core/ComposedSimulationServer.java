@@ -75,17 +75,6 @@ final class ComposedSimulationServer implements Channel {
         boolean switchover(Ticker clock);
     }
 
-    static SwitchoverPredicate nthRequest(int numRequests) {
-        return new SwitchoverPredicate() {
-            private int count = 0;
-
-            @Override
-            public boolean switchover(Ticker _clock) {
-                return count++ >= numRequests;
-            }
-        };
-    }
-
     static SwitchoverPredicate time(Duration cutover) {
         return new SwitchoverPredicate() {
             @Override

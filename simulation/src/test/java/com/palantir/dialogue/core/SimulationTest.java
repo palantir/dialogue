@@ -101,22 +101,18 @@ public class SimulationTest {
         Channel[] servers = {
             SimulationServer.builder()
                     .metricName("fast")
-                    .handler()
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(600), capacity)
                     .simulation(simulation)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                     .build(),
             SimulationServer.builder()
                     .metricName("medium")
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(800), capacity)
                     .simulation(simulation)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(800), capacity))
                     .build(),
             SimulationServer.builder()
                     .metricName("slightly_slow")
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(1000), capacity)
                     .simulation(simulation)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(1000), capacity))
                     .build()
         };
 
@@ -137,22 +133,18 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build(),
             SimulationServer.builder()
                     .metricName("slow_failures_then_revert")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     // at this point, the server starts returning failures very slowly
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(503))
-                    .responseTimeUpToCapacity(Duration.ofSeconds(1), capacity)
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
                     // then we revert
-                    .untilTime(Duration.ofSeconds(10))
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .until(Duration.ofSeconds(10))
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
 
@@ -173,22 +165,18 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build(),
             SimulationServer.builder()
                     .metricName("fast_500s_the_revert")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     // at this point, the server starts returning failures instantly
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(500))
-                    .responseTimeUpToCapacity(Duration.ofMillis(10), capacity)
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
                     // then we revert
-                    .untilTime(Duration.ofSeconds(10))
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .until(Duration.ofSeconds(10))
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
 
@@ -209,22 +197,18 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build(),
             SimulationServer.builder()
                     .metricName("fast_then_slow_then_fast")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     // at this point, the server starts behaving slowly failures instantly
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofSeconds(10), capacity)
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
                     // then we revert
-                    .untilTime(Duration.ofSeconds(10))
-                    .response(response(200))
-                    .responseTimeUpToCapacity(Duration.ofMillis(60), capacity)
+                    .until(Duration.ofSeconds(10))
+                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
 
@@ -244,30 +228,24 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node1")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     // at this point, the server starts returning failures at the same speed
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(500))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     // then we revert
-                    .untilTime(Duration.ofSeconds(10))
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .until(Duration.ofSeconds(10))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
             SimulationServer.builder()
                     .metricName("node2")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     // at this point, the server starts returning failures at the same speed
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(500))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     // then we revert
-                    .untilTime(Duration.ofSeconds(10))
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .until(Duration.ofSeconds(10))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build()
         };
 
@@ -287,18 +265,15 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("node1")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
             SimulationServer.builder()
                     .metricName("node2_black_hole")
                     .simulation(simulation)
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofMillis(600))
+                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     // at this point, the server is effectively a black hole
-                    .untilTime(Duration.ofSeconds(3))
-                    .response(response(200))
-                    .responseTimeConstant(Duration.ofDays(1))
+                    .until(Duration.ofSeconds(3))
+                    .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                     .build()
         };
 
@@ -322,20 +297,20 @@ public class SimulationTest {
             SimulationServer.builder()
                     .metricName("server_where_e1_breaks")
                     .simulation(simulation)
-                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
-                    .untilTime(Duration.ofSeconds(5))
-                    .handler(endpoint1, h -> h.response(response(500)).responseTimeConstant(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                    .until(Duration.ofSeconds(5))
+                    .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
             SimulationServer.builder()
                     .metricName("server_where_e2_breaks")
                     .simulation(simulation)
-                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
-                    .untilTime(Duration.ofSeconds(5))
-                    .handler(endpoint1, h -> h.response(response(200)).responseTimeConstant(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(response(500)).responseTimeConstant(Duration.ofMillis(600)))
+                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                    .until(Duration.ofSeconds(5))
+                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                    .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     .build()
         };
 
@@ -364,10 +339,6 @@ public class SimulationTest {
         XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
         SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
-    }
-
-    private static Response response(int status) {
-        return SimulationUtils.response(status, "1.0.0");
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {

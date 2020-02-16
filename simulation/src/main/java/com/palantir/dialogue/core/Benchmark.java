@@ -245,7 +245,7 @@ public final class Benchmark {
         Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
 
         int number();
-    
+
         Duration sendTime();
 
         Request request();

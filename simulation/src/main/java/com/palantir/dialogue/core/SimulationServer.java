@@ -31,7 +31,6 @@ import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.slf4j.Logger;
@@ -122,38 +121,26 @@ final class SimulationServer implements Channel {
             return this;
         }
 
-        Builder handler(Endpoint endpoint, Consumer<HandlerBuilder0> configureFunc) {
-            ServerHandler handler = new ServerHandler(this);
-            handler.endpoint(endpoint);
-            configureFunc.accept(handler);
+        Builder handler(Function<HandlerBuilder0, ServerHandler> configureFunc) {
             handlers = ImmutableList.<ServerHandler>builder()
-                    .add(handler)
+                    .add(configureFunc.apply(new ServerHandler()))
                     .addAll(handlers)
                     .build();
             return this;
         }
 
-        HandlerBuilder0 handler() {
-            ServerHandler handlerBuilder = new ServerHandler(this);
-            handlers = ImmutableList.of(handlerBuilder);
-            return handlerBuilder;
-        }
-
-        HandlerBuilder1 response(Response response) {
-            HandlerBuilder0 builder0 = handler();
-            HandlerBuilder1 builder1 = builder0.response(response);
-            return builder1;
+        Builder handler(Endpoint endpoint, Function<HandlerBuilder0, ServerHandler> configureFunc) {
+            return handler(h -> {
+                HandlerBuilder0 builder = h.endpoint(endpoint);
+                return configureFunc.apply(builder);
+            });
         }
 
         Channel build() {
             return finalStep.apply(this);
         }
 
-        Builder untilNthRequest(int nthRequest) {
-            return until(ComposedSimulationServer.nthRequest(nthRequest));
-        }
-
-        Builder untilTime(Duration cutover) {
+        Builder until(Duration cutover) {
             return until(ComposedSimulationServer.time(cutover));
         }
 
@@ -180,15 +167,9 @@ final class SimulationServer implements Channel {
      */
     public static class ServerHandler implements HandlerBuilder0, HandlerBuilder1 {
 
-        private final SimulationServer.Builder returnBuilder;
-
         private Predicate<Endpoint> predicate = endpoint -> true;
         private Response response;
         private ResponseTimeFunction responseTimeFunction;
-
-        public ServerHandler(Builder returnBuilder) {
-            this.returnBuilder = returnBuilder;
-        }
 
         public Optional<ListenableFuture<Response>> maybeExecute(
                 SimulationServer server, Endpoint endpoint, Request _request) {
@@ -214,9 +195,9 @@ final class SimulationServer implements Channel {
         }
 
         @Override
-        public SimulationServer.Builder responseTime(ResponseTimeFunction func) {
+        public ServerHandler responseTime(ResponseTimeFunction func) {
             this.responseTimeFunction = func;
-            return returnBuilder;
+            return this;
         }
     }
 
@@ -224,13 +205,17 @@ final class SimulationServer implements Channel {
         HandlerBuilder0 endpoint(Endpoint endpoint);
 
         HandlerBuilder1 response(Response resp);
+
+        default HandlerBuilder1 response(int status) {
+            return response(SimulationUtils.response(status, "1.0.0"));
+        }
     }
 
     public interface HandlerBuilder1 {
-        SimulationServer.Builder responseTime(ResponseTimeFunction func);
+        ServerHandler responseTime(ResponseTimeFunction func);
 
         /** BEWARE: servers don't actually behave like this. */
-        default SimulationServer.Builder responseTimeConstant(Duration duration) {
+        default ServerHandler responseTime(Duration duration) {
             return responseTime(server -> duration);
         }
 
@@ -239,7 +224,7 @@ final class SimulationServer implements Channel {
          * number of concurrent requests (the 'capacity'), the response time will double. Above this, the server
          * returns 5x response time to simulate overloading.
          */
-        default SimulationServer.Builder responseTimeUpToCapacity(Duration bestCase, int capacity) {
+        default ServerHandler linearResponseTime(Duration bestCase, int capacity) {
             return responseTime(server -> {
                 long expected = bestCase.toNanos();
                 long inflight = server.activeRequests.getCount();
