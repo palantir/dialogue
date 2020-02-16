@@ -60,7 +60,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
         // we accumulate everything right now (which is probably quite expensive), but it allows us to move on to the
         // next-best channel if our preferred one refuses
         Map<Integer, List<LimitedChannel>> channelsByActive = new TreeMap<>();
-        for (LimitedChannel channel : channels) {
+        for (LimitedChannel channel : randomness.shuffle(channels)) {
             int activeRequests = active.get(channel).get();
             channelsByActive.compute(activeRequests, (key, existing) -> {
                 if (existing == null) {
@@ -77,8 +77,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
         // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
         for (Integer activeCount : channelsByActive.keySet()) {
             List<LimitedChannel> candidates = channelsByActive.get(activeCount);
-            List<LimitedChannel> tiebreak = randomness.shuffle(candidates);
-            for (LimitedChannel channel : tiebreak) {
+            for (LimitedChannel channel : candidates) {
                 log.info("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
