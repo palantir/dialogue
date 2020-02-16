@@ -26,12 +26,12 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -49,10 +49,6 @@ public final class PreferLowestUtilization implements LimitedChannel {
         this.channels = channels;
         this.clock = clock;
         this.randomness = randomness;
-
-        for (LimitedChannel channel : channels) {
-            active.get(channel); // prefills the cache
-        }
     }
 
     @Override
@@ -63,18 +59,26 @@ public final class PreferLowestUtilization implements LimitedChannel {
 
         // we accumulate everything right now (which is probably quite expensive), but it allows us to move on to the
         // next-best channel if our preferred one refuses
-        Map<Integer, ImmutableList<LimitedChannel>> channelsByActive = active.asMap().entrySet().stream()
-                .collect(Collectors.toMap(
-                        entry -> entry.getValue().get(),
-                        entry -> ImmutableList.of(entry.getKey()),
-                        PreferLowestUtilization::merge,
-                        () -> new TreeMap<>()));
+        Map<Integer, List<LimitedChannel>> channelsByActive = new TreeMap<>();
+        for (LimitedChannel channel : channels) {
+            int activeRequests = active.get(channel).get();
+            channelsByActive.compute(activeRequests, (key, existing) -> {
+                if (existing == null) {
+                    ArrayList<LimitedChannel> list = new ArrayList<>();
+                    list.add(channel);
+                    return list;
+                } else {
+                    existing.add(channel);
+                    return existing;
+                }
+            });
+        }
 
         // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
         for (Integer activeCount : channelsByActive.keySet()) {
-            ImmutableList<LimitedChannel> candidates = channelsByActive.get(activeCount);
-            List<LimitedChannel> tiebroken = randomness.shuffle(candidates);
-            for (LimitedChannel channel : tiebroken) {
+            List<LimitedChannel> candidates = channelsByActive.get(activeCount);
+            // List<LimitedChannel> tiebroken = randomness.shuffle(candidates);
+            for (LimitedChannel channel : candidates) {
                 log.debug("time={} best={} active={}", Duration.ofNanos(clock.read()), channel, channelsByActive);
 
                 AtomicInteger atomicInteger = active.get(channel);
