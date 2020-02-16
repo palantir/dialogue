@@ -19,48 +19,34 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.net.MalformedURLException;
+import java.net.URL;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class UrlBuilderTest {
 
     @Test
-    public void differentProtocols() {
-        assertThat(UrlBuilder.http().host("host").port(80).build().toString()).isEqualTo("http://host:80");
-        assertThat(UrlBuilder.https().host("host").port(80).build().toString()).isEqualTo("https://host:80");
+    public void differentProtocols() throws Exception {
+        assertThat(UrlBuilder.from(new URL("http://host:80")).build().toString())
+                .isEqualTo("http://host:80");
+        assertThat(UrlBuilder.from(new URL("https://host:80")).build().toString())
+                .isEqualTo("https://host:80");
     }
 
     @Test
-    public void differentHosts() {
-        assertThat(UrlBuilder.http().host("host").port(80).build().toString()).isEqualTo("http://host:80");
-        assertThat(UrlBuilder.http().host("another-host").port(80).build().toString())
-                .isEqualTo("http://another-host:80");
-        assertThatThrownBy(() -> UrlBuilder.http().build()).hasMessage("host must be set");
-    }
-
-    @Test
-    public void validatesHost() {
-        assertThatThrownBy(() -> UrlBuilder.http().host("ø").port(80).build())
-                .hasMessage("invalid host format: {host=ø}");
-    }
-
-    @Test
-    public void differentPorts() {
-        assertThat(UrlBuilder.http().host("host").port(80).build().toString()).isEqualTo("http://host:80");
-        assertThat(UrlBuilder.http().host("host").port(8080).build().toString()).isEqualTo("http://host:8080");
+    public void populatesDefaultPort() throws Exception {
+        assertThat(UrlBuilder.from(new URL("http://host")).build().toString()).isEqualTo("http://host:80");
+        assertThat(UrlBuilder.from(new URL("https://host")).build().toString()).isEqualTo("https://host:443");
     }
 
     @Test
     public void validatesPort() {
-        assertThatThrownBy(() -> UrlBuilder.http().host("host").build()).hasMessage("port must be set");
-        assertThatThrownBy(() -> UrlBuilder.http().host("host").port(65535 + 1).build())
+        assertThatThrownBy(() -> UrlBuilder.from(new URL("http://host:65536")).build())
                 .hasMessage("port must be in range [0, 65535]");
     }
 
     @Test
-    public void encodesPaths() {
+    public void encodesPaths() throws Exception {
         assertThat(minimalUrl().pathSegment("foo").build().toString()).isEqualTo("http://host:80/foo");
         assertThat(minimalUrl().pathSegment("foo").pathSegment("bar").build().toString())
                 .isEqualTo("http://host:80/foo/bar");
@@ -73,7 +59,7 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void handlesEmptyPathSegments() {
+    public void handlesEmptyPathSegments() throws Exception {
         assertThat(minimalUrl()
                         .pathSegment("")
                         .pathSegment("")
@@ -84,7 +70,7 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void handlesPreEncodedPathSegments() {
+    public void handlesPreEncodedPathSegments() throws Exception {
         assertThat(minimalUrl()
                         .encodedPathSegments("foo")
                         .pathSegment("baz")
@@ -114,14 +100,14 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void encodesQueryParams() {
+    public void encodesQueryParams() throws Exception {
         assertThat(minimalUrl().queryParam("foo", "bar").build().toString()).isEqualTo("http://host:80?foo=bar");
         assertThat(minimalUrl().queryParam("question?&", "answer!&").build().toString())
                 .isEqualTo("http://host:80?question?%26=answer!%26");
     }
 
     @Test
-    public void encodesMultipleQueryParamsWithSameName() {
+    public void encodesMultipleQueryParamsWithSameName() throws Exception {
         assertThat(minimalUrl()
                         .queryParam("foo", "bar")
                         .queryParam("foo", "baz")
@@ -131,10 +117,8 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void fullExample() {
-        assertThat(UrlBuilder.https()
-                        .host("host")
-                        .port(80)
+    public void fullExample() throws Exception {
+        assertThat(UrlBuilder.from(new URL("https://host:80"))
                         .pathSegment("foo")
                         .pathSegment("bar")
                         .queryParam("boom", "baz")
@@ -173,15 +157,15 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void newBuilderCopiesAllFields() {
+    public void newBuilderCopiesAllFields() throws Exception {
         UrlBuilder original =
-                UrlBuilder.http().host("foo").port(42).pathSegment("foo").queryParam("name", "value");
+                UrlBuilder.from(new URL("http://foo:42")).pathSegment("foo").queryParam("name", "value");
         UrlBuilder copy = original.newBuilder();
-        original.host("foo-new").port(43).pathSegment("foo-new").queryParam("name-new", "value-new");
+        original.pathSegment("foo-new").queryParam("name-new", "value-new");
         assertThat(copy.build().toString()).isEqualTo("http://foo:42/foo?name=value");
     }
 
-    private static UrlBuilder minimalUrl() {
-        return UrlBuilder.http().host("host").port(80);
+    private static UrlBuilder minimalUrl() throws MalformedURLException {
+        return UrlBuilder.from(new URL("http://host:80"));
     }
 }
