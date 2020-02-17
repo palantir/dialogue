@@ -33,6 +33,8 @@ import javax.net.ssl.TrustManager;
 
 public final class JavaChannels {
 
+    private static final boolean DEFAULT_ENABLE_HTTP2 = false;
+
     private JavaChannels() {}
 
     public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
@@ -48,6 +50,10 @@ public final class JavaChannels {
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .connectTimeout(conf.connectTimeout())
                 .proxy(conf.proxy())
+                .version(
+                        conf.enableHttp2().orElse(DEFAULT_ENABLE_HTTP2)
+                                ? HttpClient.Version.HTTP_2
+                                : HttpClient.Version.HTTP_1_1)
                 .sslContext(createSslContext(conf.trustManager()))
                 .build();
 
