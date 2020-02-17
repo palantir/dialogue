@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -92,7 +94,7 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
-    private SimulationServer[] servers;
+    private Supplier<SimulationServer[]> servers;
     private Benchmark.BenchmarkResult result;
 
     @SuppressWarnings("ImmutableEnumChecker")
@@ -101,9 +103,9 @@ public class SimulationTest {
         CONCURRENCY_LIMITER(SimulationTest::concurrencyLimiter),
         ROUND_ROBIN(SimulationTest::roundRobin);
 
-        private final BiFunction<Simulation, Channel[], Channel> getChannel;
+        private final BiFunction<Simulation, Supplier<SimulationServer[]>, Channel> getChannel;
 
-        Strategy(BiFunction<Simulation, Channel[], Channel> getChannel) {
+        Strategy(BiFunction<Simulation, Supplier<SimulationServer[]>, Channel> getChannel) {
             this.getChannel = getChannel;
         }
     }
@@ -111,23 +113,22 @@ public class SimulationTest {
     @Test
     public void simplest_possible_case() {
         int capacity = 20;
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("fast")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("medium")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(800), capacity))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("slightly_slow")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(1000), capacity))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("medium")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(800), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("slightly_slow")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(1000), capacity))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -142,22 +143,21 @@ public class SimulationTest {
     @Test
     public void slow_503s_then_revert() {
         int capacity = 60;
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("fast")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("slow_failures_then_revert")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .until(Duration.ofSeconds(3), "slow 503s")
-                    .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
-                    .until(Duration.ofSeconds(10), "revert")
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("slow_failures_then_revert")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "slow 503s")
+                        .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -172,22 +172,21 @@ public class SimulationTest {
     @Test
     public void fast_500s_then_revert() {
         int capacity = 60;
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("fast")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("fast_500s_then_revert")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .until(Duration.ofSeconds(3), "fast 500s")
-                    .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
-                    .until(Duration.ofSeconds(10), "revert")
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("fast_500s_then_revert")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "fast 500s")
+                        .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -202,22 +201,21 @@ public class SimulationTest {
     @Test
     public void drastic_slowdown() {
         int capacity = 60;
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("fast")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("fast_then_slow_then_fast")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .until(Duration.ofSeconds(3), "slow 200s")
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
-                    .until(Duration.ofSeconds(10), "revert")
-                    .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("fast_then_slow_then_fast")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "slow 200s")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -231,26 +229,25 @@ public class SimulationTest {
 
     @Test
     public void all_nodes_500() {
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("node1")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3), "500s (same speed)")
-                    .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(10), "revert")
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("node2")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3), "500s (same speed)")
-                    .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(10), "revert")
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("node1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "500s (same speed)")
+                        .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "500s (same speed)")
+                        .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -264,20 +261,19 @@ public class SimulationTest {
 
     @Test
     public void black_hole() {
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("node1")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("node2_black_hole")
-                    .simulation(simulation)
-                    .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3), "black hole")
-                    .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("node1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("node2_black_hole")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "black hole")
+                        .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -295,26 +291,25 @@ public class SimulationTest {
         Endpoint endpoint1 = SimulationUtils.endpoint("e1");
         Endpoint endpoint2 = SimulationUtils.endpoint("e2");
 
-        servers = new SimulationServer[] {
-            SimulationServer.builder()
-                    .metricName("server_where_e1_breaks")
-                    .simulation(simulation)
-                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3), "e1 breaks")
-                    .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .build(),
-            SimulationServer.builder()
-                    .metricName("server_where_e2_breaks")
-                    .simulation(simulation)
-                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3), "e2 breaks")
-                    .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    .build()
-        };
+        servers(
+                SimulationServer.builder()
+                        .metricName("server_where_e1_breaks")
+                        .simulation(simulation)
+                        .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "e1 breaks")
+                        .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("server_where_e2_breaks")
+                        .simulation(simulation)
+                        .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "e2 breaks")
+                        .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .build());
 
         Channel channel = strategy.getChannel.apply(simulation, servers);
 
@@ -328,9 +323,13 @@ public class SimulationTest {
                 .run();
     }
 
+    private void servers(SimulationServer... s) {
+        servers = Suppliers.memoize(() -> s);
+    }
+
     @After
     public void after() throws IOException {
-        Duration serverCpu = Duration.ofNanos(Arrays.stream(servers)
+        Duration serverCpu = Duration.ofNanos(Arrays.stream(servers.get()) // live-reloading breaks this :(
                 .mapToLong(s -> s.getCumulativeServerTime().toNanos())
                 .sum());
 
@@ -393,8 +392,8 @@ public class SimulationTest {
         Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static Channel lowestUtilization(Simulation sim, Channel... channels) {
-        ImmutableList<LimitedChannel> limitedChannels = Arrays.stream(channels)
+    private static Channel lowestUtilization(Simulation sim, Supplier<SimulationServer[]> channels) {
+        ImmutableList<LimitedChannel> limitedChannels = Arrays.stream(channels.get())
                 .map(SimulationTest::noOpLimitedChannel)
                 .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                 .collect(ImmutableList.toImmutableList());
@@ -405,8 +404,8 @@ public class SimulationTest {
         return new RetryingChannel(channel);
     }
 
-    private static Channel concurrencyLimiter(Simulation sim, Channel... channels) {
-        List<LimitedChannel> limitedChannels = Stream.of(channels)
+    private static Channel concurrencyLimiter(Simulation sim, Supplier<SimulationServer[]> channels) {
+        List<LimitedChannel> limitedChannels = Stream.of(channels.get())
                 .map(c -> new ConcurrencyLimitedChannel(
                         c, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
                 .collect(Collectors.toList());
@@ -416,9 +415,10 @@ public class SimulationTest {
         return new RetryingChannel(channel);
     }
 
-    private static Channel roundRobin(Simulation sim, Channel... channels) {
-        List<LimitedChannel> limitedChannels =
-                Stream.of(channels).map(SimulationTest::noOpLimitedChannel).collect(Collectors.toList());
+    private static Channel roundRobin(Simulation sim, Supplier<SimulationServer[]> channels) {
+        List<LimitedChannel> limitedChannels = Stream.of(channels.get())
+                .map(SimulationTest::noOpLimitedChannel)
+                .collect(Collectors.toList());
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
         limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
