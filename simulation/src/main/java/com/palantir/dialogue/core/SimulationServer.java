@@ -37,6 +37,11 @@ import java.util.function.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * A fake 'server' which just schedules responses on the {@link Simulation} executor.
+ * Responses are produced by the first {@link ServerHandler} that returns a future - these can be used to change
+ * behaviour at different times points (e.g. a fast handler until 3 seconds, then a slow handler after).
+ */
 final class SimulationServer implements Channel {
     private static final Logger log = LoggerFactory.getLogger(SimulationServer.class);
 

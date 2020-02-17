@@ -27,9 +27,8 @@ import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Combined ScheduledExecutorService and Clock. */
+/** Combined ScheduledExecutorService and Clock. All tasks get executed on the main thread. */
 final class Simulation {
-
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
 
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();

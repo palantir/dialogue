@@ -39,12 +39,16 @@ import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Exercises the given {@link Channel} using a pre-defined number of requests, all scheduled on the
+ * {@link Simulation} executor.
+ */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
-    public static String REQUEST_ID_HEADER = "simulation-req-id";
+    static final String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
-    private Channel channel;
+    private Channel channelUnderTest;
     private Duration delayBetweenRequests;
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
@@ -97,7 +101,7 @@ public final class Benchmark {
     }
 
     public Benchmark channel(Channel value) {
-        channel = value;
+        channelUnderTest = value;
         return this;
     }
 
@@ -138,7 +142,7 @@ public final class Benchmark {
 
     @SuppressWarnings("FutureReturnValueIgnored")
     public ListenableFuture<BenchmarkResult> schedule() {
-        HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
+        HistogramChannel histogramChannel = new HistogramChannel(simulation, channelUnderTest);
 
         long[] requestsStarted = {0};
         long[] responsesReceived = {0};
@@ -221,15 +225,22 @@ public final class Benchmark {
         long numReceived();
     }
 
+    /**
+     * Determines when the benchmark terminates - useful when a server is behaving like a black hole (not returning).
+     */
     interface ShouldStopPredicate {
+        /** Called once to set up a future - when this resolves, the benchmark will stop. */
         SettableFuture<Void> getFuture();
 
+        /**
+         * Called after every request to give this predicate the opportunity to terminate the benchmark by
+         * resolving the SettableFuture.
+         */
         void update(Duration time, long requestsStarted, long responsesReceived);
     }
 
     @Value.Immutable
     interface ScheduledRequest {
-
         Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
 
         long number();

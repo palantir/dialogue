@@ -24,30 +24,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
-public final class SimulationUtils {
-
-    public static Randomness newPseudoRandom() {
-        return new Randomness() {
-            private final Random random = new Random(12345L);
-
-            @Override
-            public <T> List<T> shuffle(List<T> list) {
-                if (list.size() == 1 || list.isEmpty()) {
-                    return list;
-                }
-
-                List<T> shuffleMe = new ArrayList<>(list);
-                Collections.shuffle(shuffleMe, random);
-                return shuffleMe;
-            }
-        };
-    }
+final class SimulationUtils {
 
     public static Response response(int status, String version) {
         return new Response() {

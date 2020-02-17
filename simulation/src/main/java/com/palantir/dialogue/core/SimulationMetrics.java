@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * This is a combination metric registry, reporter, logger and renderer, all hooked up to
- * {@link Simulation#clock()}.
+ * {@link Simulation#clock()}. Capable of reporting PNGs (although this is slow).
  */
 final class SimulationMetrics {
     private static final Logger log = LoggerFactory.getLogger(SimulationMetrics.class);

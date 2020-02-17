@@ -48,8 +48,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Simulates client heuristics defined in {@link Strategy} against {@link SimulationServer} nodes. These don't
- * actually bind to ports, they just schedule responses to return at some point. All scheduling happens on a
- * deterministic scheduler in {@link Simulation}, so hours of requests can be simulated instantly.
+ * actually bind to ports, they just schedule responses to return at some point. All scheduling happens on the
+ * deterministic scheduler in {@link Simulation} (on the main thread), so hours of requests can be simulated instantly.
  *
  * These simulations only reveal characteristics and emergent behaviour of the clients - they can't be used to
  * compare how efficient (in terms of CPU or allocations) clients are - a dedicated microbenchmarking harness should

@@ -79,7 +79,9 @@ public enum Strategy {
 
             @Override
             public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                log.debug("starting request={}", request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
+                log.debug(
+                        "starting request={}",
+                        request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
                 starts.mark();
                 Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
                 if (!response.isPresent()) {

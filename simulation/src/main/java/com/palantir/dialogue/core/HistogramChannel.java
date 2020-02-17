@@ -28,7 +28,7 @@ import java.util.concurrent.TimeUnit;
 
 final class HistogramChannel implements Channel {
     private final Simulation simulation;
-    private final Histogram histogram; // beware unit is nanos!
+    private final Histogram histogram;
     private final Channel channel;
 
     HistogramChannel(Simulation simulation, Channel channel) {
@@ -37,6 +37,7 @@ final class HistogramChannel implements Channel {
         histogram = new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
     }
 
+    /** Unit is nanos. */
     public Histogram getHistogram() {
         return histogram;
     }
