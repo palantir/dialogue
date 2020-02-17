@@ -27,10 +27,11 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 /**
  * Immediately retries calls to the underlying channel upon failure.
@@ -78,28 +79,44 @@ final class RetryingChannel implements Channel {
         }
 
         @Override
-        public void onSuccess(Response result) {
+        public void onSuccess(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
-            if (result.code() == 503 || result.code() == 500) {
-                retryOrFail(() -> new SafeRuntimeException("Retries exhausted"));
+            if (response.code() == 503 || response.code() == 500) {
+                closeBody(response);
+                retryOrFail(Optional.empty());
                 return;
             }
 
-            delegate.set(result);
+            boolean setSuccessfully = delegate.set(response);
+            if (!setSuccessfully) {
+                closeBody(response);
+            }
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            retryOrFail(() -> throwable);
+            retryOrFail(Optional.of(throwable));
         }
 
-        private void retryOrFail(Supplier<Throwable> throwable) {
+        private void retryOrFail(Optional<Throwable> throwable) {
             int attempt = failures.incrementAndGet();
             if (attempt < maxRetries) {
                 Futures.addCallback(runnable.apply(attempt), this, DIRECT_EXECUTOR);
             } else {
-                delegate.setException(throwable.get());
+                if (throwable.isPresent()) {
+                    delegate.setException(throwable.get());
+                } else {
+                    delegate.setException(new SafeRuntimeException("Retries exhausted"));
+                }
+            }
+        }
+
+        private void closeBody(Response response) {
+            try {
+                response.body().close();
+            } catch (IOException e) {
+                delegate.setException(new SafeRuntimeException("Failed to close response body", e));
             }
         }
     }
