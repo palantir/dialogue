@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -33,6 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -41,6 +43,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.After;
+import org.junit.AfterClass;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -328,7 +331,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond(50)
+                .requestsPerSecond(51)
                 .sendUntil(Duration.ofSeconds(10))
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
@@ -346,12 +349,13 @@ public class SimulationTest {
         double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
 
         // Duration meanMillis = Duration.ofNanos((long) result.clientHistogram().getMean());
-        String title = String.format(
+        String shortSummary = String.format(
                 "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                 strategy, result.successPercentage(), clientMeanMillis, serverCpu);
 
-        log.info(
-                "FINISHED: success={}% client_mean={} server_cpu={} received={}/{} codes={}",
+        // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
+        String longSummary = String.format(
+                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\treceived=%s/%s\tcodes=%s",
                 result.successPercentage(),
                 Duration.ofNanos(clientMeanNanos),
                 serverCpu,
@@ -362,23 +366,42 @@ public class SimulationTest {
         Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
-        boolean txtChanged = !title.equals(onDisk);
+        boolean txtChanged = !longSummary.equals(onDisk);
+
         if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
-            Files.write(txt, title.getBytes(StandardCharsets.UTF_8));
+            Stopwatch sw = Stopwatch.createStarted();
+
+            Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
 
             XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
-            activeRequests.setTitle(title);
+            activeRequests.setTitle(shortSummary);
 
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
             XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
-            SimulationMetrics.png(
-                    pngPath,
-                    activeRequests,
-                    serverRequestCount,
-                    clientStuff);
+            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount, clientStuff);
+
+            log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
+    }
+
+    @AfterClass
+    public static void afterClass() throws IOException {
+        String report = Files.list(Paths.get("src/test/resources"))
+                .filter(p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
+                .map(p -> {
+                    try {
+                        return String.format(
+                                "%70s:\t%s%n",
+                                p.getFileName().toString(), new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                })
+                .sorted(Comparator.comparing(String::trim))
+                .collect(Collectors.joining());
+        Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {

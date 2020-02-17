@@ -1,1 +1,1 @@
-LOWEST_UTILIZATION success=100% client_mean=83.9 ms server_cpu=PT4M11.73233331S
+success=100.0%	client_mean=PT0.083910777S 	server_cpu=PT4M11.73233331S	received=3000/3000	codes={200=3000}

@@ -21,7 +21,6 @@ import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
-import com.google.common.base.Stopwatch;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -213,15 +212,9 @@ final class SimulationMetrics {
         return chart;
     }
 
-    public static void png(String file, XYChart... charts) {
-        Stopwatch sw = Stopwatch.createStarted();
-        try {
-            int rows = charts.length;
-            int cols = 1;
-            BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
-            log.info("Generated {} ({} ms)", file, sw.elapsed(TimeUnit.MILLISECONDS));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+    public static void png(String file, XYChart... charts) throws IOException {
+        int rows = charts.length;
+        int cols = 1;
+        BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
     }
 }

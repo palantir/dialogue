@@ -28,10 +28,9 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -140,12 +139,11 @@ public final class Benchmark {
 
     @SuppressWarnings("FutureReturnValueIgnored")
     public ListenableFuture<BenchmarkResult> schedule() {
-        Instant realStart = Instant.now();
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
 
         int[] requestsStarted = new int[] {0};
         int[] responsesReceived = new int[] {0};
-        Map<String, Integer> statusCodes = new HashMap<>();
+        Map<String, Integer> statusCodes = new TreeMap<>();
 
         requestStream.forEach(req -> {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
@@ -157,7 +155,7 @@ public final class Benchmark {
                 @Override
                 public void onFailure(Throwable throwable) {
                     log.warn("Benchmark onFailure requestNum={}", req.number(), throwable);
-                    statusCodes.compute(throwable.getClass().toString(), (c, num) -> num == null ? 1 : num + 1);
+                    statusCodes.compute(throwable.getMessage(), (c, num) -> num == null ? 1 : num + 1);
                 }
             };
 

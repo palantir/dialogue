@@ -1,1 +1,1 @@
-ROUND_ROBIN success=100% client_mean=3699.9 ms server_cpu=PT1H1M39.87S
+success=100.0%	client_mean=PT3.69987S     	server_cpu=PT1H1M39.87S   	received=1000/1000	codes={200=1000}

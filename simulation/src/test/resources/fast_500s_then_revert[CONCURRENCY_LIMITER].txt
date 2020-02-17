@@ -1,1 +1,1 @@
-CONCURRENCY_LIMITER success=100% client_mean=79.0 ms server_cpu=PT4M56.143333328S
+success=100.0%	client_mean=PT0.078971555S 	server_cpu=PT4M56.143333328S	received=3750/3750	codes={200=3750}

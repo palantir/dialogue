@@ -1,1 +1,1 @@
-ROUND_ROBIN success=97% client_mean=952.8 ms server_cpu=PT7M56.4S
+success=96.7%	client_mean=PT0.945882352S 	server_cpu=PT8M2.4S       	received=510/510	codes={200=493, Retries exhausted=17}
