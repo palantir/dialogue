@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -87,6 +88,32 @@ public class RetryingChannelTest {
 
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get).hasCauseInstanceOf(IllegalArgumentException.class);
+        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+    }
+
+    @Test
+    public void retries_500s() {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(500);
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        assertThatThrownBy(response::get)
+                .hasMessageContaining("Retries exhausted")
+                .hasCauseInstanceOf(RuntimeException.class);
+        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+    }
+
+    @Test
+    public void retries_503s() {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(503);
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        assertThatThrownBy(response::get)
+                .hasMessageContaining("Retries exhausted")
+                .hasCauseInstanceOf(RuntimeException.class);
         verify(channel, times(3)).execute(ENDPOINT, REQUEST);
     }
 
