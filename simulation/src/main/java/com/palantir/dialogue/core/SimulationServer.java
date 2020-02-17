@@ -148,13 +148,22 @@ final class SimulationServer implements Channel {
         }
 
         Builder until(Duration cutover) {
+            return until(cutover, null);
+        }
+
+        Builder until(Duration cutover, String message) {
             long cutoverNanos = cutover.toNanos();
 
             for (ServerHandler handler : handlers) {
                 Predicate<Endpoint> existingPredicate = handler.predicate;
+                boolean[] switched = {false};
                 handler.predicate = endpoint -> {
                     // we just add in this sneaky little precondition to all the existing handlers!
                     if (simulation.clock().read() >= cutoverNanos) {
+                        if (message != null && !switched[0]) {
+                            simulation.events().event(message);
+                            switched[0] = true;
+                        }
                         return false;
                     }
 

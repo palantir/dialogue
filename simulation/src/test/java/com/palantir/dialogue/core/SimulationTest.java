@@ -152,11 +152,9 @@ public class SimulationTest {
                     .metricName("slow_failures_then_revert")
                     .simulation(simulation)
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    // at this point, the server starts returning failures very slowly
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "slow 503s")
                     .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
-                    // then we revert
-                    .until(Duration.ofSeconds(10))
+                    .until(Duration.ofSeconds(10), "revert")
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
@@ -181,14 +179,12 @@ public class SimulationTest {
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build(),
             SimulationServer.builder()
-                    .metricName("fast_500s_the_revert")
+                    .metricName("fast_500s_then_revert")
                     .simulation(simulation)
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    // at this point, the server starts returning failures instantly
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "fast 500s")
                     .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
-                    // then we revert
-                    .until(Duration.ofSeconds(10))
+                    .until(Duration.ofSeconds(10), "revert")
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
@@ -216,11 +212,9 @@ public class SimulationTest {
                     .metricName("fast_then_slow_then_fast")
                     .simulation(simulation)
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                    // at this point, the server starts behaving slowly failures instantly
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "slow 200s")
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
-                    // then we revert
-                    .until(Duration.ofSeconds(10))
+                    .until(Duration.ofSeconds(10), "revert")
                     .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                     .build()
         };
@@ -242,22 +236,18 @@ public class SimulationTest {
                     .metricName("node1")
                     .simulation(simulation)
                     .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    // at this point, the server starts returning failures at the same speed
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "500s (same speed)")
                     .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    // then we revert
-                    .until(Duration.ofSeconds(10))
+                    .until(Duration.ofSeconds(10), "revert")
                     .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
             SimulationServer.builder()
                     .metricName("node2")
                     .simulation(simulation)
                     .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    // at this point, the server starts returning failures at the same speed
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "500s (same speed)")
                     .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                    // then we revert
-                    .until(Duration.ofSeconds(10))
+                    .until(Duration.ofSeconds(10), "revert")
                     .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build()
         };
@@ -284,8 +274,7 @@ public class SimulationTest {
                     .metricName("node2_black_hole")
                     .simulation(simulation)
                     .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    // at this point, the server is effectively a black hole
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "black hole")
                     .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                     .build()
         };
@@ -312,7 +301,7 @@ public class SimulationTest {
                     .simulation(simulation)
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "e1 breaks")
                     .handler(endpoint1, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .build(),
@@ -321,7 +310,7 @@ public class SimulationTest {
                     .simulation(simulation)
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                    .until(Duration.ofSeconds(3))
+                    .until(Duration.ofSeconds(3), "e2 breaks")
                     .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                     .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                     .build()

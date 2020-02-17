@@ -38,6 +38,7 @@ final class Simulation {
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
     private final SimulationMetrics metrics = new SimulationMetrics(this);
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
+    private final EventMarkers eventMarkers = new EventMarkers(ticker);
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
@@ -84,6 +85,8 @@ final class Simulation {
     public SimulationMetrics metrics() {
         return metrics;
     }
+
+    public EventMarkers events() { return eventMarkers; }
 
     public void runClockToInfinity() {
         deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);

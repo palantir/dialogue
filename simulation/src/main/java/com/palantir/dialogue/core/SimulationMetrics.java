@@ -189,6 +189,8 @@ final class SimulationMetrics {
         chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
         chart.getStyler().setPlotMargin(0);
         chart.getStyler().setPlotContentSize(.95);
+        chart.getStyler().setToolTipsEnabled(true);
+        chart.getStyler().setToolTipsAlwaysVisible(true);
 
         Map<String, List<Double>> map = measurements.asMap();
         double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
@@ -197,6 +199,7 @@ final class SimulationMetrics {
                 .filter(metricNameRegex.asPredicate())
                 .sorted()
                 .collect(Collectors.toList());
+        String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
 
         for (String column : columns) {
             double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
@@ -206,7 +209,18 @@ final class SimulationMetrics {
                     SafeArg.of("column", column),
                     SafeArg.of("xaxis", xAxis.length),
                     SafeArg.of("length", series.length));
-            chart.addSeries(column, xAxis, series);
+            chart.addSeries(column, xAxis, series).setToolTips(nullToolTips);
+        }
+
+        if (!simulation.events().getEvents().isEmpty()) {
+            double[] eventXs = simulation.events().getEvents().keySet().stream()
+                    .mapToDouble(nanos -> TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d)
+                    .toArray();
+            double[] eventYs = new double[eventXs.length];
+            String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);
+            XYSeries what = chart.addSeries(" ", eventXs, eventYs);
+            what.setToolTips(strings);
+            what.setXYSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Scatter);
         }
 
         return chart;
