@@ -54,7 +54,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels1 = channels.stream()
                     .map(c1 -> new ConcurrencyLimitedChannel(
-                            c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
+                            c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock())))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
             limited1 = instrumentClient(limited1, sim.metrics()); // just for debugging
