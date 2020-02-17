@@ -24,6 +24,7 @@ import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
@@ -95,6 +96,14 @@ public final class OkHttpChannels {
     private OkHttpChannels() {}
 
     public static Channel create(ClientConfiguration config, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+        Preconditions.checkArgument(
+                !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
+        Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
+        Preconditions.checkArgument(
+                config.clientQoS() == ClientConfiguration.ClientQoS.ENABLED, "Disabling client QOS is not supported");
+        Preconditions.checkArgument(
+                config.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                "Propagating QoS exceptions is not supported");
         OkHttpClient.Builder builder = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(dispatcher)
@@ -102,9 +111,6 @@ public final class OkHttpChannels {
                 .followRedirects(false) // We implement our own redirect logic.
                 .sslSocketFactory(config.sslSocketFactory(), config.trustManager())
                 // timeouts
-                // Note that Feign overrides OkHttp timeouts with the timeouts given in FeignBuilder#Options if given,
-                // or
-                // with its own default otherwise.
                 .connectTimeout(config.connectTimeout().toMillis(), TimeUnit.MILLISECONDS)
                 .readTimeout(config.readTimeout().toMillis(), TimeUnit.MILLISECONDS)
                 .writeTimeout(config.writeTimeout().toMillis(), TimeUnit.MILLISECONDS)
