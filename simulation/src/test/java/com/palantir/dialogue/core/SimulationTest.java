@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Channel;
@@ -418,7 +420,16 @@ public class SimulationTest {
         Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
+
         boolean txtChanged = !longSummary.equals(onDisk);
+
+        if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
+            assertThat(onDisk)
+                    .describedAs("Run tests locally to update checked-in file: %s", txt)
+                    .isEqualTo(longSummary);
+            assertThat(Paths.get(pngPath)).exists();
+            return;
+        }
 
         if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
