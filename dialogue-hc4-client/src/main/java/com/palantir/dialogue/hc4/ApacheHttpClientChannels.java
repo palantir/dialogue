@@ -29,6 +29,7 @@ import java.net.URL;
 import java.util.concurrent.TimeUnit;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
+import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
@@ -62,7 +63,8 @@ public final class ApacheHttpClientChannels {
                 .disableConnectionState()
                 // Match okhttp behavior disabling cookies
                 .disableCookieManagement()
-                .setSSLHostnameVerifier(new DefaultHostnameVerifier())
+                .setSSLSocketFactory(
+                        new SSLConnectionSocketFactory(conf.sslSocketFactory(), new DefaultHostnameVerifier()))
                 .build();
         ImmutableList<Channel> channels = conf.uris().stream()
                 .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
