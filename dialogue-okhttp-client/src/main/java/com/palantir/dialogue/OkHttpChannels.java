@@ -23,8 +23,10 @@ import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.core.Channels;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
@@ -104,6 +106,11 @@ public final class OkHttpChannels {
         Preconditions.checkArgument(
                 config.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 "Propagating QoS exceptions is not supported");
+        if (config.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
+            log.warn(
+                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
+                    SafeArg.of("requestedStrategy", config.nodeSelectionStrategy()));
+        }
         OkHttpClient.Builder builder = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(dispatcher)
