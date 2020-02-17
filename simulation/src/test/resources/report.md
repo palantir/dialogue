@@ -22,40 +22,22 @@
 ```
 
 
-## all_nodes_500[CONCURRENCY_LIMITER].png
-![all_nodes_500[CONCURRENCY_LIMITER].png](all_nodes_500[CONCURRENCY_LIMITER].png)
-## all_nodes_500[ROUND_ROBIN].png
-![all_nodes_500[ROUND_ROBIN].png](all_nodes_500[ROUND_ROBIN].png)
-## black_hole[CONCURRENCY_LIMITER].png
-![black_hole[CONCURRENCY_LIMITER].png](black_hole[CONCURRENCY_LIMITER].png)
-## black_hole[ROUND_ROBIN].png
-![black_hole[ROUND_ROBIN].png](black_hole[ROUND_ROBIN].png)
-## drastic_slowdown[CONCURRENCY_LIMITER].png
-![drastic_slowdown[CONCURRENCY_LIMITER].png](drastic_slowdown[CONCURRENCY_LIMITER].png)
-## drastic_slowdown[ROUND_ROBIN].png
-![drastic_slowdown[ROUND_ROBIN].png](drastic_slowdown[ROUND_ROBIN].png)
-## fast_500s_then_revert[CONCURRENCY_LIMITER].png
-![fast_500s_then_revert[CONCURRENCY_LIMITER].png](fast_500s_then_revert[CONCURRENCY_LIMITER].png)
-## fast_500s_then_revert[ROUND_ROBIN].png
-![fast_500s_then_revert[ROUND_ROBIN].png](fast_500s_then_revert[ROUND_ROBIN].png)
-## live_reloading[CONCURRENCY_LIMITER].png
-![live_reloading[CONCURRENCY_LIMITER].png](live_reloading[CONCURRENCY_LIMITER].png)
-## live_reloading[ROUND_ROBIN].png
-![live_reloading[ROUND_ROBIN].png](live_reloading[ROUND_ROBIN].png)
-## one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png
-![one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png](one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png)
-## one_endpoint_dies_on_each_server[ROUND_ROBIN].png
-![one_endpoint_dies_on_each_server[ROUND_ROBIN].png](one_endpoint_dies_on_each_server[ROUND_ROBIN].png)
-## simplest_possible_case[CONCURRENCY_LIMITER].png
-![simplest_possible_case[CONCURRENCY_LIMITER].png](simplest_possible_case[CONCURRENCY_LIMITER].png)
-## simplest_possible_case[ROUND_ROBIN].png
-![simplest_possible_case[ROUND_ROBIN].png](simplest_possible_case[ROUND_ROBIN].png)
-## slow_503s_then_revert[CONCURRENCY_LIMITER].png
-![slow_503s_then_revert[CONCURRENCY_LIMITER].png](slow_503s_then_revert[CONCURRENCY_LIMITER].png)
-## slow_503s_then_revert[ROUND_ROBIN].png
-![slow_503s_then_revert[ROUND_ROBIN].png](slow_503s_then_revert[ROUND_ROBIN].png)
-## slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png
-![slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png](slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png)
-## slowdown_and_error_thresholds[ROUND_ROBIN].png
-![slowdown_and_error_thresholds[ROUND_ROBIN].png](slowdown_and_error_thresholds[ROUND_ROBIN].png)
-
+<table><tr><th>develop</th><th>current</th></tr><tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/all_nodes_500[CONCURRENCY_LIMITER].png" /></td><td>all_nodes_500[CONCURRENCY_LIMITER].png<image src="all_nodes_500[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/all_nodes_500[ROUND_ROBIN].png" /></td><td>all_nodes_500[ROUND_ROBIN].png<image src="all_nodes_500[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/black_hole[CONCURRENCY_LIMITER].png" /></td><td>black_hole[CONCURRENCY_LIMITER].png<image src="black_hole[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/black_hole[ROUND_ROBIN].png" /></td><td>black_hole[ROUND_ROBIN].png<image src="black_hole[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/drastic_slowdown[CONCURRENCY_LIMITER].png" /></td><td>drastic_slowdown[CONCURRENCY_LIMITER].png<image src="drastic_slowdown[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/drastic_slowdown[ROUND_ROBIN].png" /></td><td>drastic_slowdown[ROUND_ROBIN].png<image src="drastic_slowdown[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/fast_500s_then_revert[CONCURRENCY_LIMITER].png" /></td><td>fast_500s_then_revert[CONCURRENCY_LIMITER].png<image src="fast_500s_then_revert[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/fast_500s_then_revert[ROUND_ROBIN].png" /></td><td>fast_500s_then_revert[ROUND_ROBIN].png<image src="fast_500s_then_revert[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/live_reloading[CONCURRENCY_LIMITER].png" /></td><td>live_reloading[CONCURRENCY_LIMITER].png<image src="live_reloading[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/live_reloading[ROUND_ROBIN].png" /></td><td>live_reloading[ROUND_ROBIN].png<image src="live_reloading[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png" /></td><td>one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png<image src="one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/one_endpoint_dies_on_each_server[ROUND_ROBIN].png" /></td><td>one_endpoint_dies_on_each_server[ROUND_ROBIN].png<image src="one_endpoint_dies_on_each_server[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/simplest_possible_case[CONCURRENCY_LIMITER].png" /></td><td>simplest_possible_case[CONCURRENCY_LIMITER].png<image src="simplest_possible_case[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/simplest_possible_case[ROUND_ROBIN].png" /></td><td>simplest_possible_case[ROUND_ROBIN].png<image src="simplest_possible_case[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/slow_503s_then_revert[CONCURRENCY_LIMITER].png" /></td><td>slow_503s_then_revert[CONCURRENCY_LIMITER].png<image src="slow_503s_then_revert[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/slow_503s_then_revert[ROUND_ROBIN].png" /></td><td>slow_503s_then_revert[ROUND_ROBIN].png<image src="slow_503s_then_revert[ROUND_ROBIN].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png" /></td><td>slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png<image src="slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png" /></td></tr>
+<tr><td><image src="https://raw.githubusercontent.com/palantir/dialogue/develop/simulation/src/test/resources/slowdown_and_error_thresholds[ROUND_ROBIN].png" /></td><td>slowdown_and_error_thresholds[ROUND_ROBIN].png<image src="slowdown_and_error_thresholds[ROUND_ROBIN].png" /></td></tr>
+</table>

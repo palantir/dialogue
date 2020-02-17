@@ -441,9 +441,9 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-            XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+            // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
-            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount, clientStuff);
+            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
     }
@@ -470,14 +470,19 @@ public class SimulationTest {
                     })
                     .collect(Collectors.joining("", "```\n", "```\n"));
 
-            String images = files.stream()
-                    .filter(p -> p.toString().endsWith("png"))
-                    .map(p -> String.format("## %s%n![%s](%s)%n", p.getFileName(), p.getFileName(), p.getFileName()))
-                    .collect(Collectors.joining());
+            String images = "<table><tr><th>develop</th><th>current</th></tr>"
+                    + files.stream()
+                            .filter(p -> p.toString().endsWith("png"))
+                            .map(p -> String.format(
+                                    "<tr><td><image src=\"https://raw.githubusercontent"
+                                            + ".com/palantir/dialogue/develop/simulation/src/test/resources/%s\" "
+                                            + "/></td><td>%s<image src=\"%s\" /></td></tr>%n",
+                                    p.getFileName(), p.getFileName(), p.getFileName()))
+                            .collect(Collectors.joining())
+                    + "</table>";
 
             String report = String.format(
-                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n",
-                    txtSection, images);
+                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
             Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
         }
     }
