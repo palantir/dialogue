@@ -57,12 +57,13 @@ final class RetryingChannel implements Channel {
         SettableFuture<Response> future = SettableFuture.create();
 
         Function<Integer, ListenableFuture<Response>> callSupplier = attempt -> {
-            return delegate.execute(endpoint, Request.builder()
-                    .from(request)
-                    .putHeaderParams(
-                            "X-B3-TraceId",
-                            request.headerParams().get("X-B3-TraceId") + "-attempt-" + attempt)
-                    .build());
+            return delegate.execute(
+                    endpoint,
+                    Request.builder()
+                            .from(request)
+                            .putHeaderParams(
+                                    "X-B3-TraceId", request.headerParams().get("X-B3-TraceId") + "-attempt-" + attempt)
+                            .build());
         };
         FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
         Futures.addCallback(callSupplier.apply(0), retryer, DIRECT_EXECUTOR);
@@ -75,7 +76,8 @@ final class RetryingChannel implements Channel {
         private final Function<Integer, ListenableFuture<Response>> runnable;
         private final SettableFuture<Response> delegate;
 
-        private RetryingCallback(Function<Integer, ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
+        private RetryingCallback(
+                Function<Integer, ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
             this.runnable = runnable;
             this.delegate = delegate;
         }

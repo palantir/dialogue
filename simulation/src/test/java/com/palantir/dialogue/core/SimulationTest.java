@@ -34,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Rule;
@@ -359,8 +360,8 @@ public class SimulationTest {
                 .run();
     }
 
-    private Supplier<List<SimulationServer>> servers(SimulationServer... s) {
-        return Suppliers.memoize(() -> Arrays.asList(s));
+    private Supplier<List<SimulationServer>> servers(SimulationServer... values) {
+        return Suppliers.memoize(() -> Arrays.asList(values));
     }
 
     /** Use the {@link #beginAt} method to simulate live-reloads. */
@@ -434,19 +435,22 @@ public class SimulationTest {
     @AfterClass
     public static void afterClass() throws IOException {
         // squish all txt files together into one report to make it easier to compare during code review
-        String report = Files.list(Paths.get("src/test/resources"))
-                .filter(p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
-                .map(p -> {
-                    try {
-                        return String.format(
-                                "%70s:\t%s%n",
-                                p.getFileName().toString(), new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                })
-                .sorted(Comparator.comparing(String::trim))
-                .collect(Collectors.joining());
-        Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
+        try (Stream<Path> list = Files.list(Paths.get("src/test/resources"))) {
+            String report = list.filter(
+                            p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
+                    .map(p -> {
+                        try {
+                            return String.format(
+                                    "%70s:\t%s%n",
+                                    p.getFileName().toString(),
+                                    new String(Files.readAllBytes(p), StandardCharsets.UTF_8));
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .sorted(Comparator.comparing(String::trim))
+                    .collect(Collectors.joining());
+            Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
+        }
     }
 }

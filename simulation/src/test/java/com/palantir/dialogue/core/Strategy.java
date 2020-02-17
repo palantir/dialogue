@@ -25,6 +25,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.List;
@@ -90,7 +91,6 @@ public enum Strategy {
         });
     }
 
-
     private static LimitedChannel instrumentClient(LimitedChannel delegate, SimulationMetrics metrics) {
         Meter starts = metrics.meter("test_client.starts");
         Counter metric = metrics.counter("test_client.refusals");
@@ -114,7 +114,7 @@ public enum Strategy {
         };
     }
 
-    /** This is an alternative to the {@link com.palantir.dialogue.core.QueuedChannel). */
+    /** This is an alternative to the {@link com.palantir.dialogue.core.QueuedChannel}. */
     static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
         return new Channel() {
             @Override
@@ -124,7 +124,7 @@ public enum Strategy {
                     return future.get();
                 }
 
-                return Futures.immediateFailedFuture(new RuntimeException("limited channel says no :("));
+                return Futures.immediateFailedFuture(new SafeRuntimeException("limited channel says no :("));
             }
 
             @Override

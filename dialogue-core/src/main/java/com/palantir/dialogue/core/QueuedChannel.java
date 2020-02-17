@@ -27,6 +27,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -116,12 +117,12 @@ final class QueuedChannel implements Channel {
      * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
      */
     private void schedule() {
-        int i = 0;
+        int numScheduled = 0;
         while (scheduleNextTask()) {
-            i++;
+            numScheduled++;
         }
-        if (i > 1) {
-            log.info("Scheduled {} at the same time", i);
+        if (numScheduled > 1) {
+            log.debug("Scheduled {} at the same time", SafeArg.of("numScheduled", numScheduled));
         }
     }
 

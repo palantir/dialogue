@@ -86,7 +86,9 @@ final class Simulation {
         return metrics;
     }
 
-    public EventMarkers events() { return eventMarkers; }
+    public EventMarkers events() {
+        return eventMarkers;
+    }
 
     public void runClockToInfinity() {
         deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);
