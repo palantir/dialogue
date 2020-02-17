@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -32,8 +31,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
-import java.util.zip.GZIPInputStream;
 
 public final class HttpChannel implements Channel {
 
@@ -85,7 +82,6 @@ public final class HttpChannel implements Channel {
         // Fill headers
         request.headerParams().forEach(httpRequest::header);
 
-        httpRequest.header("accept-encoding", "gzip");
         request.body().ifPresent(body -> httpRequest.header("content-type", body.contentType()));
         httpRequest.timeout(requestTimeout);
 
@@ -109,15 +105,7 @@ public final class HttpChannel implements Channel {
         return new Response() {
             @Override
             public InputStream body() {
-                boolean isGzipped = response.headers()
-                        .firstValue("content-encoding")
-                        .orElse("")
-                        .equalsIgnoreCase("gzip");
-                if (isGzipped) {
-                    return new DeferredGzipInputStream(response.body());
-                } else {
-                    return response.body();
-                }
+                return response.body();
             }
 
             @Override
@@ -143,31 +131,6 @@ public final class HttpChannel implements Channel {
             return HttpRequest.BodyPublishers.ofByteArray(bytes.toByteArray());
         } else {
             return HttpRequest.BodyPublishers.noBody();
-        }
-    }
-
-    /** Wraps a {@link java.util.zip.GZIPInputStream} deferring initialization until first byte is read. */
-    private static class DeferredGzipInputStream extends InputStream {
-        private final Supplier<GZIPInputStream> delegate;
-
-        DeferredGzipInputStream(InputStream original) {
-            delegate = Suppliers.memoize(() -> {
-                try {
-                    return new GZIPInputStream(original);
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-        }
-
-        @Override
-        public int read() throws IOException {
-            return delegate.get().read();
-        }
-
-        @Override
-        public int read(byte[] bytes, int off, int len) throws IOException {
-            return delegate.get().read(bytes, off, len);
         }
     }
 }

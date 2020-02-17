@@ -37,6 +37,7 @@ public final class Channels {
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
+                .map(ContentDecodingChannel::new)
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(ImmutableList.toImmutableList());
 
