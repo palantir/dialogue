@@ -62,7 +62,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         connection.setReadTimeout(Ints.checkedCast(config.readTimeout().toMillis()));
 
         // match okhttp behavior
-        connection.setInstanceFollowRedirects(true);
+        connection.setInstanceFollowRedirects(false);
 
         // Never ask users for credentials
         connection.setAllowUserInteraction(false);

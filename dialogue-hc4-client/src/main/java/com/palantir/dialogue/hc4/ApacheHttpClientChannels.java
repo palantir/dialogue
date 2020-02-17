@@ -48,9 +48,9 @@ public final class ApacheHttpClientChannels {
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
                         .setConnectTimeout(
                                 Ints.checkedCast(conf.connectTimeout().toMillis()))
-                        // Match okhttp, allow redirects
-                        .setRedirectsEnabled(true)
-                        .setRelativeRedirectsAllowed(true)
+                        // Match okhttp, disallow redirects
+                        .setRedirectsEnabled(false)
+                        .setRelativeRedirectsAllowed(false)
                         .build())
                 .evictIdleConnections(55, TimeUnit.SECONDS)
                 .setMaxConnPerRoute(1000)
