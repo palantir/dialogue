@@ -44,11 +44,11 @@ final class SimulationServer implements Channel {
     private final String metricName;
     private final Counter globalActiveRequests;
     private final ImmutableList<ServerHandler> handlers;
+    private long cumulativeServerTimeNanos = 0;
 
     private SimulationServer(Builder builder) {
         this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
-
         this.globalActiveRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
         Preconditions.checkState(!builder.handlers.isEmpty(), "Handlers can't be empty");
         this.handlers = ImmutableList.copyOf(builder.handlers);
@@ -68,13 +68,19 @@ final class SimulationServer implements Channel {
         simulation.metrics().report();
 
         for (ServerHandler handler : handlers) {
+            long beforeNanos = simulation.clock().read();
             Optional<ListenableFuture<Response>> maybeResp = handler.maybeExecute(this, endpoint, request);
             if (!maybeResp.isPresent()) {
                 continue;
             }
 
             ListenableFuture<Response> resp = maybeResp.get();
-            resp.addListener(globalActiveRequests::dec, MoreExecutors.directExecutor());
+            resp.addListener(
+                    () -> {
+                        globalActiveRequests.dec();
+                        cumulativeServerTimeNanos += simulation.clock().read() - beforeNanos;
+                    },
+                    MoreExecutors.directExecutor());
             Futures.addCallback(
                     resp,
                     new FutureCallback<Response>() {
@@ -104,6 +110,11 @@ final class SimulationServer implements Channel {
     @Override
     public String toString() {
         return metricName;
+    }
+
+    // note this is misleading for the black_hole case, because it only increases when a task _returns_
+    public Duration getCumulativeServerTime() {
+        return Duration.ofNanos(cumulativeServerTimeNanos);
     }
 
     public static class Builder {

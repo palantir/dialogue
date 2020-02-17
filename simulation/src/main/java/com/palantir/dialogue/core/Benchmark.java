@@ -197,16 +197,6 @@ public final class Benchmark {
                             .numSent(requestsStarted[0])
                             .numReceived(responsesReceived[0])
                             .build();
-                    log.info(
-                            "Finished simulation: client_mean={}, end_time={}, success={}% received={}/{} codes={} "
-                                    + "({} ms)",
-                            Duration.ofNanos((long) result.clientHistogram().getMean()),
-                            result.endTime(),
-                            result.successPercentage(),
-                            result.numReceived(),
-                            result.numSent(),
-                            result.statusCodes(),
-                            Duration.between(realStart, Instant.now()));
                     return result;
                 },
                 MoreExecutors.directExecutor());

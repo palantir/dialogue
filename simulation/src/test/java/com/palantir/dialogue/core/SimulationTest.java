@@ -30,8 +30,8 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.After;
@@ -40,7 +40,8 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.knowm.xchart.XYChart;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The following sccenarios are important for good clients to handle.
@@ -67,6 +68,7 @@ import org.knowm.xchart.XYChart;
  */
 @RunWith(Parameterized.class)
 public class SimulationTest {
+    private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
     @Parameterized.Parameters(name = "{0}")
     public static Strategy[] data() {
@@ -80,6 +82,7 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
+    private SimulationServer[] servers;
     private Benchmark.BenchmarkResult result;
 
     @SuppressWarnings("ImmutableEnumChecker")
@@ -98,7 +101,7 @@ public class SimulationTest {
     @Test
     public void simplest_possible_case() {
         int capacity = 20;
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
@@ -129,7 +132,7 @@ public class SimulationTest {
     @Test
     public void slow_503s_then_revert() {
         int capacity = 60;
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
@@ -161,7 +164,7 @@ public class SimulationTest {
     @Test
     public void fast_500s_then_revert() {
         int capacity = 60;
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
@@ -193,7 +196,7 @@ public class SimulationTest {
     @Test
     public void drastic_slowdown() {
         int capacity = 60;
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("fast")
                     .simulation(simulation)
@@ -224,7 +227,7 @@ public class SimulationTest {
 
     @Test
     public void all_nodes_500() {
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("node1")
                     .simulation(simulation)
@@ -261,7 +264,7 @@ public class SimulationTest {
 
     @Test
     public void black_hole() {
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("node1")
                     .simulation(simulation)
@@ -293,7 +296,7 @@ public class SimulationTest {
         Endpoint endpoint1 = SimulationUtils.endpoint("e1");
         Endpoint endpoint2 = SimulationUtils.endpoint("e2");
 
-        Channel[] servers = {
+        servers = new SimulationServer[] {
             SimulationServer.builder()
                     .metricName("server_where_e1_breaks")
                     .simulation(simulation)
@@ -328,17 +331,34 @@ public class SimulationTest {
 
     @After
     public void after() {
-        Duration meanMillis = Duration.ofNanos((long) result.clientHistogram().getMean());
-        String title =
-                String.format("%s client_mean=%s success=%s%%", strategy, meanMillis, result.successPercentage());
+        Duration serverCpu = Duration.ofNanos(Arrays.stream(servers)
+                .mapToLong(s -> s.getCumulativeServerTime().toNanos())
+                .sum());
 
-        XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
-        activeRequests.setTitle(title);
+        long clientMeanNanos = (long) result.clientHistogram().getMean();
+        double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
 
-        XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-        XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+        // Duration meanMillis = Duration.ofNanos((long) result.clientHistogram().getMean());
+        String title = String.format(
+                "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
+                strategy, result.successPercentage(), clientMeanMillis, serverCpu);
 
-        SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
+        log.info(
+                "FINISHED: success={}% client_mean={} server_cpu={} received={}/{} codes={}",
+                result.successPercentage(),
+                Duration.ofNanos(clientMeanNanos),
+                serverCpu,
+                result.numReceived(),
+                result.numSent(),
+                result.statusCodes());
+
+        // XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
+        // activeRequests.setTitle(title);
+        //
+        // XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
+        // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+        //
+        // SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
