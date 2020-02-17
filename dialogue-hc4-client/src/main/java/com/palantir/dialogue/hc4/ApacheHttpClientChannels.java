@@ -32,6 +32,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
 import org.apache.http.client.config.RequestConfig;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -75,6 +76,8 @@ public final class ApacheHttpClientChannels {
                         .setRedirectsEnabled(false)
                         .setRelativeRedirectsAllowed(false)
                         .build())
+                .setDefaultSocketConfig(
+                        SocketConfig.custom().setSoKeepAlive(true).build())
                 .evictIdleConnections(55, TimeUnit.SECONDS)
                 .setMaxConnPerRoute(1000)
                 .setMaxConnTotal(Integer.MAX_VALUE)
@@ -86,6 +89,8 @@ public final class ApacheHttpClientChannels {
                 .disableConnectionState()
                 // Match okhttp behavior disabling cookies
                 .disableCookieManagement()
+                // Dialogue handles content-compression with ContentDecodingChannel
+                .disableContentCompression()
                 .setSSLSocketFactory(
                         new SSLConnectionSocketFactory(
                                 conf.sslSocketFactory(),
