@@ -29,6 +29,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.MetricName;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -46,16 +47,19 @@ final class SimulationServer implements Channel {
     private static final Logger log = LoggerFactory.getLogger(SimulationServer.class);
 
     private final Simulation simulation;
-    private final String metricName;
+    private final String serverName;
     private final Counter globalActiveRequests;
     private final ImmutableList<ServerHandler> handlers;
     private long cumulativeServerTimeNanos = 0;
 
     private SimulationServer(Builder builder) {
-        this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
+        this.serverName = Preconditions.checkNotNull(builder.serverName, "serverName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
         this.globalActiveRequests =
-                simulation.taggedMetrics().counter(String.format("[%s] activeRequests", metricName));
+                simulation.taggedMetrics().counter(MetricName.builder()
+                        .safeName("activeRequests")
+                        .putSafeTags("server", serverName)
+                        .build());
         Preconditions.checkState(!builder.handlers.isEmpty(), "Handlers can't be empty");
         this.handlers = ImmutableList.copyOf(builder.handlers);
     }
@@ -68,7 +72,11 @@ final class SimulationServer implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Meter perEndpointRequests = simulation
                 .taggedMetrics()
-                .meter(String.format("[%s] [%s] request", metricName, endpoint.endpointName()));
+                .meter(MetricName.builder()
+                        .safeName("request")
+                        .putSafeTags("server", serverName)
+                        .putSafeTags("endpoint", endpoint.endpointName())
+                        .build());
 
         globalActiveRequests.inc();
         perEndpointRequests.mark();
@@ -96,7 +104,7 @@ final class SimulationServer implements Channel {
                             log.debug(
                                     "time={} server={} status={} id={}",
                                     Duration.ofNanos(simulation.clock().read()),
-                                    metricName,
+                                    serverName,
                                     result.code(),
                                     request != null ? request.headerParams().get(Benchmark.REQUEST_ID_HEADER) : null);
                         }
@@ -116,7 +124,7 @@ final class SimulationServer implements Channel {
 
     @Override
     public String toString() {
-        return metricName;
+        return serverName;
     }
 
     // note this is misleading for the black_hole case, because it only increases when a task _returns_
@@ -125,12 +133,12 @@ final class SimulationServer implements Channel {
     }
 
     public static class Builder {
-        private String metricName;
+        private String serverName;
         private Simulation simulation;
         private ImmutableList<ServerHandler> handlers = ImmutableList.of();
 
-        Builder metricName(String value) {
-            metricName = value;
+        Builder serverName(String value) {
+            serverName = value;
             return this;
         }
 
