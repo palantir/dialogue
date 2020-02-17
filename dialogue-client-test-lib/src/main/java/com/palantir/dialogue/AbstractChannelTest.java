@@ -312,6 +312,16 @@ public abstract class AbstractChannelTest {
         assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");
     }
 
+    @Test
+    public void requestAreTraced() throws Exception {
+        endpoint.method = HttpMethod.POST;
+        when(request.body()).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getHeader("X-B3-TraceId")).isNotEmpty();
+        assertThat(result.get().code()).isEqualTo(200);
+    }
+
     private static Buffer zip(String content) throws IOException {
         Buffer gzipBytes = new Buffer();
         Buffer rawBytes = new Buffer();
