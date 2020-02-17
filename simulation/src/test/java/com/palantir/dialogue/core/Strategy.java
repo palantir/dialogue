@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -27,7 +26,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -38,7 +36,6 @@ import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
-    LOWEST_UTILIZATION(Strategy::lowestUtilization),
     CONCURRENCY_LIMITER(Strategy::concurrencyLimiter),
     ROUND_ROBIN(Strategy::roundRobin);
 
@@ -51,20 +48,6 @@ public enum Strategy {
 
     public Channel getChannel(Simulation simulation, Supplier<List<SimulationServer>> servers) {
         return getChannel.apply(simulation, servers);
-    }
-
-    private static Channel lowestUtilization(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return GenericRefreshingChannel.create(channelSupplier, channels -> {
-            ImmutableList<LimitedChannel> limitedChannels = channels.stream()
-                    .map(Strategy::noOpLimitedChannel)
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
-                    .collect(ImmutableList.toImmutableList());
-            LimitedChannel limited = new PreferLowestUtilization(limitedChannels, SimulationUtils.newPseudoRandom());
-            limited = instrumentClient(limited, sim.metrics()); // just for debugging
-            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            // Channel channel = dontTolerateLimits(limited);
-            return Optional.of(new RetryingChannel(channel));
-        });
     }
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
