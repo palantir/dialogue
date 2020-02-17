@@ -55,7 +55,7 @@ public enum Strategy {
                             c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock())))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
-            limited1 = instrumentClient(limited1, sim.metrics()); // just for debugging
+            limited1 = instrumentClient(limited1, sim.taggedMetrics()); // just for debugging
             Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             return new RetryingChannel(channel);
         });
@@ -66,13 +66,13 @@ public enum Strategy {
             List<LimitedChannel> limitedChannels =
                     channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
+            limited = instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             return new RetryingChannel(channel);
         });
     }
 
-    private static LimitedChannel instrumentClient(LimitedChannel delegate, SimulationMetrics metrics) {
+    private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
         Meter starts = metrics.meter("test_client.starts");
         Counter metric = metrics.counter("test_client.refusals");
         return new LimitedChannel() {

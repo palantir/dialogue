@@ -443,7 +443,7 @@ public class SimulationTest {
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
             // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
-            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount);
+            SimulationMetricsReporter.png(pngPath, activeRequests, serverRequestCount);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
     }

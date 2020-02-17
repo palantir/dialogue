@@ -54,7 +54,8 @@ final class SimulationServer implements Channel {
     private SimulationServer(Builder builder) {
         this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
-        this.globalActiveRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
+        this.globalActiveRequests =
+                simulation.taggedMetrics().counter(String.format("[%s] activeRequests", metricName));
         Preconditions.checkState(!builder.handlers.isEmpty(), "Handlers can't be empty");
         this.handlers = ImmutableList.copyOf(builder.handlers);
     }
@@ -65,8 +66,9 @@ final class SimulationServer implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Meter perEndpointRequests =
-                simulation.metrics().meter(String.format("[%s] [%s] request", metricName, endpoint.endpointName()));
+        Meter perEndpointRequests = simulation
+                .taggedMetrics()
+                .meter(String.format("[%s] [%s] request", metricName, endpoint.endpointName()));
 
         globalActiveRequests.inc();
         perEndpointRequests.mark();

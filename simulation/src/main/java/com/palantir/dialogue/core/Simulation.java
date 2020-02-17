@@ -36,9 +36,10 @@ final class Simulation {
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
-    private final SimulationMetrics metrics = new SimulationMetrics(this);
+    private final SimulationMetricsReporter metrics = new SimulationMetricsReporter(this);
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
     private final EventMarkers eventMarkers = new EventMarkers(ticker);
+    private final TaggedMetrics taggedMetrics = new TaggedMetrics(codahaleClock);
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
@@ -82,12 +83,16 @@ final class Simulation {
         return codahaleClock;
     }
 
-    public SimulationMetrics metrics() {
+    public SimulationMetricsReporter metrics() {
         return metrics;
     }
 
     public EventMarkers events() {
         return eventMarkers;
+    }
+
+    public TaggedMetrics taggedMetrics() {
+        return taggedMetrics;
     }
 
     public void runClockToInfinity() {
