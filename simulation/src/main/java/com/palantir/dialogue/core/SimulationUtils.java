@@ -16,13 +16,17 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +53,48 @@ final class SimulationUtils {
                 return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
             }
         };
+    }
+
+    public static Response wrapWithCloseInstrumentation(Response delegate, TaggedMetricRegistry registry) {
+        return new Response() {
+            @Override
+            public InputStream body() {
+                return new CloseRecordingInputStream(delegate.body(), registry);
+            }
+
+            @Override
+            public int code() {
+                return delegate.code();
+            }
+
+            @Override
+            public Map<String, List<String>> headers() {
+                return delegate.headers();
+            }
+        };
+    }
+
+    static final class CloseRecordingInputStream extends InputStream {
+        static final MetricName METRIC_NAME = MetricName.builder().safeName("bodyClose").build();
+
+        private final InputStream delegate;
+        private final Counter closeCounter;
+
+        private CloseRecordingInputStream(InputStream delegate, TaggedMetricRegistry registry) {
+            this.delegate = delegate;
+            this.closeCounter = registry.counter(METRIC_NAME);
+        }
+
+        @Override
+        public int read() throws IOException {
+            return delegate.read(); // this is inefficient but we're in a simulation anywhere so w/e
+        }
+
+        @Override
+        public void close() throws IOException {
+            closeCounter.inc();
+            super.close();
+        }
     }
 
     public static Endpoint endpoint(String name) {

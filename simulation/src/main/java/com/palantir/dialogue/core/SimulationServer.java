@@ -55,8 +55,9 @@ final class SimulationServer implements Channel {
     private SimulationServer(Builder builder) {
         this.serverName = Preconditions.checkNotNull(builder.serverName, "serverName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
-        this.globalActiveRequests =
-                simulation.taggedMetrics().counter(MetricName.builder()
+        this.globalActiveRequests = simulation
+                .taggedMetrics()
+                .counter(MetricName.builder()
                         .safeName("activeRequests")
                         .putSafeTags("server", serverName)
                         .build());
@@ -209,7 +210,13 @@ final class SimulationServer implements Channel {
 
             Duration responseTime = responseTimeFunction.getResponseTime(server);
             return Optional.of(server.simulation.schedule(
-                    () -> responseFunction.apply(server), responseTime.toNanos(), TimeUnit.NANOSECONDS));
+                    () -> {
+                        Response response = responseFunction.apply(server);
+                        return SimulationUtils.wrapWithCloseInstrumentation(
+                                response, server.simulation.taggedMetrics());
+                    },
+                    responseTime.toNanos(),
+                    TimeUnit.NANOSECONDS));
         }
 
         @Override
@@ -236,12 +243,8 @@ final class SimulationServer implements Channel {
 
         HandlerBuilder1 response(Function<SimulationServer, Response> func);
 
-        default HandlerBuilder1 response(Response resp) {
-            return response(unused -> resp);
-        }
-
         default HandlerBuilder1 response(int status) {
-            return response(SimulationUtils.response(status, "1.0.0"));
+            return response(server -> SimulationUtils.response(status, "1.0.0"));
         }
 
         default HandlerBuilder1 respond200UntilCapacity(int errorStatus, int capacity) {
