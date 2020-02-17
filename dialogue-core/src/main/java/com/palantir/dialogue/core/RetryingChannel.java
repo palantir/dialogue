@@ -113,6 +113,9 @@ final class RetryingChannel implements Channel {
         }
 
         private void closeBody(Response response) {
+            if (response == null || response.body() == null) {
+                return;
+            }
             try {
                 response.body().close();
             } catch (IOException e) {

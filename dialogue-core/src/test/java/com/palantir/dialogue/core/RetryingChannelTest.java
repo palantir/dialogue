@@ -38,6 +38,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -115,6 +116,31 @@ public class RetryingChannelTest {
                 .hasMessageContaining("Retries exhausted")
                 .hasCauseInstanceOf(RuntimeException.class);
         verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+    }
+
+    @Test
+    public void response_bodies_are_closed() throws Exception {
+        Response response1 = mockResponse(500);
+        Response response2 = mockResponse(500);
+        Response eventualSuccess = mockResponse(200);
+
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFuture(response1))
+                .thenReturn(Futures.immediateFuture(response2))
+                .thenReturn(Futures.immediateFuture(eventualSuccess));
+
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        assertThat(response.get(1, TimeUnit.SECONDS).code()).isEqualTo(200);
+
+        verify(response1.body(), times(1)).close();
+        verify(response2.body(), times(1)).close();
+    }
+
+    private static Response mockResponse(int status) {
+        Response response = mock(Response.class);
+        when(response.body()).thenReturn(mock(InputStream.class));
+        when(response.code()).thenReturn(status);
+        return response;
     }
 
     private static final class TestResponse implements Response {
