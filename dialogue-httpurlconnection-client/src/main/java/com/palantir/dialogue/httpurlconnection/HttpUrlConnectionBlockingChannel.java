@@ -56,9 +56,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         connection.setRequestMethod(endpoint.httpMethod().name());
 
         // Fill headers
-        for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
-            connection.addRequestProperty(header.getKey(), header.getValue());
-        }
+        request.headerParams().forEach(connection::addRequestProperty);
 
         connection.setConnectTimeout(Ints.checkedCast(config.connectTimeout().toMillis()));
         connection.setReadTimeout(Ints.checkedCast(config.readTimeout().toMillis()));
