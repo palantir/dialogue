@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
@@ -104,7 +105,13 @@ final class Simulation {
         void advanceTo(Duration duration) {
             long newNanos = duration.toNanos();
             if (newNanos < nanos) {
-                log.error("TestTicker time may not go backwards current={} new={}", nanos, newNanos);
+                long difference = nanos - newNanos;
+                Preconditions.checkState(
+                        difference < Duration.ofMillis(1).toNanos(),
+                        "Large time rewind - this is likely a bug in the test harness");
+                log.debug(
+                        "Tried to rewind time by {} micros - no-op as this is deterministic and harmless",
+                        TimeUnit.MICROSECONDS.convert(difference, TimeUnit.NANOSECONDS));
                 return;
             }
 

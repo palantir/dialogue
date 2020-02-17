@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Channel;
@@ -418,7 +420,16 @@ public class SimulationTest {
         Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
+
         boolean txtChanged = !longSummary.equals(onDisk);
+
+        if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
+            assertThat(onDisk)
+                    .describedAs("Run tests locally to update checked-in file: %s", txt)
+                    .isEqualTo(longSummary);
+            assertThat(Paths.get(pngPath)).exists();
+            return;
+        }
 
         if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
@@ -430,19 +441,23 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-            XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+            // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
-            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount, clientStuff);
+            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
     }
 
     @AfterClass
     public static void afterClass() throws IOException {
-        // squish all txt files together into one report to make it easier to compare during code review
+        // squish all txt files together into one markdown report so that github displays diffs
         try (Stream<Path> list = Files.list(Paths.get("src/test/resources"))) {
-            String report = list.filter(
-                            p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
+            List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
+                    .sorted(Comparator.comparing(Path::getFileName))
+                    .collect(Collectors.toList());
+
+            String txtSection = files.stream()
+                    .filter(p -> p.toString().endsWith("txt"))
                     .map(p -> {
                         try {
                             return String.format(
@@ -453,9 +468,27 @@ public class SimulationTest {
                             throw new RuntimeException(e);
                         }
                     })
-                    .sorted(Comparator.comparing(String::trim))
+                    .collect(Collectors.joining("", "```\n", "```\n"));
+
+            String rows = files.stream()
+                    .filter(p -> p.toString().endsWith("png"))
+                    .map(p -> {
+                        String githubUrl = "https://raw.githubusercontent.com/palantir/dialogue/"
+                                + "develop/simulation/src/test/resources/"
+                                + p.getFileName();
+                        return String.format(
+                                "<tr>"
+                                        + "<td><image width=400 src=\"%s\" /></td>"
+                                        + "<td>%s<br /><image width=400 src=\"%s\" /></td>"
+                                        + "</tr>%n",
+                                githubUrl, p.getFileName(), p.getFileName());
+                    })
                     .collect(Collectors.joining());
-            Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
+            String images = "<table><tr><th>develop</th><th>current</th></tr>" + rows + "</table>";
+
+            String report = String.format(
+                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
+            Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
         }
     }
 }
