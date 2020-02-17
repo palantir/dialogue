@@ -18,13 +18,11 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
 import java.util.Optional;
@@ -93,26 +91,6 @@ public enum Strategy {
             @Override
             public String toString() {
                 return delegate.toString();
-            }
-        };
-    }
-
-    /** This is an alternative to the {@link com.palantir.dialogue.core.QueuedChannel}. */
-    static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
-        return new Channel() {
-            @Override
-            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                Optional<ListenableFuture<Response>> future = limitedChannel.maybeExecute(endpoint, request);
-                if (future.isPresent()) {
-                    return future.get();
-                }
-
-                return Futures.immediateFailedFuture(new SafeRuntimeException("limited channel says no :("));
-            }
-
-            @Override
-            public String toString() {
-                return limitedChannel.toString();
             }
         };
     }
