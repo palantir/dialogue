@@ -37,7 +37,7 @@ final class HistogramChannel implements Channel {
         histogram = new Histogram(new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, simulation.codahaleClock()));
     }
 
-    /** Unit is nanos. */
+    /** Unit is micros. */
     public Histogram getHistogram() {
         return histogram;
     }
@@ -46,7 +46,13 @@ final class HistogramChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         long start = simulation.clock().read();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
-        future.addListener(() -> histogram.update(simulation.clock().read() - start), MoreExecutors.directExecutor());
+        future.addListener(
+                () -> {
+                    long micros =
+                            TimeUnit.MICROSECONDS.convert(simulation.clock().read() - start, TimeUnit.NANOSECONDS);
+                    histogram.update(micros);
+                },
+                MoreExecutors.directExecutor());
         return future;
     }
 }

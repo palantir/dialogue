@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -404,14 +405,14 @@ public class SimulationTest {
         Duration serverCpu = Duration.ofNanos(servers.get().stream() // live-reloading breaks this :(
                 .mapToLong(s -> s.getCumulativeServerTime().toNanos())
                 .sum());
-        long clientMeanNanos = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
+        long clientMeanMicros = (long) result.clientHistogram().getMean();
+        double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanMicros, TimeUnit.MICROSECONDS) / 1000d;
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
                 "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\treceived=%s/%s\tcodes=%s",
                 result.successPercentage(),
-                Duration.ofNanos(clientMeanNanos),
+                Duration.of(clientMeanMicros, ChronoUnit.MICROS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),
@@ -431,7 +432,7 @@ public class SimulationTest {
             return;
         }
 
-        if (txtChanged || !Files.exists(Paths.get(pngPath))) {
+        if (true || txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
@@ -441,7 +442,7 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-            // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+            // XYChart allMetrics = simulation.metrics().chart(Pattern.compile(".*"));
 
             SimulationMetricsReporter.png(pngPath, activeRequests, serverRequestCount);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));

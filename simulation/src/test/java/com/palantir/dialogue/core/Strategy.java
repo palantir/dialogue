@@ -23,7 +23,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.BiFunction;
@@ -56,7 +55,7 @@ public enum Strategy {
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
             limited1 = instrumentClient(limited1, sim.taggedMetrics()); // just for debugging
-            Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+            Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
             return new RetryingChannel(channel);
         });
     }
@@ -67,7 +66,7 @@ public enum Strategy {
                     channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             limited = instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
-            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(sim.taggedMetrics()));
             return new RetryingChannel(channel);
         });
     }

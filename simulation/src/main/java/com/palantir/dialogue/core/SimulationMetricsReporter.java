@@ -16,13 +16,14 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
+import com.codahale.metrics.Counting;
+import com.codahale.metrics.Gauge;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.tritium.metrics.registry.MetricName;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -64,15 +65,26 @@ final class SimulationMetricsReporter {
     }
 
     public void report() {
-        simulation.taggedMetrics().forEachMetric((name, metric) -> {
-            if (metric instanceof Meter) {
-                measurements.get(name.safeName() + ".1m").add(((Meter) metric).getOneMinuteRate());
-                measurements.get(name.safeName() + ".count").add((double) ((Meter) metric).getCount());
-            } else if (metric instanceof Counter) {
-                measurements.get(name.safeName() + ".count").add((double) ((Counter) metric).getCount());
-            } else {
-                log.error("Unknown metric type {} {}", name, metric);
+        simulation.taggedMetrics().forEachMetric((metricName, metric) -> {
+            String name = asString(metricName);
+
+            if (metric instanceof Counting) { // includes meters too!
+                measurements.get(name + ".count").add((double) ((Counting) metric).getCount());
+                return;
             }
+
+            if (metric instanceof Gauge) {
+                Object value = ((Gauge) metric).getValue();
+                Preconditions.checkState(
+                        value instanceof Number,
+                        "Gauges must produce numbers",
+                        SafeArg.of("metric", metricName),
+                        SafeArg.of("value", value));
+                measurements.get(name + ".count").add(toDouble((Number) value));
+                return;
+            }
+
+            log.error("Unknown metric type {} {}", metricName, metric);
         });
 
         long nanos = simulation.clock().read();
@@ -125,6 +137,18 @@ final class SimulationMetricsReporter {
         }
 
         return chart;
+    }
+
+    private static double toDouble(Number number) {
+        if (number instanceof Integer) {
+            return (double) (int) number;
+        }
+        return (double) number;
+    }
+
+    private static String asString(MetricName metricName) {
+        return metricName.safeTags().values().stream().map(v -> '[' + v + "] ").collect(Collectors.joining())
+                + metricName.safeName();
     }
 
     public static void png(String file, XYChart... charts) throws IOException {
