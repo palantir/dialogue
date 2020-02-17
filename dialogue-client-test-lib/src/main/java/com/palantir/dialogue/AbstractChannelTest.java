@@ -28,9 +28,8 @@ import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -66,13 +65,8 @@ public abstract class AbstractChannelTest {
 
     private final RequestBody body = new RequestBody() {
         @Override
-        public Optional<Long> length() {
-            return Optional.of((long) CONTENT.length);
-        }
-
-        @Override
-        public InputStream content() {
-            return new ByteArrayInputStream(CONTENT);
+        public void writeTo(OutputStream output) throws IOException {
+            output.write(CONTENT);
         }
 
         @Override
@@ -317,6 +311,16 @@ public abstract class AbstractChannelTest {
         Response response = channel.execute(endpoint, request).get();
         assertThat(response.body()).hasContent("foo");
         assertThat(server.takeRequest().getHeaders().get("accept-encoding")).isEqualTo("gzip");
+    }
+
+    @Test
+    public void requestAreTraced() throws Exception {
+        endpoint.method = HttpMethod.POST;
+        when(request.body()).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getHeader("X-B3-TraceId")).isNotEmpty();
+        assertThat(result.get().code()).isEqualTo(200);
     }
 
     private static Buffer zip(String content) throws IOException {

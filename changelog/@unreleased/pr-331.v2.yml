@@ -1,0 +1,7 @@
+type: break
+break:
+  description: RequestBody api writes to an OutputStream rather than producing an
+    InputStream for a simpler, more accurate API.
+  links:
+  - https://github.com/palantir/dialogue/pull/331
+  - https://github.com/palantir/dialogue/issues/326
