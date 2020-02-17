@@ -51,7 +51,7 @@ public enum Strategy {
     }
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return GenericRefreshingChannel.create(channelSupplier, channels -> {
+        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels1 = channels.stream()
                     .map(c1 -> new ConcurrencyLimitedChannel(
                             c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
@@ -59,18 +59,18 @@ public enum Strategy {
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
             limited1 = instrumentClient(limited1, sim.metrics()); // just for debugging
             Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            return Optional.of(new RetryingChannel(channel));
+            return new RetryingChannel(channel);
         });
     }
 
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return GenericRefreshingChannel.create(channelSupplier, channels -> {
+        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels =
                     channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            return Optional.of(new RetryingChannel(channel));
+            return new RetryingChannel(channel);
         });
     }
 
