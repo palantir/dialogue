@@ -18,6 +18,7 @@ package com.palantir.dialogue.hc4;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
@@ -86,7 +87,13 @@ public final class ApacheHttpClientChannels {
                 // Match okhttp behavior disabling cookies
                 .disableCookieManagement()
                 .setSSLSocketFactory(
-                        new SSLConnectionSocketFactory(conf.sslSocketFactory(), new DefaultHostnameVerifier()))
+                        new SSLConnectionSocketFactory(
+                                conf.sslSocketFactory(),
+                                new String[] {"TLSv1.2"},
+                                conf.enableGcmCipherSuites()
+                                        ? CipherSuites.allCipherSuites()
+                                        : CipherSuites.fastCipherSuites(),
+                                new DefaultHostnameVerifier()))
                 .build();
         ImmutableList<Channel> channels = conf.uris().stream()
                 .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
