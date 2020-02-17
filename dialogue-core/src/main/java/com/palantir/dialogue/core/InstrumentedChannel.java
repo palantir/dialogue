@@ -25,8 +25,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.MetricName;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.concurrent.TimeUnit;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -35,16 +33,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * TODO(rfink): Consider renaming since this is no longer the only one doing instrumentation
  */
 final class InstrumentedChannel implements Channel {
-
-    static final String CLIENT_RESPONSE_METRIC_NAME = "client.response";
-    static final String SERVICE_NAME_TAG = "service-name";
-
     private final Channel delegate;
-    private final TaggedMetricRegistry registry;
+    private final DialogueClientMetrics metrics;
 
-    InstrumentedChannel(Channel delegate, TaggedMetricRegistry registry) {
+    InstrumentedChannel(Channel delegate, DialogueClientMetrics metrics) {
         this.delegate = delegate;
-        this.registry = registry;
+        this.metrics = metrics;
     }
 
     @Override
@@ -66,18 +60,11 @@ final class InstrumentedChannel implements Channel {
 
                     private void record(Endpoint endpoint) {
                         long micros = stopwatch.elapsed(TimeUnit.MICROSECONDS);
-                        registry.timer(name(endpoint.serviceName())).update(micros, TimeUnit.MICROSECONDS);
+                        metrics.response(endpoint.serviceName()).update(micros, TimeUnit.MICROSECONDS);
                     }
                 },
                 MoreExecutors.directExecutor());
 
         return response;
-    }
-
-    private MetricName name(String serviceName) {
-        return MetricName.builder()
-                .safeName(CLIENT_RESPONSE_METRIC_NAME)
-                .putSafeTags(SERVICE_NAME_TAG, serviceName)
-                .build();
     }
 }
