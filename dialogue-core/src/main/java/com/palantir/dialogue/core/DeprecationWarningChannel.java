@@ -24,8 +24,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.tritium.metrics.registry.MetricName;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,13 +41,13 @@ final class DeprecationWarningChannel implements Channel {
     private static final Object SENTINEL = new Object();
 
     private final Channel delegate;
-    private final TaggedMetricRegistry registry;
+    private final DialogueClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(Channel delegate, TaggedMetricRegistry registry) {
+    DeprecationWarningChannel(Channel delegate, DialogueClientMetrics metrics) {
         this.delegate = delegate;
-        this.registry = registry;
+        this.metrics = metrics;
     }
 
     @Override
@@ -58,12 +56,7 @@ final class DeprecationWarningChannel implements Channel {
                 delegate.execute(endpoint, request), DialogueFutures.onSuccess(response -> {
                     if (response != null) {
                         response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                            registry.meter(MetricName.builder()
-                                            .safeName("client.deprecations")
-                                            .putSafeTags("service-name", endpoint.serviceName())
-                                            .build())
-                                    .mark();
-
+                            metrics.deprecations(endpoint.serviceName()).mark();
                             if (tryAcquire(endpoint.serviceName())) {
                                 log.warn(
                                         "Using a deprecated endpoint when connecting to service",

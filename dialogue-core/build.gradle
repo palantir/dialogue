@@ -14,8 +14,10 @@ dependencies {
     testCompile 'com.palantir.safe-logging:preconditions-assertj'
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'
+    testCompile 'org.assertj:assertj-guava'
     testCompile 'org.mockito:mockito-core'
 
     annotationProcessor 'org.immutables:value'
+    testAnnotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'
 }

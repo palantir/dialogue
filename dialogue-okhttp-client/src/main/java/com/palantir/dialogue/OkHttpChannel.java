@@ -21,7 +21,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
 import java.io.IOException;
 import java.net.URL;
-import java.util.Map;
 import java.util.Optional;
 import javax.annotation.Nullable;
 import okhttp3.Callback;
@@ -92,9 +91,7 @@ public final class OkHttpChannel implements Channel {
         }
 
         // Fill headers
-        for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
-            okRequest.header(header.getKey(), header.getValue());
-        }
+        request.headerParams().forEach(okRequest::addHeader);
 
         // TODO(rfink): Think about repeatability/retries
 

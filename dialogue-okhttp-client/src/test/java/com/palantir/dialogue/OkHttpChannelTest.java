@@ -16,6 +16,10 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.dialogue.core.Channels;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.util.concurrent.Executors;
 import okhttp3.Dispatcher;
@@ -29,6 +33,9 @@ public final class OkHttpChannelTest extends AbstractChannelTest {
                 .newBuilder()
                 .dispatcher(new Dispatcher(Executors.newSingleThreadExecutor()))
                 .build();
-        return OkHttpChannel.of(client, baseUrl);
+        return Channels.create(
+                ImmutableList.of(OkHttpChannel.of(client, baseUrl)),
+                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
+                new DefaultTaggedMetricRegistry());
     }
 }

@@ -12,3 +12,14 @@ namespaces:
       calls.running:
         type: gauge
         docs: Number of active outgoing requests.
+  dialogue.client:
+    docs: Dialogue client response metrics.
+    metrics:
+      response:
+        type: timer
+        tags: [service-name]
+        docs: Request time, note that this does not include time spent reading the response body.
+      deprecations:
+        type: meter
+        tags: [service-name]
+        docs: Rate of deprecated endpoints being invoked.
