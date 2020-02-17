@@ -121,8 +121,9 @@ final class QueuedChannel implements Channel {
         while (scheduleNextTask()) {
             numScheduled++;
         }
-        if (numScheduled > 1) {
-            log.debug("Scheduled {} at the same time", SafeArg.of("numScheduled", numScheduled));
+
+        if (log.isDebugEnabled()) {
+            log.debug("Scheduled {} requests", SafeArg.of("numScheduled", numScheduled));
         }
     }
 
