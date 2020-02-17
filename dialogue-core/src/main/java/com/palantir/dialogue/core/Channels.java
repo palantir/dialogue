@@ -34,8 +34,10 @@ public final class Channels {
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
                 .map(channel -> new DeprecationWarningChannel(channel, clientMetrics))
-                .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
+                // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
+                .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
+                .map(ContentDecodingChannel::new)
                 .map(ConcurrencyLimitedChannel::create)
                 .collect(ImmutableList.toImmutableList());
 

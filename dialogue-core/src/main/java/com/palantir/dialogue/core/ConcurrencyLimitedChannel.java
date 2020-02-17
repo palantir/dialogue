@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.FutureCallback;
@@ -42,6 +43,7 @@ import java.util.function.Supplier;
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Void NO_CONTEXT = null;
+    private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
 
     private final Channel delegate;
     private final LoadingCache<Endpoint, Limiter<Void>> limiters;
@@ -54,10 +56,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     static ConcurrencyLimitedChannel create(Channel delegate) {
-        return new ConcurrencyLimitedChannel(delegate, ConcurrencyLimitedChannel::createLimiter);
+        return new ConcurrencyLimitedChannel(delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME));
     }
 
-    private static Limiter<Void> createLimiter() {
+    @VisibleForTesting
+    static Limiter<Void> createLimiter(Ticker nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)
@@ -68,13 +71,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
                 .build();
         return SimpleLimiter.newBuilder()
+                .clock(nanoTimeClock::read)
                 .limit(WindowedLimit.newBuilder().build(aimdLimit))
                 .build();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return limiters.get(endpoint).acquire(NO_CONTEXT).map(listener ->
+        Limiter<Void> limiter = limiters.get(endpoint);
+        return limiter.acquire(NO_CONTEXT).map(listener ->
                 DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), new LimiterCallback(listener)));
     }
 

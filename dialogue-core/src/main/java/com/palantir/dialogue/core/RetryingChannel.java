@@ -26,16 +26,22 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
- * Retries calls to the underlying channel upon failure.
+ * Immediately retries calls to the underlying channel upon failure.
  */
 final class RetryingChannel implements Channel {
     private static final int DEFAULT_MAX_RETRIES = 4;
     private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
+
+    private static final int UNAVAILABLE_503 = 503;
+    private static final int TOO_MANY_REQUESTS_429 = 429;
 
     private final Channel delegate;
     private final int maxRetries;
@@ -54,34 +60,71 @@ final class RetryingChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         SettableFuture<Response> future = SettableFuture.create();
 
-        Supplier<ListenableFuture<Response>> callSupplier = () -> delegate.execute(endpoint, request);
-        FutureCallback<Response> retryer = new RetryingCallback<>(callSupplier, future);
-        Futures.addCallback(callSupplier.get(), retryer, DIRECT_EXECUTOR);
+        Function<Integer, ListenableFuture<Response>> callSupplier = attempt -> {
+            // TODO(dfox): include retry number in the request somehow
+            return delegate.execute(endpoint, request);
+        };
+        FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
+        Futures.addCallback(callSupplier.apply(0), retryer, DIRECT_EXECUTOR);
 
         return future;
     }
 
-    private final class RetryingCallback<T> implements FutureCallback<T> {
+    private final class RetryingCallback implements FutureCallback<Response> {
         private final AtomicInteger failures = new AtomicInteger(0);
-        private final Supplier<ListenableFuture<T>> runnable;
-        private final SettableFuture<T> delegate;
+        private final Function<Integer, ListenableFuture<Response>> runnable;
+        private final SettableFuture<Response> delegate;
 
-        private RetryingCallback(Supplier<ListenableFuture<T>> runnable, SettableFuture<T> delegate) {
+        private RetryingCallback(
+                Function<Integer, ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
             this.runnable = runnable;
             this.delegate = delegate;
         }
 
         @Override
-        public void onSuccess(T result) {
-            delegate.set(result);
+        public void onSuccess(Response response) {
+            // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
+            // a row
+            if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
+                closeBody(response);
+                retryOrFail(Optional.empty());
+                return;
+            }
+
+            // TODO(dfox): if people are using 308, we probably need to support it too
+
+            boolean setSuccessfully = delegate.set(response);
+            if (!setSuccessfully) {
+                closeBody(response);
+            }
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            if (failures.incrementAndGet() < maxRetries) {
-                Futures.addCallback(runnable.get(), this, DIRECT_EXECUTOR);
+            retryOrFail(Optional.of(throwable));
+        }
+
+        private void retryOrFail(Optional<Throwable> throwable) {
+            int attempt = failures.incrementAndGet();
+            if (attempt < maxRetries) {
+                Futures.addCallback(runnable.apply(attempt), this, DIRECT_EXECUTOR);
             } else {
-                delegate.setException(throwable);
+                if (throwable.isPresent()) {
+                    delegate.setException(throwable.get());
+                } else {
+                    delegate.setException(new SafeRuntimeException("Retries exhausted"));
+                }
+            }
+        }
+
+        private void closeBody(Response response) {
+            if (response == null || response.body() == null) {
+                return;
+            }
+            try {
+                response.body().close();
+            } catch (IOException e) {
+                delegate.setException(new SafeRuntimeException("Failed to close response body", e));
             }
         }
     }

@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: JavaChannels respects the client configuration `enableHttp2` flag
+  links:
+  - https://github.com/palantir/dialogue/pull/354
