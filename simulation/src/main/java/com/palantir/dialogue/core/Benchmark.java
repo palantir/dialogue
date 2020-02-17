@@ -33,6 +33,7 @@ import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -46,7 +47,7 @@ public final class Benchmark {
     private Channel channel;
     private Duration delayBetweenRequests;
     private Stream<ScheduledRequest> requestStream;
-    private Function<Integer, Request> requestSupplier = Benchmark::constructRequest;
+    private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
 
     private Benchmark() {}
@@ -81,7 +82,7 @@ public final class Benchmark {
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
         Random pseudoRandom = new Random(21876781263L);
         requestStream = requestStream.map(req -> {
-            int index = randomize ? pseudoRandom.nextInt(endpoints.length) : req.number() % endpoints.length;
+            int index = randomize ? pseudoRandom.nextInt(endpoints.length) : (int) (req.number() % endpoints.length);
             return ImmutableScheduledRequest.builder()
                     .from(req)
                     .endpoint(endpoints[index])
@@ -109,7 +110,7 @@ public final class Benchmark {
             }
 
             @Override
-            public void update(Duration _time, int _requestsStarted, int responsesReceived) {
+            public void update(Duration _time, long _requestsStarted, long responsesReceived) {
                 if (responsesReceived >= numReceived) {
                     future.set(null);
                 }
@@ -139,8 +140,8 @@ public final class Benchmark {
     public ListenableFuture<BenchmarkResult> schedule() {
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
 
-        int[] requestsStarted = {0};
-        int[] responsesReceived = {0};
+        long[] requestsStarted = {0};
+        long[] responsesReceived = {0};
         Map<String, Integer> statusCodes = new TreeMap<>();
 
         requestStream.forEach(req -> {
@@ -196,7 +197,7 @@ public final class Benchmark {
     }
 
     private Stream<ScheduledRequest> infiniteRequests(Duration interval) {
-        return Stream.iterate(0, current -> current + 1).map(number -> {
+        return LongStream.iterate(0, current -> current + 1).mapToObj(number -> {
             return ImmutableScheduledRequest.builder()
                     .number(number)
                     .request(requestSupplier.apply(number))
@@ -215,15 +216,15 @@ public final class Benchmark {
 
         double successPercentage();
 
-        int numSent();
+        long numSent();
 
-        int numReceived();
+        long numReceived();
     }
 
     interface ShouldStopPredicate {
         SettableFuture<Void> getFuture();
 
-        void update(Duration time, int requestsStarted, int responsesReceived);
+        void update(Duration time, long requestsStarted, long responsesReceived);
     }
 
     @Value.Immutable
@@ -231,7 +232,7 @@ public final class Benchmark {
 
         Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
 
-        int number();
+        long number();
 
         Duration sendTime();
 
@@ -243,7 +244,7 @@ public final class Benchmark {
         }
     }
 
-    private static Request constructRequest(int number) {
+    private static Request constructRequest(long number) {
         return Request.builder()
                 .putHeaderParams("X-B3-TraceId", "req-" + number)
                 .build();
