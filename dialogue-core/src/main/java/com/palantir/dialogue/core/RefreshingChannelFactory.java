@@ -16,8 +16,10 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -28,6 +30,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -43,20 +46,26 @@ public final class RefreshingChannelFactory {
         this.channelFactory = channelFactory;
     }
 
+    public interface ChannelFactory {
+        Channel create(ClientConfiguration conf);
+    }
+
     /**
      * Returns a refreshing {@link Channel} for a service identified by {@code service} in
      * {@link ServicesConfigBlock#services()}.
      */
     public Channel create(String service) {
-        Supplier<Channel> channelSupplier = new MemoizingComposingSupplier<>(conf, c -> createChannel(service, c));
-        return (endpoint, request) -> channelSupplier.get().execute(endpoint, request);
-    }
+        return RefreshingChannel.create(conf, servicesConfigBlock -> {
+            ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(servicesConfigBlock);
+            if (!factory.isEnabled(service)) {
+                return new AlwaysThrowingChannel(service);
+            }
 
-    private Channel createChannel(String service, ServicesConfigBlock services) {
-        ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(services);
-        return factory.isEnabled(service)
-                ? channelFactory.create(ClientConfigurations.of(factory.get(service)))
-                : new AlwaysThrowingChannel(service);
+            ServiceConfiguration serviceConfiguration = factory.get(service);
+            ClientConfiguration clientConfiguration = ClientConfigurations.of(serviceConfiguration);
+            Channel channel = channelFactory.create(clientConfiguration);
+            return channel;
+        });
     }
 
     private static final class AlwaysThrowingChannel implements Channel {
@@ -73,7 +82,28 @@ public final class RefreshingChannelFactory {
         }
     }
 
-    public interface ChannelFactory {
-        Channel create(ClientConfiguration conf);
+    @VisibleForTesting
+    static final class RefreshingChannel implements Channel {
+        private final Supplier<Channel> channelSupplier;
+
+        private RefreshingChannel(Supplier<Channel> channelSupplier) {
+            this.channelSupplier = channelSupplier;
+        }
+
+        /**
+         * Returns a Channel which will be built by applying the {@code channelFactory} to whatever the latest config
+         * provided by the {@code confSupplier} is. Avoids invoking the channelFactory if the config hasn't changed.
+         */
+        static <T> Channel create(Supplier<T> confSupplier, Function<T, Channel> channelFactory) {
+            // Beware: the memoizing composing supplier does updates in a synchronized block, which can block all
+            // other client threads if one call to the channelFactory happens to block (or worse deadlock)!
+            Supplier<Channel> channelSupplier = new MemoizingComposingSupplier<>(confSupplier, channelFactory);
+            return new RefreshingChannel(channelSupplier);
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return channelSupplier.get().execute(endpoint, request);
+        }
     }
 }
