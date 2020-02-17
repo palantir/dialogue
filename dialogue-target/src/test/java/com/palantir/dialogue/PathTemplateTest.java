@@ -22,6 +22,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
+import java.net.URL;
 import java.util.Map;
 import org.junit.Test;
 
@@ -82,8 +85,12 @@ public final class PathTemplateTest {
     }
 
     private static String fill(PathTemplate template, Map<String, String> params) {
-        UrlBuilder url = UrlBuilder.http().host("unused").port(1);
-        template.fill(params, url);
-        return url.build().getPath();
+        try {
+            UrlBuilder url = UrlBuilder.from(new URL("http://unused:1"));
+            template.fill(params, url);
+            return url.build().getPath();
+        } catch (IOException e) {
+            throw new SafeRuntimeException("failed to construct url", e);
+        }
     }
 }

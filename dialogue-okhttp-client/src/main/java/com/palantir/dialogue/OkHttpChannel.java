@@ -16,12 +16,9 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.base.Strings;
-import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
@@ -41,24 +38,7 @@ public final class OkHttpChannel implements Channel {
 
     private OkHttpChannel(OkHttpClient client, URL baseUrl) {
         this.client = client;
-        // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty",
-                UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty",
-                UnsafeArg.of("ref", baseUrl.getRef()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
-        this.baseUrl = UrlBuilder.withProtocol(baseUrl.getProtocol())
-                .host(baseUrl.getHost())
-                .port(baseUrl.getPort());
-        String strippedBasePath = stripSlashes(baseUrl.getPath());
-        if (!strippedBasePath.isEmpty()) {
-            this.baseUrl.encodedPathSegments(strippedBasePath);
-        }
+        this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
     /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
@@ -80,7 +60,7 @@ public final class OkHttpChannel implements Channel {
 
             @Override
             public void writeTo(BufferedSink sink) throws IOException {
-                ByteStreams.copy(body.content(), sink.outputStream());
+                body.writeTo(sink.outputStream());
             }
         };
     }
@@ -135,17 +115,5 @@ public final class OkHttpChannel implements Channel {
             }
         });
         return future;
-    }
-
-    private String stripSlashes(String path) {
-        if (path.isEmpty()) {
-            return path;
-        } else if (path.equals("/")) {
-            return "";
-        } else {
-            int stripStart = path.startsWith("/") ? 1 : 0;
-            int stripEnd = path.endsWith("/") ? 1 : 0;
-            return path.substring(stripStart, path.length() - stripEnd);
-        }
     }
 }

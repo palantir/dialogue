@@ -31,13 +31,11 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
@@ -95,14 +93,10 @@ final class ConjureBodySerDe implements BodySerDe {
     public RequestBody serialize(BinaryRequestBody value) {
         Preconditions.checkNotNull(value, "A BinaryRequestBody value is required");
         return new RequestBody() {
-            @Override
-            public OptionalLong length() {
-                return OptionalLong.empty();
-            }
 
             @Override
-            public InputStream content() {
-                throw new UnsupportedOperationException("TODO(rfink): implement this");
+            public void writeTo(OutputStream output) throws IOException {
+                value.write(output);
             }
 
             @Override
@@ -135,24 +129,12 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public RequestBody serialize(T value) {
             Preconditions.checkNotNull(value, "cannot serialize null value");
-            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
-            encoding.serializer.serialize(value, bytes);
-            try {
-                bytes.flush();
-                bytes.close();
-            } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to close or flush ByteStream. This is a bug.", e);
-            }
 
             return new RequestBody() {
-                @Override
-                public OptionalLong length() {
-                    return OptionalLong.of(bytes.size());
-                }
 
                 @Override
-                public InputStream content() {
-                    return new ByteArrayInputStream(bytes.toByteArray());
+                public void writeTo(OutputStream output) {
+                    encoding.serializer.serialize(value, output);
                 }
 
                 @Override

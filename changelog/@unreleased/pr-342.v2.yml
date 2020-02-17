@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Migrate client metrics to metric schema and move the metrics to `dialogue.client`
+    namespace to avoid conflict with existing clients
+  links:
+  - https://github.com/palantir/dialogue/pull/342

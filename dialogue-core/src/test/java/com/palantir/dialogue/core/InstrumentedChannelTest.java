@@ -27,7 +27,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.IOException;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -50,16 +49,16 @@ public final class InstrumentedChannelTest {
     @Before
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
-        channel = new InstrumentedChannel(delegate, registry);
+        channel = new InstrumentedChannel(delegate, DialogueClientMetrics.of(registry));
     }
 
     @Test
-    public void addsMetricsForSuccessfulAndUnsuccessfulExecution() throws IOException {
+    public void addsMetricsForSuccessfulAndUnsuccessfulExecution() {
         when(endpoint.serviceName()).thenReturn("my-service");
 
         MetricName name = MetricName.builder()
-                .safeName(InstrumentedChannel.CLIENT_RESPONSE_METRIC_NAME)
-                .putSafeTags(InstrumentedChannel.SERVICE_NAME_TAG, endpoint.serviceName())
+                .safeName("dialogue.client.response")
+                .putSafeTags("service-name", endpoint.serviceName())
                 .build();
         Timer timer = registry.timer(name);
 

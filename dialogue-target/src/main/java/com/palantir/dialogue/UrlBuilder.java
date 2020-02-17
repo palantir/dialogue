@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
+import com.google.common.base.Strings;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.net.InetAddresses;
@@ -40,33 +41,43 @@ public final class UrlBuilder {
     private static final Joiner.MapJoiner QUERY_JOINER = Joiner.on('&').withKeyValueSeparator('=');
 
     private final String protocol;
-    private String host;
-    private int port = -1;
+    private final String host;
+    private final int port;
     private List<String> pathSegments = new ArrayList<>();
     private Multimap<String, String> queryNamesAndValues = ArrayListMultimap.create();
 
-    public static UrlBuilder http() {
-        return new UrlBuilder("http");
+    public static UrlBuilder from(URL baseUrl) {
+        // Sanitize path syntax and strip all irrelevant URL components
+        Preconditions.checkArgument(
+                baseUrl.getProtocol().equals("http") || baseUrl.getProtocol().equals("https"),
+                "unsupported protocol",
+                SafeArg.of("protocol", baseUrl.getProtocol()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getQuery()),
+                "baseUrl query must be empty",
+                UnsafeArg.of("query", baseUrl.getQuery()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getRef()),
+                "baseUrl ref must be empty",
+                UnsafeArg.of("ref", baseUrl.getRef()));
+        Preconditions.checkArgument(
+                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
+        return new UrlBuilder(baseUrl);
     }
 
-    public static UrlBuilder https() {
-        return new UrlBuilder("https");
-    }
-
-    public static UrlBuilder withProtocol(String protocol) {
-        return new UrlBuilder(protocol.toLowerCase());
+    private UrlBuilder(URL url) {
+        this.protocol = url.getProtocol();
+        this.host = url.getHost();
+        this.port = url.getPort() == -1 ? url.getDefaultPort() : url.getPort();
+        Preconditions.checkArgument(port >= 0 && port <= 65535, "port must be in range [0, 65535]");
+        String strippedBasePath = stripSlashes(url.getPath());
+        if (!strippedBasePath.isEmpty()) {
+            encodedPathSegments(strippedBasePath);
+        }
     }
 
     public UrlBuilder newBuilder() {
         return new UrlBuilder(this);
-    }
-
-    private UrlBuilder(String protocol) {
-        Preconditions.checkArgument(
-                protocol.equals("http") || protocol.equals("https"),
-                "unsupported protocol",
-                SafeArg.of("protocol", protocol));
-        this.protocol = protocol;
     }
 
     private UrlBuilder(UrlBuilder builder) {
@@ -75,23 +86,6 @@ public final class UrlBuilder {
         this.port = builder.port;
         this.pathSegments = new ArrayList<>(builder.pathSegments);
         this.queryNamesAndValues = ArrayListMultimap.create(builder.queryNamesAndValues);
-    }
-
-    /**
-     * Accepts regular names (e.g., {@code google.com}), IPv4 addresses in dot notation (e.g.,
-     * {@code 192.168.0.1}), and IPv6 addresses of the form
-     * {@code [2010:836B:4179::836B:4179]} (note the enclosing square brackets).
-     */
-    public UrlBuilder host(String theHost) {
-        Preconditions.checkArgument(UrlEncoder.isHost(theHost), "invalid host format", UnsafeArg.of("host", theHost));
-        this.host = theHost;
-        return this;
-    }
-
-    public UrlBuilder port(int thePort) {
-        Preconditions.checkArgument(thePort >= 0 && thePort <= 65535, "port must be in range [0, 65535]");
-        this.port = thePort;
-        return this;
     }
 
     /**
@@ -152,6 +146,18 @@ public final class UrlBuilder {
             result.append('?');
         }
         QUERY_JOINER.appendTo(result, queryParams.entries());
+    }
+
+    private static String stripSlashes(String path) {
+        if (path.isEmpty()) {
+            return path;
+        } else if (path.equals("/")) {
+            return "";
+        } else {
+            int stripStart = path.startsWith("/") ? 1 : 0;
+            int stripEnd = path.endsWith("/") ? 1 : 0;
+            return path.substring(stripStart, path.length() - stripEnd);
+        }
     }
 
     /** Encodes URL components per https://tools.ietf.org/html/rfc3986 . */
