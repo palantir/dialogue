@@ -40,6 +40,9 @@ final class RetryingChannel implements Channel {
     private static final int DEFAULT_MAX_RETRIES = 4;
     private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
 
+    private static final int UNAVAILABLE_503 = 503;
+    private static final int TOO_MANY_REQUESTS_429 = 429;
+
     private final Channel delegate;
     private final int maxRetries;
 
@@ -82,11 +85,13 @@ final class RetryingChannel implements Channel {
         public void onSuccess(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
-            if (response.code() == 503 || response.code() == 500) {
+            if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
                 closeBody(response);
                 retryOrFail(Optional.empty());
                 return;
             }
+
+            // TODO(dfox): if people are using 308, we probably need to support it too
 
             boolean setSuccessfully = delegate.set(response);
             if (!setSuccessfully) {

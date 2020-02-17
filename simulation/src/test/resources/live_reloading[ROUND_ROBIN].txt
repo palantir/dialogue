@@ -1,1 +1,1 @@
-success=95.0%	client_mean=PT1.373525S    	server_cpu=PT9M9.41S      	received=400/400	codes={200=380, Retries exhausted=20}
+success=58.3%	client_mean=PT0.7228S      	server_cpu=PT4M49.12S     	received=400/400	codes={200=233, 500=167}

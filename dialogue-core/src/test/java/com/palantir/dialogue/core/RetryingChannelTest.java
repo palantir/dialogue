@@ -93,9 +93,9 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void retries_500s() {
+    public void retries_429s() {
         Response mockResponse = mock(Response.class);
-        when(mockResponse.code()).thenReturn(500);
+        when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
@@ -120,8 +120,8 @@ public class RetryingChannelTest {
 
     @Test
     public void response_bodies_are_closed() throws Exception {
-        Response response1 = mockResponse(500);
-        Response response2 = mockResponse(500);
+        Response response1 = mockResponse(503);
+        Response response2 = mockResponse(503);
         Response eventualSuccess = mockResponse(200);
 
         when(channel.execute(any(), any()))
