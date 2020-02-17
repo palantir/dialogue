@@ -86,8 +86,6 @@ public final class OkHttpChannel implements Channel {
                 okRequest = okRequest.put(toOkHttpBody(request.body()));
                 break;
             case DELETE:
-                Preconditions.checkArgument(
-                        !request.body().isPresent(), "DELETE endpoints must not have a request body");
                 okRequest = okRequest.delete(
                         request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
                 break;

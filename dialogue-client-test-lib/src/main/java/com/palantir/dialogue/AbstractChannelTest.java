@@ -219,11 +219,14 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void delete_failsWhenBodyIsGiven() {
+    public void delete_succeedsWhenBodyIsGiven() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
-                .hasMessageContaining("DELETE endpoints must not have a request body");
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("DELETE");
+        assertThat(recorded.getBodySize()).isEqualTo(CONTENT.length);
+        assertThat(result.get().code()).isEqualTo(200);
     }
 
     @Test

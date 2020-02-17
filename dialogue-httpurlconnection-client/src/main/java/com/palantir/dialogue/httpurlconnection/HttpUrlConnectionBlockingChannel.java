@@ -82,8 +82,6 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         if (request.body().isPresent()) {
             Preconditions.checkArgument(
                     endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
-            Preconditions.checkArgument(
-                    endpoint.httpMethod() != HttpMethod.DELETE, "DELETE endpoints must not have a request body");
             RequestBody body = request.body().get();
             connection.setChunkedStreamingMode(1024 * 8);
             connection.setRequestProperty("content-type", body.contentType());
