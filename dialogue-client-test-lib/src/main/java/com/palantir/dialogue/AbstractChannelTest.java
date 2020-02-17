@@ -94,6 +94,7 @@ public abstract class AbstractChannelTest {
 
         when(request.body()).thenReturn(Optional.empty());
         when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
+        when(request.headerParams()).thenReturn(ImmutableListMultimap.of());
         server.enqueue(new MockResponse());
 
         endpoint = new FakeEndpoint();
@@ -159,7 +160,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void fillsHeaders() throws Exception {
-        when(request.headerParams()).thenReturn(ImmutableMap.of("a", "A", "b", "B"));
+        when(request.headerParams()).thenReturn(ImmutableListMultimap.of("a", "A", "b", "B"));
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
@@ -170,7 +171,7 @@ public abstract class AbstractChannelTest {
     @Ignore("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
     @Test
     public void encodesHeaders() throws Exception {
-        when(request.headerParams()).thenReturn(ImmutableMap.of("a", "ø\nü"));
+        when(request.headerParams()).thenReturn(ImmutableListMultimap.of("a", "ø\nü"));
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();

@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
@@ -27,7 +28,10 @@ public final class RequestTest {
     @Test
     public void testRequestHeaderInsensitivity() {
         Request request = Request.builder().putHeaderParams("Foo", "bar").build();
-        assertThat(request.headerParams()).containsKey("foo").containsKey("FOO").containsKey("Foo");
+        assertThat(request.headerParams())
+                .containsKeys("foo")
+                .containsKeys("FOO")
+                .containsKeys("Foo");
     }
 
     @Test
