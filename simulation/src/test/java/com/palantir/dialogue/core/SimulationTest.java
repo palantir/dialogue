@@ -89,22 +89,55 @@ public class SimulationTest {
 
     @Test
     public void simplest_possible_case() {
-        int capacity = 20;
+        // real servers don't scale like this - see later tests
         servers = servers(
                 SimulationServer.builder()
                         .metricName("fast")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
                         .metricName("medium")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(800), capacity))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(800)))
                         .build(),
                 SimulationServer.builder()
                         .metricName("slightly_slow")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(1000), capacity))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
+                        .build());
+
+        Channel channel = strategy.getChannel(simulation, servers);
+        result = Benchmark.builder()
+                .requestsPerSecond(50)
+                .sendUntil(Duration.ofSeconds(20))
+                .channel(channel)
+                .simulation(simulation)
+                .run();
+    }
+
+    @Test
+    public void slowdown_and_error_thresholds() {
+        int errorThreshold = 40;
+        int slowdownThreshold = 30;
+        servers = servers(
+                SimulationServer.builder()
+                        .metricName("fast")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                                .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("medium")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                                .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
+                        .build(),
+                SimulationServer.builder()
+                        .metricName("slightly_slow")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                                .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
         Channel channel = strategy.getChannel(simulation, servers);

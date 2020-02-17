@@ -1,0 +1,1 @@
+success=64.1%	client_mean=PT8.803926666S 	server_cpu=PT2H26M43.92666658S	received=1000/1000	codes={200=641, Retries exhausted=359}

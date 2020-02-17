@@ -86,7 +86,7 @@ final class SimulationServer implements Channel {
                     new FutureCallback<Response>() {
                         @Override
                         public void onSuccess(Response result) {
-                            log.debug(
+                            log.info(
                                     "time={} server={} status={} traceid={}",
                                     Duration.ofNanos(simulation.clock().read()),
                                     metricName,
@@ -183,7 +183,7 @@ final class SimulationServer implements Channel {
     public static class ServerHandler implements HandlerBuilder0, HandlerBuilder1 {
 
         private Predicate<Endpoint> predicate = endpoint -> true;
-        private Response response;
+        private Function<SimulationServer, Response> responseFunction;
         private ResponseTimeFunction responseTimeFunction;
 
         public Optional<ListenableFuture<Response>> maybeExecute(
@@ -193,8 +193,8 @@ final class SimulationServer implements Channel {
             }
 
             Duration responseTime = responseTimeFunction.getResponseTime(server);
-            return Optional.of(
-                    server.simulation.schedule(() -> response, responseTime.toNanos(), TimeUnit.NANOSECONDS));
+            return Optional.of(server.simulation.schedule(
+                    () -> responseFunction.apply(server), responseTime.toNanos(), TimeUnit.NANOSECONDS));
         }
 
         @Override
@@ -204,8 +204,8 @@ final class SimulationServer implements Channel {
         }
 
         @Override
-        public HandlerBuilder1 response(Response resp) {
-            this.response = resp;
+        public HandlerBuilder1 response(Function<SimulationServer, Response> func) {
+            this.responseFunction = func;
             return this;
         }
 
@@ -219,10 +219,24 @@ final class SimulationServer implements Channel {
     public interface HandlerBuilder0 {
         HandlerBuilder0 endpoint(Endpoint endpoint);
 
-        HandlerBuilder1 response(Response resp);
+        HandlerBuilder1 response(Function<SimulationServer, Response> func);
+
+        default HandlerBuilder1 response(Response resp) {
+            return response(unused -> resp);
+        }
 
         default HandlerBuilder1 response(int status) {
             return response(SimulationUtils.response(status, "1.0.0"));
+        }
+
+        default HandlerBuilder1 respond200UntilCapacity(int errorStatus, int capacity) {
+            return response(server -> {
+                if (server.globalActiveRequests.getCount() > capacity) {
+                    return SimulationUtils.response(errorStatus, "1.0.0");
+                } else {
+                    return SimulationUtils.response(200, "1.0.0");
+                }
+            });
         }
     }
 
