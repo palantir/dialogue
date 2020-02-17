@@ -450,10 +450,14 @@ public class SimulationTest {
 
     @AfterClass
     public static void afterClass() throws IOException {
-        // squish all txt files together into one report to make it easier to compare during code review
+        // squish all txt files together into one markdown report so that github displays diffs
         try (Stream<Path> list = Files.list(Paths.get("src/test/resources"))) {
-            String report = list.filter(
-                            p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
+            List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
+                    .sorted(Comparator.comparing(Path::getFileName))
+                    .collect(Collectors.toList());
+
+            String txtSection = files.stream()
+                    .filter(p -> p.toString().endsWith("txt"))
                     .map(p -> {
                         try {
                             return String.format(
@@ -464,9 +468,17 @@ public class SimulationTest {
                             throw new RuntimeException(e);
                         }
                     })
-                    .sorted(Comparator.comparing(String::trim))
+                    .collect(Collectors.joining("", "```\n", "```\n"));
+
+            String images = files.stream()
+                    .filter(p -> p.toString().endsWith("png"))
+                    .map(p -> String.format("## %s%n![%s](%s)%n", p.getFileName(), p.getFileName(), p.getFileName()))
                     .collect(Collectors.joining());
-            Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
+
+            String report = String.format(
+                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n",
+                    txtSection, images);
+            Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
         }
     }
 }

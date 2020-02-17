@@ -1,3 +1,6 @@
+# Report
+<!-- Run SimulationTest to regenerate this report. -->
+```
                                 all_nodes_500[CONCURRENCY_LIMITER].txt:	success=59.0%	client_mean=PT1.446S       	server_cpu=PT4M49.2S      	received=200/200	codes={200=118, Retries exhausted=82}
                                         all_nodes_500[ROUND_ROBIN].txt:	success=59.0%	client_mean=PT1.446S       	server_cpu=PT4M49.2S      	received=200/200	codes={200=118, Retries exhausted=82}
                                    black_hole[CONCURRENCY_LIMITER].txt:	success=90.0%	client_mean=PT0.6S         	server_cpu=PT1M48S        	received=180/200	codes={200=180}
@@ -16,3 +19,43 @@
                                 slow_503s_then_revert[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.408771222S 	server_cpu=PT1H10M26.313666644S	received=3000/3000	codes={200=3000}
                 slowdown_and_error_thresholds[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT1.977419999S 	server_cpu=PT31M8.473333135S	received=1000/1000	codes={200=1000}
                         slowdown_and_error_thresholds[ROUND_ROBIN].txt:	success=64.1%	client_mean=PT8.803926666S 	server_cpu=PT2H26M43.92666658S	received=1000/1000	codes={200=641, Retries exhausted=359}
+```
+
+
+## all_nodes_500[CONCURRENCY_LIMITER].png
+![all_nodes_500[CONCURRENCY_LIMITER].png](all_nodes_500[CONCURRENCY_LIMITER].png)
+## all_nodes_500[ROUND_ROBIN].png
+![all_nodes_500[ROUND_ROBIN].png](all_nodes_500[ROUND_ROBIN].png)
+## black_hole[CONCURRENCY_LIMITER].png
+![black_hole[CONCURRENCY_LIMITER].png](black_hole[CONCURRENCY_LIMITER].png)
+## black_hole[ROUND_ROBIN].png
+![black_hole[ROUND_ROBIN].png](black_hole[ROUND_ROBIN].png)
+## drastic_slowdown[CONCURRENCY_LIMITER].png
+![drastic_slowdown[CONCURRENCY_LIMITER].png](drastic_slowdown[CONCURRENCY_LIMITER].png)
+## drastic_slowdown[ROUND_ROBIN].png
+![drastic_slowdown[ROUND_ROBIN].png](drastic_slowdown[ROUND_ROBIN].png)
+## fast_500s_then_revert[CONCURRENCY_LIMITER].png
+![fast_500s_then_revert[CONCURRENCY_LIMITER].png](fast_500s_then_revert[CONCURRENCY_LIMITER].png)
+## fast_500s_then_revert[ROUND_ROBIN].png
+![fast_500s_then_revert[ROUND_ROBIN].png](fast_500s_then_revert[ROUND_ROBIN].png)
+## live_reloading[CONCURRENCY_LIMITER].png
+![live_reloading[CONCURRENCY_LIMITER].png](live_reloading[CONCURRENCY_LIMITER].png)
+## live_reloading[ROUND_ROBIN].png
+![live_reloading[ROUND_ROBIN].png](live_reloading[ROUND_ROBIN].png)
+## one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png
+![one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png](one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].png)
+## one_endpoint_dies_on_each_server[ROUND_ROBIN].png
+![one_endpoint_dies_on_each_server[ROUND_ROBIN].png](one_endpoint_dies_on_each_server[ROUND_ROBIN].png)
+## simplest_possible_case[CONCURRENCY_LIMITER].png
+![simplest_possible_case[CONCURRENCY_LIMITER].png](simplest_possible_case[CONCURRENCY_LIMITER].png)
+## simplest_possible_case[ROUND_ROBIN].png
+![simplest_possible_case[ROUND_ROBIN].png](simplest_possible_case[ROUND_ROBIN].png)
+## slow_503s_then_revert[CONCURRENCY_LIMITER].png
+![slow_503s_then_revert[CONCURRENCY_LIMITER].png](slow_503s_then_revert[CONCURRENCY_LIMITER].png)
+## slow_503s_then_revert[ROUND_ROBIN].png
+![slow_503s_then_revert[ROUND_ROBIN].png](slow_503s_then_revert[ROUND_ROBIN].png)
+## slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png
+![slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png](slowdown_and_error_thresholds[CONCURRENCY_LIMITER].png)
+## slowdown_and_error_thresholds[ROUND_ROBIN].png
+![slowdown_and_error_thresholds[ROUND_ROBIN].png](slowdown_and_error_thresholds[ROUND_ROBIN].png)
+
