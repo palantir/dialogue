@@ -365,13 +365,8 @@ public class SimulationTest {
         Duration serverCpu = Duration.ofNanos(servers.get().stream() // live-reloading breaks this :(
                 .mapToLong(s -> s.getCumulativeServerTime().toNanos())
                 .sum());
-
         long clientMeanNanos = (long) result.clientHistogram().getMean();
         double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
-
-        String shortSummary = String.format(
-                "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
-                strategy, result.successPercentage(), clientMeanMillis, serverCpu);
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
@@ -391,23 +386,23 @@ public class SimulationTest {
         if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
-
             Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
 
             XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
-            activeRequests.setTitle(shortSummary);
-
+            activeRequests.setTitle(String.format(
+                    "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
+                    strategy, result.successPercentage(), clientMeanMillis, serverCpu));
             XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
             XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
             SimulationMetrics.png(pngPath, activeRequests, serverRequestCount, clientStuff);
-
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
     }
 
     @AfterClass
     public static void afterClass() throws IOException {
+        // squish all txt files together into one report to make it easier to compare during code review
         String report = Files.list(Paths.get("src/test/resources"))
                 .filter(p -> p.toString().endsWith(".txt") && !p.toString().endsWith("report.txt"))
                 .map(p -> {

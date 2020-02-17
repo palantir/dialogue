@@ -179,10 +179,7 @@ final class SimulationServer implements Channel {
         }
     }
 
-    /**
-     * Declarative server handler, built using a staged-builder. Returns control flow to the original builder at the
-     * end.
-     */
+    /** Declarative server handler, built using a staged-builder. */
     public static class ServerHandler implements HandlerBuilder0, HandlerBuilder1 {
 
         private Predicate<Endpoint> predicate = endpoint -> true;

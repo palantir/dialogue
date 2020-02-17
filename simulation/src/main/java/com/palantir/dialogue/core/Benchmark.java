@@ -44,7 +44,7 @@ public final class Benchmark {
 
     private Simulation simulation;
     private Channel channel;
-    private Duration requestInterval;
+    private Duration delayBetweenRequests;
     private Stream<ScheduledRequest> requestStream;
     private Function<Integer, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
@@ -56,23 +56,21 @@ public final class Benchmark {
     }
 
     public Benchmark requestsPerSecond(int rps) {
-        requestInterval = Duration.ofSeconds(1).dividedBy(rps);
+        delayBetweenRequests = Duration.ofSeconds(1).dividedBy(rps);
         return this;
     }
 
-    public Benchmark numRequests(int numRequests) {
+    public Benchmark numRequests(long numRequests) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        requestStream = infiniteRequests(requestInterval).limit(numRequests);
+        requestStream = infiniteRequests(delayBetweenRequests).limit(numRequests);
         stopWhenNumReceived(numRequests);
         return this;
     }
 
     public Benchmark sendUntil(Duration cutoff) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        long num = cutoff.toNanos() / requestInterval.toNanos();
-        requestStream = infiniteRequests(requestInterval).limit(num);
-        stopWhenNumReceived(num);
-        return this;
+        long num = cutoff.toNanos() / delayBetweenRequests.toNanos();
+        return numRequests(num);
     }
 
     public Benchmark randomEndpoints(Endpoint... endpoints) {
@@ -102,7 +100,7 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark stopWhenNumReceived(long numReceived) {
+    private Benchmark stopWhenNumReceived(long numReceived) {
         SettableFuture<Void> future = SettableFuture.create();
         benchmarkFinished = new ShouldStopPredicate() {
             @Override
@@ -141,8 +139,8 @@ public final class Benchmark {
     public ListenableFuture<BenchmarkResult> schedule() {
         HistogramChannel histogramChannel = new HistogramChannel(simulation, channel);
 
-        int[] requestsStarted = new int[] {0};
-        int[] responsesReceived = new int[] {0};
+        int[] requestsStarted = {0};
+        int[] responsesReceived = {0};
         Map<String, Integer> statusCodes = new TreeMap<>();
 
         requestStream.forEach(req -> {
@@ -185,18 +183,15 @@ public final class Benchmark {
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
-                v -> {
-                    BenchmarkResult result = ImmutableBenchmarkResult.builder()
-                            .clientHistogram(histogramChannel.getHistogram().getSnapshot())
-                            .endTime(Duration.ofNanos(simulation.clock().read()))
-                            .statusCodes(statusCodes)
-                            .successPercentage(
-                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
-                            .numSent(requestsStarted[0])
-                            .numReceived(responsesReceived[0])
-                            .build();
-                    return result;
-                },
+                v -> ImmutableBenchmarkResult.builder()
+                        .clientHistogram(histogramChannel.getHistogram().getSnapshot())
+                        .endTime(Duration.ofNanos(simulation.clock().read()))
+                        .statusCodes(statusCodes)
+                        .successPercentage(
+                                Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
+                        .numSent(requestsStarted[0])
+                        .numReceived(responsesReceived[0])
+                        .build(),
                 MoreExecutors.directExecutor());
     }
 
@@ -248,7 +243,7 @@ public final class Benchmark {
         }
     }
 
-    static Request constructRequest(int number) {
+    private static Request constructRequest(int number) {
         return Request.builder()
                 .putHeaderParams("X-B3-TraceId", "req-" + number)
                 .build();
