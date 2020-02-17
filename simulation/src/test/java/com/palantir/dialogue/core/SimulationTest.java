@@ -473,15 +473,15 @@ public class SimulationTest {
             String rows = files.stream()
                     .filter(p -> p.toString().endsWith("png"))
                     .map(p -> {
-                        String githubUrl = "https://raw.githubusercontent.com/palantir/dialogue/"
-                                + "develop/simulation/src/test/resources/"
+                        String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
+                                + "simulation/src/test/resources/"
                                 + p.getFileName();
                         return String.format(
                                 "<tr>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
                                         + "<td>%s<br /><image width=400 src=\"%s\" /></td>"
                                         + "</tr>%n",
-                                githubUrl, p.getFileName(), p.getFileName());
+                                githubLfsUrl, p.getFileName(), p.getFileName());
                     })
                     .collect(Collectors.joining());
             String images = "<table><tr><th>develop</th><th>current</th></tr>" + rows + "</table>";
