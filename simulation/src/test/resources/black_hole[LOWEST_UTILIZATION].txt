@@ -1,0 +1,1 @@
+LOWEST_UTILIZATION success=94% client_mean=600.0 ms server_cpu=PT1M52.2S

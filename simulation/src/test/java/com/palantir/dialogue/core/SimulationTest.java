@@ -26,12 +26,18 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.After;
@@ -40,6 +46,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import org.knowm.xchart.XYChart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -330,7 +337,7 @@ public class SimulationTest {
     }
 
     @After
-    public void after() {
+    public void after() throws IOException {
         Duration serverCpu = Duration.ofNanos(Arrays.stream(servers)
                 .mapToLong(s -> s.getCumulativeServerTime().toNanos())
                 .sum());
@@ -352,13 +359,26 @@ public class SimulationTest {
                 result.numSent(),
                 result.statusCodes());
 
-        // XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
-        // activeRequests.setTitle(title);
-        //
-        // XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-        // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
-        //
-        // SimulationMetrics.png(testName.getMethodName() + ".png", activeRequests, serverRequestCount, clientStuff);
+        Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
+        String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
+        String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
+        boolean txtChanged = !title.equals(onDisk);
+        if (txtChanged || !Files.exists(Paths.get(pngPath))) {
+            // only re-generate PNGs if the txt file changed (as they're slow af)
+            Files.write(txt, title.getBytes(StandardCharsets.UTF_8));
+
+            XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
+            activeRequests.setTitle(title);
+
+            XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
+            XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
+
+            SimulationMetrics.png(
+                    pngPath,
+                    activeRequests,
+                    serverRequestCount,
+                    clientStuff);
+        }
     }
 
     private static Channel lowestUtilization(Simulation sim, Channel... channels) {
