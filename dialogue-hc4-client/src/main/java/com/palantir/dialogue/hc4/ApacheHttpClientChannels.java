@@ -19,9 +19,12 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.Channels;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
@@ -34,27 +37,46 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ApacheHttpClientChannels {
+    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
 
     private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+        Preconditions.checkArgument(
+                !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
+        Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+        Preconditions.checkArgument(
+                conf.clientQoS() == ClientConfiguration.ClientQoS.ENABLED, "Disabling client QOS is not supported");
+        Preconditions.checkArgument(
+                conf.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                "Propagating QoS exceptions is not supported");
+        Preconditions.checkArgument(!conf.proxyCredentials().isPresent(), "Proxy credentials are not supported");
+        if (conf.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
+            log.warn(
+                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
+                    SafeArg.of("requestedStrategy", conf.nodeSelectionStrategy()));
+        }
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
+        int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
         // TODO(ckozak): close resources?
         CloseableHttpClient client = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
-                        .setConnectTimeout(
-                                Ints.checkedCast(conf.connectTimeout().toMillis()))
+                        .setConnectTimeout(connectTimeout)
+                        // Don't allow clients to block forever waiting on a connection to become available
+                        .setConnectionRequestTimeout(connectTimeout)
                         // Match okhttp, disallow redirects
                         .setRedirectsEnabled(false)
                         .setRelativeRedirectsAllowed(false)
                         .build())
                 .evictIdleConnections(55, TimeUnit.SECONDS)
                 .setMaxConnPerRoute(1000)
-                .setMaxConnTotal(1000)
+                .setMaxConnTotal(Integer.MAX_VALUE)
                 // TODO(ckozak): proxy credentials
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                 .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
