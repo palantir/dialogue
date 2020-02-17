@@ -1,6 +1,6 @@
-                                all_nodes_500[CONCURRENCY_LIMITER].txt:	success=74.8%	client_mean=PT1.2305S      	server_cpu=PT7M44.4S      	received=400/400	codes={200=299, Retries exhausted=101}
-                                 all_nodes_500[LOWEST_UTILIZATION].txt:	success=100.0%	client_mean=PT2.708125S    	server_cpu=PT4M28.2S      	received=400/400	codes={200=400}
-                                        all_nodes_500[ROUND_ROBIN].txt:	success=74.0%	client_mean=PT1.176S       	server_cpu=PT7M50.4S      	received=400/400	codes={200=296, Retries exhausted=104}
+                                all_nodes_500[CONCURRENCY_LIMITER].txt:	success=59.0%	client_mean=PT1.446S       	server_cpu=PT4M49.2S      	received=200/200	codes={200=118, Retries exhausted=82}
+                                 all_nodes_500[LOWEST_UTILIZATION].txt:	success=100.0%	client_mean=PT4.011S       	server_cpu=PT2M25.2S      	received=200/200	codes={200=200}
+                                        all_nodes_500[ROUND_ROBIN].txt:	success=59.0%	client_mean=PT1.446S       	server_cpu=PT4M49.2S      	received=200/200	codes={200=118, Retries exhausted=82}
                                    black_hole[CONCURRENCY_LIMITER].txt:	success=90.0%	client_mean=PT0.6S         	server_cpu=PT1M48S        	received=180/200	codes={200=180}
                                     black_hole[LOWEST_UTILIZATION].txt:	success=93.5%	client_mean=PT0.6S         	server_cpu=PT1M52.2S      	received=187/200	codes={200=187}
                                            black_hole[ROUND_ROBIN].txt:	success=65.0%	client_mean=PT0.6S         	server_cpu=PT1M18S        	received=130/200	codes={200=130}

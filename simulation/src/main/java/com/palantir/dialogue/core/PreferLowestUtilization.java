@@ -70,6 +70,11 @@ public final class PreferLowestUtilization implements LimitedChannel {
             });
         }
 
+        log.debug(
+                "traceid={} channelsByActive={}",
+                request.headerParams().get("X-B3-TraceId"),
+                channelsByActive.keySet());
+
         // this relies on the cache being pre-filled (containing some channel -> 0 mappings).
         for (Integer activeCount : channelsByActive.keySet()) {
             List<LimitedChannel> candidates = channelsByActive.get(activeCount);
@@ -91,7 +96,7 @@ public final class PreferLowestUtilization implements LimitedChannel {
             }
         }
 
-        log.debug("Every single channel refused :( {}", channelsByActive);
+        log.debug("Every channel refused {}", channelsByActive);
         return Optional.empty();
     }
 }

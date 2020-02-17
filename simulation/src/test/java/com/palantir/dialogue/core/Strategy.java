@@ -32,6 +32,8 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
@@ -39,6 +41,7 @@ public enum Strategy {
     CONCURRENCY_LIMITER(Strategy::concurrencyLimiter),
     ROUND_ROBIN(Strategy::roundRobin);
 
+    private static final Logger log = LoggerFactory.getLogger(Strategy.class);
     private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
 
     Strategy(BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel) {
@@ -95,6 +98,7 @@ public enum Strategy {
 
             @Override
             public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                log.info("starting traceid={}", request.headerParams().get("X-B3-TraceId"));
                 starts.mark();
                 Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
                 if (!response.isPresent()) {
@@ -110,6 +114,7 @@ public enum Strategy {
         };
     }
 
+    /** This is an alternative to the {@link com.palantir.dialogue.core.QueuedChannel). */
     static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
         return new Channel() {
             @Override

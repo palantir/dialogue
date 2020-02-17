@@ -239,25 +239,23 @@ public class SimulationTest {
                 SimulationServer.builder()
                         .metricName("node1")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                        .until(Duration.ofSeconds(3), "500s (same speed)")
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                        .until(Duration.ofSeconds(10), "revert")
+                        .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
                         .metricName("node2")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
-                        .until(Duration.ofSeconds(3), "500s (same speed)")
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
-                        .until(Duration.ofSeconds(10), "revert")
+                        .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
+        // TODO(dfox): seems like traceid=req-1-attempt-1 happens 31 times???
+
         Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
-                .requestsPerSecond(20)
+                .requestsPerSecond(10)
                 .sendUntil(Duration.ofSeconds(20))
                 .channel(channel)
                 .simulation(simulation)

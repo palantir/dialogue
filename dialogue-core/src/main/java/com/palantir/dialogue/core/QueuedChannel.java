@@ -37,6 +37,8 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
@@ -57,7 +59,7 @@ import org.immutables.value.Value;
  * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
 final class QueuedChannel implements Channel {
-
+    private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
     private final BlockingDeque<DeferredCall> queuedCalls;
@@ -114,8 +116,12 @@ final class QueuedChannel implements Channel {
      * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
      */
     private void schedule() {
+        int i = 0;
         while (scheduleNextTask()) {
-            // Do nothing
+            i++;
+        }
+        if (i > 1) {
+            log.info("Scheduled {} at the same time", i);
         }
     }
 
