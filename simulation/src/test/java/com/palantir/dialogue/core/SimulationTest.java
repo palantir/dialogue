@@ -47,6 +47,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Simulates client heuristics defined in {@link Strategy} against {@link SimulationServer} nodes. These don't
+ * actually bind to ports, they just schedule responses to return at some point. All scheduling happens on a
+ * deterministic scheduler in {@link Simulation}, so hours of requests can be simulated instantly.
+ *
+ * These simulations only reveal characteristics and emergent behaviour of the clients - they can't be used to
+ * compare how efficient (in terms of CPU or allocations) clients are - a dedicated microbenchmarking harness should
+ * be used for this instead.
+ *
  * We have the following goals.
  * <ol>
  *     <li>Minimize user-perceived failures
@@ -367,14 +375,11 @@ public class SimulationTest {
     /** Use the {@link #beginAt} method to simulate live-reloads. */
     private Supplier<List<SimulationServer>> liveReloadingServers(
             Supplier<Optional<SimulationServer>>... serverSuppliers) {
-        return () -> {
-            List<SimulationServer> simulationServers = Arrays.stream(serverSuppliers)
-                    .map(Supplier::get)
-                    .filter(Optional::isPresent)
-                    .map(Optional::get)
-                    .collect(Collectors.toList());
-            return simulationServers;
-        };
+        return () -> Arrays.stream(serverSuppliers)
+                .map(Supplier::get)
+                .filter(Optional::isPresent)
+                .map(Optional::get)
+                .collect(Collectors.toList());
     }
 
     private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {
