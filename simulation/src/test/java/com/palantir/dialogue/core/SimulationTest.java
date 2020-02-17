@@ -16,18 +16,10 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -39,11 +31,9 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Rule;
@@ -56,26 +46,26 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The following sccenarios are important for good clients to handle.
+ * We have the following goals.
+ * <ol>
+ *     <li>Minimize user-perceived failures
+ *     <li>Minimize user-perceived mean response time
+ *     <li>Minimize total server CPU time spent
+ * </ol>
+ *
+ * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
+ * We usually have O(10) upstream nodes. Live-reloading node list shouldn't go crazy.
+ *
+ * The following scenarios are important for clients to handle.
  * <ol>
  *     <li>Normal operation: some node node is maybe 10-20% slower (e.g. maybe it's further away)
  *     <li>Fast failures (500/503/429) with revert: upgrading one node means everything gets insta 500'd (also 503 /
  *     429)
  *     <li>Slow failures (500/503/429) with revert: upgrading one node means all requests get slow and also return
  *     bad errors
- *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return
+ *     <li>Drastic slowdown with revert: One node suddenly starts taking 10 seconds to return (but not throwing errors)
  *     <li>All nodes return 500s briefly (ideally clients could queue up if they're willing to wait)
- *     <li>Black hole: one node just starts accepting requests but never returning them
- * </ol>
- *
- * Heuristics should work sensibly for a variety of server response times (incl 1ms, 10ms, 100ms and 1s).
- * We usually have O(10) upstream nodes. Live-reloading node list shouldn't go crazy.
- *
- * Goals:
- * <ol>
- *     <li>Minimize user-perceived failures
- *     <li>Minimize user-perceived mean response
- *     <li>Minimize server CPU time spent
+ *     <li>Black hole: one node just starts accepting requests but never returning responses
  * </ol>
  */
 @RunWith(Parameterized.class)
@@ -94,26 +84,13 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
-    private Supplier<SimulationServer[]> servers;
+    private Supplier<List<SimulationServer>> servers;
     private Benchmark.BenchmarkResult result;
-
-    @SuppressWarnings("ImmutableEnumChecker")
-    public enum Strategy {
-        LOWEST_UTILIZATION(SimulationTest::lowestUtilization),
-        CONCURRENCY_LIMITER(SimulationTest::concurrencyLimiter),
-        ROUND_ROBIN(SimulationTest::roundRobin);
-
-        private final BiFunction<Simulation, Supplier<SimulationServer[]>, Channel> getChannel;
-
-        Strategy(BiFunction<Simulation, Supplier<SimulationServer[]>, Channel> getChannel) {
-            this.getChannel = getChannel;
-        }
-    }
 
     @Test
     public void simplest_possible_case() {
         int capacity = 20;
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("fast")
                         .simulation(simulation)
@@ -130,8 +107,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(1000), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(50)
                 .sendUntil(Duration.ofSeconds(20))
@@ -143,7 +119,7 @@ public class SimulationTest {
     @Test
     public void slow_503s_then_revert() {
         int capacity = 60;
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("fast")
                         .simulation(simulation)
@@ -159,8 +135,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
@@ -172,7 +147,7 @@ public class SimulationTest {
     @Test
     public void fast_500s_then_revert() {
         int capacity = 60;
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("fast")
                         .simulation(simulation)
@@ -188,8 +163,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(15))
@@ -201,7 +175,7 @@ public class SimulationTest {
     @Test
     public void drastic_slowdown() {
         int capacity = 60;
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("fast")
                         .simulation(simulation)
@@ -217,8 +191,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(20))
@@ -229,7 +202,7 @@ public class SimulationTest {
 
     @Test
     public void all_nodes_500() {
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("node1")
                         .simulation(simulation)
@@ -249,8 +222,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(20)
                 .sendUntil(Duration.ofSeconds(20))
@@ -261,7 +233,7 @@ public class SimulationTest {
 
     @Test
     public void black_hole() {
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("node1")
                         .simulation(simulation)
@@ -275,8 +247,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(20)
@@ -291,7 +262,7 @@ public class SimulationTest {
         Endpoint endpoint1 = SimulationUtils.endpoint("e1");
         Endpoint endpoint2 = SimulationUtils.endpoint("e2");
 
-        servers(
+        servers = servers(
                 SimulationServer.builder()
                         .metricName("server_where_e1_breaks")
                         .simulation(simulation)
@@ -311,8 +282,7 @@ public class SimulationTest {
                         .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        Channel channel = strategy.getChannel.apply(simulation, servers);
-
+        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(51)
@@ -323,20 +293,82 @@ public class SimulationTest {
                 .run();
     }
 
-    private void servers(SimulationServer... s) {
-        servers = Suppliers.memoize(() -> s);
+    @Test
+    public void live_reloading() {
+        int capacity = 60;
+        servers = liveReloadingServers(
+                beginAt(
+                        Duration.ZERO,
+                        SimulationServer.builder()
+                                .metricName("always_on")
+                                .simulation(simulation)
+                                .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
+                                .build()),
+                beginAt(
+                        Duration.ZERO,
+                        SimulationServer.builder()
+                                .metricName("always_broken")
+                                .simulation(simulation)
+                                .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(600), capacity))
+                                .build()),
+                beginAt(
+                        Duration.ofSeconds(5),
+                        SimulationServer.builder()
+                                .metricName("added_halfway")
+                                .simulation(simulation)
+                                .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
+                                .build()));
+
+        Channel channel = strategy.getChannel(simulation, servers);
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(40)
+                .sendUntil(Duration.ofSeconds(10))
+                .channel(channel)
+                .run();
+    }
+
+    private Supplier<List<SimulationServer>> servers(SimulationServer... s) {
+        return Suppliers.memoize(() -> Arrays.asList(s));
+    }
+
+    /** Use the {@link #beginAt} method to simulate live-reloads. */
+    private Supplier<List<SimulationServer>> liveReloadingServers(
+            Supplier<Optional<SimulationServer>>... serverSuppliers) {
+        return () -> {
+            List<SimulationServer> simulationServers = Arrays.stream(serverSuppliers)
+                    .map(Supplier::get)
+                    .filter(Optional::isPresent)
+                    .map(Optional::get)
+                    .collect(Collectors.toList());
+            return simulationServers;
+        };
+    }
+
+    private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {
+        boolean[] enabled = {false};
+        return () -> {
+            if (simulation.clock().read() >= beginTime.toNanos()) {
+                if (!enabled[0]) {
+                    enabled[0] = true;
+                    simulation.events().event("new server: " + server);
+                }
+                return Optional.of(server);
+            } else {
+                return Optional.empty();
+            }
+        };
     }
 
     @After
     public void after() throws IOException {
-        Duration serverCpu = Duration.ofNanos(Arrays.stream(servers.get()) // live-reloading breaks this :(
+        Duration serverCpu = Duration.ofNanos(servers.get().stream() // live-reloading breaks this :(
                 .mapToLong(s -> s.getCumulativeServerTime().toNanos())
                 .sum());
 
         long clientMeanNanos = (long) result.clientHistogram().getMean();
         double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
 
-        // Duration meanMillis = Duration.ofNanos((long) result.clientHistogram().getMean());
         String shortSummary = String.format(
                 "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                 strategy, result.successPercentage(), clientMeanMillis, serverCpu);
@@ -390,93 +422,5 @@ public class SimulationTest {
                 .sorted(Comparator.comparing(String::trim))
                 .collect(Collectors.joining());
         Files.write(Paths.get("src/test/resources/report.txt"), report.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static Channel lowestUtilization(Simulation sim, Supplier<SimulationServer[]> channels) {
-        ImmutableList<LimitedChannel> limitedChannels = Arrays.stream(channels.get())
-                .map(SimulationTest::noOpLimitedChannel)
-                .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
-                .collect(ImmutableList.toImmutableList());
-        LimitedChannel limited = new PreferLowestUtilization(limitedChannels, SimulationUtils.newPseudoRandom());
-        limited = instrumentClient(limited, sim.metrics()); // just for debugging
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-        // Channel channel = dontTolerateLimits(limited);
-        return new RetryingChannel(channel);
-    }
-
-    private static Channel concurrencyLimiter(Simulation sim, Supplier<SimulationServer[]> channels) {
-        List<LimitedChannel> limitedChannels = Stream.of(channels.get())
-                .map(c -> new ConcurrencyLimitedChannel(
-                        c, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()::read)))
-                .collect(Collectors.toList());
-        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-        limited = instrumentClient(limited, sim.metrics()); // just for debugging
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-        return new RetryingChannel(channel);
-    }
-
-    private static Channel roundRobin(Simulation sim, Supplier<SimulationServer[]> channels) {
-        List<LimitedChannel> limitedChannels = Stream.of(channels.get())
-                .map(SimulationTest::noOpLimitedChannel)
-                .collect(Collectors.toList());
-        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-        limited = instrumentClient(limited, sim.metrics()); // will always be zero due to the noOpLimitedChannel
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-        return new RetryingChannel(channel);
-    }
-
-    private static LimitedChannel instrumentClient(LimitedChannel delegate, SimulationMetrics metrics) {
-        Meter starts = metrics.meter("test_client.starts");
-        Counter metric = metrics.counter("test_client.refusals");
-        return new LimitedChannel() {
-
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
-                if (!response.isPresent()) {
-                    metric.inc();
-                }
-                return response;
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    static Channel dontTolerateLimits(LimitedChannel limitedChannel) {
-        return new Channel() {
-            @Override
-            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                Optional<ListenableFuture<Response>> future = limitedChannel.maybeExecute(endpoint, request);
-                if (future.isPresent()) {
-                    return future.get();
-                }
-
-                return Futures.immediateFailedFuture(new RuntimeException("limited channel says no :("));
-            }
-
-            @Override
-            public String toString() {
-                return limitedChannel.toString();
-            }
-        };
-    }
-
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
     }
 }

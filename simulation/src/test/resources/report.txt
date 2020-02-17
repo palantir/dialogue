@@ -10,6 +10,9 @@
                         fast_500s_then_revert[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT0.078971555S 	server_cpu=PT4M56.143333328S	received=3750/3750	codes={200=3750}
                          fast_500s_then_revert[LOWEST_UTILIZATION].txt:	success=100.0%	client_mean=PT0.074707199S 	server_cpu=PT4M40.151999994S	received=3750/3750	codes={200=3750}
                                 fast_500s_then_revert[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.078971555S 	server_cpu=PT4M56.143333328S	received=3750/3750	codes={200=3750}
+                               live_reloading[CONCURRENCY_LIMITER].txt:	success=95.0%	client_mean=PT1.5825125S   	server_cpu=PT9M1.09S      	received=400/400	codes={200=380, Retries exhausted=20}
+                                live_reloading[LOWEST_UTILIZATION].txt:	success=100.0%	client_mean=PT0.925075S    	server_cpu=PT6M10.03S     	received=400/400	codes={200=400}
+                                       live_reloading[ROUND_ROBIN].txt:	success=95.0%	client_mean=PT1.373525S    	server_cpu=PT9M9.41S      	received=400/400	codes={200=380, Retries exhausted=20}
              one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].txt:	success=96.7%	client_mean=PT0.945882352S 	server_cpu=PT8M2.4S       	received=510/510	codes={200=493, Retries exhausted=17}
               one_endpoint_dies_on_each_server[LOWEST_UTILIZATION].txt:	success=100.0%	client_mean=PT0.651764705S 	server_cpu=PT5M32.4S      	received=510/510	codes={200=510}
                      one_endpoint_dies_on_each_server[ROUND_ROBIN].txt:	success=96.7%	client_mean=PT0.945882352S 	server_cpu=PT8M2.4S       	received=510/510	codes={200=493, Retries exhausted=17}
