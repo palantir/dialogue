@@ -57,13 +57,8 @@ final class RetryingChannel implements Channel {
         SettableFuture<Response> future = SettableFuture.create();
 
         Function<Integer, ListenableFuture<Response>> callSupplier = attempt -> {
-            return delegate.execute(
-                    endpoint,
-                    Request.builder()
-                            .from(request)
-                            .putHeaderParams(
-                                    "X-B3-TraceId", request.headerParams().get("X-B3-TraceId") + "-attempt-" + attempt)
-                            .build());
+            // TODO(dfox): include retry number in the request somehow
+            return delegate.execute(endpoint, request);
         };
         FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
         Futures.addCallback(callSupplier.apply(0), retryer, DIRECT_EXECUTOR);
