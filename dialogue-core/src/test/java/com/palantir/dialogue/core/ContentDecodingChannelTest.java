@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -36,6 +37,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
+import org.assertj.core.data.MapEntry;
 import org.immutables.value.Value;
 import org.junit.Test;
 
@@ -93,7 +95,7 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testRequestHeader() throws Exception {
         new ContentDecodingChannel((endpoint, request) -> {
-                    assertThat(request.headerParams()).containsEntry("accept-encoding", "gzip");
+                    assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
                     return Futures.immediateFuture(StubResponse.builder().build());
                 })
                 .execute(TestEndpoint.INSTANCE, Request.builder().build())
@@ -105,7 +107,7 @@ public final class ContentDecodingChannelTest {
         new ContentDecodingChannel((endpoint, request) -> {
                     assertThat(request.headerParams())
                             .as("The requested 'identity' encoding should not be replaced")
-                            .containsEntry("accept-encoding", "identity");
+                            .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(StubResponse.builder().build());
                 })
                 .execute(
@@ -121,7 +123,7 @@ public final class ContentDecodingChannelTest {
         new ContentDecodingChannel((endpoint, request) -> {
                     assertThat(request.headerParams())
                             .as("The requested 'identity' encoding should not be replaced")
-                            .containsEntry("accept-encoding", "identity");
+                            .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(StubResponse.builder().build());
                 })
                 .execute(
