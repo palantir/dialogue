@@ -83,9 +83,7 @@ public final class HttpChannel implements Channel {
         }
 
         // Fill headers
-        for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
-            httpRequest.header(header.getKey(), header.getValue());
-        }
+        request.headerParams().forEach(httpRequest::header);
 
         httpRequest.header("accept-encoding", "gzip");
         request.body().ifPresent(body -> httpRequest.header("content-type", body.contentType()));
