@@ -61,7 +61,8 @@ final class BlacklistingChannel implements LimitedChannel {
         this.delegate = delegate;
         this.duration = duration;
         this.ticker = ticker;
-        this.perEndpointBlacklistState = Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build();
+        this.perEndpointBlacklistState =
+                Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build();
     }
 
     @Override
