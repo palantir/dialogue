@@ -23,10 +23,7 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class JavaChannelsTest extends AbstractChannelTest {
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");

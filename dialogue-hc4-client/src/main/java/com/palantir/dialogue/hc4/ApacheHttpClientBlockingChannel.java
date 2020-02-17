@@ -15,7 +15,6 @@
  */
 package com.palantir.dialogue.hc4;
 
-import com.google.common.base.Strings;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.HttpMethod;
@@ -25,9 +24,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,24 +41,13 @@ import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 
-final class ApacheHttpClientChannel implements BlockingChannel {
+final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final CloseableHttpClient client;
     private final UrlBuilder baseUrl;
 
-    ApacheHttpClientChannel(CloseableHttpClient client, URL baseUrl) {
+    ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
         this.client = client;
-        // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty",
-                UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty",
-                UnsafeArg.of("ref", baseUrl.getRef()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
         this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
@@ -73,7 +58,8 @@ final class ApacheHttpClientChannel implements BlockingChannel {
         endpoint.renderPath(request.pathParams(), url);
         request.queryParams().forEach(url::queryParam);
         URL target = url.build();
-        RequestBuilder builder = buildFor(endpoint, target);
+        RequestBuilder builder =
+                RequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
 
         // Fill headers
         for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
@@ -81,30 +67,14 @@ final class ApacheHttpClientChannel implements BlockingChannel {
         }
 
         if (request.body().isPresent()) {
-            if (endpoint.httpMethod() == HttpMethod.GET) {
-                throw new SafeIllegalArgumentException("GET endpoints must not have a request body");
-            }
-            if (endpoint.httpMethod() == HttpMethod.DELETE) {
-                throw new SafeIllegalArgumentException("DELETE endpoints must not have a request body");
-            }
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.DELETE, "DELETE endpoints must not have a request body");
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
         return new HttpClientResponse(client.execute(builder.build()));
-    }
-
-    private static RequestBuilder buildFor(Endpoint endpoint, URL url) {
-        switch (endpoint.httpMethod()) {
-            case GET:
-                return RequestBuilder.get(url.toString());
-            case POST:
-                return RequestBuilder.post(url.toString());
-            case PUT:
-                return RequestBuilder.put(url.toString());
-            case DELETE:
-                return RequestBuilder.delete(url.toString());
-        }
-        throw new SafeIllegalArgumentException("Unknown request method", SafeArg.of("method", endpoint.httpMethod()));
     }
 
     private static final class HttpClientResponse implements Response {
@@ -135,9 +105,12 @@ final class ApacheHttpClientChannel implements BlockingChannel {
             if (headers == null) {
                 Map<String, List<String>> tmpHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
                 for (Header header : response.getAllHeaders()) {
-                    tmpHeaders
-                            .computeIfAbsent(header.getName(), _name -> new ArrayList<>(1))
-                            .add(header.getValue());
+                    String value = header.getValue();
+                    if (value != null) {
+                        tmpHeaders
+                                .computeIfAbsent(header.getName(), _name -> new ArrayList<>(1))
+                                .add(header.getValue());
+                    }
                 }
                 headers = tmpHeaders;
             }
@@ -146,11 +119,7 @@ final class ApacheHttpClientChannel implements BlockingChannel {
 
         @Override
         public Optional<String> getFirstHeader(String header) {
-            Header first = response.getFirstHeader(header);
-            if (first != null) {
-                return Optional.ofNullable(first.getValue());
-            }
-            return Optional.empty();
+            return Optional.ofNullable(response.getFirstHeader(header)).map(Header::getValue);
         }
     }
 

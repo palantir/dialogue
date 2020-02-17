@@ -20,10 +20,7 @@ import java.net.URL;
 import java.util.concurrent.Executors;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class OkHttpChannelTest extends AbstractChannelTest {
 
     @Override

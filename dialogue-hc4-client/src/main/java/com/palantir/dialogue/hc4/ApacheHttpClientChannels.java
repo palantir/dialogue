@@ -65,7 +65,7 @@ public final class ApacheHttpClientChannels {
                 .setSSLHostnameVerifier(new DefaultHostnameVerifier())
                 .build();
         ImmutableList<Channel> channels = conf.uris().stream()
-                .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientChannel(client, url(uri))))
+                .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
                 .collect(ImmutableList.toImmutableList());
 
         return Channels.create(channels, baseAgent, metrics);

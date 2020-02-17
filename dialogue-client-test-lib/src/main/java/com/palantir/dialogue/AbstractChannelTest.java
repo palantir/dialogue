@@ -48,11 +48,14 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 // CHECKSTYLE:ON
 
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
+@RunWith(MockitoJUnitRunner.class)
 public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);

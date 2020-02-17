@@ -15,7 +15,6 @@
  */
 package com.palantir.dialogue.httpurlconnection;
 
-import com.google.common.base.Strings;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
@@ -26,17 +25,12 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -49,17 +43,6 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
 
     HttpUrlConnectionBlockingChannel(ClientConfiguration config, URL baseUrl) {
         this.config = config;
-        // Sanitize path syntax and strip all irrelevant URL components
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getQuery()),
-                "baseUrl query must be empty",
-                UnsafeArg.of("query", baseUrl.getQuery()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getRef()),
-                "baseUrl ref must be empty",
-                UnsafeArg.of("ref", baseUrl.getRef()));
-        Preconditions.checkArgument(
-                null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
         this.baseUrl = UrlBuilder.from(baseUrl);
     }
 
@@ -69,20 +52,13 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         UrlBuilder url = baseUrl.newBuilder();
         endpoint.renderPath(request.pathParams(), url);
         request.queryParams().forEach(url::queryParam);
-        URLConnection urlConnection = url.build().openConnection();
-        if (!(urlConnection instanceof HttpURLConnection)) {
-            throw new SafeIllegalStateException(
-                    "Expected an HttpUrlConnection", SafeArg.of("actual", urlConnection.getClass()));
-        }
-        HttpURLConnection connection = (HttpURLConnection) urlConnection;
+        HttpURLConnection connection = (HttpURLConnection) url.build().openConnection();
         connection.setRequestMethod(endpoint.httpMethod().name());
 
         // Fill headers
         for (Map.Entry<String, String> header : request.headerParams().entrySet()) {
             connection.addRequestProperty(header.getKey(), header.getValue());
         }
-
-        connection.setRequestProperty("accept-encoding", "gzip");
 
         connection.setConnectTimeout(Ints.checkedCast(config.connectTimeout().toMillis()));
         connection.setReadTimeout(Ints.checkedCast(config.readTimeout().toMillis()));
@@ -104,12 +80,10 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         }
 
         if (request.body().isPresent()) {
-            if (endpoint.httpMethod() == HttpMethod.GET) {
-                throw new SafeIllegalArgumentException("GET endpoints must not have a request body");
-            }
-            if (endpoint.httpMethod() == HttpMethod.DELETE) {
-                throw new SafeIllegalArgumentException("DELETE endpoints must not have a request body");
-            }
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.DELETE, "DELETE endpoints must not have a request body");
             RequestBody body = request.body().get();
             connection.setChunkedStreamingMode(1024 * 8);
             connection.setRequestProperty("content-type", body.contentType());

@@ -24,10 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class HttpUrlConnectionChannelsTest extends AbstractChannelTest {
 
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
