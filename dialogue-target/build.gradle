@@ -13,6 +13,7 @@ dependencies {
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.immutables:value::annotations'
     testCompile 'org.mockito:mockito-core'
+    testCompile 'org.assertj:assertj-guava'
 
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'

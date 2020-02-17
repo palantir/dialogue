@@ -95,6 +95,8 @@ public final class RefreshingChannelFactory {
          * provided by the {@code confSupplier} is. Avoids invoking the channelFactory if the config hasn't changed.
          */
         static <T> Channel create(Supplier<T> confSupplier, Function<T, Channel> channelFactory) {
+            // Beware: the memoizing composing supplier does updates in a synchronized block, which can block all
+            // other client threads if one call to the channelFactory happens to block (or worse deadlock)!
             Supplier<Channel> channelSupplier = new MemoizingComposingSupplier<>(confSupplier, channelFactory);
             return new RefreshingChannel(channelSupplier);
         }
