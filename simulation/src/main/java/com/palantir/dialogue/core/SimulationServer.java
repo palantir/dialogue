@@ -87,11 +87,11 @@ final class SimulationServer implements Channel {
                         @Override
                         public void onSuccess(Response result) {
                             log.debug(
-                                    "time={} server={} status={} traceid={}",
+                                    "time={} server={} status={} id={}",
                                     Duration.ofNanos(simulation.clock().read()),
                                     metricName,
                                     result.code(),
-                                    request != null ? request.headerParams().get("X-B3-TraceId") : null);
+                                    request != null ? request.headerParams().get(Benchmark.REQUEST_ID_HEADER) : null);
                         }
 
                         @Override

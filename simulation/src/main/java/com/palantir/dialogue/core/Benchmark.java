@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
+    public static String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
     private Channel channel;
@@ -245,7 +246,7 @@ public final class Benchmark {
 
     private static Request constructRequest(long number) {
         return Request.builder()
-                .putHeaderParams("X-B3-TraceId", "req-" + number)
+                .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
                 .build();
     }
 }
