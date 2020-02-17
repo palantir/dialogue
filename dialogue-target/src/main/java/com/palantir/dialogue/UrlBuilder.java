@@ -232,4 +232,21 @@ public final class UrlBuilder {
             }
         }
     }
+
+    @Override
+    public String toString() {
+        return "UrlBuilder{protocol='"
+                + protocol
+                + '\''
+                + ", host='"
+                + host
+                + '\''
+                + ", port="
+                + port
+                + ", pathSegments="
+                + pathSegments
+                + ", queryNamesAndValues="
+                + queryNamesAndValues
+                + '}';
+    }
 }
