@@ -77,8 +77,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public Deserializer<Void> emptyBodyDeserializer() {
-        return response -> {
-            try {
+        return input -> {
+            try (Response response = input) {
                 if (response.body().read() != -1) {
                     throw new SafeRuntimeException("Expected empty response body");
                 }
@@ -158,7 +158,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
-        private final List<EncodingDeserializerContainer<T>> encodings;
+        private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
 
         EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
@@ -170,13 +170,17 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public T deserialize(Response response) {
-            if (errorDecoder.isError(response)) {
-                throw errorDecoder.decode(response);
-            }
+            try {
+                if (errorDecoder.isError(response)) {
+                    throw errorDecoder.decode(response);
+                }
 
-            Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-            EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
-            return container.deserializer.deserialize(response.body());
+                Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
+                return container.deserializer.deserialize(response.body());
+            } finally {
+                response.close();
+            }
         }
 
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */

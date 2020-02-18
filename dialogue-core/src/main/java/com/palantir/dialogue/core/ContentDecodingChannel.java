@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Adds support for transparently requesting and decoding <code>Content-Encoding: gzip</code> responses
@@ -45,6 +47,8 @@ import java.util.zip.GZIPInputStream;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
 final class ContentDecodingChannel implements Channel {
+
+    private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
     private static final String ACCEPT_ENCODING = "accept-encoding";
     private static final String CONTENT_ENCODING = "content-encoding";
@@ -98,9 +102,6 @@ final class ContentDecodingChannel implements Channel {
 
         @Override
         public InputStream body() {
-            if (body == null) {
-                delegate.body();
-            }
             return body;
         }
 
@@ -125,6 +126,17 @@ final class ContentDecodingChannel implements Channel {
         @Override
         public String toString() {
             return "ContentDecodingResponse{delegate=" + delegate + '}';
+        }
+
+        @Override
+        public void close() {
+            try {
+                body.close();
+            } catch (IOException e) {
+                log.warn("Failed to close encoded body", e);
+            } finally {
+                delegate.close();
+            }
         }
     }
 

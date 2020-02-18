@@ -132,13 +132,12 @@ public class RetryingChannelTest {
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get(1, TimeUnit.SECONDS).code()).isEqualTo(200);
 
-        verify(response1.body(), times(1)).close();
-        verify(response2.body(), times(1)).close();
+        verify(response1, times(1)).close();
+        verify(response2, times(1)).close();
     }
 
     private static Response mockResponse(int status) {
         Response response = mock(Response.class);
-        when(response.body()).thenReturn(mock(InputStream.class));
         when(response.code()).thenReturn(status);
         return response;
     }
@@ -158,6 +157,9 @@ public class RetryingChannelTest {
         public Map<String, List<String>> headers() {
             return ImmutableMap.of();
         }
+
+        @Override
+        public void close() {}
     }
 
     private static final class TestEndpoint implements Endpoint {

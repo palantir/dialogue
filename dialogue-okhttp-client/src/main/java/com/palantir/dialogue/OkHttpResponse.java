@@ -48,4 +48,9 @@ public final class OkHttpResponse implements Response {
     public Map<String, List<String>> headers() {
         return delegate.headers().toMultimap();
     }
+
+    @Override
+    public void close() {
+        delegate.close();
+    }
 }
