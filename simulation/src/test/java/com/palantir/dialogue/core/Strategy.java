@@ -26,6 +26,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
     CONCURRENCY_LIMITER(Strategy::concurrencyLimiter),
+    PIN_UNTIL_ERROR(Strategy::pinUntilError),
     ROUND_ROBIN(Strategy::roundRobin);
 
     private static final Logger log = LoggerFactory.getLogger(Strategy.class);
@@ -57,6 +59,20 @@ public enum Strategy {
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
             limited1 = instrumentClient(limited1, sim.metrics()); // just for debugging
             Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+            return new RetryingChannel(channel);
+        });
+    }
+
+    private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        Random psuedoRandom = new Random(3218974678L);
+        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(c1 -> new ConcurrencyLimitedChannel(
+                            c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock())))
+                    .collect(Collectors.toList());
+            LimitedChannel limited = new PinUntilErrorChannel(limitedChannels, psuedoRandom, sim.clock());
+            limited = instrumentClient(limited, sim.metrics()); // just for debugging
+            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             return new RetryingChannel(channel);
         });
     }
