@@ -27,13 +27,13 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
 public final class InstrumentedChannelTest {
 
@@ -46,7 +46,7 @@ public final class InstrumentedChannelTest {
     @Mock
     private Endpoint endpoint;
 
-    @Before
+    @BeforeEach
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
         channel = new InstrumentedChannel(delegate, DialogueClientMetrics.of(registry));
