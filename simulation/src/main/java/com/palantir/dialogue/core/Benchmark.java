@@ -142,7 +142,8 @@ public final class Benchmark {
 
     @SuppressWarnings("FutureReturnValueIgnored")
     public ListenableFuture<BenchmarkResult> schedule() {
-        HistogramChannel histogramChannel = new HistogramChannel(simulation, channelUnderTest);
+        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
+        InstrumentedChannel channel = new InstrumentedChannel(channelUnderTest, clientMetrics);
 
         long[] requestsStarted = {0};
         long[] responsesReceived = {0};
@@ -152,6 +153,7 @@ public final class Benchmark {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
+                    response.close(); // just being a good citizen
                     statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
                 }
 
@@ -166,7 +168,7 @@ public final class Benchmark {
                     () -> {
                         log.debug(
                                 "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
-                        ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
+                        ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
@@ -184,19 +186,30 @@ public final class Benchmark {
                     TimeUnit.NANOSECONDS);
         });
 
-        benchmarkFinished.getFuture().addListener(simulation.metrics()::report, MoreExecutors.directExecutor());
+        benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
-                v -> ImmutableBenchmarkResult.builder()
-                        .clientHistogram(histogramChannel.getHistogram().getSnapshot())
-                        .endTime(Duration.ofNanos(simulation.clock().read()))
-                        .statusCodes(statusCodes)
-                        .successPercentage(
-                                Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
-                        .numSent(requestsStarted[0])
-                        .numReceived(responsesReceived[0])
-                        .build(),
+                v -> {
+                    long numGlobalResponses = MetricNames.globalResponses(simulation.taggedMetrics())
+                            .getCount();
+                    long leaked = numGlobalResponses
+                            - MetricNames.responseClose(simulation.taggedMetrics())
+                                    .getCount();
+                    return ImmutableBenchmarkResult.builder()
+                            .clientHistogram(clientMetrics
+                                    .response(SimulationUtils.SERVICE_NAME)
+                                    .getSnapshot())
+                            .endTime(Duration.ofNanos(simulation.clock().read()))
+                            .statusCodes(statusCodes)
+                            .successPercentage(
+                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
+                            .numSent(requestsStarted[0])
+                            .numReceived(responsesReceived[0])
+                            .numGlobalResponses(numGlobalResponses)
+                            .responsesLeaked(leaked)
+                            .build();
+                },
                 MoreExecutors.directExecutor());
     }
 
@@ -218,11 +231,20 @@ public final class Benchmark {
 
         Map<String, Integer> statusCodes();
 
+        /** What proportion of responses were 200s. */
         double successPercentage();
 
+        /** How many requests did we fire off in the benchmark. */
         long numSent();
 
+        /** How many responses were returned to the user. */
         long numReceived();
+
+        /** How many responses were issued in total across all servers. */
+        long numGlobalResponses();
+
+        /** How many responses were never closed. */
+        long responsesLeaked();
     }
 
     /**

@@ -27,7 +27,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -86,7 +85,7 @@ final class RetryingChannel implements Channel {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
-                closeBody(response);
+                response.close();
                 retryOrFail(Optional.empty());
                 return;
             }
@@ -95,7 +94,7 @@ final class RetryingChannel implements Channel {
 
             boolean setSuccessfully = delegate.set(response);
             if (!setSuccessfully) {
-                closeBody(response);
+                response.close();
             }
         }
 
@@ -114,17 +113,6 @@ final class RetryingChannel implements Channel {
                 } else {
                     delegate.setException(new SafeRuntimeException("Retries exhausted"));
                 }
-            }
-        }
-
-        private void closeBody(Response response) {
-            if (response == null || response.body() == null) {
-                return;
-            }
-            try {
-                response.body().close();
-            } catch (IOException e) {
-                delegate.setException(new SafeRuntimeException("Failed to close response body", e));
             }
         }
     }

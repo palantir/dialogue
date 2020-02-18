@@ -195,6 +195,9 @@ public class ConjureBodySerDeTest {
             return headers;
         }
 
+        @Override
+        public void close() {}
+
         public void contentType(String contentType) {
             this.headers = ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(contentType));
         }

@@ -157,6 +157,9 @@ public final class DefaultErrorDecoderTest {
             public Map<String, List<String>> headers() {
                 return ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(mediaType));
             }
+
+            @Override
+            public void close() {}
         };
     }
 }
