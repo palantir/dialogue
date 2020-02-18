@@ -404,14 +404,14 @@ public class SimulationTest {
     public void after() throws IOException {
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
-        long clientMeanMicros = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanMicros, TimeUnit.MICROSECONDS) / 1000d;
+        long clientMeanNanos = (long) result.clientHistogram().getMean();
+        double clientMeanMillis = TimeUnit.MILLISECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS);
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
                 "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
                 result.successPercentage(),
-                Duration.of(clientMeanMicros, ChronoUnit.MICROS),
+                Duration.of(clientMeanNanos, ChronoUnit.NANOS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),

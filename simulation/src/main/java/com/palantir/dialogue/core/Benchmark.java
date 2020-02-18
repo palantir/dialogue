@@ -142,7 +142,8 @@ public final class Benchmark {
 
     @SuppressWarnings("FutureReturnValueIgnored")
     public ListenableFuture<BenchmarkResult> schedule() {
-        HistogramChannel histogramChannel = new HistogramChannel(simulation, channelUnderTest);
+        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
+        InstrumentedChannel channel = new InstrumentedChannel(channelUnderTest, clientMetrics);
 
         long[] requestsStarted = {0};
         long[] responsesReceived = {0};
@@ -167,7 +168,7 @@ public final class Benchmark {
                     () -> {
                         log.debug(
                                 "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
-                        ListenableFuture<Response> future = histogramChannel.execute(req.endpoint(), req.request());
+                        ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 
                         Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
@@ -195,7 +196,7 @@ public final class Benchmark {
                     long leaked = numGlobalResponses
                             - MetricNames.bodyClose(simulation.taggedMetrics()).getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(histogramChannel.getHistogram().getSnapshot())
+                            .clientHistogram(clientMetrics.response(SimulationUtils.SERVICE_NAME).getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(

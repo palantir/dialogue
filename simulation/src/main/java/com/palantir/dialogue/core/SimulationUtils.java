@@ -79,6 +79,8 @@ final class SimulationUtils {
         };
     }
 
+    static final String SERVICE_NAME = "svc";
+
     public static Endpoint endpoint(String name) {
         return new Endpoint() {
             @Override
@@ -91,7 +93,7 @@ final class SimulationUtils {
 
             @Override
             public String serviceName() {
-                return "service";
+                return SERVICE_NAME;
             }
 
             @Override
