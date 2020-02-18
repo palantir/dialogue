@@ -80,7 +80,7 @@ final class SimulationMetricsReporter {
                         "Gauges must produce numbers",
                         SafeArg.of("metric", metricName),
                         SafeArg.of("value", value));
-                measurements.get(name + ".count").add(toDouble((Number) value));
+                measurements.get(name + ".count").add(((Number) value).doubleValue());
                 return;
             }
 
@@ -137,13 +137,6 @@ final class SimulationMetricsReporter {
         }
 
         return chart;
-    }
-
-    private static double toDouble(Number number) {
-        if (number instanceof Integer) {
-            return (double) (int) number;
-        }
-        return (double) number;
     }
 
     private static String asString(MetricName metricName) {

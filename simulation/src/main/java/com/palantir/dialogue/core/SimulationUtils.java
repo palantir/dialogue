@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Endpoint;
@@ -25,7 +24,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +59,7 @@ final class SimulationUtils {
         return new Response() {
             @Override
             public InputStream body() {
-                return new CloseRecordingInputStream(delegate.body(), registry);
+                return delegate.body();
             }
 
             @Override
@@ -73,33 +71,12 @@ final class SimulationUtils {
             public Map<String, List<String>> headers() {
                 return delegate.headers();
             }
+
+            @Override
+            public void close() {
+                MetricNames.bodyClose(registry).inc();
+            }
         };
-    }
-
-    static final class CloseRecordingInputStream extends InputStream {
-        private final InputStream delegate;
-        private final Counter closeCounter;
-
-        private CloseRecordingInputStream(InputStream delegate, TaggedMetricRegistry registry) {
-            this.delegate = delegate;
-            this.closeCounter = MetricNames.bodyClose(registry);
-        }
-
-        @Override
-        public int read() throws IOException {
-            return delegate.read();
-        }
-
-        @Override
-        public int read(byte[] array, int off, int len) throws IOException {
-            return delegate.read(array, off, len);
-        }
-
-        @Override
-        public void close() throws IOException {
-            closeCounter.inc();
-            super.close();
-        }
     }
 
     public static Endpoint endpoint(String name) {

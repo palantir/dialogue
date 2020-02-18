@@ -27,7 +27,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Random;
@@ -153,11 +152,7 @@ public final class Benchmark {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
-                    try {
-                        response.body().close(); // just being a good citizen
-                    } catch (IOException e) {
-                        log.warn("Failed to close body", e);
-                    }
+                    response.close(); // just being a good citizen
                     statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
                 }
 
