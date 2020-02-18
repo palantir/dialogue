@@ -40,8 +40,11 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
+    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
 
     private final CloseableHttpClient client;
     private final UrlBuilder baseUrl;
@@ -116,6 +119,20 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         @Override
         public Optional<String> getFirstHeader(String header) {
             return Optional.ofNullable(response.getFirstHeader(header)).map(Header::getValue);
+        }
+
+        @Override
+        public void close() {
+            try {
+                response.close();
+            } catch (IOException | RuntimeException e) {
+                log.warn("Failed to close response", e);
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "HttpClientResponse{response=" + response + '}';
         }
     }
 

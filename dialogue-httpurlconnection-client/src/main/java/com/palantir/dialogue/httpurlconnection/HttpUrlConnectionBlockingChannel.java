@@ -35,8 +35,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import javax.net.ssl.HttpsURLConnection;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
+    private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionBlockingChannel.class);
 
     private final ClientConfiguration config;
     private final UrlBuilder baseUrl;
@@ -131,6 +134,15 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         @Override
         public Optional<String> getFirstHeader(String header) {
             return Optional.ofNullable(connection.getHeaderField(header));
+        }
+
+        @Override
+        public void close() {
+            try {
+                body().close();
+            } catch (IOException e) {
+                log.warn("Failed to close response", e);
+            }
         }
 
         @Override
