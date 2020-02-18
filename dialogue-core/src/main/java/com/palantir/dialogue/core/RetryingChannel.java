@@ -72,10 +72,18 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> success(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
+            // TODO(ckozak): Respect ClientConfiguration.serverQos.
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
                 response.close();
-                return failure(
-                        new SafeRuntimeException("Received response status", SafeArg.of("status", response.code())));
+                Throwable failure =
+                        new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
+                if (++failures <= maxRetries) {
+                    logRetry(failure);
+                    return execute();
+                }
+                // TODO(ckozak): It's out of scope for this class to map responses to exceptions. After retries
+                // are exhausted the open response should be returned.
+                return Futures.immediateFailedFuture(new SafeRuntimeException("Retries exhausted", failure));
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
