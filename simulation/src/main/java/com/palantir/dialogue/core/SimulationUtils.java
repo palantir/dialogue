@@ -23,7 +23,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -75,19 +74,22 @@ final class SimulationUtils {
     }
 
     static final class CloseRecordingInputStream extends InputStream {
-        static final MetricName METRIC_NAME = MetricName.builder().safeName("bodyClose").build();
-
         private final InputStream delegate;
         private final Counter closeCounter;
 
         private CloseRecordingInputStream(InputStream delegate, TaggedMetricRegistry registry) {
             this.delegate = delegate;
-            this.closeCounter = registry.counter(METRIC_NAME);
+            this.closeCounter = MetricNames.bodyClose(registry);
         }
 
         @Override
         public int read() throws IOException {
-            return delegate.read(); // this is inefficient but we're in a simulation anywhere so w/e
+            return delegate.read();
+        }
+
+        @Override
+        public int read(byte[] array, int off, int len) throws IOException {
+            return delegate.read(array, off, len);
         }
 
         @Override

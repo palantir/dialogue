@@ -410,12 +410,13 @@ public class SimulationTest {
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
-                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\treceived=%s/%s\tcodes=%s",
+                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
                 result.successPercentage(),
                 Duration.of(clientMeanMicros, ChronoUnit.MICROS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),
+                result.numGlobalResponses(),
                 result.statusCodes());
 
         Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
@@ -429,10 +430,7 @@ public class SimulationTest {
                     .describedAs("Run tests locally to update checked-in file: %s", txt)
                     .isEqualTo(longSummary);
             assertThat(Paths.get(pngPath)).exists();
-            return;
-        }
-
-        if (true || txtChanged || !Files.exists(Paths.get(pngPath))) {
+        } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
@@ -441,12 +439,17 @@ public class SimulationTest {
             activeRequests.setTitle(String.format(
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
-            XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-            // XYChart allMetrics = simulation.metrics().chart(Pattern.compile(".*"));
 
-            SimulationMetricsReporter.png(pngPath, activeRequests, serverRequestCount);
+            SimulationMetricsReporter.png(
+                    pngPath, activeRequests, simulation.metrics().chart(Pattern.compile("request.*count"))
+                    // simulation.metrics().chart(Pattern.compile("(bodyClose|globalResponses)"))
+                    );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
+
+        assertThat(result.bodiesLeaked())
+                .describedAs("There should be no unclosed response bodies")
+                .isZero();
     }
 
     @AfterClass

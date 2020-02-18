@@ -73,8 +73,8 @@ final class SimulationMetricsReporter {
                 return;
             }
 
-            if (metric instanceof Gauge) {
-                Object value = ((Gauge) metric).getValue();
+            if (metric instanceof Gauge<?>) {
+                Object value = ((Gauge<?>) metric).getValue();
                 Preconditions.checkState(
                         value instanceof Number,
                         "Gauges must produce numbers",

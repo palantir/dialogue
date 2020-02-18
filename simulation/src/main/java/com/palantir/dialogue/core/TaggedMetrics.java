@@ -34,10 +34,12 @@ public final class TaggedMetrics extends AbstractTaggedMetricRegistry {
         this.clock = clock;
     }
 
+    @Override
     protected Supplier<Meter> meterSupplier() {
         return () -> new Meter(clock);
     }
 
+    @Override
     protected Supplier<Timer> timerSupplier() {
         return () -> new Timer(createReservoir(), clock);
     }

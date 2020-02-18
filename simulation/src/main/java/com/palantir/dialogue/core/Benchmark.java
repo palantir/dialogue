@@ -27,6 +27,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.Map;
 import java.util.Random;
@@ -152,6 +153,11 @@ public final class Benchmark {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
+                    try {
+                        response.body().close(); // just being a good citizen
+                    } catch (IOException e) {
+                        log.warn("Failed to close body", e);
+                    }
                     statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
                 }
 
@@ -188,15 +194,23 @@ public final class Benchmark {
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
-                v -> ImmutableBenchmarkResult.builder()
-                        .clientHistogram(histogramChannel.getHistogram().getSnapshot())
-                        .endTime(Duration.ofNanos(simulation.clock().read()))
-                        .statusCodes(statusCodes)
-                        .successPercentage(
-                                Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
-                        .numSent(requestsStarted[0])
-                        .numReceived(responsesReceived[0])
-                        .build(),
+                v -> {
+                    long numGlobalResponses = MetricNames.globalResponses(simulation.taggedMetrics())
+                            .getCount();
+                    long leaked = numGlobalResponses
+                            - MetricNames.bodyClose(simulation.taggedMetrics()).getCount();
+                    return ImmutableBenchmarkResult.builder()
+                            .clientHistogram(histogramChannel.getHistogram().getSnapshot())
+                            .endTime(Duration.ofNanos(simulation.clock().read()))
+                            .statusCodes(statusCodes)
+                            .successPercentage(
+                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
+                            .numSent(requestsStarted[0])
+                            .numReceived(responsesReceived[0])
+                            .numGlobalResponses(numGlobalResponses)
+                            .bodiesLeaked(leaked)
+                            .build();
+                },
                 MoreExecutors.directExecutor());
     }
 
@@ -218,11 +232,20 @@ public final class Benchmark {
 
         Map<String, Integer> statusCodes();
 
+        /** What proportion of responses were 200s. */
         double successPercentage();
 
+        /** How many requests did we fire off in the benchmark. */
         long numSent();
 
+        /** How many responses were returned to the user. */
         long numReceived();
+
+        /** How many responses were issued in total across all servers. */
+        long numGlobalResponses();
+
+        /** How many response bodies were never closed. */
+        long bodiesLeaked();
     }
 
     /**

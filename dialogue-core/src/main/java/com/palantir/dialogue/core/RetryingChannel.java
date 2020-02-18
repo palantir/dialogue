@@ -86,7 +86,7 @@ final class RetryingChannel implements Channel {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
-                closeBody(response);
+                // closeBody(response);
                 retryOrFail(Optional.empty());
                 return;
             }
