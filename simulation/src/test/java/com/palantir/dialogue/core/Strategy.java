@@ -65,7 +65,8 @@ public enum Strategy {
             List<LimitedChannel> limitedChannels =
                     channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            limited = instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
+            limited =
+                    instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(sim.taggedMetrics()));
             return new RetryingChannel(channel);
         });

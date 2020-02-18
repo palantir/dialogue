@@ -17,6 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
@@ -31,10 +33,25 @@ final class MetricNames {
         return registry.counter(MetricName.builder().safeName("globalResponses").build());
     }
 
+    /** Counter for how long servers spend processing requests. */
+    static Counter globalServerTimeNanos(TaggedMetricRegistry registry) {
+        return registry.counter(
+                MetricName.builder().safeName("globalServerTime").build());
+    }
+
     static Counter activeRequests(TaggedMetricRegistry reg, String serverName) {
         return reg.counter(MetricName.builder()
                 .safeName("activeRequests")
                 .putSafeTags("server", serverName)
+                .build());
+    }
+
+    /** Marked every time a server received a request. */
+    static Meter requestMeter(TaggedMetricRegistry reg, String serverName, Endpoint endpoint) {
+        return reg.meter(MetricName.builder()
+                .safeName("request")
+                .putSafeTags("server", serverName)
+                .putSafeTags("endpoint", endpoint.endpointName())
                 .build());
     }
 

@@ -402,9 +402,8 @@ public class SimulationTest {
 
     @After
     public void after() throws IOException {
-        Duration serverCpu = Duration.ofNanos(servers.get().stream() // live-reloading breaks this :(
-                .mapToLong(s -> s.getCumulativeServerTime().toNanos())
-                .sum());
+        Duration serverCpu = Duration.ofNanos(
+                MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
         long clientMeanMicros = (long) result.clientHistogram().getMean();
         double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanMicros, TimeUnit.MICROSECONDS) / 1000d;
 
@@ -435,13 +434,13 @@ public class SimulationTest {
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
 
-            XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
+            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
             activeRequests.setTitle(String.format(
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
 
             SimulationMetricsReporter.png(
-                    pngPath, activeRequests, simulation.metrics().chart(Pattern.compile("request.*count"))
+                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
                     // simulation.metrics().chart(Pattern.compile("(bodyClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));

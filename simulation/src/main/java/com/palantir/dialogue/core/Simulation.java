@@ -35,6 +35,7 @@ final class Simulation {
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
     private final ListeningScheduledExecutorService listenableExecutor =
             MoreExecutors.listeningDecorator(deterministicExecutor);
+
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
     private final SimulationMetricsReporter metrics = new SimulationMetricsReporter(this);
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
@@ -83,16 +84,16 @@ final class Simulation {
         return codahaleClock;
     }
 
-    public SimulationMetricsReporter metrics() {
+    public TaggedMetrics taggedMetrics() {
+        return taggedMetrics;
+    }
+
+    public SimulationMetricsReporter metricsReporter() {
         return metrics;
     }
 
     public EventMarkers events() {
         return eventMarkers;
-    }
-
-    public TaggedMetrics taggedMetrics() {
-        return taggedMetrics;
     }
 
     public void runClockToInfinity() {

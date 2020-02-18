@@ -190,7 +190,7 @@ public final class Benchmark {
                     TimeUnit.NANOSECONDS);
         });
 
-        benchmarkFinished.getFuture().addListener(simulation.metrics()::report, MoreExecutors.directExecutor());
+        benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
