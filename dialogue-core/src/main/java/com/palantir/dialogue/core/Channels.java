@@ -18,18 +18,30 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class Channels {
+    private static final Logger log = LoggerFactory.getLogger(Channels.class);
 
     private Channels() {}
 
     public static Channel create(
-            Collection<? extends Channel> channels, UserAgent userAgent, TaggedMetricRegistry metrics) {
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(metrics);
+            Collection<? extends Channel> channels, UserAgent userAgent, ClientConfiguration config) {
+        if (config.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
+            log.warn(
+                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
+                    SafeArg.of("requestedStrategy", config.nodeSelectionStrategy()));
+        }
+        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
@@ -38,15 +50,27 @@ public final class Channels {
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
                 .map(ContentDecodingChannel::new)
-                .map(ConcurrencyLimitedChannel::create)
+                .map(concurrencyLimiter(config))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(metrics));
+        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
         channel = new RetryingChannel(channel);
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
 
         return channel;
+    }
+
+    private static Function<Channel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
+        ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
+        switch (clientQoS) {
+            case ENABLED:
+                return ConcurrencyLimitedChannel::create;
+            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
+                return UnlimitedChannel::new;
+        }
+        throw new SafeIllegalStateException(
+                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
     }
 }

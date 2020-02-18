@@ -21,7 +21,6 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
 
@@ -37,8 +36,6 @@ public final class HttpUrlConnectionChannelsTest extends AbstractChannelTest {
                 .security(SSL_CONFIG)
                 .build();
         return HttpUrlConnectionChannels.create(
-                ClientConfigurations.of(serviceConf),
-                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
-                new DefaultTaggedMetricRegistry());
+                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
     }
 }
