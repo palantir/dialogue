@@ -30,7 +30,7 @@ public final class TaggedMetrics extends AbstractTaggedMetricRegistry {
     private final Clock clock;
 
     public TaggedMetrics(Clock clock) {
-        super(() -> new SlidingTimeWindowArrayReservoir(30, TimeUnit.SECONDS, clock));
+        super(() -> new SlidingTimeWindowArrayReservoir(1, TimeUnit.DAYS, clock));
         this.clock = clock;
     }
 

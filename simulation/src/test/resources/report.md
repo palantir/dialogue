@@ -6,7 +6,7 @@
                                    black_hole[CONCURRENCY_LIMITER].txt:	success=90.0%	client_mean=PT0.6S         	server_cpu=PT1M48S        	client_received=180/200	server_resps=180	codes={200=180}
                                            black_hole[ROUND_ROBIN].txt:	success=65.0%	client_mean=PT0.6S         	server_cpu=PT1M18S        	client_received=130/200	server_resps=130	codes={200=130}
                              drastic_slowdown[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT0.131675583S 	server_cpu=PT8M46.702333319S	client_received=4000/4000	server_resps=4000	codes={200=4000}
-                                     drastic_slowdown[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT50S          	server_cpu=PT9H16M2.557999978S	client_received=4000/4000	server_resps=4000	codes={200=4000}
+                                     drastic_slowdown[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT8.340639499S 	server_cpu=PT9H16M2.557999978S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                         fast_500s_then_revert[CONCURRENCY_LIMITER].txt:	success=76.7%	client_mean=PT0.055281733S 	server_cpu=PT3M27.306499709S	client_received=3750/3750	server_resps=3750	codes={200=2875, 500=875}
                                 fast_500s_then_revert[ROUND_ROBIN].txt:	success=76.7%	client_mean=PT0.055281733S 	server_cpu=PT3M27.306499709S	client_received=3750/3750	server_resps=3750	codes={200=2875, 500=875}
                                live_reloading[CONCURRENCY_LIMITER].txt:	success=58.3%	client_mean=PT0.7228S      	server_cpu=PT4M49.12S     	client_received=400/400	server_resps=400	codes={200=233, 500=167}
