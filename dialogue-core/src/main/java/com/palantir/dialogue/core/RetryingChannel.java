@@ -16,11 +16,8 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -28,16 +25,13 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Optional;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 
 /**
  * Immediately retries calls to the underlying channel upon failure.
  */
 final class RetryingChannel implements Channel {
-    private static final int DEFAULT_MAX_RETRIES = 4;
-    private static final Executor DIRECT_EXECUTOR = MoreExecutors.directExecutor();
 
     private static final int UNAVAILABLE_503 = 503;
     private static final int TOO_MANY_REQUESTS_429 = 429;
@@ -45,11 +39,6 @@ final class RetryingChannel implements Channel {
     private final Channel delegate;
     private final int maxRetries;
 
-    RetryingChannel(Channel delegate) {
-        this(delegate, DEFAULT_MAX_RETRIES);
-    }
-
-    @VisibleForTesting
     RetryingChannel(Channel delegate, int maxRetries) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
@@ -59,23 +48,21 @@ final class RetryingChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         SettableFuture<Response> future = SettableFuture.create();
 
-        Function<Integer, ListenableFuture<Response>> callSupplier = attempt -> {
+        IntFunction<ListenableFuture<Response>> callSupplier = attempt -> {
             // TODO(dfox): include retry number in the request somehow
             return delegate.execute(endpoint, request);
         };
         FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
-        Futures.addCallback(callSupplier.apply(0), retryer, DIRECT_EXECUTOR);
-
+        DialogueFutures.addDirectCallback(callSupplier.apply(0), retryer);
         return future;
     }
 
     private final class RetryingCallback implements FutureCallback<Response> {
         private final AtomicInteger failures = new AtomicInteger(0);
-        private final Function<Integer, ListenableFuture<Response>> runnable;
+        private final IntFunction<ListenableFuture<Response>> runnable;
         private final SettableFuture<Response> delegate;
 
-        private RetryingCallback(
-                Function<Integer, ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
+        private RetryingCallback(IntFunction<ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
             this.runnable = runnable;
             this.delegate = delegate;
         }
@@ -105,8 +92,8 @@ final class RetryingChannel implements Channel {
 
         private void retryOrFail(Optional<Throwable> throwable) {
             int attempt = failures.incrementAndGet();
-            if (attempt < maxRetries) {
-                Futures.addCallback(runnable.apply(attempt), this, DIRECT_EXECUTOR);
+            if (attempt <= maxRetries) {
+                DialogueFutures.addDirectCallback(runnable.apply(attempt), this);
             } else {
                 if (throwable.isPresent()) {
                     delegate.setException(throwable.get());

@@ -39,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -50,46 +49,56 @@ public class RetryingChannelTest {
     private static final TestResponse EXPECTED_RESPONSE = new TestResponse();
     private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
-            Futures.immediateFailedFuture(new IllegalArgumentException());
+            Futures.immediateFailedFuture(new IllegalArgumentException("FAILED"));
     private static final TestEndpoint ENDPOINT = new TestEndpoint();
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
     private Channel channel;
 
-    private RetryingChannel retryer;
-
-    @Before
-    public void before() {
-        retryer = new RetryingChannel(channel, 3);
-    }
-
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {
         when(channel.execute(any(), any())).thenReturn(SUCCESS);
 
+        Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test
     public void testRetriesUpToMaxRetries() throws ExecutionException, InterruptedException {
+        when(channel.execute(any(), any())).thenReturn(FAILED).thenReturn(SUCCESS);
+
+        // One retry allows an initial request (not a retry) and a single retry.
+        Channel retryer = new RetryingChannel(channel, 1);
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Test
+    public void testRetriesUpToMaxRetriesAndFails() throws ExecutionException, InterruptedException {
         when(channel.execute(any(), any()))
                 .thenReturn(FAILED)
                 .thenReturn(FAILED)
                 .thenReturn(SUCCESS);
 
+        // One retry allows an initial request (not a retry) and a single retry.
+        Channel retryer = new RetryingChannel(channel, 1);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
-        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+        assertThatThrownBy(response::get)
+                .hasRootCauseExactlyInstanceOf(IllegalArgumentException.class)
+                .hasRootCauseMessage("FAILED");
     }
 
     @Test
     public void testRetriesMax() {
         when(channel.execute(any(), any())).thenReturn(FAILED);
 
+        Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get).hasCauseInstanceOf(IllegalArgumentException.class);
-        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
     }
 
     @Test
@@ -98,11 +107,12 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
+        Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get)
                 .hasMessageContaining("Retries exhausted")
                 .hasCauseInstanceOf(RuntimeException.class);
-        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
     }
 
     @Test
@@ -111,11 +121,12 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(503);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
+        Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get)
                 .hasMessageContaining("Retries exhausted")
                 .hasCauseInstanceOf(RuntimeException.class);
-        verify(channel, times(3)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
     }
 
     @Test
@@ -129,6 +140,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response2))
                 .thenReturn(Futures.immediateFuture(eventualSuccess));
 
+        Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get(1, TimeUnit.SECONDS).code()).isEqualTo(200);
 
