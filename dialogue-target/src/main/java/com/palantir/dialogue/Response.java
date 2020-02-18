@@ -17,12 +17,13 @@
 package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableList;
+import java.io.Closeable;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-public interface Response {
+public interface Response extends Closeable {
     /** The HTTP body for this response. */
     InputStream body();
 
@@ -39,4 +40,12 @@ public interface Response {
 
         return headerList.isEmpty() ? Optional.empty() : Optional.of(headerList.get(0));
     }
+
+    /**
+     * Releases all resources associated with this response. If the {@link #body()} is still open, {@link #close()}
+     * should {@link InputStream#close() close the stream}.
+     * Implementations must not throw, preferring to catch and log internally.
+     */
+    @Override
+    void close();
 }

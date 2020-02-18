@@ -183,6 +183,9 @@ public final class ContentDecodingChannelTest {
             return ImmutableMap.of();
         }
 
+        @Override
+        default void close() {}
+
         class Builder extends ImmutableStubResponse.Builder {}
 
         static Builder builder() {

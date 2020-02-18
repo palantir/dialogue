@@ -51,6 +51,9 @@ final class SimulationUtils {
                 }
                 return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
             }
+
+            @Override
+            public void close() {}
         };
     }
 
