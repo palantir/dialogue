@@ -90,7 +90,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
-            OptionalInt next = markCurrentHostAsBad(currentIndex);
+            OptionalInt next = incrementHostIfNecessary(currentIndex);
             debugLogCurrentChannelRejected(currentIndex, channel, next);
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
@@ -100,7 +100,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
             @Override
             public void onSuccess(Response response) {
                 if (response.code() >= 300) {
-                    OptionalInt next = markCurrentHostAsBad(currentIndex);
+                    OptionalInt next = incrementHostIfNecessary(currentIndex);
                     debugLogReceivedErrorStatus(currentIndex, channel, response, next);
                     // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
                 }
@@ -108,7 +108,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
             @Override
             public void onFailure(Throwable throwable) {
-                OptionalInt next = markCurrentHostAsBad(currentIndex);
+                OptionalInt next = incrementHostIfNecessary(currentIndex);
                 debugLogReceivedThrowable(currentIndex, channel, throwable, next);
             }
         }));
@@ -119,19 +119,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
      * us off a good one.
      */
-    private OptionalInt markCurrentHostAsBad(int currentIndex) {
-        int nextIndex = Math.max(currentIndex + 1, 0); // we want Integer.MAX_VALUE to wrap around to zero
-
+    private OptionalInt incrementHostIfNecessary(int currentIndex) {
+        int nextIndex = (currentIndex + 1) % nodeList.size();
         boolean saved = currentHost.compareAndSet(currentIndex, nextIndex);
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
     interface NodeList {
-        /**
-         * Accepts positive indexes that are greater than the length of the list, returns an item modulo the length
-         * of the list.
-         */
         LimitedChannel get(int index);
+
+        int size();
     }
 
     @VisibleForTesting
@@ -150,7 +147,12 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
         @Override
         public LimitedChannel get(int index) {
-            return channels.get(index % channels.size());
+            return channels.get(index);
+        }
+
+        @Override
+        public int size() {
+            return channels.size();
         }
     }
 
@@ -178,11 +180,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
         @Override
         public LimitedChannel get(int index) {
             reshuffleChannelsIfNecessary();
-            return channels.get(index % channelsSize);
+            return channels.get(index);
+        }
+
+        @Override
+        public int size() {
+            return channelsSize;
         }
 
         private void reshuffleChannelsIfNecessary() {
-            if (channels.size() <= 1) {
+            if (channelsSize <= 1) {
                 return;
             }
 
