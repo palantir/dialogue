@@ -19,10 +19,11 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
@@ -36,11 +37,8 @@ public final class Channels {
 
     public static Channel create(
             Collection<? extends Channel> channels, UserAgent userAgent, ClientConfiguration config) {
-        if (config.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
-            log.warn(
-                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
-                    SafeArg.of("requestedStrategy", config.nodeSelectionStrategy()));
-        }
+        Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
+
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
@@ -53,13 +51,30 @@ public final class Channels {
                 .map(concurrencyLimiter(config))
                 .collect(ImmutableList.toImmutableList());
 
-        LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
         channel = new RetryingChannel(channel, config.maxNumRetries());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
 
         return channel;
+    }
+
+    private static LimitedChannel nodeSelectionStrategy(ClientConfiguration config, List<LimitedChannel> channels) {
+        if (channels.size() == 1) {
+            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+        }
+
+        switch (config.nodeSelectionStrategy()) {
+            case PIN_UNTIL_ERROR:
+                return PinUntilErrorChannel.pinUntilError(channels);
+            case ROUND_ROBIN:
+                return new RoundRobinChannel(channels);
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                return PinUntilErrorChannel.pinUntilErrorWithoutReshuffle(channels);
+        }
+        throw new SafeRuntimeException(
+                "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
     private static Function<Channel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
