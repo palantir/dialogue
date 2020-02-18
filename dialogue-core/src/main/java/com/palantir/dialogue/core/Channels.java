@@ -55,7 +55,7 @@ public final class Channels {
 
         LimitedChannel limited = new RoundRobinChannel(limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
-        channel = new RetryingChannel(channel);
+        channel = new RetryingChannel(channel, config.maxNumRetries());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
 
