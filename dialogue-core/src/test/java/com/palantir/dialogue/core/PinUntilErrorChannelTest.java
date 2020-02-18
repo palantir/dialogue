@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -28,26 +29,36 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.Mockito;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 public class PinUntilErrorChannelTest {
 
-    private LimitedChannel channel1 = mock(LimitedChannel.class);
-    private LimitedChannel channel2 = mock(LimitedChannel.class);
-    private Ticker clock = mock(Ticker.class);
+    @Mock
+    private LimitedChannel channel1;
 
-    private ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+    @Mock
+    private LimitedChannel channel2;
+
+    @Mock
+    private Ticker clock;
+
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
 
-    @Before
+    @BeforeEach
     public void before() {
+        List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
         pinUntilErrorWithoutReshuffle =
                 new PinUntilErrorChannel(new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L)));
         pinUntilError = new PinUntilErrorChannel(
@@ -109,26 +120,33 @@ public class PinUntilErrorChannelTest {
     }
 
     @Test
-    public void out_of_order_responses_dont_cause_us_to_switch_channel() {
+    public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
         setResponse(channel1, 100);
+        setResponse(channel2, 101);
+        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(100);
 
-        // should all be on channel2 initially
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel2.maybeExecute(any(), any()))
+        when(channel1.maybeExecute(any(), any()))
                 .thenReturn(Optional.of(future1))
                 .thenReturn(Optional.of(future2));
 
+        // kick off two requests
+        pinUntilError.maybeExecute(null, null).get();
+        pinUntilError.maybeExecute(null, null).get();
+
+        // second request completes before the first (i.e. out of order), but they both signify the host wass broken
         future2.set(response(500));
+
         assertThat(getCode(pinUntilError))
-                .describedAs("A single 500 moved us to channel1")
-                .isEqualTo(100);
+                .describedAs("A single 500 moved us to channel2")
+                .isEqualTo(101);
 
         future1.set(response(500));
+
         assertThat(getCode(pinUntilError))
-                .describedAs("We're still on channel1, as an older 500 doesn't provide "
-                        + "signal about the current channel")
-                .isEqualTo(100);
+                .describedAs("We're still on channel2, as an older 500 doesn't mark this host as bad")
+                .isEqualTo(101);
     }
 
     private static int getCode(PinUntilErrorChannel channel) {
@@ -145,12 +163,12 @@ public class PinUntilErrorChannelTest {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
         Response resp = response(status);
-        when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
+        lenient().when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
     }
 
     private static Response response(int status) {
         Response resp = mock(Response.class);
-        when(resp.code()).thenReturn(status);
+        lenient().when(resp.code()).thenReturn(status);
         return resp;
     }
 }
