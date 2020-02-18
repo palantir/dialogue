@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Response is closeable
+  links:
+  - https://github.com/palantir/dialogue/pull/360
