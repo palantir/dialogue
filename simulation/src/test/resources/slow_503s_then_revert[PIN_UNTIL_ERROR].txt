@@ -1,1 +1,1 @@
-success=100.0%	client_mean=PT0.091302999S 	server_cpu=PT4M33.908999973S	client_received=3000/3000	server_resps=3036	codes={200=3000}
+success=100.0%	client_mean=PT0.103261777S 	server_cpu=PT5M9.785333295S	client_received=3000/3000	server_resps=3063	codes={200=3000}
