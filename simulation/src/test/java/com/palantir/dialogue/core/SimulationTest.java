@@ -470,21 +470,23 @@ public class SimulationTest {
                     })
                     .collect(Collectors.joining("", "```\n", "```\n"));
 
-            String rows = files.stream()
+            String images = files.stream()
                     .filter(p -> p.toString().endsWith("png"))
                     .map(p -> {
-                        String githubUrl = "https://raw.githubusercontent.com/palantir/dialogue/"
-                                + "develop/simulation/src/test/resources/"
+                        String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
+                                + "simulation/src/test/resources/"
                                 + p.getFileName();
                         return String.format(
-                                "<tr>"
+                                "%n## %s%n"
+                                        + "<table><tr><th>develop</th><th>current</th></tr>%n"
+                                        + "<tr>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
-                                        + "<td>%s<br /><image width=400 src=\"%s\" /></td>"
-                                        + "</tr>%n",
-                                githubUrl, p.getFileName(), p.getFileName());
+                                        + "<td><image width=400 src=\"%s\" /></td>"
+                                        + "</tr>"
+                                        + "</table>%n%n",
+                                p.getFileName(), githubLfsUrl, p.getFileName());
                     })
                     .collect(Collectors.joining());
-            String images = "<table><tr><th>develop</th><th>current</th></tr>" + rows + "</table>";
 
             String report = String.format(
                     "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
