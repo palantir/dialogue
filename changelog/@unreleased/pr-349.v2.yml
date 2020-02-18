@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: BlacklistingChannel keeps track of per-endpoint information and conservatively
+    ramps up.
+  links:
+  - https://github.com/palantir/dialogue/pull/349
