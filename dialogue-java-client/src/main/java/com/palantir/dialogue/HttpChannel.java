@@ -31,8 +31,11 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class HttpChannel implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(HttpChannel.class);
 
     private final HttpClient client;
     private final Duration requestTimeout;
@@ -116,6 +119,15 @@ public final class HttpChannel implements Channel {
             @Override
             public Map<String, List<String>> headers() {
                 return response.headers().map();
+            }
+
+            @Override
+            public void close() {
+                try {
+                    body().close();
+                } catch (IOException e) {
+                    log.warn("Failed to close response", e);
+                }
             }
         };
     }
