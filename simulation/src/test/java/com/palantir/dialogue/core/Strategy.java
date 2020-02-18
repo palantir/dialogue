@@ -70,7 +70,8 @@ public enum Strategy {
                     .map(c1 -> new ConcurrencyLimitedChannel(
                             c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock())))
                     .collect(Collectors.toList());
-            LimitedChannel limited = new PinUntilErrorChannel(limitedChannels, psuedoRandom, sim.clock());
+            LimitedChannel limited = new PinUntilErrorChannel(
+                    new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             limited = instrumentClient(limited, sim.taggedMetrics()); // just for debugging
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
             return new RetryingChannel(channel);

@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.time.Duration;
@@ -58,24 +59,18 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
     // TODO(dfox): could we make this endpoint-specific?
     private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
-    private final Optional<Reshuffle> reshuffle;
-
-    private volatile ImmutableList<LimitedChannel> channels;
+    private final NodeList maybeShufflingNodeList;
 
     @VisibleForTesting
-    PinUntilErrorChannel(List<LimitedChannel> channels, Random random, Ticker clock) {
-        this.channels = shuffleImmutableList(channels, random);
-        this.reshuffle = Optional.of(new Reshuffle(random, clock));
-    }
-
-    @VisibleForTesting
-    PinUntilErrorChannel(List<LimitedChannel> channels, Random random) {
-        this.channels = shuffleImmutableList(channels, random);
-        this.reshuffle = Optional.empty();
+    PinUntilErrorChannel(NodeList nodeList) {
+        this.maybeShufflingNodeList = nodeList;
     }
 
     public static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
-        return new PinUntilErrorChannel(channels, ThreadLocalRandom.current(), System::nanoTime);
+        Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
+        ReshufflingNodeList shufflingNodeList =
+                new ReshufflingNodeList(channels, ThreadLocalRandom.current(), System::nanoTime);
+        return new PinUntilErrorChannel(shufflingNodeList);
     }
 
     /**
@@ -84,22 +79,15 @@ public final class PinUntilErrorChannel implements LimitedChannel {
      */
     @Deprecated
     public static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
-        return new PinUntilErrorChannel(channels, ThreadLocalRandom.current());
+        Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
+        ConstantNodeList constantNodeList = new ConstantNodeList(channels, ThreadLocalRandom.current());
+        return new PinUntilErrorChannel(constantNodeList);
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (channels.isEmpty()) {
-            log.debug("Rejecting request due to no delegates");
-            return Optional.empty();
-        }
-
-        if (reshuffle.isPresent()) {
-            reshuffle.get().reshuffleChannelsIfNecessary();
-        }
-
         int currentIndex = currentHost.get();
-        LimitedChannel channel = channels.get(currentIndex % channels.size());
+        LimitedChannel channel = maybeShufflingNodeList.get(currentIndex);
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
@@ -112,15 +100,11 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
-                if (response.code() / 100 <= 2) {
-                    // we consider all the 1xx and 2xx codes successful, so want to remain pinned to this channel
-                    return;
+                if (response.code() >= 300) {
+                    OptionalInt next = incrementCurrentHost(currentIndex);
+                    debugLogReceivedErrorStatus(currentIndex, channel, response, next);
+                    // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
                 }
-
-                OptionalInt next = incrementCurrentHost(currentIndex);
-                debugLogReceivedErrorStatus(currentIndex, channel, response, next);
-
-                // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
             }
 
             @Override
@@ -137,26 +121,58 @@ public final class PinUntilErrorChannel implements LimitedChannel {
      * us off a good one.
      */
     private OptionalInt incrementCurrentHost(int currentIndex) {
-        int next = currentIndex + 1;
-        int nextIndex = (next >= 0) ? next % channels.size() : 0; // we don't want negative indexes!
+        int nextIndex = Math.max(currentIndex + 1, 0); // we want Integer.MAX_VALUE to wrap around to zero
 
         boolean saved = currentHost.compareAndSet(currentIndex, nextIndex);
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
-    private final class Reshuffle {
+    interface NodeList {
+        /**
+         * Accepts positive indexes that are greater than the length of the list, returns an item modulo the length
+         * of the list.
+         * @return
+         */
+        LimitedChannel get(int index);
+    }
+
+    @VisibleForTesting
+    static final class ConstantNodeList implements NodeList {
+        private final List<LimitedChannel> channels;
+
+        ConstantNodeList(List<LimitedChannel> channels, Random random) {
+            this.channels = shuffleImmutableList(channels, random);
+        }
+
+        @Override
+        public LimitedChannel get(int index) {
+            return channels.get(index % channels.size());
+        }
+    }
+
+    @VisibleForTesting
+    static final class ReshufflingNodeList implements NodeList {
         private final Ticker clock;
         private final Random random;
         private final long intervalWithJitter;
         private final AtomicLong nextReshuffle;
 
-        private Reshuffle(Random random, Ticker clock) {
+        private volatile ImmutableList<LimitedChannel> channels;
+
+        ReshufflingNodeList(List<LimitedChannel> channels, Random random, Ticker clock) {
+            this.channels = shuffleImmutableList(channels, random);
             this.random = random;
             this.intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
             this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
             this.clock = clock;
+        }
+
+        @Override
+        public LimitedChannel get(int index) {
+            reshuffleChannelsIfNecessary();
+            return channels.get(index % channels.size());
         }
 
         private void reshuffleChannelsIfNecessary() {
@@ -194,7 +210,6 @@ public final class PinUntilErrorChannel implements LimitedChannel {
                         UnsafeArg.of("current", channel),
                         SafeArg.of("nextIndex", next.getAsInt()));
             } else {
-
                 log.debug(
                         "Current channel rejected request, but we've already switched",
                         SafeArg.of("currentIndex", currentIndex),

@@ -48,8 +48,10 @@ public class PinUntilErrorChannelTest {
 
     @Before
     public void before() {
-        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(channels, new Random(12345L));
-        pinUntilError = new PinUntilErrorChannel(channels, new Random(12893712L), clock);
+        pinUntilErrorWithoutReshuffle =
+                new PinUntilErrorChannel(new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L)));
+        pinUntilError = new PinUntilErrorChannel(
+                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock));
     }
 
     @Test
