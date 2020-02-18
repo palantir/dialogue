@@ -21,7 +21,6 @@ import static java.util.stream.Collectors.toList;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -37,7 +36,7 @@ public final class JavaChannels {
 
     private JavaChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
         // TODO(jellis): read/write timeouts
         // TODO(jellis): gcm cipher toggle
         // TODO(jellis): proxy creds + mesh proxy
@@ -61,7 +60,7 @@ public final class JavaChannels {
                 .map(uri -> HttpChannel.of(client, url(uri)))
                 .collect(toList());
 
-        return Channels.create(channels, baseAgent, metrics);
+        return Channels.create(channels, baseAgent, conf);
     }
 
     private static URL url(String uri) {

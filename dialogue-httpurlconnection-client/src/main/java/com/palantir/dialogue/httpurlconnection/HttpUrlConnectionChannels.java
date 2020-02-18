@@ -22,7 +22,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.Channels;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
 import java.net.URL;
 
@@ -31,12 +30,12 @@ public final class HttpUrlConnectionChannels {
 
     private HttpUrlConnectionChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
         ImmutableList<Channel> channels = conf.uris().stream()
                 .map(uri -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(uri))))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, metrics);
+        return Channels.create(channels, baseAgent, conf);
     }
 
     private static URL url(String uri) {

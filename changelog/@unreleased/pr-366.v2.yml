@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Support disabling client QoS
+  links:
+  - https://github.com/palantir/dialogue/pull/366
