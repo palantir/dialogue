@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
@@ -160,12 +159,14 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Ticker clock;
         private final Random random;
         private final long intervalWithJitter;
-        private final AtomicLong nextReshuffle;
+        private final int channelsSize;
 
+        private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
 
         ReshufflingNodeList(List<LimitedChannel> channels, Random random, Ticker clock) {
             this.channels = shuffleImmutableList(channels, random);
+            this.channelsSize = channels.size();
             this.random = random;
             this.intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
@@ -177,7 +178,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         @Override
         public LimitedChannel get(int index) {
             reshuffleChannelsIfNecessary();
-            return channels.get(index % channels.size());
+            return channels.get(index % channelsSize);
         }
 
         private void reshuffleChannelsIfNecessary() {
