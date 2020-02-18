@@ -69,25 +69,23 @@ final class BlacklistingChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         BlacklistState state = perEndpointBlacklistState.getIfPresent(endpoint);
 
-        if (state != null) {
-            if (state instanceof BlacklistUntil) {
-                if (ticker.read() < ((BlacklistUntil) state).untilNanos) {
-                    return Optional.empty();
-                }
-
-                state = beginProbation(endpoint);
+        if (state instanceof BlacklistUntil) {
+            if (ticker.read() < ((BlacklistUntil) state).untilNanos) {
+                return Optional.empty();
             }
 
-            if (state instanceof Probation) {
-                Probation probation = (Probation) state;
-                if (probation.acquireStartPermit()) {
-                    log.debug("Probation channel request allowed");
-                    return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
-                            future, new BlacklistingCallback(Optional.of(probation), endpoint)));
-                } else {
-                    log.debug("Probation channel request not allowed");
-                    return Optional.empty();
-                }
+            state = beginProbation(endpoint);
+        }
+
+        if (state instanceof Probation) {
+            Probation probation = (Probation) state;
+            if (probation.acquireStartPermit()) {
+                log.debug("Probation channel request allowed");
+                return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
+                        future, new BlacklistingCallback(Optional.of(probation), endpoint)));
+            } else {
+                log.debug("Probation channel request not allowed");
+                return Optional.empty();
             }
         }
 
