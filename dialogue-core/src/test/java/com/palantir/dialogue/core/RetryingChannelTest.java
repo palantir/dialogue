@@ -34,6 +34,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tracing.TestTracing;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -90,6 +91,20 @@ public class RetryingChannelTest {
         assertThatThrownBy(response::get)
                 .hasRootCauseExactlyInstanceOf(IllegalArgumentException.class)
                 .hasRootCauseMessage("FAILED");
+    }
+
+    @Test
+    @TestTracing(snapshot = true)
+    void testRetryTrace() throws Exception {
+        when(channel.execute(any(), any()))
+                .thenReturn(FAILED)
+                .thenReturn(FAILED)
+                .thenReturn(SUCCESS);
+
+        Channel retryer = new RetryingChannel(channel, 3);
+        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
     @Test

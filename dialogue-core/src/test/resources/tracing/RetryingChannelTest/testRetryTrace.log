@@ -1,0 +1,3 @@
+{"traceId":"4d981638c658ea6a","parentSpanId":null,"spanId":"a59a96bddda68479","type":"LOCAL","operation":"request-attempt-0","startTimeMicroSeconds":1582064724220285,"durationNanoSeconds":1238242,"metadata":{}}
+{"traceId":"b605a53691e6a650","parentSpanId":null,"spanId":"0b89145095aea23c","type":"LOCAL","operation":"request-attempt-1","startTimeMicroSeconds":1582064724230390,"durationNanoSeconds":50685,"metadata":{}}
+{"traceId":"91a7bf6c1731afec","parentSpanId":null,"spanId":"e7f9b4065d9b5d54","type":"LOCAL","operation":"request-attempt-2","startTimeMicroSeconds":1582064724232438,"durationNanoSeconds":43850,"metadata":{}}
