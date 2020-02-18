@@ -32,7 +32,7 @@ import java.util.stream.LongStream;
  */
 final class SafeThreadLocalRandom extends Random {
 
-    private static final Random instance = new SafeThreadLocalRandom();
+    private static final Random INSTANCE = new SafeThreadLocalRandom();
     private boolean initialized;
 
     private SafeThreadLocalRandom() {
@@ -42,11 +42,12 @@ final class SafeThreadLocalRandom extends Random {
 
     /** Gets the singleton {@link SafeThreadLocalRandom} instance. */
     static Random get() {
-        return instance;
+        return INSTANCE;
     }
 
     @Override
-    public void setSeed(long seed) {
+    @SuppressWarnings("UnsynchronizedOverridesSynchronized") // we're just going to throw anyway
+    public void setSeed(long _seed) {
         // setSeed is invoked once in the constructor
         if (initialized) {
             throw new UnsupportedOperationException("SafeThreadLocalRandom does not support setSeed");
@@ -54,7 +55,8 @@ final class SafeThreadLocalRandom extends Random {
     }
 
     @Override
-    protected int next(int bits) {
+    @SuppressWarnings("UnsynchronizedOverridesSynchronized") // we're just going to throw anyway
+    protected int next(int _bits) {
         throw new UnsupportedOperationException(
                 "Internal Random#next(int) is not supported, this should only be thrown if an override is missing");
     }
@@ -94,7 +96,9 @@ final class SafeThreadLocalRandom extends Random {
         return ThreadLocalRandom.current().nextDouble();
     }
 
+    // the whole idea is to avoid synchronization by delegating to a different instance per thread!
     @Override
+    @SuppressWarnings("UnsynchronizedOverridesSynchronized")
     public double nextGaussian() {
         return ThreadLocalRandom.current().nextGaussian();
     }
