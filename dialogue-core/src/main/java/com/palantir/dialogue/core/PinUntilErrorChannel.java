@@ -51,7 +51,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-public final class PinUntilErrorChannel implements LimitedChannel {
+final class PinUntilErrorChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -59,14 +59,14 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
     // TODO(dfox): could we make this endpoint-specific?
     private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
-    private final NodeList maybeShufflingNodeList;
+    private final NodeList nodeList;
 
     @VisibleForTesting
     PinUntilErrorChannel(NodeList nodeList) {
-        this.maybeShufflingNodeList = nodeList;
+        this.nodeList = nodeList;
     }
 
-    public static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
+    static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
         Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, ThreadLocalRandom.current(), System::nanoTime);
@@ -78,7 +78,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    public static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+    static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
         Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, ThreadLocalRandom.current());
         return new PinUntilErrorChannel(constantNodeList);
@@ -87,11 +87,11 @@ public final class PinUntilErrorChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         int currentIndex = currentHost.get();
-        LimitedChannel channel = maybeShufflingNodeList.get(currentIndex);
+        LimitedChannel channel = nodeList.get(currentIndex);
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementCurrentHost(currentIndex);
+            OptionalInt next = markCurrentHostAsBad(currentIndex);
             debugLogCurrentChannelRejected(currentIndex, channel, next);
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
@@ -101,7 +101,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
             @Override
             public void onSuccess(Response response) {
                 if (response.code() >= 300) {
-                    OptionalInt next = incrementCurrentHost(currentIndex);
+                    OptionalInt next = markCurrentHostAsBad(currentIndex);
                     debugLogReceivedErrorStatus(currentIndex, channel, response, next);
                     // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
                 }
@@ -109,7 +109,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
             @Override
             public void onFailure(Throwable throwable) {
-                OptionalInt next = incrementCurrentHost(currentIndex);
+                OptionalInt next = markCurrentHostAsBad(currentIndex);
                 debugLogReceivedThrowable(currentIndex, channel, throwable, next);
             }
         }));
@@ -120,7 +120,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
      * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
      * us off a good one.
      */
-    private OptionalInt incrementCurrentHost(int currentIndex) {
+    private OptionalInt markCurrentHostAsBad(int currentIndex) {
         int nextIndex = Math.max(currentIndex + 1, 0); // we want Integer.MAX_VALUE to wrap around to zero
 
         boolean saved = currentHost.compareAndSet(currentIndex, nextIndex);
@@ -131,7 +131,6 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         /**
          * Accepts positive indexes that are greater than the length of the list, returns an item modulo the length
          * of the list.
-         * @return
          */
         LimitedChannel get(int index);
     }
@@ -141,6 +140,12 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         private final List<LimitedChannel> channels;
 
         ConstantNodeList(List<LimitedChannel> channels, Random random) {
+            /**
+             * Shuffle the initial list to ensure that clients across the fleet don't all traverse the list in the
+             * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
+             * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
+             * situation where there might be many nodes but all clients have decided to hammer one of them.
+             */
             this.channels = shuffleImmutableList(channels, random);
         }
 
