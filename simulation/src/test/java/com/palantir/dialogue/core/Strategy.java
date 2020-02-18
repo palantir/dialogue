@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -39,7 +40,8 @@ public enum Strategy {
     CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
     CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN(Strategy::concurrencyLimiterBlacklistRoundRobin),
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::roundRobin);
+    UNLIMITED_ROUND_ROBIN(Strategy::roundRobin),
+    PREFER_LOWEST(Strategy::preferLowest);
 
     private static final Logger log = LoggerFactory.getLogger(Strategy.class);
     private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
@@ -87,8 +89,20 @@ public enum Strategy {
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels =
-                    channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
+                    channels.stream().map(UnlimitedChannel::new).collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
+            return queuedChannelAndRetrying(sim, limited);
+        });
+    }
+
+    private static Channel preferLowest(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        Random pseudoRandom = new Random(21735712L);
+        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
+            ImmutableList<LimitedChannel> limitedChannels = channels.stream()
+                    .map(UnlimitedChannel::new)
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
+                    .collect(ImmutableList.toImmutableList());
+            LimitedChannel limited = new PreferLowestUtilization(limitedChannels, pseudoRandom);
             return queuedChannelAndRetrying(sim, limited);
         });
     }
@@ -120,20 +134,6 @@ public enum Strategy {
                     metric.inc();
                 }
                 return response;
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
             }
 
             @Override
