@@ -22,6 +22,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -54,6 +55,32 @@ final class SimulationUtils {
         };
     }
 
+    public static Response wrapWithCloseInstrumentation(Response delegate, TaggedMetricRegistry registry) {
+        return new Response() {
+            @Override
+            public InputStream body() {
+                return delegate.body();
+            }
+
+            @Override
+            public int code() {
+                return delegate.code();
+            }
+
+            @Override
+            public Map<String, List<String>> headers() {
+                return delegate.headers();
+            }
+
+            @Override
+            public void close() {
+                MetricNames.responseClose(registry).inc();
+            }
+        };
+    }
+
+    static final String SERVICE_NAME = "svc";
+
     public static Endpoint endpoint(String name) {
         return new Endpoint() {
             @Override
@@ -66,7 +93,7 @@ final class SimulationUtils {
 
             @Override
             public String serviceName() {
-                return "service";
+                return SERVICE_NAME;
             }
 
             @Override
