@@ -16,22 +16,24 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.util.Optional;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntFunction;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Immediately retries calls to the underlying channel upon failure.
  */
 final class RetryingChannel implements Channel {
+
+    private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
 
     private static final int UNAVAILABLE_503 = 503;
     private static final int TOO_MANY_REQUESTS_429 = 429;
@@ -46,61 +48,75 @@ final class RetryingChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        SettableFuture<Response> future = SettableFuture.create();
-
-        IntFunction<ListenableFuture<Response>> callSupplier = attempt -> {
-            // TODO(dfox): include retry number in the request somehow
-            return delegate.execute(endpoint, request);
-        };
-        FutureCallback<Response> retryer = new RetryingCallback(callSupplier, future);
-        DialogueFutures.addDirectCallback(callSupplier.apply(0), retryer);
-        return future;
+        return new RetryingCallback(delegate, endpoint, request, maxRetries).execute();
     }
 
-    private final class RetryingCallback implements FutureCallback<Response> {
-        private final AtomicInteger failures = new AtomicInteger(0);
-        private final IntFunction<ListenableFuture<Response>> runnable;
-        private final SettableFuture<Response> delegate;
+    private static final class RetryingCallback {
+        private final Channel delegate;
+        private final Endpoint endpoint;
+        private final Request request;
+        private final int maxRetries;
+        private int failures = 0;
 
-        private RetryingCallback(IntFunction<ListenableFuture<Response>> runnable, SettableFuture<Response> delegate) {
-            this.runnable = runnable;
+        private RetryingCallback(Channel delegate, Endpoint endpoint, Request request, int maxRetries) {
             this.delegate = delegate;
+            this.endpoint = endpoint;
+            this.request = request;
+            this.maxRetries = maxRetries;
         }
 
-        @Override
-        public void onSuccess(Response response) {
+        ListenableFuture<Response> execute() {
+            return wrap(delegate.execute(endpoint, request));
+        }
+
+        ListenableFuture<Response> success(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
+            // TODO(ckozak): Respect ClientConfiguration.serverQos.
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
                 response.close();
-                retryOrFail(Optional.empty());
-                return;
+                Throwable failure =
+                        new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
+                if (++failures <= maxRetries) {
+                    logRetry(failure);
+                    return execute();
+                }
+                // TODO(ckozak): It's out of scope for this class to map responses to exceptions. After retries
+                // are exhausted the open response should be returned.
+                return Futures.immediateFailedFuture(new SafeRuntimeException("Retries exhausted", failure));
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
 
-            boolean setSuccessfully = delegate.set(response);
-            if (!setSuccessfully) {
-                response.close();
+            return Futures.immediateFuture(response);
+        }
+
+        ListenableFuture<Response> failure(Throwable throwable) {
+            if (++failures <= maxRetries) {
+                logRetry(throwable);
+                return execute();
+            }
+            return Futures.immediateFailedFuture(throwable);
+        }
+
+        private void logRetry(Throwable throwable) {
+            if (log.isInfoEnabled()) {
+                log.info(
+                        "Retrying call after failure",
+                        SafeArg.of("failures", failures),
+                        SafeArg.of("maxRetries", maxRetries),
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()),
+                        throwable);
             }
         }
 
-        @Override
-        public void onFailure(Throwable throwable) {
-            retryOrFail(Optional.of(throwable));
-        }
-
-        private void retryOrFail(Optional<Throwable> throwable) {
-            int attempt = failures.incrementAndGet();
-            if (attempt <= maxRetries) {
-                DialogueFutures.addDirectCallback(runnable.apply(attempt), this);
-            } else {
-                if (throwable.isPresent()) {
-                    delegate.setException(throwable.get());
-                } else {
-                    delegate.setException(new SafeRuntimeException("Retries exhausted"));
-                }
-            }
+        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
+            return Futures.catchingAsync(
+                    Futures.transformAsync(input, this::success, MoreExecutors.directExecutor()),
+                    Throwable.class,
+                    this::failure,
+                    MoreExecutors.directExecutor());
         }
     }
 }
