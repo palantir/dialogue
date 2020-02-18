@@ -42,15 +42,22 @@ import org.slf4j.LoggerFactory;
 /**
  * Routes all requests to one host until an error is received, then we'll move on to the next host.
  * Upside: ensures clients will always hit warm caches
- * Downside: a single high volume client can result in unbalanced utilization of server nodes.
+ * Downsides:
+ * <ul>
+ *     <li>a single high volume client can result in unbalanced utilization of server nodes.
+ *     <li>when a node is restarted (and clients see 500s/connect exceptions), they will _all_ pin to a different node
+ * </ul>
  *
- * Reshuffles all nodes
+ * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
 public final class PinUntilErrorChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
 
+    // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
+    private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
+
     // TODO(dfox): could we make this endpoint-specific?
-    private final AtomicInteger currentHost = new AtomicInteger(0); // increases forever (use toIndex)
+    private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
     private final Optional<Reshuffle> reshuffle;
 
     private volatile ImmutableList<LimitedChannel> channels;
@@ -71,7 +78,10 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         return new PinUntilErrorChannel(channels, ThreadLocalRandom.current(), System::nanoTime);
     }
 
-    /** @deprecated prefer {@link #pinUntilError}, as this strategy results in unbalanced server utilization. */
+    /**
+     * This strategy results in unbalanced server utilization, especially after an upstream restarts.
+     * @deprecated prefer {@link #pinUntilError}
+     */
     @Deprecated
     public static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
         return new PinUntilErrorChannel(channels, ThreadLocalRandom.current());
@@ -80,19 +90,21 @@ public final class PinUntilErrorChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         if (channels.isEmpty()) {
-            log.info("Rejecting request due to no delegates");
+            log.debug("Rejecting request due to no delegates");
             return Optional.empty();
         }
 
-        reshuffle.ifPresent(Reshuffle::reshuffleChannelsIfNecessary);
+        if (reshuffle.isPresent()) {
+            reshuffle.get().reshuffleChannelsIfNecessary();
+        }
 
-        int currentIndex = toIndex(currentHost.get());
-        LimitedChannel channel = channels.get(currentIndex);
+        int currentIndex = currentHost.get();
+        LimitedChannel channel = channels.get(currentIndex % channels.size());
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementCurrentHost(currentIndex);
-            log.info(
+            log.debug(
                     "Current channel rejected request, switching to next channel",
                     SafeArg.of("currentIndex", currentIndex),
                     UnsafeArg.of("current", channel),
@@ -101,8 +113,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         }
 
         ListenableFuture<Response> future = maybeFuture.get();
-
-        DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+        return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
                 if (response.code() / 100 <= 2) {
@@ -110,44 +121,41 @@ public final class PinUntilErrorChannel implements LimitedChannel {
                     return;
                 }
 
-                // TODO(dfox): handle 308 See Other somehow (don't currently know host -> channel mapping)
-
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.info(
+                log.debug(
                         "Received error status code, switching to next channel",
                         SafeArg.of("status", response.code()),
                         SafeArg.of("currentIndex", currentIndex),
                         UnsafeArg.of("current", channel),
                         SafeArg.of("nextIndex", next));
+
+                // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.info(
+                log.debug(
                         "Received throwable, switching to next channel",
                         SafeArg.of("currentIndex", currentIndex),
                         UnsafeArg.of("current", channel),
                         SafeArg.of("nextIndex", next),
                         throwable);
             }
-        });
-
-        return Optional.of(future);
+        }));
     }
 
     /**
      * If we have some reason to think the currentIndex is bad, we want to move to the next host. This is done with a
-     * compareAndSet to ensure that
+     * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
+     * us off a good one.
      */
     private OptionalInt incrementCurrentHost(int currentIndex) {
-        int next = toIndex(currentIndex + 1);
-        boolean saved = currentHost.compareAndSet(currentIndex, next);
-        return saved ? OptionalInt.of(next) : OptionalInt.empty(); // we've moved on already
-    }
+        int next = currentIndex + 1;
+        int nextIndex = (next >= 0) ? next % channels.size() : 0; // we don't want negative indexes!
 
-    private int toIndex(int value) {
-        return value % channels.size();
+        boolean saved = currentHost.compareAndSet(currentIndex, nextIndex);
+        return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
     private final class Reshuffle {
@@ -158,8 +166,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
         private Reshuffle(Random random, Ticker clock) {
             this.random = random;
-            // we add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
-            this.intervalWithJitter = Duration.ofMinutes(10)
+            this.intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
             this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
@@ -185,7 +192,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
     private static <T> ImmutableList<T> shuffleImmutableList(List<T> sourceList, Random random) {
-        ArrayList<T> mutableList = new ArrayList<>(sourceList);
+        List<T> mutableList = new ArrayList<>(sourceList);
         Collections.shuffle(mutableList, random);
         return ImmutableList.copyOf(mutableList);
     }

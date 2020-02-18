@@ -23,6 +23,7 @@ import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
@@ -81,7 +82,7 @@ public class PinUntilErrorChannelTest {
     }
 
     @Test
-    public void reshuffle_happens() {
+    public void reshuffle_happens_roughly_every_10_mins() {
         setResponse(channel1, 100);
         setResponse(channel2, 204);
 
@@ -90,25 +91,23 @@ public class PinUntilErrorChannelTest {
                 .contains(100, 100, 100, 100, 100, 100);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
-
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
                 .describedAs("Second batch: reshuffle gave us channel2")
                 .contains(204, 204, 204, 204, 204, 204);
-        when(clock.read()).thenReturn(Duration.ofMinutes(22).toNanos());
 
+        when(clock.read()).thenReturn(Duration.ofMinutes(22).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
                 .describedAs("Third batch: reshuffle gave us channel2 again")
                 .contains(204, 204, 204, 204, 204, 204);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(33).toNanos());
-
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
                 .describedAs("Fourth batch: reshuffle gave us channel1")
                 .contains(100, 100, 100, 100, 100, 100);
     }
 
     @Test
-    public void out_of_order_request_dont_count() {
+    public void out_of_order_responses_dont_cause_us_to_switch_channel() {
         setResponse(channel1, 100);
 
         // should all be on channel2 initially
@@ -130,7 +129,7 @@ public class PinUntilErrorChannelTest {
                 .isEqualTo(100);
     }
 
-    private int getCode(PinUntilErrorChannel channel) {
+    private static int getCode(PinUntilErrorChannel channel) {
         try {
             ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
@@ -140,19 +139,14 @@ public class PinUntilErrorChannelTest {
         }
     }
 
-    private void setResponse(LimitedChannel mockChannel, int status) {
-        initializeResponseFuture(mockChannel).set(response(status));
-    }
-
-    private SettableFuture<Response> initializeResponseFuture(LimitedChannel mockChannel) {
+    private static void setResponse(LimitedChannel mockChannel, int status) {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
-        SettableFuture<Response> future = SettableFuture.create();
-        when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(future));
-        return future;
+        Response resp = response(status);
+        when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
     }
 
-    private Response response(int status) {
+    private static Response response(int status) {
         Response resp = mock(Response.class);
         when(resp.code()).thenReturn(status);
         return resp;
