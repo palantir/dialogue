@@ -26,7 +26,6 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -49,16 +48,19 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
 
 // CHECKSTYLE:ON
 
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
+@RunWith(MockitoJUnitRunner.class)
 public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
 
-    abstract Channel createChannel(URL baseUrl);
+    protected abstract Channel createChannel(URL baseUrl);
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -199,7 +201,7 @@ public abstract class AbstractChannelTest {
     public void get_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.GET;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
+        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
                 .hasMessageContaining("GET endpoints must not have a request body");
     }
 
@@ -218,11 +220,25 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void delete_failsWhenBodyIsGiven() {
+    public void delete_okWhenBodyIsGiven() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.DELETE;
         when(request.body()).thenReturn(Optional.of(body));
-        assertThatThrownBy(() -> Futures.getDone(channel.execute(endpoint, request)))
-                .hasMessageContaining("DELETE endpoints must not have a request body");
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("DELETE");
+        assertThat(recorded.getBodySize()).isEqualTo(CONTENT.length);
+        assertThat(result.get().code()).isEqualTo(200);
+    }
+
+    @Test
+    public void delete_okWhenNoBodyIsGiven() throws InterruptedException, ExecutionException {
+        endpoint.method = HttpMethod.DELETE;
+        when(request.body()).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("DELETE");
+        assertThat(recorded.getBodySize()).isEqualTo(0);
+        assertThat(result.get().code()).isEqualTo(200);
     }
 
     @Test

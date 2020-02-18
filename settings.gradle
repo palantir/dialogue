@@ -1,8 +1,11 @@
 rootProject.name = 'dialogue'
 
+include 'dialogue-blocking-channels'
 include 'dialogue-client-test-lib'
 include 'dialogue-core'
 include 'dialogue-example'
+include 'dialogue-httpurlconnection-client'
+include 'dialogue-apache-hc4-client'
 include 'dialogue-java-client'
 include 'dialogue-okhttp-client'
 include 'dialogue-serde'

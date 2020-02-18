@@ -64,23 +64,10 @@ public final class HttpChannel implements Channel {
         HttpRequest.Builder httpRequest = newRequestBuilder(url);
 
         // Fill request body and set HTTP method
-        switch (endpoint.httpMethod()) {
-            case GET:
-                Preconditions.checkArgument(!request.body().isPresent(), "GET endpoints must not have a request body");
-                httpRequest.GET();
-                break;
-            case POST:
-                httpRequest.POST(toBody(request));
-                break;
-            case PUT:
-                httpRequest.PUT(toBody(request));
-                break;
-            case DELETE:
-                Preconditions.checkArgument(
-                        !request.body().isPresent(), "DELETE endpoints must not have a request body");
-                httpRequest.DELETE();
-                break;
-        }
+        Preconditions.checkArgument(
+                !(request.body().isPresent() && endpoint.httpMethod() == HttpMethod.GET),
+                "GET endpoints must not have a request body");
+        httpRequest.method(endpoint.httpMethod().name(), toBody(request));
 
         // Fill headers
         request.headerParams().forEach(httpRequest::header);
