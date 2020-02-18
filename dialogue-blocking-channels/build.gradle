@@ -1,0 +1,12 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    api project(':dialogue-target')
+    api 'com.google.guava:guava'
+    implementation 'com.palantir.tracing:tracing'
+
+    testCompile 'junit:junit'
+    testCompile 'org.assertj:assertj-core'
+    testCompile 'org.mockito:mockito-core'
+    testCompile 'org.awaitility:awaitility'
+}

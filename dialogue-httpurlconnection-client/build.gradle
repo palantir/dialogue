@@ -1,0 +1,12 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    api project(':dialogue-core')
+    api project(':dialogue-target')
+    api 'com.palantir.conjure.java.runtime:client-config'
+    implementation project(':dialogue-blocking-channels')
+    implementation 'com.palantir.safe-logging:preconditions'
+
+    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-serde')
+}

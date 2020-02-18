@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-package com.palantir.dialogue;
+package com.palantir.dialogue.httpurlconnection;
 
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.dialogue.AbstractChannelTest;
+import com.palantir.dialogue.Channel;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
 
-public final class OkHttpChannelTest extends AbstractChannelTest {
+public final class HttpUrlConnectionChannelsTest extends AbstractChannelTest {
+
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
@@ -34,7 +36,7 @@ public final class OkHttpChannelTest extends AbstractChannelTest {
                 .addUris(baseUrl.toString())
                 .security(SSL_CONFIG)
                 .build();
-        return OkHttpChannels.create(
+        return HttpUrlConnectionChannels.create(
                 ClientConfigurations.of(serviceConf),
                 UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
                 new DefaultTaggedMetricRegistry());
