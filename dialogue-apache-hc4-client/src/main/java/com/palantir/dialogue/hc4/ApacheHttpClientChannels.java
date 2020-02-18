@@ -20,14 +20,11 @@ import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.Channels;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.TimeUnit;
@@ -39,29 +36,18 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class ApacheHttpClientChannels {
-    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
-
     private ApacheHttpClientChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
         Preconditions.checkArgument(
-                conf.clientQoS() == ClientConfiguration.ClientQoS.ENABLED, "Disabling client QOS is not supported");
-        Preconditions.checkArgument(
                 conf.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 "Propagating QoS exceptions is not supported");
         Preconditions.checkArgument(!conf.proxyCredentials().isPresent(), "Proxy credentials are not supported");
-        if (conf.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
-            log.warn(
-                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
-                    SafeArg.of("requestedStrategy", conf.nodeSelectionStrategy()));
-        }
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
@@ -104,7 +90,7 @@ public final class ApacheHttpClientChannels {
                 .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, metrics);
+        return Channels.create(channels, baseAgent, conf);
     }
 
     private static URL url(String uri) {

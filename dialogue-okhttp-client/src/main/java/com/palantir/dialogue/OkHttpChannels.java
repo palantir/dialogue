@@ -23,12 +23,9 @@ import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.core.Channels;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.concurrent.ExecutorService;
@@ -97,20 +94,13 @@ public final class OkHttpChannels {
 
     private OkHttpChannels() {}
 
-    public static Channel create(ClientConfiguration config, UserAgent baseAgent, TaggedMetricRegistry metrics) {
+    public static Channel create(ClientConfiguration config, UserAgent baseAgent) {
         Preconditions.checkArgument(
                 !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
         Preconditions.checkArgument(
-                config.clientQoS() == ClientConfiguration.ClientQoS.ENABLED, "Disabling client QOS is not supported");
-        Preconditions.checkArgument(
                 config.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 "Propagating QoS exceptions is not supported");
-        if (config.nodeSelectionStrategy() != NodeSelectionStrategy.ROUND_ROBIN) {
-            log.warn(
-                    "Dialogue currently only supports ROUND_ROBIN node selection strategy. {} will be ignored",
-                    SafeArg.of("requestedStrategy", config.nodeSelectionStrategy()));
-        }
         OkHttpClient.Builder builder = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(dispatcher)
@@ -149,7 +139,7 @@ public final class OkHttpChannels {
                 .map(uri -> OkHttpChannel.of(client, url(uri)))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, metrics);
+        return Channels.create(channels, baseAgent, config);
     }
 
     private static URL url(String uri) {

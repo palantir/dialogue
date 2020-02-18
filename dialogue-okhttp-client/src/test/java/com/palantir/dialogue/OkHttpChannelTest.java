@@ -20,7 +20,6 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
 
@@ -35,8 +34,6 @@ public final class OkHttpChannelTest extends AbstractChannelTest {
                 .security(SSL_CONFIG)
                 .build();
         return OkHttpChannels.create(
-                ClientConfigurations.of(serviceConf),
-                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
-                new DefaultTaggedMetricRegistry());
+                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
     }
 }
