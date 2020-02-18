@@ -69,7 +69,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilError(List<LimitedChannel> channels) {
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime);
         return new PinUntilErrorChannel(shufflingNodeList);
@@ -80,7 +80,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
         return new PinUntilErrorChannel(constantNodeList);
     }
