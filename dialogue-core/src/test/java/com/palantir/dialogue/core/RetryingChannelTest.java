@@ -27,6 +27,7 @@ import static org.mockito.Mockito.when;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
@@ -146,6 +147,16 @@ public class RetryingChannelTest {
 
         verify(response1, times(1)).close();
         verify(response2, times(1)).close();
+    }
+
+    @Test
+    public void testPropagatesCancel() {
+        ListenableFuture<Response> delegateResult = SettableFuture.create();
+        when(channel.execute(any(), any())).thenReturn(delegateResult);
+        Channel retryer = new RetryingChannel(channel, 3);
+        ListenableFuture<Response> retryingResult = retryer.execute(ENDPOINT, REQUEST);
+        assertThat(retryingResult.cancel(true)).isTrue();
+        assertThat(delegateResult).as("Failed to cancel the delegate future").isCancelled();
     }
 
     private static Response mockResponse(int status) {
