@@ -181,12 +181,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
         }
 
         private void reshuffleChannelsIfNecessary() {
+            if (channels.size() < 1) {
+                return;
+            }
+
             long reshuffleTime = nextReshuffle.get();
             if (clock.read() < reshuffleTime) {
                 return;
             }
 
-            if (nextReshuffle.compareAndSet(reshuffleTime, reshuffleTime + intervalWithJitter)) {
+            if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
                 ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
                 if (log.isDebugEnabled()) {
                     log.debug(

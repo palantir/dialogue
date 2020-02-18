@@ -74,7 +74,7 @@ public enum Strategy {
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             limited = instrumentClient(limited, sim.taggedMetrics()); // just for debugging
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            return new RetryingChannel(channel);
+            return new RetryingChannel(channel, 4);
         });
     }
 
