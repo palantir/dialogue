@@ -20,7 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
@@ -39,13 +39,13 @@ import com.palantir.dialogue.UrlBuilder;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public final class ChannelsTest {
 
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
@@ -90,12 +90,12 @@ public final class ChannelsTest {
     private Request request = Request.builder().build();
     private Channel channel;
 
-    @Before
+    @BeforeEach
     public void before() {
         channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, stubConfig);
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+        lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
