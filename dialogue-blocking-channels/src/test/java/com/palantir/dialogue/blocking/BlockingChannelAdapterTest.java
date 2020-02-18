@@ -34,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.function.BiConsumer;
 import org.awaitility.Awaitility;
 import org.junit.Test;
 
@@ -55,20 +54,19 @@ public class BlockingChannelAdapterTest {
         public Map<String, List<String>> headers() {
             return ImmutableMap.of();
         }
+
+        @Override
+        public void close() {}
     };
 
     private static final Endpoint stubEndpoint = new Endpoint() {
-        private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
-        private HttpMethod method;
 
         @Override
-        public void renderPath(Map<String, String> params, UrlBuilder url) {
-            renderPath.accept(params, url);
-        }
+        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
 
         @Override
         public HttpMethod httpMethod() {
-            return method;
+            return HttpMethod.POST;
         }
 
         @Override
