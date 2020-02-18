@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix off-by-one in RetryingChannel, use the configured number of retries
+  links:
+  - https://github.com/palantir/dialogue/pull/367
