@@ -25,13 +25,13 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.UrlBuilder;
 import java.util.Map;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
 public final class UserAgentChannelTest {
 
@@ -66,7 +66,7 @@ public final class UserAgentChannelTest {
 
     private UserAgentChannel channel;
 
-    @Before
+    @BeforeEach
     public void before() {
         channel = new UserAgentChannel(delegate, baseAgent);
     }

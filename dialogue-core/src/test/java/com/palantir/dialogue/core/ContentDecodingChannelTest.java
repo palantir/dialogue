@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import org.assertj.core.data.MapEntry;
 import org.immutables.value.Value;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class ContentDecodingChannelTest {
 

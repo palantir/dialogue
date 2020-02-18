@@ -11,11 +11,12 @@ dependencies {
     compile 'com.palantir.tracing:tracing'
     compile 'io.dropwizard.metrics:metrics-core'
 
-    testCompile 'com.palantir.safe-logging:preconditions-assertj'
-    testCompile 'junit:junit'
-    testCompile 'org.assertj:assertj-core'
-    testCompile 'org.assertj:assertj-guava'
-    testCompile 'org.mockito:mockito-core'
+    testImplementation 'com.palantir.safe-logging:preconditions-assertj'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.assertj:assertj-guava'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testRuntimeOnly 'org.slf4j:slf4j-simple'
 
     annotationProcessor 'org.immutables:value'

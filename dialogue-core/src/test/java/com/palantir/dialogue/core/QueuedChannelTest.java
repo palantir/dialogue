@@ -33,14 +33,14 @@ import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.OngoingStubbing;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
@@ -68,7 +68,7 @@ public class QueuedChannelTest {
     private SettableFuture<Response> futureResponse;
     private Optional<ListenableFuture<Response>> maybeResponse;
 
-    @Before
+    @BeforeEach
     public void before() {
         metrics = new DefaultTaggedMetricRegistry();
         queuedChannel = new QueuedChannel(delegate, DispatcherMetrics.of(metrics));

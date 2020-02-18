@@ -20,12 +20,14 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.function.Consumer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 final class DialogueFutures {
     private DialogueFutures() {}
 
+    @CanIgnoreReturnValue
     static <T> ListenableFuture<T> addDirectCallback(ListenableFuture<T> future, FutureCallback<T> callback) {
         Futures.addCallback(future, callback, MoreExecutors.directExecutor());
         return future;
