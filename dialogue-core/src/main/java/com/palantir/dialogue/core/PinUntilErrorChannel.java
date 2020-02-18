@@ -104,13 +104,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementCurrentHost(currentIndex);
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Current channel rejected request, switching to next channel",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next));
-            }
+            debugLogCurrentChannelRejected(currentIndex, channel, next);
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
 
@@ -124,14 +118,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
                 }
 
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Received error status code, switching to next channel",
-                            SafeArg.of("status", response.code()),
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
-                            SafeArg.of("nextIndex", next));
-                }
+                debugLogReceivedErrorStatus(currentIndex, channel, response, next);
 
                 // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
             }
@@ -139,14 +126,7 @@ public final class PinUntilErrorChannel implements LimitedChannel {
             @Override
             public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Received throwable, switching to next channel",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
-                            SafeArg.of("nextIndex", next),
-                            throwable);
-                }
+                debugLogReceivedThrowable(currentIndex, channel, throwable, next);
             }
         }));
     }
@@ -203,5 +183,63 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         List<T> mutableList = new ArrayList<>(sourceList);
         Collections.shuffle(mutableList, random);
         return ImmutableList.copyOf(mutableList);
+    }
+
+    private void debugLogCurrentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
+        if (log.isDebugEnabled()) {
+            if (next.isPresent()) {
+                log.debug(
+                        "Current channel rejected request, switching to next channel",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next.getAsInt()));
+            } else {
+
+                log.debug(
+                        "Current channel rejected request, but we've already switched",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel));
+            }
+        }
+    }
+
+    private void debugLogReceivedErrorStatus(
+            int currentIndex, LimitedChannel channel, Response response, OptionalInt next) {
+        if (log.isDebugEnabled()) {
+            if (next.isPresent()) {
+                log.debug(
+                        "Received error status code, switching to next channel",
+                        SafeArg.of("status", response.code()),
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next.getAsInt()));
+            } else {
+                log.debug(
+                        "Received error status code, but we've already switched",
+                        SafeArg.of("status", response.code()),
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel));
+            }
+        }
+    }
+
+    private void debugLogReceivedThrowable(
+            int currentIndex, LimitedChannel channel, Throwable throwable, OptionalInt next) {
+        if (log.isDebugEnabled()) {
+            if (next.isPresent()) {
+                log.debug(
+                        "Received throwable, switching to next channel",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next.getAsInt()),
+                        throwable);
+            } else {
+                log.debug(
+                        "Received throwable, but already switched",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        throwable);
+            }
+        }
     }
 }
