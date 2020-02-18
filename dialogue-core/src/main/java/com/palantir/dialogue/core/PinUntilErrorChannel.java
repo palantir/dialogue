@@ -104,11 +104,13 @@ public final class PinUntilErrorChannel implements LimitedChannel {
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementCurrentHost(currentIndex);
-            log.debug(
-                    "Current channel rejected request, switching to next channel",
-                    SafeArg.of("currentIndex", currentIndex),
-                    UnsafeArg.of("current", channel),
-                    SafeArg.of("nextIndex", next));
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Current channel rejected request, switching to next channel",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next));
+            }
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
 
@@ -122,12 +124,14 @@ public final class PinUntilErrorChannel implements LimitedChannel {
                 }
 
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.debug(
-                        "Received error status code, switching to next channel",
-                        SafeArg.of("status", response.code()),
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Received error status code, switching to next channel",
+                            SafeArg.of("status", response.code()),
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next));
+                }
 
                 // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
             }
@@ -135,12 +139,14 @@ public final class PinUntilErrorChannel implements LimitedChannel {
             @Override
             public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.debug(
-                        "Received throwable, switching to next channel",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next),
-                        throwable);
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Received throwable, switching to next channel",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next),
+                            throwable);
+                }
             }
         }));
     }
@@ -181,10 +187,12 @@ public final class PinUntilErrorChannel implements LimitedChannel {
 
             if (nextReshuffle.compareAndSet(reshuffleTime, reshuffleTime + intervalWithJitter)) {
                 ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
-                log.debug(
-                        "Reshuffling channels {} {}",
-                        SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
-                        UnsafeArg.of("newList", newList));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Reshuffling channels {} {}",
+                            SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
+                            UnsafeArg.of("newList", newList));
+                }
                 channels = newList;
             }
         }
