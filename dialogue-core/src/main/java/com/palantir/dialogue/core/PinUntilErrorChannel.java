@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -23,42 +25,78 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Random;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** See also {@link RoundRobinChannel}. */
-final class PinUntilErrorChannel implements LimitedChannel {
+/**
+ * Routes all requests to one host until an error is received, then we'll move on to the next host.
+ * Upside: ensures clients will always hit warm caches
+ * Downside: a single high volume client can result in unbalanced utilization of server nodes.
+ *
+ * Reshuffles all nodes
+ */
+public final class PinUntilErrorChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
 
     // TODO(dfox): could we make this endpoint-specific?
     private final AtomicInteger currentHost = new AtomicInteger(0); // increases forever (use toIndex)
-    private final ImmutableList<LimitedChannel> delegates;
+    private final Optional<Reshuffle> reshuffle;
 
-    PinUntilErrorChannel(List<LimitedChannel> delegates) {
-        this.delegates = ImmutableList.copyOf(delegates);
+    private volatile ImmutableList<LimitedChannel> channels;
+
+    @VisibleForTesting
+    PinUntilErrorChannel(List<LimitedChannel> channels, Random random, Ticker clock) {
+        this.channels = shuffleImmutableList(channels, random);
+        this.reshuffle = Optional.of(new Reshuffle(random, clock));
+    }
+
+    @VisibleForTesting
+    PinUntilErrorChannel(List<LimitedChannel> channels, Random random) {
+        this.channels = shuffleImmutableList(channels, random);
+        this.reshuffle = Optional.empty();
+    }
+
+    public static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
+        return new PinUntilErrorChannel(channels, ThreadLocalRandom.current(), System::nanoTime);
+    }
+
+    /** @deprecated prefer {@link #pinUntilError}, as this strategy results in unbalanced server utilization. */
+    @Deprecated
+    public static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+        return new PinUntilErrorChannel(channels, ThreadLocalRandom.current());
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (delegates.isEmpty()) {
-            log.debug("Rejecting request due to no delegates");
+        if (channels.isEmpty()) {
+            log.info("Rejecting request due to no delegates");
             return Optional.empty();
         }
 
+        reshuffle.ifPresent(Reshuffle::reshuffleChannelsIfNecessary);
+
         int currentIndex = toIndex(currentHost.get());
-        LimitedChannel channel = delegates.get(currentIndex);
+        LimitedChannel channel = channels.get(currentIndex);
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementCurrentHost(currentIndex);
-            log.debug(
+            log.info(
                     "Current channel rejected request, switching to next channel",
-                    SafeArg.of("current", currentIndex),
-                    SafeArg.of("next", next));
+                    SafeArg.of("currentIndex", currentIndex),
+                    UnsafeArg.of("current", channel),
+                    SafeArg.of("nextIndex", next));
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
 
@@ -67,7 +105,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
-                if (response.code() / 100 < 2) {
+                if (response.code() / 100 <= 2) {
                     // we consider all the 1xx and 2xx codes successful, so want to remain pinned to this channel
                     return;
                 }
@@ -75,20 +113,22 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 // TODO(dfox): handle 308 See Other somehow (don't currently know host -> channel mapping)
 
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.debug(
+                log.info(
                         "Received error status code, switching to next channel",
                         SafeArg.of("status", response.code()),
-                        SafeArg.of("current", currentIndex),
-                        SafeArg.of("next", next));
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next));
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementCurrentHost(currentIndex);
-                log.debug(
+                log.info(
                         "Received throwable, switching to next channel",
-                        SafeArg.of("current", currentIndex),
-                        SafeArg.of("next", next),
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next),
                         throwable);
             }
         });
@@ -107,6 +147,46 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     private int toIndex(int value) {
-        return value % delegates.size();
+        return value % channels.size();
+    }
+
+    private final class Reshuffle {
+        private final Ticker clock;
+        private final Random random;
+        private final long intervalWithJitter;
+        private final AtomicLong nextReshuffle;
+
+        private Reshuffle(Random random, Ticker clock) {
+            this.random = random;
+            // we add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
+            this.intervalWithJitter = Duration.ofMinutes(10)
+                    .plus(Duration.ofSeconds(random.nextInt(60) - 30))
+                    .toNanos();
+            this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
+            this.clock = clock;
+        }
+
+        private void reshuffleChannelsIfNecessary() {
+            long reshuffleTime = nextReshuffle.get();
+            if (clock.read() < reshuffleTime) {
+                return;
+            }
+
+            if (nextReshuffle.compareAndSet(reshuffleTime, reshuffleTime + intervalWithJitter)) {
+                ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
+                log.debug(
+                        "Reshuffling channels {} {}",
+                        SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
+                        UnsafeArg.of("newList", newList));
+                channels = newList;
+            }
+        }
+    }
+
+    /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
+    private static <T> ImmutableList<T> shuffleImmutableList(List<T> sourceList, Random random) {
+        ArrayList<T> mutableList = new ArrayList<>(sourceList);
+        Collections.shuffle(mutableList, random);
+        return ImmutableList.copyOf(mutableList);
     }
 }
