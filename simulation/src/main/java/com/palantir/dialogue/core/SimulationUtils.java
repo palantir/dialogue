@@ -74,7 +74,7 @@ final class SimulationUtils {
 
             @Override
             public void close() {
-                MetricNames.bodyClose(registry).inc();
+                MetricNames.responseClose(registry).inc();
             }
         };
     }

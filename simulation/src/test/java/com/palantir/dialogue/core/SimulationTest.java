@@ -441,13 +441,13 @@ public class SimulationTest {
 
             SimulationMetricsReporter.png(
                     pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
-                    // simulation.metrics().chart(Pattern.compile("(bodyClose|globalResponses)"))
+                    // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
 
-        assertThat(result.bodiesLeaked())
-                .describedAs("There should be no unclosed response bodies")
+        assertThat(result.responsesLeaked())
+                .describedAs("There should be no unclosed responses")
                 .isZero();
     }
 

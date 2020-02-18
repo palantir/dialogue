@@ -194,9 +194,12 @@ public final class Benchmark {
                     long numGlobalResponses = MetricNames.globalResponses(simulation.taggedMetrics())
                             .getCount();
                     long leaked = numGlobalResponses
-                            - MetricNames.bodyClose(simulation.taggedMetrics()).getCount();
+                            - MetricNames.responseClose(simulation.taggedMetrics())
+                                    .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(clientMetrics.response(SimulationUtils.SERVICE_NAME).getSnapshot())
+                            .clientHistogram(clientMetrics
+                                    .response(SimulationUtils.SERVICE_NAME)
+                                    .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(
@@ -204,7 +207,7 @@ public final class Benchmark {
                             .numSent(requestsStarted[0])
                             .numReceived(responsesReceived[0])
                             .numGlobalResponses(numGlobalResponses)
-                            .bodiesLeaked(leaked)
+                            .responsesLeaked(leaked)
                             .build();
                 },
                 MoreExecutors.directExecutor());
@@ -240,8 +243,8 @@ public final class Benchmark {
         /** How many responses were issued in total across all servers. */
         long numGlobalResponses();
 
-        /** How many response bodies were never closed. */
-        long bodiesLeaked();
+        /** How many responses were never closed. */
+        long responsesLeaked();
     }
 
     /**

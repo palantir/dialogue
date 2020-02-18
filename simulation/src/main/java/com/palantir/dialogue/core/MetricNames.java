@@ -23,9 +23,9 @@ import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
 final class MetricNames {
-    /** Counter incremented every time a {@code Response} body is closed. */
-    static Counter bodyClose(TaggedMetricRegistry reg) {
-        return reg.counter(MetricName.builder().safeName("bodyClose").build());
+    /** Counter incremented every time a {@code Response} is closed. */
+    static Counter responseClose(TaggedMetricRegistry reg) {
+        return reg.counter(MetricName.builder().safeName("responseClose").build());
     }
 
     /** Counter for how many responses are issued across all servers. */
