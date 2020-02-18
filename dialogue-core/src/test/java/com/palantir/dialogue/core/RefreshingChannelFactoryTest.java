@@ -18,10 +18,10 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.fail;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -41,13 +41,13 @@ import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.internal.Failures;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public final class RefreshingChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
@@ -95,12 +95,12 @@ public final class RefreshingChannelFactoryTest {
     private RefreshingChannelFactory clientFactory;
     private Channel channelA;
 
-    @Before
+    @BeforeEach
     public void before() {
-        when(channelFactory.create(matchesConf(URI_1))).thenReturn(channel1);
-        when(channelFactory.create(matchesConf(URI_2))).thenReturn(channel2);
-        when(channel1.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
-        when(channel2.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
+        lenient().when(channelFactory.create(matchesConf(URI_1))).thenReturn(channel1);
+        lenient().when(channelFactory.create(matchesConf(URI_2))).thenReturn(channel2);
+        lenient().when(channel1.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
+        lenient().when(channel2.execute(endpoint, request)).thenReturn(Futures.immediateFuture(response));
 
         clientFactory = new RefreshingChannelFactory(() -> conf.get(), channelFactory);
         channelA = clientFactory.create(SERVICE_A);

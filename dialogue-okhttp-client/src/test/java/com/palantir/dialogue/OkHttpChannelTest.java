@@ -16,29 +16,24 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
-import com.palantir.dialogue.core.Channels;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import java.net.URL;
-import java.util.concurrent.Executors;
-import okhttp3.Dispatcher;
-import okhttp3.OkHttpClient;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import java.nio.file.Paths;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class OkHttpChannelTest extends AbstractChannelTest {
+    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
+            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
     @Override
-    Channel createChannel(URL baseUrl) {
-        OkHttpClient client = new OkHttpClient()
-                .newBuilder()
-                .dispatcher(new Dispatcher(Executors.newSingleThreadExecutor()))
+    protected Channel createChannel(URL baseUrl) {
+        ServiceConfiguration serviceConf = ServiceConfiguration.builder()
+                .addUris(baseUrl.toString())
+                .security(SSL_CONFIG)
                 .build();
-        return Channels.create(
-                ImmutableList.of(OkHttpChannel.of(client, baseUrl)),
-                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
-                new DefaultTaggedMetricRegistry());
+        return OkHttpChannels.create(
+                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
     }
 }

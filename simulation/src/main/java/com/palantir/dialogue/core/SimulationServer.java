@@ -46,17 +46,22 @@ final class SimulationServer implements Channel {
     private static final Logger log = LoggerFactory.getLogger(SimulationServer.class);
 
     private final Simulation simulation;
-    private final String metricName;
-    private final Counter globalActiveRequests;
     private final ImmutableList<ServerHandler> handlers;
-    private long cumulativeServerTimeNanos = 0;
+
+    private final String serverName;
+    private final Counter activeRequests;
+    private final Counter globalResponses;
+    private final Counter globalServerTimeNanos;
 
     private SimulationServer(Builder builder) {
-        this.metricName = Preconditions.checkNotNull(builder.metricName, "metricName");
+        this.serverName = Preconditions.checkNotNull(builder.serverName, "serverName");
         this.simulation = Preconditions.checkNotNull(builder.simulation, "simulation");
-        this.globalActiveRequests = simulation.metrics().counter(String.format("[%s] activeRequests", metricName));
         Preconditions.checkState(!builder.handlers.isEmpty(), "Handlers can't be empty");
         this.handlers = ImmutableList.copyOf(builder.handlers);
+
+        this.activeRequests = MetricNames.activeRequests(simulation.taggedMetrics(), serverName);
+        this.globalResponses = MetricNames.globalResponses(simulation.taggedMetrics());
+        this.globalServerTimeNanos = MetricNames.globalServerTimeNanos(simulation.taggedMetrics());
     }
 
     public static Builder builder() {
@@ -65,12 +70,11 @@ final class SimulationServer implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Meter perEndpointRequests =
-                simulation.metrics().meter(String.format("[%s] [%s] request", metricName, endpoint.endpointName()));
+        Meter perEndpointRequests = MetricNames.requestMeter(simulation.taggedMetrics(), serverName, endpoint);
 
-        globalActiveRequests.inc();
+        activeRequests.inc();
         perEndpointRequests.mark();
-        simulation.metrics().report();
+        simulation.metricsReporter().report();
 
         for (ServerHandler handler : handlers) {
             long beforeNanos = simulation.clock().read();
@@ -82,8 +86,9 @@ final class SimulationServer implements Channel {
             ListenableFuture<Response> resp = maybeResp.get();
             resp.addListener(
                     () -> {
-                        globalActiveRequests.dec();
-                        cumulativeServerTimeNanos += simulation.clock().read() - beforeNanos;
+                        globalResponses.inc();
+                        activeRequests.dec();
+                        globalServerTimeNanos.inc(simulation.clock().read() - beforeNanos);
                     },
                     MoreExecutors.directExecutor());
             Futures.addCallback(
@@ -94,7 +99,7 @@ final class SimulationServer implements Channel {
                             log.debug(
                                     "time={} server={} status={} id={}",
                                     Duration.ofNanos(simulation.clock().read()),
-                                    metricName,
+                                    serverName,
                                     result.code(),
                                     request != null ? request.headerParams().get(Benchmark.REQUEST_ID_HEADER) : null);
                         }
@@ -108,27 +113,22 @@ final class SimulationServer implements Channel {
         }
 
         log.error("No handler available for request {}", request);
-        globalActiveRequests.dec();
+        activeRequests.dec();
         return Futures.immediateFailedFuture(new SafeRuntimeException("No handler"));
     }
 
     @Override
     public String toString() {
-        return metricName;
-    }
-
-    // note this is misleading for the black_hole case, because it only increases when a task _returns_
-    public Duration getCumulativeServerTime() {
-        return Duration.ofNanos(cumulativeServerTimeNanos);
+        return serverName;
     }
 
     public static class Builder {
-        private String metricName;
+        private String serverName;
         private Simulation simulation;
         private ImmutableList<ServerHandler> handlers = ImmutableList.of();
 
-        Builder metricName(String value) {
-            metricName = value;
+        Builder serverName(String value) {
+            serverName = value;
             return this;
         }
 
@@ -199,7 +199,13 @@ final class SimulationServer implements Channel {
 
             Duration responseTime = responseTimeFunction.getResponseTime(server);
             return Optional.of(server.simulation.schedule(
-                    () -> responseFunction.apply(server), responseTime.toNanos(), TimeUnit.NANOSECONDS));
+                    () -> {
+                        Response response = responseFunction.apply(server);
+                        return SimulationUtils.wrapWithCloseInstrumentation(
+                                response, server.simulation.taggedMetrics());
+                    },
+                    responseTime.toNanos(),
+                    TimeUnit.NANOSECONDS));
         }
 
         @Override
@@ -226,17 +232,13 @@ final class SimulationServer implements Channel {
 
         HandlerBuilder1 response(Function<SimulationServer, Response> func);
 
-        default HandlerBuilder1 response(Response resp) {
-            return response(unused -> resp);
-        }
-
         default HandlerBuilder1 response(int status) {
-            return response(SimulationUtils.response(status, "1.0.0"));
+            return response(server -> SimulationUtils.response(status, "1.0.0"));
         }
 
         default HandlerBuilder1 respond200UntilCapacity(int errorStatus, int capacity) {
             return response(server -> {
-                if (server.globalActiveRequests.getCount() > capacity) {
+                if (server.activeRequests.getCount() > capacity) {
                     return SimulationUtils.response(errorStatus, "1.0.0");
                 } else {
                     return SimulationUtils.response(200, "1.0.0");
@@ -261,7 +263,7 @@ final class SimulationServer implements Channel {
         default ServerHandler linearResponseTime(Duration bestCase, int capacity) {
             return responseTime(server -> {
                 long expected = bestCase.toNanos();
-                long inflight = server.globalActiveRequests.getCount();
+                long inflight = server.activeRequests.getCount();
 
                 if (inflight > capacity) {
                     return Duration.ofNanos(5 * expected); // above stated 'capacity', server dies a brutal death

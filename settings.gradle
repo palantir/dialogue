@@ -1,9 +1,20 @@
 rootProject.name = 'dialogue'
+
+include 'dialogue-blocking-channels'
 include 'dialogue-client-test-lib'
 include 'dialogue-core'
 include 'dialogue-example'
+include 'dialogue-httpurlconnection-client'
+include 'dialogue-apache-hc4-client'
 include 'dialogue-java-client'
 include 'dialogue-okhttp-client'
 include 'dialogue-serde'
 include 'dialogue-target'
 include 'simulation'
+
+boolean isCiServer = System.getenv().containsKey('CI')
+buildCache {
+    local {
+        enabled = !isCiServer
+    }
+}

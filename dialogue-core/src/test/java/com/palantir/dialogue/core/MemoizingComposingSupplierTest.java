@@ -21,8 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class MemoizingComposingSupplierTest {
 
@@ -31,7 +31,7 @@ public class MemoizingComposingSupplierTest {
     private AtomicInteger value;
     private Supplier<Integer> supplier;
 
-    @Before
+    @BeforeEach
     public void before() {
         timesInvoked = new AtomicInteger(0);
         function = in -> {

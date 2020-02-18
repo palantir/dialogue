@@ -1,0 +1,5 @@
+type: feature
+feature:
+  description: Implement a HttpUrlConnection and Apache HC4 based channels
+  links:
+  - https://github.com/palantir/dialogue/pull/335

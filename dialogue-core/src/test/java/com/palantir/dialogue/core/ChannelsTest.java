@@ -20,31 +20,41 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public final class ChannelsTest {
 
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
+    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
+            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
+    private static final ClientConfiguration stubConfig = ClientConfigurations.of(ServiceConfiguration.builder()
+            .addUris("http://localhost")
+            .security(SSL_CONFIG)
+            .build());
 
     @Mock
     private Channel delegate;
@@ -80,12 +90,12 @@ public final class ChannelsTest {
     private Request request = Request.builder().build();
     private Channel channel;
 
-    @Before
+    @BeforeEach
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, new DefaultTaggedMetricRegistry());
+        channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, stubConfig);
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+        lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
@@ -102,8 +112,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel =
-                Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
+        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);
@@ -121,8 +130,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel =
-                Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, new DefaultTaggedMetricRegistry());
+        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);

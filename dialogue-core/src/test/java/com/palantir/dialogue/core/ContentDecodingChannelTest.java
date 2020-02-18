@@ -39,7 +39,7 @@ import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import org.assertj.core.data.MapEntry;
 import org.immutables.value.Value;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class ContentDecodingChannelTest {
 
@@ -182,6 +182,9 @@ public final class ContentDecodingChannelTest {
         default Map<String, List<String>> headers() {
             return ImmutableMap.of();
         }
+
+        @Override
+        default void close() {}
 
         class Builder extends ImmutableStubResponse.Builder {}
 

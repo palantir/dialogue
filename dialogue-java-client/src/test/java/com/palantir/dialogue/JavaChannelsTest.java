@@ -20,26 +20,20 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.net.URL;
 import java.nio.file.Paths;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class JavaChannelsTest extends AbstractChannelTest {
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
     @Override
-    Channel createChannel(URL baseUrl) {
+    protected Channel createChannel(URL baseUrl) {
         ServiceConfiguration serviceConf = ServiceConfiguration.builder()
                 .addUris(baseUrl.toString())
                 .security(SSL_CONFIG)
                 .build();
         return JavaChannels.create(
-                ClientConfigurations.of(serviceConf),
-                UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")),
-                new DefaultTaggedMetricRegistry());
+                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
     }
 }

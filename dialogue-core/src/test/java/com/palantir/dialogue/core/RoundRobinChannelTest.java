@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
@@ -26,13 +27,13 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class RoundRobinChannelTest {
 
     private static final Optional<ListenableFuture<Response>> CHANNEL_A_RESPONSE = Optional.of(SettableFuture.create());
@@ -53,12 +54,12 @@ public class RoundRobinChannelTest {
 
     private RoundRobinChannel loadBalancer;
 
-    @Before
+    @BeforeEach
     public void before() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of(channelA, channelB));
 
-        when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
-        when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
+        lenient().when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
+        lenient().when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
     }
 
     @Test

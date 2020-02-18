@@ -27,13 +27,13 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.Optional;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class BlacklistingChannelTest {
 
     private static final Duration BLACKLIST_DURATION = Duration.ofSeconds(10);
@@ -56,7 +56,7 @@ public class BlacklistingChannelTest {
     private BlacklistingChannel channel;
     private SettableFuture<Response> futureResponse;
 
-    @Before
+    @BeforeEach
     public void before() {
         channel = new BlacklistingChannel(delegate, BLACKLIST_DURATION, ticker);
 

@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: A new `PinUntilErrorChannel` provides the same functionality as conjure-java-runtime's
+    default NodeSelectionStrategy.
+  links:
+  - https://github.com/palantir/dialogue/pull/364

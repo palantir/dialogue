@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -29,13 +30,13 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class ConcurrencyLimitedChannelTest {
 
     @Mock
@@ -59,12 +60,12 @@ public class ConcurrencyLimitedChannelTest {
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
 
-    @Before
+    @BeforeEach
     public void before() {
         channel = new ConcurrencyLimitedChannel(delegate, () -> limiter);
 
         responseFuture = SettableFuture.create();
-        when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
+        lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
     }
 
     @Test

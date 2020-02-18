@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -103,17 +104,17 @@ public class SimulationTest {
         // real servers don't scale like this - see later tests
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("fast")
+                        .serverName("fast")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("medium")
+                        .serverName("medium")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(800)))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("slightly_slow")
+                        .serverName("slightly_slow")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
                         .build());
@@ -133,19 +134,19 @@ public class SimulationTest {
         int slowdownThreshold = 30;
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("fast")
+                        .serverName("fast")
                         .simulation(simulation)
                         .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("medium")
+                        .serverName("medium")
                         .simulation(simulation)
                         .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("slightly_slow")
+                        .serverName("slightly_slow")
                         .simulation(simulation)
                         .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
@@ -165,12 +166,12 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("fast")
+                        .serverName("fast")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("slow_failures_then_revert")
+                        .serverName("slow_failures_then_revert")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 503s")
@@ -193,12 +194,12 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("fast")
+                        .serverName("fast")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("fast_500s_then_revert")
+                        .serverName("fast_500s_then_revert")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "fast 500s")
@@ -221,12 +222,12 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("fast")
+                        .serverName("fast")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("fast_then_slow_then_fast")
+                        .serverName("fast_then_slow_then_fast")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 200s")
@@ -248,14 +249,14 @@ public class SimulationTest {
     public void all_nodes_500() {
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("node1")
+                        .serverName("node1")
                         .simulation(simulation)
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("node2")
+                        .serverName("node2")
                         .simulation(simulation)
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(10), "revert badness")
@@ -277,12 +278,12 @@ public class SimulationTest {
     public void black_hole() {
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("node1")
+                        .serverName("node1")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("node2_black_hole")
+                        .serverName("node2_black_hole")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(3), "black hole")
@@ -306,7 +307,7 @@ public class SimulationTest {
 
         servers = servers(
                 SimulationServer.builder()
-                        .metricName("server_where_e1_breaks")
+                        .serverName("server_where_e1_breaks")
                         .simulation(simulation)
                         .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
@@ -315,7 +316,7 @@ public class SimulationTest {
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
-                        .metricName("server_where_e2_breaks")
+                        .serverName("server_where_e2_breaks")
                         .simulation(simulation)
                         .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
@@ -342,21 +343,21 @@ public class SimulationTest {
                 beginAt(
                         Duration.ZERO,
                         SimulationServer.builder()
-                                .metricName("always_on")
+                                .serverName("always_on")
                                 .simulation(simulation)
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()),
                 beginAt(
                         Duration.ZERO,
                         SimulationServer.builder()
-                                .metricName("always_broken")
+                                .serverName("always_broken")
                                 .simulation(simulation)
                                 .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()),
                 beginAt(
                         Duration.ofSeconds(5),
                         SimulationServer.builder()
-                                .metricName("added_halfway")
+                                .serverName("added_halfway")
                                 .simulation(simulation)
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()));
@@ -401,20 +402,20 @@ public class SimulationTest {
 
     @After
     public void after() throws IOException {
-        Duration serverCpu = Duration.ofNanos(servers.get().stream() // live-reloading breaks this :(
-                .mapToLong(s -> s.getCumulativeServerTime().toNanos())
-                .sum());
+        Duration serverCpu = Duration.ofNanos(
+                MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
         long clientMeanNanos = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.MICROSECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS) / 1000d;
+        double clientMeanMillis = TimeUnit.MILLISECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS);
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
-                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\treceived=%s/%s\tcodes=%s",
+                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
                 result.successPercentage(),
-                Duration.ofNanos(clientMeanNanos),
+                Duration.of(clientMeanNanos, ChronoUnit.NANOS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),
+                result.numGlobalResponses(),
                 result.statusCodes());
 
         Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
@@ -428,24 +429,26 @@ public class SimulationTest {
                     .describedAs("Run tests locally to update checked-in file: %s", txt)
                     .isEqualTo(longSummary);
             assertThat(Paths.get(pngPath)).exists();
-            return;
-        }
-
-        if (txtChanged || !Files.exists(Paths.get(pngPath))) {
+        } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
 
-            XYChart activeRequests = simulation.metrics().chart(Pattern.compile("active"));
+            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
             activeRequests.setTitle(String.format(
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
-            XYChart serverRequestCount = simulation.metrics().chart(Pattern.compile("request.*count"));
-            // XYChart clientStuff = simulation.metrics().chart(Pattern.compile("(refusals|starts).count"));
 
-            SimulationMetrics.png(pngPath, activeRequests, serverRequestCount);
+            SimulationMetricsReporter.png(
+                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
+                    // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
+                    );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
+
+        assertThat(result.responsesLeaked())
+                .describedAs("There should be no unclosed responses")
+                .isZero();
     }
 
     @AfterClass
