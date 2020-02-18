@@ -237,7 +237,7 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("DELETE");
-        assertThat(recorded.getBodySize()).isEqualTo(0);
+        assertThat(recorded.getBodySize()).isZero();
         assertThat(result.get().code()).isEqualTo(200);
     }
 
