@@ -63,10 +63,13 @@ final class PinUntilErrorChannel implements LimitedChannel {
     @VisibleForTesting
     PinUntilErrorChannel(NodeList nodeList) {
         this.nodeList = nodeList;
+        Preconditions.checkArgument(
+                nodeList.size() >= 2,
+                "PinUntilError is pointless if you have zero or 1 channels."
+                        + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
     static PinUntilErrorChannel pinUntilError(List<LimitedChannel> channels) {
-        Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime);
         return new PinUntilErrorChannel(shufflingNodeList);
@@ -78,7 +81,6 @@ final class PinUntilErrorChannel implements LimitedChannel {
      */
     @Deprecated
     static PinUntilErrorChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
-        Preconditions.checkArgument(!channels.isEmpty(), "List of channels must not be empty");
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
         return new PinUntilErrorChannel(constantNodeList);
     }
@@ -189,10 +191,6 @@ final class PinUntilErrorChannel implements LimitedChannel {
         }
 
         private void reshuffleChannelsIfNecessary() {
-            if (channelsSize <= 1) {
-                return;
-            }
-
             long reshuffleTime = nextReshuffle.get();
             if (clock.read() < reshuffleTime) {
                 return;

@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -36,6 +37,8 @@ public final class Channels {
 
     public static Channel create(
             Collection<? extends Channel> channels, UserAgent userAgent, ClientConfiguration config) {
+        Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
+
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
@@ -58,6 +61,10 @@ public final class Channels {
     }
 
     private static LimitedChannel nodeSelectionStrategy(ClientConfiguration config, List<LimitedChannel> channels) {
+        if (channels.size() == 1) {
+            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+        }
+
         switch (config.nodeSelectionStrategy()) {
             case PIN_UNTIL_ERROR:
                 return PinUntilErrorChannel.pinUntilError(channels);
