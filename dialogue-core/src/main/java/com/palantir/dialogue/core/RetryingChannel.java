@@ -81,9 +81,7 @@ final class RetryingChannel implements Channel {
                     logRetry(failure);
                     return execute();
                 }
-                // TODO(ckozak): It's out of scope for this class to map responses to exceptions. After retries
-                // are exhausted the open response should be returned.
-                return Futures.immediateFailedFuture(new SafeRuntimeException("Retries exhausted", failure));
+                return Futures.immediateFuture(response);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too

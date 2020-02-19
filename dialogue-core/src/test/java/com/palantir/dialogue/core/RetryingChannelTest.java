@@ -103,30 +103,32 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void retries_429s() {
+    public void retries_429s() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
-        assertThatThrownBy(response::get)
-                .hasMessageContaining("Retries exhausted")
-                .hasCauseInstanceOf(RuntimeException.class);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 429 response should be returned")
+                .isSameAs(mockResponse);
         verify(channel, times(4)).execute(ENDPOINT, REQUEST);
     }
 
     @Test
-    public void retries_503s() {
+    public void retries_503s() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(503);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         Channel retryer = new RetryingChannel(channel, 3);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
-        assertThatThrownBy(response::get)
-                .hasMessageContaining("Retries exhausted")
-                .hasCauseInstanceOf(RuntimeException.class);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 503 response should be returned")
+                .isSameAs(mockResponse);
         verify(channel, times(4)).execute(ENDPOINT, REQUEST);
     }
 
