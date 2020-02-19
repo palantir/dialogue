@@ -24,7 +24,7 @@ import com.palantir.dialogue.Channel;
 import java.net.URL;
 import java.nio.file.Paths;
 
-public final class ApacheApacheHttpClientChannelsTest extends AbstractChannelTest {
+public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
