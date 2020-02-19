@@ -26,6 +26,7 @@ buildscript {
     }
 
     dependencies {
+        classpath 'com.palantir.gradle.revapi:gradle-revapi:1.0.8'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:0.3.19'
         classpath 'com.netflix.nebula:gradle-info-plugin:7.1.2'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
