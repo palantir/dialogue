@@ -40,15 +40,17 @@ final class RetryingChannel implements Channel {
 
     private final Channel delegate;
     private final int maxRetries;
+    private final boolean propagateQoS;
 
-    RetryingChannel(Channel delegate, int maxRetries) {
+    RetryingChannel(Channel delegate, int maxRetries, boolean propagateQoS) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
+        this.propagateQoS = propagateQoS;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return new RetryingCallback(delegate, endpoint, request, maxRetries).execute();
+        return new RetryingCallback(delegate, endpoint, request, maxRetries, propagateQoS).execute();
     }
 
     private static final class RetryingCallback {
@@ -56,13 +58,16 @@ final class RetryingChannel implements Channel {
         private final Endpoint endpoint;
         private final Request request;
         private final int maxRetries;
+        private final boolean propagateQoS;
         private int failures = 0;
 
-        private RetryingCallback(Channel delegate, Endpoint endpoint, Request request, int maxRetries) {
+        private RetryingCallback(
+                Channel delegate, Endpoint endpoint, Request request, int maxRetries, boolean disableQosRetries) {
             this.delegate = delegate;
             this.endpoint = endpoint;
             this.request = request;
             this.maxRetries = maxRetries;
+            this.propagateQoS = disableQosRetries;
         }
 
         ListenableFuture<Response> execute() {
@@ -72,7 +77,6 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> success(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
-            // TODO(ckozak): Respect ClientConfiguration.serverQos.
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
                 response.close();
                 Throwable failure =
@@ -110,11 +114,12 @@ final class RetryingChannel implements Channel {
         }
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            return Futures.catchingAsync(
-                    Futures.transformAsync(input, this::success, MoreExecutors.directExecutor()),
-                    Throwable.class,
-                    this::failure,
-                    MoreExecutors.directExecutor());
+            ListenableFuture<Response> result = input;
+            if (!propagateQoS) {
+                result = Futures.transformAsync(result, this::success, MoreExecutors.directExecutor());
+            }
+            result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
+            return result;
         }
     }
 }

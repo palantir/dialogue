@@ -59,7 +59,7 @@ public enum Strategy {
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels1);
             limited1 = instrumentClient(limited1, sim.taggedMetrics()); // just for debugging
             Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-            return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */);
+            return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */, false);
         });
     }
 
@@ -74,7 +74,7 @@ public enum Strategy {
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             limited = instrumentClient(limited, sim.taggedMetrics()); // just for debugging
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
-            return new RetryingChannel(channel, 4);
+            return new RetryingChannel(channel, 4, false);
         });
     }
 
@@ -86,7 +86,7 @@ public enum Strategy {
             limited =
                     instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(sim.taggedMetrics()));
-            return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */);
+            return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */, false);
         });
     }
 
