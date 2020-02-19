@@ -55,7 +55,7 @@ public enum Strategy {
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels =
-                    channels.stream().map(concurrencyLimiter(sim)).collect(Collectors.toList());
+                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
         });
@@ -65,8 +65,8 @@ public enum Strategy {
             Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(concurrencyLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1)))
+                    .map(addConcurrencyLimiter(sim))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
@@ -77,7 +77,7 @@ public enum Strategy {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels =
-                    channels.stream().map(concurrencyLimiter(sim)).collect(Collectors.toList());
+                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             return queuedChannelAndRetrying(sim, limited);
@@ -93,7 +93,7 @@ public enum Strategy {
         });
     }
 
-    private static Function<Channel, LimitedChannel> concurrencyLimiter(Simulation sim) {
+    private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel ->
                 new ConcurrencyLimitedChannel(channel, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
     }
