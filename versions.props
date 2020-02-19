@@ -18,7 +18,7 @@ org.apache.httpcomponents:httpclient = 4.5.11
 
 # test deps
 junit:junit = 4.12
-org.junit.jupiter:* = 5.5.2
+org.junit.jupiter:* = 5.6.0
 org.assertj:assertj-core = 3.15.0
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
