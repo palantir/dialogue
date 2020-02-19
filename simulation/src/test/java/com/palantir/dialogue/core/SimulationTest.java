@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -119,11 +118,10 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(50)
                 .sendUntil(Duration.ofSeconds(20))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -152,11 +150,10 @@ public class SimulationTest {
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(50)
                 .sendUntil(Duration.ofSeconds(20))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -180,11 +177,10 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -208,11 +204,10 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(15))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -236,11 +231,10 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(20))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -265,11 +259,10 @@ public class SimulationTest {
 
         // TODO(dfox): seems like traceid=req-1-attempt-1 happens 31 times???
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .requestsPerSecond(10)
                 .sendUntil(Duration.ofSeconds(20))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
     }
@@ -290,13 +283,12 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(20)
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .run();
     }
 
@@ -325,14 +317,13 @@ public class SimulationTest {
                         .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(51)
                 .sendUntil(Duration.ofSeconds(10))
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .run();
     }
 
@@ -362,12 +353,11 @@ public class SimulationTest {
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()));
 
-        Channel channel = strategy.getChannel(simulation, servers);
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(40)
                 .sendUntil(Duration.ofSeconds(10))
-                .channel(channel)
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .run();
     }
 
