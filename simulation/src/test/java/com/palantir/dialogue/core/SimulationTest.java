@@ -418,7 +418,7 @@ public class SimulationTest {
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
-        boolean txtChanged = true || !longSummary.equals(onDisk);
+        boolean txtChanged = !longSummary.equals(onDisk);
 
         if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
             assertThat(onDisk)
