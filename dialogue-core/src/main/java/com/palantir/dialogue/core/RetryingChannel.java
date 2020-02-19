@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -27,7 +26,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -124,17 +122,8 @@ final class RetryingChannel implements Channel {
 
         private ListenableFuture<Response> wrapWithTracing(ListenableFuture<Response> input) {
             DetachedSpan detachedSpan = DetachedSpan.start(String.format("request-attempt-%d", failures));
-            return DialogueFutures.addDirectCallback(input, new FutureCallback<Response>() {
-                @Override
-                public void onSuccess(@Nullable Response _result) {
-                    detachedSpan.complete();
-                }
-
-                @Override
-                public void onFailure(Throwable _throwable) {
-                    detachedSpan.complete();
-                }
-            });
+            input.addListener(detachedSpan::complete, MoreExecutors.directExecutor());
+            return input;
         }
     }
 }
