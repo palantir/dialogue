@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Respect ClientConfiguration.serverQos
+  links:
+  - https://github.com/palantir/dialogue/pull/378
