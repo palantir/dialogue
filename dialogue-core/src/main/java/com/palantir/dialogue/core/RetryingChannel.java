@@ -121,7 +121,7 @@ final class RetryingChannel implements Channel {
         }
 
         private ListenableFuture<Response> wrapWithTracing(ListenableFuture<Response> input) {
-            DetachedSpan detachedSpan = DetachedSpan.start(String.format("request-attempt-%d", failures));
+            DetachedSpan detachedSpan = DetachedSpan.start("request-attempt-" + failures);
             input.addListener(detachedSpan::complete, MoreExecutors.directExecutor());
             return input;
         }
