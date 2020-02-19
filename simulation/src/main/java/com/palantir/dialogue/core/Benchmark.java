@@ -106,7 +106,9 @@ public final class Benchmark {
     }
 
     public Benchmark client(Channel value) {
-        return clients(1, unused -> value);
+        clients(1, unused -> value);
+        this.clientIndexChooser = () -> 0;
+        return this;
     }
 
     /** Use this if you want to simulate a bunch of clients. */

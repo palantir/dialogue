@@ -119,7 +119,7 @@ public class SimulationTest {
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(50)
+                .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
@@ -151,7 +151,7 @@ public class SimulationTest {
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(50)
+                .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
@@ -257,10 +257,8 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        // TODO(dfox): seems like traceid=req-1-attempt-1 happens 31 times???
-
         result = Benchmark.builder()
-                .requestsPerSecond(10)
+                .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
@@ -285,7 +283,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond(20)
+                .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
                 .clients(10, i -> strategy.getChannel(simulation, servers))
@@ -319,7 +317,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond(51)
+                .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
@@ -355,7 +353,7 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond(40)
+                .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .run();
