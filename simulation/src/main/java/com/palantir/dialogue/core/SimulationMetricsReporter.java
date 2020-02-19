@@ -96,6 +96,9 @@ final class SimulationMetricsReporter {
         XYChart chart =
                 new XYChartBuilder().width(800).height(600).xAxisTitle(X_AXIS).build();
 
+        // if we render too many samples, it just ends up looking like a wall of colour
+        int granularity = chart.getWidth() / 3;
+
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
         chart.getStyler().setMarkerSize(3);
@@ -106,7 +109,8 @@ final class SimulationMetricsReporter {
         chart.getStyler().setToolTipsAlwaysVisible(true);
 
         Map<String, List<Double>> map = measurements.asMap();
-        double[] xAxis = map.get(X_AXIS).stream().mapToDouble(d -> d).toArray();
+        double[] xAxis = reduceGranularity(
+                granularity, map.get(X_AXIS).stream().mapToDouble(d -> d).toArray());
         List<String> columns = map.keySet().stream()
                 .filter(name -> !name.equals(X_AXIS))
                 .filter(metricNameRegex.asPredicate())
@@ -115,7 +119,8 @@ final class SimulationMetricsReporter {
         String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
 
         for (String column : columns) {
-            double[] series = map.get(column).stream().mapToDouble(d -> d).toArray();
+            double[] series = reduceGranularity(
+                    granularity, map.get(column).stream().mapToDouble(d -> d).toArray());
             Preconditions.checkState(
                     series.length == xAxis.length,
                     "Series must all be same length",
@@ -137,6 +142,23 @@ final class SimulationMetricsReporter {
         }
 
         return chart;
+    }
+
+    /**
+     * If we render too many dots on the graph, it ends up looking like a wall of colour. Doing one dot per pixel of
+     * width is also crap.
+     */
+    private static double[] reduceGranularity(int maxSamples, double[] rawSamples) {
+        if (rawSamples.length < maxSamples) {
+            return rawSamples;
+        }
+
+        double[] halfGranularity = new double[rawSamples.length / 2];
+        for (int i = 0; i < halfGranularity.length; i++) {
+            halfGranularity[i] = (rawSamples[2 * i] + rawSamples[2 * i + 1]) / 2d;
+        }
+
+        return reduceGranularity(maxSamples, halfGranularity);
     }
 
     private static String asString(MetricName metricName) {

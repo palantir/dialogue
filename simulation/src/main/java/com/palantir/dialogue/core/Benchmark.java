@@ -28,11 +28,15 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.IntFunction;
+import java.util.function.IntSupplier;
+import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
 import org.immutables.value.Value;
@@ -48,8 +52,9 @@ public final class Benchmark {
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
-    private Channel channelUnderTest;
     private Duration delayBetweenRequests;
+    private Channel[] clients;
+    private IntSupplier clientIndexChooser;
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
@@ -100,8 +105,17 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark channel(Channel value) {
-        channelUnderTest = value;
+    public Benchmark client(Channel value) {
+        clients(1, unused -> value);
+        this.clientIndexChooser = () -> 0;
+        return this;
+    }
+
+    /** Use this if you want to simulate a bunch of clients. */
+    public Benchmark clients(int numClients, IntFunction<Channel> clientFunction) {
+        this.clients = IntStream.range(0, numClients).mapToObj(clientFunction).toArray(Channel[]::new);
+        Random pseudoRandom = new Random(1231234L);
+        this.clientIndexChooser = () -> pseudoRandom.nextInt(numClients);
         return this;
     }
 
@@ -143,7 +157,10 @@ public final class Benchmark {
     @SuppressWarnings("FutureReturnValueIgnored")
     public ListenableFuture<BenchmarkResult> schedule() {
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
-        InstrumentedChannel channel = new InstrumentedChannel(channelUnderTest, clientMetrics);
+
+        Channel[] channels = Arrays.stream(clients)
+                .map(c -> new InstrumentedChannel(c, clientMetrics))
+                .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
         long[] responsesReceived = {0};
@@ -168,6 +185,7 @@ public final class Benchmark {
                     () -> {
                         log.debug(
                                 "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
+                        Channel channel = channels[clientIndexChooser.getAsInt()];
                         ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
                         requestsStarted[0] += 1;
 

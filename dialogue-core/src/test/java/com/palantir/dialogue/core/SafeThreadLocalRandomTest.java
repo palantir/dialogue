@@ -57,7 +57,7 @@ class SafeThreadLocalRandomTest {
 
     private <T> void testCreatesDistinctValues(Supplier<T> supplier) {
         Set<T> values = new HashSet<>();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 5000; i++) {
             values.add(supplier.get());
         }
         assertThat(values).hasSizeGreaterThan(1);
