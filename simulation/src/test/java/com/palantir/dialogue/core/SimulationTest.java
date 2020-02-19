@@ -418,7 +418,7 @@ public class SimulationTest {
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
-        boolean txtChanged = !longSummary.equals(onDisk) || true;
+        boolean txtChanged = !longSummary.equals(onDisk);
 
         if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
             assertThat(onDisk)
@@ -456,12 +456,20 @@ public class SimulationTest {
     @AfterClass
     public static void afterClass() throws IOException {
         // squish all txt files together into one markdown report so that github displays diffs
+        String txtSection = buildTxtSection();
+        String images = buildImagesTable();
+        String report = String.format(
+                "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
+        Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String buildTxtSection() throws IOException {
         try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
             List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
                     .sorted(Comparator.comparing(Path::getFileName))
                     .collect(Collectors.toList());
 
-            String txtSection = files.stream()
+            return files.stream()
                     .filter(p -> p.toString().endsWith("txt"))
                     .map(p -> {
                         try {
@@ -474,12 +482,15 @@ public class SimulationTest {
                         }
                     })
                     .collect(Collectors.joining("", "```\n", "```\n"));
+        }
+    }
 
-            String images = files.stream()
-                    .filter(p -> p.toString().endsWith("png"    ))
+    private static String buildImagesTable() throws IOException {
+        try (Stream<Path> files = Files.list(Paths.get("src/test/resources"))) {
+            return files.filter(p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
                     .map(p -> {
                         String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
-                                + "simulation/src/test/resources/txt/"
+                                + "simulation/src/test/resources/"
                                 + p.getFileName();
                         return String.format(
                                 "%n## %s%n"
@@ -492,10 +503,6 @@ public class SimulationTest {
                                 p.getFileName(), githubLfsUrl, p.getFileName());
                     })
                     .collect(Collectors.joining());
-
-            String report = String.format(
-                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
-            Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
         }
     }
 }
