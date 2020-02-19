@@ -11,6 +11,7 @@ dependencies {
     compile 'com.palantir.tracing:tracing'
     compile 'io.dropwizard.metrics:metrics-core'
 
+    testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core'

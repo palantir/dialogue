@@ -1,0 +1,4 @@
+{"traceId":"1195fbd05a6582cd","parentSpanId":"b27b237eb701f4a6","spanId":"401c58d20614e3f7","type":"LOCAL","operation":"Dialogue-request-attempt initial","startTimeMicroSeconds":1582156032735848,"durationNanoSeconds":34037765,"metadata":{}}
+{"traceId":"1195fbd05a6582cd","parentSpanId":"a86234a869274310","spanId":"b27b237eb701f4a6","type":"LOCAL","operation":"Dialogue-request-attempt","startTimeMicroSeconds":1582156032735792,"durationNanoSeconds":34450528,"metadata":{}}
+{"traceId":"1195fbd05a6582cd","parentSpanId":"76fe5e142bbf7f06","spanId":"a86234a869274310","type":"LOCAL","operation":"Dialogue-request initial","startTimeMicroSeconds":1582156032731290,"durationNanoSeconds":40615927,"metadata":{}}
+{"traceId":"1195fbd05a6582cd","parentSpanId":null,"spanId":"76fe5e142bbf7f06","type":"LOCAL","operation":"Dialogue-request","startTimeMicroSeconds":1582156032727694,"durationNanoSeconds":44204331,"metadata":{}}
