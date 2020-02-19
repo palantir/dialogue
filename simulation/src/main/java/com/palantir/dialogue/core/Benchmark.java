@@ -142,6 +142,7 @@ public final class Benchmark {
     public Benchmark abortAfter(Duration cutoff) {
         simulation.schedule(
                 () -> {
+                    log.warn("Aborted running benchmark after cutoff reached - strategy might be buggy {}", cutoff);
                     benchmarkFinished.getFuture().set(null);
                 },
                 cutoff.toNanos(),

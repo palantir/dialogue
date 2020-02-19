@@ -123,6 +123,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofMinutes(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(30))
                 .run();
     }
 
@@ -152,9 +153,10 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(500)
+                .simulation(simulation)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -182,6 +184,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -209,6 +212,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(15))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -236,6 +240,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -262,6 +267,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -287,6 +293,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -322,6 +329,7 @@ public class SimulationTest {
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -356,6 +364,7 @@ public class SimulationTest {
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
