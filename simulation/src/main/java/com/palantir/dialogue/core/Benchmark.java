@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Snapshot;
+import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -141,6 +142,7 @@ public final class Benchmark {
     public Benchmark abortAfter(Duration cutoff) {
         simulation.schedule(
                 () -> {
+                    log.warn("Aborted running benchmark after cutoff reached - strategy might be buggy {}", cutoff);
                     benchmarkFinished.getFuture().set(null);
                 },
                 cutoff.toNanos(),
@@ -150,7 +152,9 @@ public final class Benchmark {
 
     public BenchmarkResult run() {
         ListenableFuture<BenchmarkResult> result = schedule();
+        Stopwatch run = Stopwatch.createStarted();
         simulation.runClockToInfinity();
+        log.info("Ran clock to infinity ({} ms)", run.elapsed(TimeUnit.MILLISECONDS));
         return Futures.getUnchecked(result);
     }
 
@@ -166,6 +170,7 @@ public final class Benchmark {
         long[] responsesReceived = {0};
         Map<String, Integer> statusCodes = new TreeMap<>();
 
+        Stopwatch scheduling = Stopwatch.createStarted();
         requestStream.forEach(req -> {
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
@@ -203,6 +208,7 @@ public final class Benchmark {
                     req.sendTime().toNanos(),
                     TimeUnit.NANOSECONDS);
         });
+        log.info("Scheduled all requests ({} ms)", scheduling.elapsed(TimeUnit.MILLISECONDS));
 
         benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
 

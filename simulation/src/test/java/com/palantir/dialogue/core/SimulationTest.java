@@ -123,6 +123,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofMinutes(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(30))
                 .run();
     }
 
@@ -152,9 +153,10 @@ public class SimulationTest {
 
         result = Benchmark.builder()
                 .requestsPerSecond(500)
+                .simulation(simulation)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -182,6 +184,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -209,6 +212,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(15))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -236,6 +240,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -262,6 +267,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -322,6 +328,7 @@ public class SimulationTest {
                 .randomEndpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -356,6 +363,7 @@ public class SimulationTest {
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -406,7 +414,7 @@ public class SimulationTest {
                 result.numGlobalResponses(),
                 result.statusCodes());
 
-        Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
+        Path txt = Paths.get("src/test/resources/txt/" + testName.getMethodName() + ".txt");
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
@@ -427,6 +435,14 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
 
+            // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
+            // on disk to aid local iteration.
+            if (Files.exists(Paths.get(pngPath))) {
+                Path previousPng = Paths.get(pngPath.replaceAll("\\.png", "\\.prev.png"));
+                Files.deleteIfExists(previousPng);
+                Files.move(Paths.get(pngPath), previousPng);
+            }
+
             SimulationMetricsReporter.png(
                     pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
@@ -442,12 +458,20 @@ public class SimulationTest {
     @AfterClass
     public static void afterClass() throws IOException {
         // squish all txt files together into one markdown report so that github displays diffs
-        try (Stream<Path> list = Files.list(Paths.get("src/test/resources"))) {
+        String txtSection = buildTxtSection();
+        String images = buildImagesTable();
+        String report = String.format(
+                "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
+        Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String buildTxtSection() throws IOException {
+        try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
             List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
                     .sorted(Comparator.comparing(Path::getFileName))
                     .collect(Collectors.toList());
 
-            String txtSection = files.stream()
+            return files.stream()
                     .filter(p -> p.toString().endsWith("txt"))
                     .map(p -> {
                         try {
@@ -460,28 +484,29 @@ public class SimulationTest {
                         }
                     })
                     .collect(Collectors.joining("", "```\n", "```\n"));
+        }
+    }
 
-            String images = files.stream()
-                    .filter(p -> p.toString().endsWith("png"))
+    private static String buildImagesTable() throws IOException {
+        try (Stream<Path> files = Files.list(Paths.get("src/test/resources"))) {
+            return files.filter(
+                            p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
+                    .sorted(Comparator.comparing(Path::getFileName))
                     .map(p -> {
                         String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
                                 + "simulation/src/test/resources/"
                                 + p.getFileName();
                         return String.format(
-                                "%n## %s%n"
+                                "%n## `%s`%n"
                                         + "<table><tr><th>develop</th><th>current</th></tr>%n"
                                         + "<tr>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
                                         + "</tr>"
                                         + "</table>%n%n",
-                                p.getFileName(), githubLfsUrl, p.getFileName());
+                                p.getFileName().toString().replaceAll("\\.png", ""), githubLfsUrl, p.getFileName());
                     })
                     .collect(Collectors.joining());
-
-            String report = String.format(
-                    "# Report%n<!-- Run SimulationTest to regenerate this report. -->%n%s%n%n%s%n", txtSection, images);
-            Files.write(Paths.get("src/test/resources/report.md"), report.getBytes(StandardCharsets.UTF_8));
         }
     }
 }
