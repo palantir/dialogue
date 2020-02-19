@@ -156,6 +156,7 @@ final class SimulationMetricsReporter {
         double[] halfGranularity = new double[rawSamples.length / 2];
         for (int i = 0; i < halfGranularity.length; i++) {
             halfGranularity[i] = (rawSamples[2 * i] + rawSamples[2 * i + 1]) / 2d;
+            // halfGranularity[i] = rawSamples[2 * i];
         }
 
         return reduceGranularity(maxSamples, halfGranularity);

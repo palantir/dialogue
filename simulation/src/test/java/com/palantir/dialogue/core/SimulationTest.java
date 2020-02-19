@@ -418,7 +418,7 @@ public class SimulationTest {
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
-        boolean txtChanged = !longSummary.equals(onDisk);
+        boolean txtChanged = true || !longSummary.equals(onDisk);
 
         if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
             assertThat(onDisk)
@@ -435,11 +435,13 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
 
-            // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev on
-            // disk to aid local iteration.
-            Path previousPng = Paths.get(pngPath.replaceAll("\\.png", "\\.prev.png"));
-            Files.deleteIfExists(previousPng);
-            Files.move(Paths.get(pngPath), previousPng);
+            // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
+            // on disk to aid local iteration.
+            if (Files.exists(Paths.get(pngPath))) {
+                Path previousPng = Paths.get(pngPath.replaceAll("\\.png", "\\.prev.png"));
+                Files.deleteIfExists(previousPng);
+                Files.move(Paths.get(pngPath), previousPng);
+            }
 
             SimulationMetricsReporter.png(
                     pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
