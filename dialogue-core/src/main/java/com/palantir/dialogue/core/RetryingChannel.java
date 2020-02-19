@@ -19,11 +19,13 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,15 +42,17 @@ final class RetryingChannel implements Channel {
 
     private final Channel delegate;
     private final int maxRetries;
+    private final ClientConfiguration.ServerQoS serverQoS;
 
-    RetryingChannel(Channel delegate, int maxRetries) {
+    RetryingChannel(Channel delegate, int maxRetries, ClientConfiguration.ServerQoS serverQoS) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
+        this.serverQoS = serverQoS;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return new RetryingCallback(delegate, endpoint, request, maxRetries).execute();
+        return new RetryingCallback(delegate, endpoint, request, maxRetries, serverQoS).execute();
     }
 
     private static final class RetryingCallback {
@@ -56,13 +60,20 @@ final class RetryingChannel implements Channel {
         private final Endpoint endpoint;
         private final Request request;
         private final int maxRetries;
+        private final ClientConfiguration.ServerQoS serverQoS;
         private int failures = 0;
 
-        private RetryingCallback(Channel delegate, Endpoint endpoint, Request request, int maxRetries) {
+        private RetryingCallback(
+                Channel delegate,
+                Endpoint endpoint,
+                Request request,
+                int maxRetries,
+                ClientConfiguration.ServerQoS serverQoS) {
             this.delegate = delegate;
             this.endpoint = endpoint;
             this.request = request;
             this.maxRetries = maxRetries;
+            this.serverQoS = serverQoS;
         }
 
         ListenableFuture<Response> execute() {
@@ -72,7 +83,6 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> success(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
-            // TODO(ckozak): Respect ClientConfiguration.serverQos.
             if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
                 response.close();
                 Throwable failure =
@@ -81,9 +91,12 @@ final class RetryingChannel implements Channel {
                     logRetry(failure);
                     return execute();
                 }
-                // TODO(ckozak): It's out of scope for this class to map responses to exceptions. After retries
-                // are exhausted the open response should be returned.
-                return Futures.immediateFailedFuture(new SafeRuntimeException("Retries exhausted", failure));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Retries exhausted, returning a retryable response with status {}",
+                            SafeArg.of("status", response.code()));
+                }
+                return Futures.immediateFuture(response);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
@@ -112,11 +125,24 @@ final class RetryingChannel implements Channel {
         }
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            return Futures.catchingAsync(
-                    Futures.transformAsync(input, this::success, MoreExecutors.directExecutor()),
-                    Throwable.class,
-                    this::failure,
-                    MoreExecutors.directExecutor());
+            ListenableFuture<Response> result = input;
+            if (!shouldPropagateQos(serverQoS)) {
+                result = Futures.transformAsync(result, this::success, MoreExecutors.directExecutor());
+            }
+            result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
+            return result;
         }
+    }
+
+    private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
+        switch (serverQoS) {
+            case PROPAGATE_429_and_503_TO_CALLER:
+                return true;
+            case AUTOMATIC_RETRY:
+                return false;
+        }
+
+        throw new SafeIllegalStateException(
+                "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
     }
 }

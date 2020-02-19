@@ -53,7 +53,7 @@ public final class Channels {
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
-        channel = new RetryingChannel(channel, config.maxNumRetries());
+        channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
 

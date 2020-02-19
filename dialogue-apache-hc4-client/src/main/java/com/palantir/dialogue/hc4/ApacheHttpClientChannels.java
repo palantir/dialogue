@@ -44,9 +44,6 @@ public final class ApacheHttpClientChannels {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
-        Preconditions.checkArgument(
-                conf.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                "Propagating QoS exceptions is not supported");
         Preconditions.checkArgument(!conf.proxyCredentials().isPresent(), "Proxy credentials are not supported");
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());

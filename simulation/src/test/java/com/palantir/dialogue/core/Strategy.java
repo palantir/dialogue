@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -101,7 +102,10 @@ public enum Strategy {
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
         Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-        return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */);
+        return new RetryingChannel(
+                channel,
+                4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY);
     }
 
     private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {

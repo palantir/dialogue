@@ -98,9 +98,6 @@ public final class OkHttpChannels {
         Preconditions.checkArgument(
                 !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
-        Preconditions.checkArgument(
-                config.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                "Propagating QoS exceptions is not supported");
         OkHttpClient.Builder builder = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(dispatcher)
