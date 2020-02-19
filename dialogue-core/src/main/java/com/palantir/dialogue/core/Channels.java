@@ -53,7 +53,7 @@ public final class Channels {
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
-        channel = new RetryingChannel(channel, config.maxNumRetries(), shouldPropagateQos(config.serverQoS()));
+        channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
 
@@ -87,17 +87,5 @@ public final class Channels {
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
-    }
-
-    private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
-        switch (serverQoS) {
-            case PROPAGATE_429_and_503_TO_CALLER:
-                return true;
-            case AUTOMATIC_RETRY:
-                return false;
-        }
-
-        throw new SafeIllegalStateException(
-                "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
     }
 }
