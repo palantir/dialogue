@@ -18,12 +18,14 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -37,7 +39,8 @@ import org.slf4j.LoggerFactory;
 public enum Strategy {
     CONCURRENCY_LIMITER(Strategy::concurrencyLimiter),
     PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    ROUND_ROBIN(Strategy::roundRobin);
+    ROUND_ROBIN(Strategy::roundRobin),
+    PREFER_CHEAPEST(Strategy::preferCheapest);
 
     private static final Logger log = LoggerFactory.getLogger(Strategy.class);
     private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
@@ -87,6 +90,20 @@ public enum Strategy {
                     instrumentClient(limited, sim.taggedMetrics()); // will always be zero due to the noOpLimitedChannel
             Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(sim.taggedMetrics()));
             return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */);
+        });
+    }
+
+    private static Channel preferCheapest(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
+            ImmutableList<LimitedChannel> limitedChannels = channels.stream()
+                    .map(c1 -> new ConcurrencyLimitedChannel(
+                            c1, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock())))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
+                    .collect(ImmutableList.toImmutableList());
+            LimitedChannel limited = new CostBasedRouting(limitedChannels, sim.codahaleClock());
+            limited = instrumentClient(limited, sim.taggedMetrics()); // just for debugging
+            Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(new DefaultTaggedMetricRegistry()));
+            return new RetryingChannel(channel, 4);
         });
     }
 
