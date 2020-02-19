@@ -293,7 +293,6 @@ public class SimulationTest {
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
 
@@ -415,11 +414,11 @@ public class SimulationTest {
                 result.numGlobalResponses(),
                 result.statusCodes());
 
-        Path txt = Paths.get("src/test/resources/" + testName.getMethodName() + ".txt");
+        Path txt = Paths.get("src/test/resources/txt/" + testName.getMethodName() + ".txt");
         String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
-        boolean txtChanged = !longSummary.equals(onDisk);
+        boolean txtChanged = !longSummary.equals(onDisk) || true;
 
         if (System.getenv().containsKey("CI")) { // only strict on CI, locally we just overwrite
             assertThat(onDisk)
@@ -436,6 +435,12 @@ public class SimulationTest {
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
 
+            // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev on
+            // disk to aid local iteration.
+            Path previousPng = Paths.get(pngPath.replaceAll("\\.png", "\\.prev.png"));
+            Files.deleteIfExists(previousPng);
+            Files.move(Paths.get(pngPath), previousPng);
+
             SimulationMetricsReporter.png(
                     pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
@@ -451,7 +456,7 @@ public class SimulationTest {
     @AfterClass
     public static void afterClass() throws IOException {
         // squish all txt files together into one markdown report so that github displays diffs
-        try (Stream<Path> list = Files.list(Paths.get("src/test/resources"))) {
+        try (Stream<Path> list = Files.list(Paths.get("src/test/resources/txt"))) {
             List<Path> files = list.filter(p -> !p.toString().endsWith("report.md"))
                     .sorted(Comparator.comparing(Path::getFileName))
                     .collect(Collectors.toList());
@@ -471,10 +476,10 @@ public class SimulationTest {
                     .collect(Collectors.joining("", "```\n", "```\n"));
 
             String images = files.stream()
-                    .filter(p -> p.toString().endsWith("png"))
+                    .filter(p -> p.toString().endsWith("png"    ))
                     .map(p -> {
                         String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
-                                + "simulation/src/test/resources/"
+                                + "simulation/src/test/resources/txt/"
                                 + p.getFileName();
                         return String.format(
                                 "%n## %s%n"
