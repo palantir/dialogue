@@ -99,7 +99,8 @@ public enum Strategy {
         Random pseudoRandom = new Random(21735712L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             ImmutableList<LimitedChannel> limitedChannels = channels.stream()
-                    .map(UnlimitedChannel::new)
+                    .map(addConcurrencyLimiter(sim))
+                    // .map(UnlimitedChannel::new)
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(ImmutableList.toImmutableList());
             LimitedChannel limited = new PreferLowestUtilization(limitedChannels, pseudoRandom);
