@@ -487,20 +487,22 @@ public class SimulationTest {
 
     private static String buildImagesTable() throws IOException {
         try (Stream<Path> files = Files.list(Paths.get("src/test/resources"))) {
-            return files.filter(p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
+            return files.filter(
+                            p -> p.toString().endsWith("png") && !p.toString().endsWith(".prev.png"))
+                    .sorted(Comparator.comparing(Path::getFileName))
                     .map(p -> {
                         String githubLfsUrl = "https://media.githubusercontent.com/media/palantir/dialogue/develop/"
                                 + "simulation/src/test/resources/"
                                 + p.getFileName();
                         return String.format(
-                                "%n## %s%n"
+                                "%n## `%s`%n"
                                         + "<table><tr><th>develop</th><th>current</th></tr>%n"
                                         + "<tr>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
                                         + "<td><image width=400 src=\"%s\" /></td>"
                                         + "</tr>"
                                         + "</table>%n%n",
-                                p.getFileName(), githubLfsUrl, p.getFileName());
+                                p.getFileName().toString().replaceAll("\\.png", ""), githubLfsUrl, p.getFileName());
                     })
                     .collect(Collectors.joining());
         }
