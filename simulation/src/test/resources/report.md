@@ -19,9 +19,9 @@
              one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER].txt:	success=65.5%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1638, 500=862}
                  one_endpoint_dies_on_each_server[PIN_UNTIL_ERROR].txt:	success=63.8%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1596, 500=904}
                      one_endpoint_dies_on_each_server[ROUND_ROBIN].txt:	success=65.5%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1638, 500=862}
-                       simplest_possible_case[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT0.7992S      	server_cpu=PT26M38.4S     	client_received=2000/2000	server_resps=2000	codes={200=2000}
-                           simplest_possible_case[PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT1S           	server_cpu=PT33M20S       	client_received=2000/2000	server_resps=2000	codes={200=2000}
-                               simplest_possible_case[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.7992S      	server_cpu=PT26M38.4S     	client_received=2000/2000	server_resps=2000	codes={200=2000}
+                       simplest_possible_case[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT0.799939393S 	server_cpu=PT2H55M59.2S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
+                           simplest_possible_case[PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.998696969S 	server_cpu=PT3H39M42.8S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
+                               simplest_possible_case[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.799939393S 	server_cpu=PT2H55M59.2S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
                         slow_503s_then_revert[CONCURRENCY_LIMITER].txt:	success=100.0%	client_mean=PT0.736112444S 	server_cpu=PT36M48.33733331S	client_received=3000/3000	server_resps=3416	codes={200=3000}
                             slow_503s_then_revert[PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.337337888S 	server_cpu=PT16M52.013666631S	client_received=3000/3000	server_resps=3197	codes={200=3000}
                                 slow_503s_then_revert[ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.410522888S 	server_cpu=PT1H10M31.568666642S	client_received=3000/3000	server_resps=3810	codes={200=3000}

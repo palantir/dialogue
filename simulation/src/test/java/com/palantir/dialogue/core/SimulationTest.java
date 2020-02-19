@@ -119,8 +119,8 @@ public class SimulationTest {
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(100)
-                .sendUntil(Duration.ofSeconds(20))
+                .requestsPerSecond(11)
+                .sendUntil(Duration.ofMinutes(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .run();
