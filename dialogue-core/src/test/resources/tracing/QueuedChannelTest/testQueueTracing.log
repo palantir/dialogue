@@ -1,0 +1,2 @@
+{"traceId":"4bae106055b2e608","parentSpanId":null,"spanId":"966d97447c98ae5f","type":"LOCAL","operation":"Dialogue-request-enqueued","startTimeMicroSeconds":1582154264143361,"durationNanoSeconds":7982132,"metadata":{}}
+{"traceId":"272403cbb37f6337","parentSpanId":null,"spanId":"ae32113156fa6549","type":"LOCAL","operation":"Dialogue-request-enqueued","startTimeMicroSeconds":1582154264144283,"durationNanoSeconds":9593161,"metadata":{}}

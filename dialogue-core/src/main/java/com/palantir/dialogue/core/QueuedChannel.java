@@ -28,6 +28,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.tracing.DetachedSpan;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
@@ -97,7 +98,12 @@ final class QueuedChannel implements Channel {
             return result;
         }
 
-        DeferredCall components = ImmutableDeferredCall.of(endpoint, request, SettableFuture.create());
+        DeferredCall components = DeferredCall.builder()
+                .endpoint(endpoint)
+                .request(request)
+                .response(SettableFuture.create())
+                .span(DetachedSpan.start("Dialogue-request-enqueued"))
+                .build();
 
         if (!queuedCalls.offer(components)) {
             return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
@@ -142,6 +148,7 @@ final class QueuedChannel implements Channel {
                 delegate.maybeExecute(components.endpoint(), components.request());
 
         if (response.isPresent()) {
+            components.span().complete();
             numRunningRequests.incrementAndGet();
             response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
             Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
@@ -200,13 +207,18 @@ final class QueuedChannel implements Channel {
 
     @Value.Immutable
     interface DeferredCall {
-        @Value.Parameter
         Endpoint endpoint();
 
-        @Value.Parameter
         Request request();
 
-        @Value.Parameter
         SettableFuture<Response> response();
+
+        DetachedSpan span();
+
+        class Builder extends ImmutableDeferredCall.Builder {}
+
+        static Builder builder() {
+            return new Builder();
+        }
     }
 }

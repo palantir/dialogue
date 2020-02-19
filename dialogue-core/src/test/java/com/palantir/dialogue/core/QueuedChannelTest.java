@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -43,7 +44,6 @@ import org.mockito.stubbing.OngoingStubbing;
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
-
     private static final MetricName NUM_QUEUED_METRIC = MetricName.builder()
             .safeName("com.palantir.conjure.java.dispatcher.calls.queued")
             .build();
@@ -124,10 +124,27 @@ public class QueuedChannelTest {
         mockNoCapacity();
         queuedChannel.execute(endpoint, request);
         verify(delegate, times(3)).maybeExecute(endpoint, request);
-
         futureResponse.set(mockResponse);
 
         verify(delegate, times(4)).maybeExecute(endpoint, request);
+    }
+
+    @Test
+    @TestTracing(snapshot = true)
+    public void testQueueTracing() {
+        // Put requests on queue
+        mockNoCapacity();
+        queuedChannel.execute(endpoint, request);
+        queuedChannel.execute(endpoint, request);
+        verify(delegate, times(4)).maybeExecute(endpoint, request);
+
+        // flush queue by completing a request
+        mockHasCapacity();
+        queuedChannel.execute(endpoint, request);
+        verify(delegate, times(5)).maybeExecute(endpoint, request);
+        futureResponse.set(mockResponse);
+
+        verify(delegate, times(7)).maybeExecute(endpoint, request);
     }
 
     @Test
