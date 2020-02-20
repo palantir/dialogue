@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
@@ -36,6 +37,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -137,5 +139,19 @@ public final class ChannelsTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(NoClassDefFoundError.class);
+    }
+
+    @Test
+    @TestTracing(snapshot = true)
+    public void traces_on_retries() throws Exception {
+        when(response.code()).thenReturn(429);
+        channel.execute(endpoint, request).get();
+    }
+
+    @Test
+    @TestTracing(snapshot = true)
+    public void traces_on_succes() throws Exception {
+        when(response.code()).thenReturn(200);
+        channel.execute(endpoint, request).get();
     }
 }

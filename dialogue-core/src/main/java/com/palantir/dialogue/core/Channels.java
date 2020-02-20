@@ -46,16 +46,18 @@ public final class Channels {
                 .map(channel -> new DeprecationWarningChannel(channel, clientMetrics))
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
-                .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
+                .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                 .map(ContentDecodingChannel::new)
                 .map(concurrencyLimiter(config))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
         Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new NeverThrowChannel(channel);
+        channel = new TracedChannel(channel, "Dialogue-request");
 
         return channel;
     }
