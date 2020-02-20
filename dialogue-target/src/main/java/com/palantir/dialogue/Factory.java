@@ -14,20 +14,9 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue;
 
-import java.io.Closeable;
-import java.util.function.Supplier;
+public interface Factory<T> {
 
-public interface Listenable<T> extends Supplier<T> {
-
-    T get();
-
-    default Subscription subscribe(Runnable updateListener) {
-        throw new UnsupportedOperationException("TODO dfox build live reloading support");
-    }
-
-    interface Subscription extends Closeable {
-        void close();
-    }
+    T newInstance();
 }

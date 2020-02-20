@@ -14,12 +14,20 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue;
 
-import com.palantir.dialogue.Channel;
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 
-public interface RawChannel extends Channel {
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface DialogueInterface {
 
-    String host();
-
+    /**
+     *  A factory class with a zero-arg constructor that can be used to construct an instance of this dialogue
+     * interface using reflection.
+     */
+    Class<? extends Factory<?>> value();
 }

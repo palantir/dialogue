@@ -35,8 +35,8 @@ public final class ClientConfig {
     private ClientConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
-        this.rawClientType = builder.rawClientType;
-        this.userAgent = builder.userAgent;
+        this.rawClientType = Preconditions.checkNotNull(builder.rawClientType, "rawClientType");
+        this.userAgent = Preconditions.checkNotNull(builder.userAgent, "userAgent");
     }
 
     public static Builder builder() {

@@ -20,7 +20,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.URI;
-import jdk.internal.net.http.websocket.RawChannel;
 
 public class ClientPoolImpl implements ClientPool {
     @Override
@@ -34,7 +33,7 @@ public class ClientPoolImpl implements ClientPool {
     }
 
     @Override
-    public RawChannel rawChannel(URI uri, Listenable<ClientConfig> config) {
+    public Channel rawChannel(URI uri, Listenable<ClientConfig> config) {
         ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
 
         // TODO(dfox): jokes we can't directly compile against any of the impls as this would be circular... SERVICELOAD
@@ -51,7 +50,7 @@ public class ClientPoolImpl implements ClientPool {
         }
 
         throw new SafeIllegalArgumentException(
-                "Unable to construct a raw channel from type", SafeArg.of("type", clientConfig.rawClientType));
+                "Unable to construct a raw channel", SafeArg.of("type", clientConfig.rawClientType));
     }
 
     @Override

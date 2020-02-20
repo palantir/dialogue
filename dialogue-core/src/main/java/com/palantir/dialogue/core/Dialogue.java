@@ -26,11 +26,15 @@ public final class Dialogue {
      * server shuts down to release resources.
      */
     @MustBeClosed
-    public ClientPool newClientPool() {
+    public static ClientPool newClientPool() {
         // TODO(dfox): keep track of how many times people call this in a single JVM and maybe log?
         // TODO(dfox): will we ever want to pass in pool-level params? do we need a builder from the beginning?
         return new ClientPoolImpl();
     }
 
     private Dialogue() {}
+
+    public static void instantiate() {
+
+    }
 }
