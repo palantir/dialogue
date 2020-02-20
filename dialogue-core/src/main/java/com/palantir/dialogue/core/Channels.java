@@ -27,11 +27,10 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class Channels {
-    private static final Logger log = LoggerFactory.getLogger(Channels.class);
+
+    private static final int MAX_REQUESTS_PER_CHANNEL = 256;
 
     private Channels() {}
 
@@ -49,6 +48,7 @@ public final class Channels {
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                 .map(ContentDecodingChannel::new)
                 .map(concurrencyLimiter(config))
+                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);

@@ -77,10 +77,9 @@ public final class OkHttpChannels {
 
     static {
         dispatcher = new Dispatcher(executionExecutor);
-        // Restricting concurrency is done elsewhere in ConcurrencyLimiters.
+        // Restricting concurrency is done elsewhere in ConcurrencyLimiters and FixedLimitedChannel.
         dispatcher.setMaxRequests(Integer.MAX_VALUE);
-        // Must be less than maxRequests so a single slow host does not block all requests
-        dispatcher.setMaxRequestsPerHost(256);
+        dispatcher.setMaxRequestsPerHost(Integer.MAX_VALUE);
     }
 
     /** Shared connection pool. */
