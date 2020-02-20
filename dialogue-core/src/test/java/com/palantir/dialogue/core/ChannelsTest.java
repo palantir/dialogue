@@ -142,18 +142,16 @@ public final class ChannelsTest {
     }
 
     @Test
-    @TestTracing
-    @SuppressWarnings("FutureReturnValueIgnored")
-    public void traces_on_retries() {
+    @TestTracing(snapshot = true)
+    public void traces_on_retries() throws Exception {
         when(response.code()).thenReturn(429);
-        channel.execute(endpoint, request);
+        channel.execute(endpoint, request).get();
     }
 
     @Test
     @TestTracing(snapshot = true)
-    @SuppressWarnings("FutureReturnValueIgnored")
-    public void traces_on_succes() {
+    public void traces_on_succes() throws Exception {
         when(response.code()).thenReturn(200);
-        channel.execute(endpoint, request);
+        channel.execute(endpoint, request).get();
     }
 }

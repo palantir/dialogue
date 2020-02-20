@@ -46,6 +46,7 @@ public final class Channels {
                 .map(channel -> new DeprecationWarningChannel(channel, clientMetrics))
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
+                .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                 .map(ContentDecodingChannel::new)
                 .map(concurrencyLimiter(config))
                 .collect(ImmutableList.toImmutableList());
