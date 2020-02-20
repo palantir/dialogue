@@ -62,7 +62,6 @@ allprojects {
 
 subprojects {
     apply plugin: 'java-library'
-    apply plugin: 'org.inferred.processors'
 
     sourceCompatibility = 1.8
 

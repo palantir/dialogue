@@ -28,6 +28,7 @@ import com.palantir.dialogue.core.Listenable;
 import com.palantir.dialogue.core.SharedResources;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.MalformedURLException;
 import java.net.ProxySelector;
@@ -100,7 +101,8 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
             }
 
             log.warn(
-                    "Unable to live-reload some configuration changes, ignoring them and using the old configuration",
+                    "Unable to live-reload some configuration changes, ignoring them and using the old configuration "
+                            + "{} {}",
                     SafeArg.of("old", params),
                     SafeArg.of("new", newParams));
         });
@@ -125,7 +127,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     }
 
     private static CloseableHttpClient createCloseableHttpClient(ConfigurationSubset conf) {
-        log.info("Constructing ClosableHttpClient with conf {}", conf);
+        log.info("Constructing ClosableHttpClient with conf {}", UnsafeArg.of("conf", conf));
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification, "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy.isPresent(), "Mesh proxy is not supported");
@@ -185,7 +187,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     }
 
     // can't use immutables because intellij complains of a cycles
-    static class ConfigurationSubset {
+    static final class ConfigurationSubset {
         private Duration connectTimeout;
 
         private Duration readTimeout;

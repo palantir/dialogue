@@ -45,7 +45,7 @@ final class SharedResourcesImpl implements SharedResources {
         Map<String, StoreImpl> map = stores.asMap();
         map.forEach((namespace, store) -> {
             try {
-                log.info("Closing store for namespace {}", namespace);
+                log.info("Closing store for namespace {}", SafeArg.of("namespace", namespace));
                 store.close();
             } catch (RuntimeException e) {
                 log.info("Failed to close store, resources may be leaked", SafeArg.of("namespace", namespace), e);

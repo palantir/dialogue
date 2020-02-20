@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.ConstructUsing;
 import com.palantir.dialogue.Factory;
 import com.palantir.logsafe.Preconditions;
@@ -27,15 +28,32 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-public final class ClientPoolImpl implements ClientPool {
+final class ClientPoolImpl implements ClientPool {
+    private static final Logger log = LoggerFactory.getLogger(ClientPoolImpl.class);
+    private static AtomicInteger instances = new AtomicInteger(0);
+
     private final SharedResources sharedResources = new SharedResourcesImpl();
+    private final ConjureRuntime runtime;
+
+    @SuppressWarnings("Slf4jLogsafeArgs")
+    ClientPoolImpl(ConjureRuntime runtime) {
+        this.runtime = runtime;
+
+        int instanceNumber = instances.incrementAndGet();
+        if (instanceNumber > 1) {
+            log.warn("Constructing ClientPool number {}, try to re-use the existing instance", instanceNumber);
+        }
+    }
 
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<DialogueConfig> config) {
         Channel channel = smartChannel(config);
-        return instantiateDialogueInterface(dialogueInterface, channel);
+        return instantiateDialogueInterface(dialogueInterface, channel, runtime);
     }
 
     @Override
@@ -65,7 +83,8 @@ public final class ClientPoolImpl implements ClientPool {
     }
 
     @VisibleForTesting
-    static <T> T instantiateDialogueInterface(Class<T> dialogueInterface, Channel smartChannel) {
+    static <T> T instantiateDialogueInterface(
+            Class<T> dialogueInterface, Channel smartChannel, ConjureRuntime runtime) {
         ConstructUsing annotation = dialogueInterface.getDeclaredAnnotation(ConstructUsing.class);
         Preconditions.checkNotNull(
                 annotation,
@@ -75,7 +94,7 @@ public final class ClientPoolImpl implements ClientPool {
         Class<?> factoryClass = annotation.value();
         // this is safe because the annotation constrains the value
         Factory<T> factory = (Factory<T>) invokeZeroArgConstructor(factoryClass);
-        return factory.construct(smartChannel);
+        return factory.construct(smartChannel, runtime);
     }
 
     private static <F> F invokeZeroArgConstructor(Class<F> factoryClass) {

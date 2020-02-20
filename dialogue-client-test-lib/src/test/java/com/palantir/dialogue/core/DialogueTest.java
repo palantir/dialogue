@@ -18,25 +18,38 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.ConstructUsing;
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Factory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
@@ -49,15 +62,17 @@ class DialogueTest {
 
     private static final ClientConfiguration LEGACY = createTestConfig("https://foo", "https://bar");
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
-    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(DialogueConfig.builder()
-            .from(LEGACY)
-            .httpClientType(DialogueConfig.HttpClientType.APACHE)
-            .userAgent(USER_AGENT)
-            .build());
+    private static final ConjureRuntime RUNTIME = DefaultConjureRuntime.builder().build();
+    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(
+            DialogueConfig.builder()
+                    .from(LEGACY)
+                    .httpClientType(DialogueConfig.HttpClientType.APACHE)
+                    .userAgent(USER_AGENT)
+                    .build());
 
     @Test
     void can_create_a_raw_apache_channel() throws Exception {
-        try (ClientPool clientPool = Dialogue.newClientPool()) {
+        try (ClientPool clientPool = Dialogue.newClientPool(RUNTIME)) {
 
             Channel channel = clientPool.rawHttpChannel("https://foo", listenableConfig);
             assertThat(channel).isNotNull();
@@ -70,12 +85,36 @@ class DialogueTest {
     }
 
     @Test
-    void dialogue_can_reflectively_instantiate_stuff() {
-        Channel channel = mock(Channel.class);
-        BlockingFooService instance = ClientPoolImpl.instantiateDialogueInterface(BlockingFooService.class, channel);
-        assertThat(instance).isInstanceOf(BlockingFooService.class);
+    void warns_when_live_reloading_is_impossible() throws Exception {
+        try (ClientPool clientPool = Dialogue.newClientPool(RUNTIME)) {
 
-        assertThat(instance.doSomething()).isEqualTo("Hello");
+            Channel channel = clientPool.rawHttpChannel("https://foo", listenableConfig);
+            assertThat(channel).isNotNull();
+
+            listenableConfig.setValue(DialogueConfig.builder()
+                    .httpClientType(DialogueConfig.HttpClientType.APACHE)
+                    .userAgent(USER_AGENT)
+                    .from(ClientConfiguration.builder()
+                            .from(LEGACY)
+                            .connectTimeout(Duration.ofSeconds(1))
+                            .build())
+                    .build());
+
+            ListenableFuture<Response> response =
+                    channel.execute(FakeEndpoint.INSTANCE, Request.builder().build());
+            assertThatThrownBy(() -> Futures.getUnchecked(response))
+                    .hasMessageContaining("java.net.UnknownHostException: foo");
+        }
+    }
+
+    @Test
+    void dialogue_can_reflectively_instantiate_stuff() throws Exception {
+        Channel channel = mock(Channel.class);
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(TestResponse.INSTANCE));
+        AsyncFooService instance = ClientPoolImpl.instantiateDialogueInterface(AsyncFooService.class, channel, RUNTIME);
+        assertThat(instance).isInstanceOf(AsyncFooService.class);
+
+        assertThat(instance.doSomething().get()).isEqualTo("Hello");
     }
 
     private static ClientConfiguration createTestConfig(String... uri) {
@@ -88,18 +127,26 @@ class DialogueTest {
                 .build();
     }
 
-    @ConstructUsing(BlockingFooService.MyFactory.class)
-    private interface BlockingFooService {
+    @ConstructUsing(AsyncFooService.MyFactory.class)
+    private interface AsyncFooService {
 
-        String doSomething();
+        ListenableFuture<String> doSomething();
 
-        class MyFactory implements Factory<BlockingFooService> {
+        class MyFactory implements Factory<AsyncFooService> {
             @Override
-            public BlockingFooService construct(Channel _channel) {
-                return new BlockingFooService() {
+            public AsyncFooService construct(Channel channel, ConjureRuntime runtime) {
+                return new AsyncFooService() {
+                    private Deserializer<String> stringDeserializer =
+                            runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+
                     @Override
-                    public String doSomething() {
-                        return "Hello";
+                    public ListenableFuture<String> doSomething() {
+                        Request request = Request.builder().build();
+                        ListenableFuture<Response> call = channel.execute(FakeEndpoint.INSTANCE, request);
+                        return Futures.transform(
+                                call,
+                                response -> stringDeserializer.deserialize(response),
+                                MoreExecutors.directExecutor());
                     }
                 };
             }
@@ -121,7 +168,7 @@ class DialogueTest {
 
         @Override
         public String serviceName() {
-            return "service";
+            return "MyService";
         }
 
         @Override
@@ -133,5 +180,27 @@ class DialogueTest {
         public String version() {
             return "1.0.0";
         }
+    }
+
+    private enum TestResponse implements Response {
+        INSTANCE;
+
+        @Override
+        public InputStream body() {
+            return new ByteArrayInputStream("\"Hello\"".getBytes(StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public int code() {
+            return 200;
+        }
+
+        @Override
+        public Map<String, List<String>> headers() {
+            return ImmutableMap.of("Content-Type", ImmutableList.of("application/json"));
+        }
+
+        @Override
+        public void close() {}
     }
 }

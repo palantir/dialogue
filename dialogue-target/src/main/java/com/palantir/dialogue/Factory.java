@@ -22,5 +22,5 @@ package com.palantir.dialogue;
  */
 public interface Factory<T> {
 
-    T construct(Channel channel);
+    T construct(Channel channel, ConjureRuntime runtime);
 }

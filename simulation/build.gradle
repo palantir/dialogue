@@ -1,5 +1,7 @@
+apply plugin: 'org.inferred.processors'
+
 versionsLock {
-  testProject()
+    testProject()
 }
 
 dependencies {

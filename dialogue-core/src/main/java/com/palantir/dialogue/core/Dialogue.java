@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.errorprone.annotations.MustBeClosed;
+import com.palantir.dialogue.ConjureRuntime;
 
 public final class Dialogue {
 
@@ -24,12 +25,11 @@ public final class Dialogue {
      * Facilitates creating many clients which all share the same connection pool and smart logic (including
      * concurrency limiters / blacklisting info etc). Should only create one of these per server. Close it when your
      * server shuts down to release resources.
+     * @param runtime
      */
     @MustBeClosed
-    public static ClientPool newClientPool() {
-        // TODO(dfox): keep track of how many times people call this in a single JVM and maybe log?
-        // TODO(dfox): will we ever want to pass in pool-level params? do we need a builder from the beginning?
-        return new ClientPoolImpl();
+    public static ClientPool newClientPool(ConjureRuntime runtime) {
+        return new ClientPoolImpl(runtime);
     }
 
     private Dialogue() {}

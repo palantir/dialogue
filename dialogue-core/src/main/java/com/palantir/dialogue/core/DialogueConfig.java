@@ -59,7 +59,7 @@ public final class DialogueConfig {
         private Class<? extends HttpChannelFactory> httpClientType;
         private UserAgent userAgent;
 
-        /** this method exists for backcompat reasons. */
+        /** this method exists to provide a seamless transition from conjure-java-runtime. */
         public Builder from(ClientConfiguration cjrClientConfig) {
             this.legacyClientConfiguration = cjrClientConfig;
             return this;
