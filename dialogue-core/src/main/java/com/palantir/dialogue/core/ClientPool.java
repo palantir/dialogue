@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
 import java.io.Closeable;
-import java.net.URI;
 
 /**
  * Facilitates creating many clients which all share the same connection pool and smart logic (including
@@ -40,7 +39,7 @@ public interface ClientPool extends Closeable {
      * Gets us a direct line to a single host within the specified Config. Live-reloads under the hood. The channel
      * will always fail if the specified uri is not listed in the latest version of the config.
      */
-    Channel rawChannel(URI uri, Listenable<ClientConfig> config);
+    Channel rawChannel(String uri, Listenable<ClientConfig> config);
 
     /**
      * Releases all underlying resources (e.g. connection pools). All previously returned clients will become

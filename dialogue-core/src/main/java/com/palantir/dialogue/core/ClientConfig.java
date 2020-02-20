@@ -19,11 +19,14 @@ package com.palantir.dialogue.core;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.logsafe.Preconditions;
+import java.util.List;
 
 /**
  * Configuration specifying everything necessary to talk to an abstract upstream 'service', with a number of
  * possible uris. Intended to give us the flexibility to not require the legacy conjure-java-runtime jars at some
  * point in the future.
+ *
+ * All getters package private initially.
  */
 public final class ClientConfig {
 
@@ -37,6 +40,10 @@ public final class ClientConfig {
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
         this.rawClientType = Preconditions.checkNotNull(builder.rawClientType, "rawClientType");
         this.userAgent = Preconditions.checkNotNull(builder.userAgent, "userAgent");
+    }
+
+    List<String> uris() {
+        return legacyClientConfiguration.uris();
     }
 
     public static Builder builder() {

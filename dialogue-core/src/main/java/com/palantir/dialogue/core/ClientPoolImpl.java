@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.Lists;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.DialogueFactory;
 import com.palantir.dialogue.Factory;
@@ -26,9 +27,10 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.net.URI;
+import java.util.List;
 
 public class ClientPoolImpl implements ClientPool {
+
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
         Channel channel = smartChannel(config);
@@ -37,11 +39,16 @@ public class ClientPoolImpl implements ClientPool {
 
     @Override
     public Channel smartChannel(Listenable<ClientConfig> config) {
-        return null;
+        ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
+
+        List<String> uris = clientConfig.uris();
+        List<Channel> channels = Lists.transform(uris, uri -> rawChannel(uri, config));
+
+        return Channels.create(channels, clientConfig.userAgent, clientConfig.legacyClientConfiguration);
     }
 
     @Override
-    public Channel rawChannel(URI uri, Listenable<ClientConfig> config) {
+    public Channel rawChannel(String uri, Listenable<ClientConfig> config) {
         ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
 
         // TODO(dfox): jokes we can't directly compile against any of the impls as this would be circular... SERVICELOAD
@@ -71,9 +78,9 @@ public class ClientPoolImpl implements ClientPool {
 
         Class<? extends Factory<?>> factoryClass = annotation.value();
         try {
-            // TODO(dfox): pass stuff to the constructor??
             Constructor<?> constructor = factoryClass.getDeclaredConstructors()[0];
             Preconditions.checkState(constructor.getParameterCount() == 0, "Constructor must be 0 arg");
+            // this is safe because the annotation constrains the value
             Factory<T> factory = (Factory<T>) constructor.newInstance();
             return factory.construct(smartChannel);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
