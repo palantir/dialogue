@@ -23,6 +23,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -40,6 +42,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 import org.mockito.stubbing.OngoingStubbing;
 
 @ExtendWith(MockitoExtension.class)
@@ -212,16 +215,60 @@ public class QueuedChannelTest {
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponseClosedOnCancel() {
-        mockNoCapacity();
-        ListenableFuture<Response> result = queuedChannel.execute(endpoint, request);
-        verify(delegate, times(2)).maybeExecute(endpoint, request);
+        Request queuedRequest =
+                Request.builder().pathParams(ImmutableMap.of("foo", "bar")).build();
+        when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = queuedChannel.execute(endpoint, queuedRequest);
+        verify(delegate, times(2)).maybeExecute(endpoint, queuedRequest);
 
-        result.cancel(true);
-        mockHasCapacity();
+        when(delegate.maybeExecute(endpoint, request))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
+        when(delegate.maybeExecute(endpoint, queuedRequest))
+                .thenAnswer((Answer<Optional<ListenableFuture<Response>>>) _invocation -> {
+                    // cancel from this invocation to simulate the race between cancellation and execution
+                    assertThat(result.cancel(true)).isTrue();
+                    return Optional.of(Futures.immediateFuture(mockResponse));
+                });
+        // Force scheduling
         queuedChannel.execute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, request);
-        futureResponse.set(mockResponse);
+        assertThat(result).isCancelled();
+        verify(delegate, times(1)).maybeExecute(endpoint, request);
         verify(mockResponse, times(1)).close();
+    }
+
+    @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
+    public void testQueuedResponsePropagatesCancel() {
+        Request queued = Request.builder().putHeaderParams("key", "val").build();
+        when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = queuedChannel.execute(endpoint, queued);
+        verify(delegate, times(2)).maybeExecute(endpoint, queued);
+
+        when(delegate.maybeExecute(endpoint, request))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
+        when(delegate.maybeExecute(endpoint, queued)).thenReturn(maybeResponse);
+        queuedChannel.execute(endpoint, request);
+        result.cancel(true);
+        assertThat(futureResponse).isCancelled();
+        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        verify(delegate, times(3)).maybeExecute(endpoint, queued);
+    }
+
+    @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
+    public void testQueuedResponseAvoidsExecutingCancelled() {
+        Request queued = Request.builder().putHeaderParams("key", "val").build();
+        when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = queuedChannel.execute(endpoint, queued);
+        verify(delegate, times(2)).maybeExecute(endpoint, queued);
+
+        assertThat(result.cancel(true)).isTrue();
+        when(delegate.maybeExecute(endpoint, request))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
+        queuedChannel.execute(endpoint, request);
+        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        // Should not have been invoked any more.
+        verify(delegate, times(2)).maybeExecute(endpoint, queued);
     }
 
     @SuppressWarnings("unchecked")

@@ -144,16 +144,33 @@ final class QueuedChannel implements Channel {
         if (components == null) {
             return false;
         }
-
+        SettableFuture<Response> queuedResponse = components.response();
+        // If the future has been completed (most likely via cancel) the call should not be queued.
+        // There's a race where cancel may be invoked between this check and execution, but the scheduled
+        // request will be quickly cancelled in that case.
+        if (queuedResponse.isDone()) {
+            return true;
+        }
         try (CloseableSpan ignored = components.span().childSpan("Dialogue-request-scheduled")) {
-            Optional<ListenableFuture<Response>> response =
+            Optional<ListenableFuture<Response>> maybeResponse =
                     delegate.maybeExecute(components.endpoint(), components.request());
 
-            if (response.isPresent()) {
+            if (maybeResponse.isPresent()) {
+                ListenableFuture<Response> response = maybeResponse.get();
                 components.span().complete();
                 numRunningRequests.incrementAndGet();
-                response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
-                Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
+                response.addListener(numRunningRequests::decrementAndGet, DIRECT);
+                Futures.addCallback(response, new ForwardAndSchedule(queuedResponse), DIRECT);
+                queuedResponse.addListener(
+                        () -> {
+                            if (queuedResponse.isCancelled()) {
+                                // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                                // here.
+                                // Currently cancel(false) will be converted to cancel(true)
+                                response.cancel(true);
+                            }
+                        },
+                        DIRECT);
                 return true;
             } else {
                 queuedCalls.addFirst(components);
