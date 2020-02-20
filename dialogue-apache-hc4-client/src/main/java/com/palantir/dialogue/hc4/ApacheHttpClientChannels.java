@@ -83,7 +83,7 @@ public final class ApacheHttpClientChannels {
                 .setDefaultSocketConfig(
                         SocketConfig.custom().setSoKeepAlive(true).build())
                 .evictIdleConnections(55, TimeUnit.SECONDS)
-                .setMaxConnPerRoute(1000)
+                .setMaxConnPerRoute(Integer.MAX_VALUE)
                 .setMaxConnTotal(Integer.MAX_VALUE)
                 // TODO(ckozak): proxy credentials
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))

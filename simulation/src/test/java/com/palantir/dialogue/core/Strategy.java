@@ -55,8 +55,10 @@ public enum Strategy {
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(addConcurrencyLimiter(sim))
+                    .map(addFixedLimiter())
+                    .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
         });
@@ -67,6 +69,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
+                    .map(addFixedLimiter())
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
@@ -77,8 +80,10 @@ public enum Strategy {
     private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(addConcurrencyLimiter(sim))
+                    .map(addFixedLimiter())
+                    .collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             return queuedChannelAndRetrying(sim, limited);
@@ -87,8 +92,10 @@ public enum Strategy {
 
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(Strategy::noOpLimitedChannel).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(Strategy::noOpLimitedChannel)
+                    .map(addFixedLimiter())
+                    .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited);
         });
@@ -97,6 +104,10 @@ public enum Strategy {
     private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel ->
                 new ConcurrencyLimitedChannel(channel, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
+    }
+
+    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter() {
+        return channel -> new FixedLimitedChannel(channel, 256);
     }
 
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
