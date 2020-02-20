@@ -75,7 +75,7 @@ final class QueuedChannel implements Channel {
     @VisibleForTesting
     @SuppressWarnings("FutureReturnValueIgnored")
     QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
-        this.delegate = delegate;
+        this.delegate = new NeverThrowLimitedChannel(delegate);
         this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
 
         metrics.callsQueued(queuedCalls::size);

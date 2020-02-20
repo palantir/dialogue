@@ -37,6 +37,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.OngoingStubbing;
 
@@ -112,6 +113,26 @@ public class QueuedChannelTest {
         mockHasCapacity();
         queuedChannel.execute(endpoint, request);
         verify(delegate, times(3)).maybeExecute(endpoint, request);
+    }
+
+    @Test
+    public void testQueuedRequestExecutedOnNextSubmission_throws() throws ExecutionException, InterruptedException {
+        Request queuedRequest = Mockito.mock(Request.class);
+        when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
+        ListenableFuture<Response> queuedFuture = queuedChannel.execute(endpoint, queuedRequest);
+        verify(delegate, times(2)).maybeExecute(endpoint, queuedRequest);
+        assertThat(queuedFuture).isNotDone();
+
+        futureResponse.set(mockResponse);
+        when(delegate.maybeExecute(endpoint, request)).thenReturn(maybeResponse);
+        when(delegate.maybeExecute(endpoint, queuedRequest)).thenThrow(new NullPointerException("expected"));
+        ListenableFuture<Response> completed = queuedChannel.execute(endpoint, request);
+        assertThat(completed).isDone();
+        assertThat(queuedFuture).isDone();
+        assertThat(completed.get()).isEqualTo(mockResponse);
+        assertThatThrownBy(queuedFuture::get).hasRootCauseMessage("expected");
+        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        verify(delegate, times(3)).maybeExecute(endpoint, queuedRequest);
     }
 
     @Test
