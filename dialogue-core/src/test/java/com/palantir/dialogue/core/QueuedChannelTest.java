@@ -117,16 +117,20 @@ public class QueuedChannelTest {
 
     @Test
     public void testQueuedRequestExecutedOnNextSubmission_throws() throws ExecutionException, InterruptedException {
+        // First request is limited by the channel and queued
         Request queuedRequest = Mockito.mock(Request.class);
         when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
         ListenableFuture<Response> queuedFuture = queuedChannel.execute(endpoint, queuedRequest);
         verify(delegate, times(2)).maybeExecute(endpoint, queuedRequest);
         assertThat(queuedFuture).isNotDone();
 
+        // Second request succeeds and the queued request is attempted, but throws an exception
         futureResponse.set(mockResponse);
         when(delegate.maybeExecute(endpoint, request)).thenReturn(maybeResponse);
         when(delegate.maybeExecute(endpoint, queuedRequest)).thenThrow(new NullPointerException("expected"));
         ListenableFuture<Response> completed = queuedChannel.execute(endpoint, request);
+        // Both results should be completed. The thrown exception should
+        // be converted into a failed future by NeverThrowLimitedChannel
         assertThat(completed).isDone();
         assertThat(queuedFuture).isDone();
         assertThat(completed.get()).isEqualTo(mockResponse);
