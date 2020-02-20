@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -33,38 +34,48 @@ final class FixedLimitedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(FixedLimitedChannel.class);
 
     private final LimitedChannel delegate;
-    private final AtomicInteger availablePermits;
+    private final AtomicInteger usedPermits = new AtomicInteger(0);
+    private final int totalPermits;
+    private final Runnable returnPermit;
 
-    FixedLimitedChannel(LimitedChannel delegate, int permits) {
+    FixedLimitedChannel(LimitedChannel delegate, int totalPermits) {
         this.delegate = delegate;
-        this.availablePermits = new AtomicInteger(permits);
+        this.totalPermits = totalPermits;
+        // Doesn't check for integer overflow, we don't have enough threads for that to occur.
+        Preconditions.checkArgument(totalPermits <= 1_000_000, "total permits must not exceed one million");
+        this.returnPermit = usedPermits::decrementAndGet;
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        // Doesn't check for integer overflow, we don't have enough threads for that to occur.
-        if (availablePermits.decrementAndGet() < 0) {
-            availablePermits.incrementAndGet();
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Permits have been exhausted",
-                        SafeArg.of("service", endpoint.serviceName()),
-                        SafeArg.of("endpoint", endpoint.endpointName()));
-            }
+        boolean optimisticallyAcquiredPermit = usedPermits.incrementAndGet() > totalPermits;
+        if (optimisticallyAcquiredPermit) {
+            returnPermit.run();
+            logExhaustion(endpoint);
             return Optional.empty();
         }
-        boolean resetPermit = true;
+        boolean resetOptimisticallyConsumedPermit = true;
         try {
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
-                result.get().addListener(availablePermits::incrementAndGet, MoreExecutors.directExecutor());
-                resetPermit = false;
+                result.get().addListener(returnPermit, MoreExecutors.directExecutor());
+                resetOptimisticallyConsumedPermit = false;
             }
             return result;
         } finally {
-            if (resetPermit) {
-                availablePermits.incrementAndGet();
+            if (resetOptimisticallyConsumedPermit) {
+                returnPermit.run();
             }
+        }
+    }
+
+    private void logExhaustion(Endpoint endpoint) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Permits have been exhausted",
+                    SafeArg.of("service", endpoint.serviceName()),
+                    SafeArg.of("endpoint", endpoint.endpointName()),
+                    SafeArg.of("totalPermits", totalPermits));
         }
     }
 }

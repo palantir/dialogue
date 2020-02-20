@@ -16,6 +16,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
@@ -45,5 +46,20 @@ class FixedLimitedChannelTest {
         result.cancel(false);
         assertThat(channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
                 .isPresent();
+    }
+
+    @Test
+    public void testPermitReturnedOnException() {
+        LimitedChannel delegate = Mockito.mock(LimitedChannel.class);
+        when(delegate.maybeExecute(any(), any())).thenThrow(new RuntimeException("expected"));
+        LimitedChannel channel = new FixedLimitedChannel(delegate, 1);
+        // Exceptions shouldn't be thrown, but shouldn't produce leaks either.
+        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
+                .isExactlyInstanceOf(RuntimeException.class)
+                .hasMessage("expected");
+        // If the second call results in am empty value, the first call failed to return a permit.
+        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
+                .isExactlyInstanceOf(RuntimeException.class)
+                .hasMessage("expected");
     }
 }
