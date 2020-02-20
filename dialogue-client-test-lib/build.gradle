@@ -3,6 +3,7 @@ dependencies {
     compile project(':dialogue-example')
 
     compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.conjure.java.runtime:keystores'
     compile 'com.squareup.okhttp3:mockwebserver'
     compile 'junit:junit'

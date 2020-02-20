@@ -148,7 +148,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isRepeatable() {
-            return false;
+            // TODO(#328): Binary bodies are not repeatable, however all our structured bodies are.
+            // Marking the entity repeatable allows proxy authentication to work.
+            return true;
         }
 
         @Override
