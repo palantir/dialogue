@@ -107,12 +107,13 @@ public final class ApacheHttpClientChannels {
                 .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                 .setDefaultAuthSchemeRegistry(
                         RegistryBuilder.<AuthSchemeProvider>create().build());
-        conf.proxyCredentials().ifPresent(credentials -> builder.setDefaultCredentialsProvider(
-                        new SingleCredentialsProvider(credentials))
-                .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
-                .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
-                        .register(AuthSchemes.BASIC, new BasicSchemeFactory())
-                        .build()));
+        conf.proxyCredentials().ifPresent(credentials -> {
+            builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
+                    .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
+                    .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
+                            .register(AuthSchemes.BASIC, new BasicSchemeFactory())
+                            .build());
+        });
         CloseableHttpClient client = builder.build();
         ImmutableList<Channel> channels = conf.uris().stream()
                 .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
