@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Clients are tolerant of unexpected response body
+  links:
+  - https://github.com/palantir/dialogue/pull/388
