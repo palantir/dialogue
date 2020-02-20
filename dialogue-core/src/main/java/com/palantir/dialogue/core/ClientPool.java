@@ -21,18 +21,17 @@ import java.io.Closeable;
 import java.io.IOException;
 
 /**
- * Facilitates creating many clients which all share the same connection pool and smart logic (including
- * concurrency limiters / blacklisting info etc. Should only create one of these per server. Close it when your
- * server shuts down to release resources.
+ * Facilitates creating many clients which all share the same connection pool. Should only create one of these per
+ * server. Close it when your server shuts down to release resources.
  */
 public interface ClientPool extends Closeable {
 
-    /** Returns a working implementation of the given dialogueInterface, hooked up to a smart channel underneath. */
+    /** Returns an implementation of the given dialogueInterface, hooked up to a fresh smart channel underneath. */
     <T> T get(Class<T> dialogueInterface, Listenable<DialogueConfig> config);
 
     /**
      * Returns a channel for interacting with the given abstract upstream service, which routes traffic
-     * appropriately to the various available nodes.
+     * appropriately to the various available nodes. Live-reloaded every time the urls change.
      */
     Channel smartChannel(Listenable<DialogueConfig> config);
 

@@ -93,16 +93,16 @@ class DialogueTest {
     }
 
     @Test
-    void can_create_a_raw_apache_channel() throws Exception {
+    void can_create_a_raw_channel() throws Exception {
         try (ClientPool clients = Dialogue.newClientPool(RUNTIME)) {
 
-            Channel channel = clients.rawHttpChannel("https://foo", listenableConfig);
-            assertThat(channel).isNotNull();
+            Channel rawChannel = clients.rawHttpChannel("https://foo", listenableConfig);
 
             ListenableFuture<Response> response =
-                    channel.execute(FakeEndpoint.INSTANCE, Request.builder().build());
+                    rawChannel.execute(FakeEndpoint.INSTANCE, Request.builder().build());
+
             assertThatThrownBy(() -> Futures.getUnchecked(response))
-                    .hasMessageContaining("foo: nodename nor servname provided, or not known");
+                    .hasMessageContaining("java.net.UnknownHostException: foo");
         }
     }
 
@@ -128,7 +128,7 @@ class DialogueTest {
     void dialogue_can_reflectively_instantiate_stuff() throws Exception {
         Channel channel = mock(Channel.class);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(TestResponse.INSTANCE));
-        AsyncFooService instance = ClientPoolImpl.instantiateDialogueInterface(AsyncFooService.class, channel, RUNTIME);
+        AsyncFooService instance = ClientPoolImpl.conjure(AsyncFooService.class, channel, RUNTIME);
         assertThat(instance).isInstanceOf(AsyncFooService.class);
 
         assertThat(instance.doSomething().get()).isEqualTo("Hello");

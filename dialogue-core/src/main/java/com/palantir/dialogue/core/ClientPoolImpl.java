@@ -50,17 +50,19 @@ final class ClientPoolImpl implements ClientPool {
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<DialogueConfig> config) {
         Channel channel = smartChannel(config);
-        return instantiateDialogueInterface(dialogueInterface, channel, runtime);
+        // Note: if you call this many times, you'll get entirely independent 'smart channel' instances, which means
+        // they each have their own idea about blacklisting / concurrency limiting etc.
+        return conjure(dialogueInterface, channel, runtime);
     }
 
     @Override
     public Channel smartChannel(Listenable<DialogueConfig> config) {
-        // This is a naive live reloading approach, as it throws away all kinds of useful state (active
-        // request count, blacklisting info etc).
+        // This is a naive approach to live reloading, as it throws away all kinds of useful state (e.g. active request
+        // count, blacklisting info etc).
         return RefreshingChannelFactory.RefreshingChannel.create(config::getListenableCurrentValue, conf -> {
             List<Channel> channels = conf.uris().stream()
                     .map(uri -> {
-                        // important that this re-uses resources under the hood, as we'll be calling it often!
+                        // important that this re-uses resources under the hood, as it gets called often!
                         return rawHttpChannel(uri, config);
                     })
                     .collect(Collectors.toList());
@@ -71,25 +73,31 @@ final class ClientPoolImpl implements ClientPool {
 
     @Override
     public Channel rawHttpChannel(String uri, Listenable<DialogueConfig> config) {
-        // TODO(dfox): allow people to live-reload the entire client type!
-        Class<? extends HttpChannelFactory> httpChannelFactory = config.getListenableCurrentValue().httpChannelFactory;
+        Class<? extends HttpChannelFactory> factoryClazz = config.getListenableCurrentValue().httpChannelFactory;
 
-        HttpChannelFactory channelFactory = getOnlyEnumConstant(httpChannelFactory);
+        config.subscribe(() -> {
+            if (config.getListenableCurrentValue().httpChannelFactory != factoryClazz) {
+                log.warn("Live-reloading the *type* of underlying http channel is not currently supported");
+            }
+        });
 
+        HttpChannelFactory channelFactory = getOnlyEnumConstant(factoryClazz);
+
+        // by passing in sharedResources, we're enable to avoid re-creating the expensive underlying clients
         return channelFactory.construct(uri, config, sharedResources);
     }
 
+    /** Just give me a working implementation of the provided conjure-generated interface. */
     @VisibleForTesting
-    static <T> T instantiateDialogueInterface(
-            Class<T> dialogueInterface, Channel smartChannel, ConjureRuntime runtime) {
+    static <T> T conjure(Class<T> dialogueInterface, Channel smartChannel, ConjureRuntime runtime) {
         ConstructUsing annotation = dialogueInterface.getDeclaredAnnotation(ConstructUsing.class);
         Preconditions.checkNotNull(
                 annotation,
-                "@DialogueInterface annotation must be present on interface",
+                "@ConstructUsing annotation must be present on interface",
                 SafeArg.of("interface", dialogueInterface.getName()));
 
         Class<?> factoryClass = annotation.value();
-        // this is safe because the annotation constrains the value
+        // this is safe because of the ConstructUsing annotation's type parameters
         Factory<T> factory = (Factory<T>) getOnlyEnumConstant(factoryClass);
         return factory.construct(smartChannel, runtime);
     }
