@@ -165,13 +165,17 @@ final class QueuedChannel implements Channel {
 
         @Override
         public void onSuccess(Response result) {
-            response.set(result);
+            if (!response.set(result)) {
+                result.close();
+            }
             schedule();
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            response.setException(throwable);
+            if (!response.setException(throwable)) {
+                log.info("Call failed after the future completed", throwable);
+            }
             schedule();
         }
     }

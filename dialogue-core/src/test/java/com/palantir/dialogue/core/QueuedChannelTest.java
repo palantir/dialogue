@@ -192,6 +192,21 @@ public class QueuedChannelTest {
         assertThat(gaugeValue(NUM_RUNNING_METRICS)).isZero();
     }
 
+    @Test
+    @SuppressWarnings("FutureReturnValueIgnored")
+    public void testQueuedResponseClosedOnCancel() {
+        mockNoCapacity();
+        ListenableFuture<Response> result = queuedChannel.execute(endpoint, request);
+        verify(delegate, times(2)).maybeExecute(endpoint, request);
+
+        result.cancel(true);
+        mockHasCapacity();
+        queuedChannel.execute(endpoint, request);
+        verify(delegate, times(3)).maybeExecute(endpoint, request);
+        futureResponse.set(mockResponse);
+        verify(mockResponse, times(1)).close();
+    }
+
     @SuppressWarnings("unchecked")
     private Integer gaugeValue(MetricName metric) {
         return ((Gauge<Integer>) metrics.getMetrics().get(metric)).getValue();
