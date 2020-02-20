@@ -26,7 +26,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.DialogueFactory;
+import com.palantir.dialogue.ConstructUsing;
 import com.palantir.dialogue.Factory;
 import java.nio.file.Paths;
 import org.assertj.core.api.Assertions;
@@ -42,7 +42,7 @@ class DialogueTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final ClientConfig CONFIG = ClientConfig.builder()
             .from(LEGACY)
-            .rawClientType(ClientConfig.HttpClientType.APACHE)
+            .httpClientType(ClientConfig.HttpClientType.APACHE)
             .userAgent(USER_AGENT)
             .build();
     private static final Listenable<ClientConfig> listenableConfig = () -> CONFIG;
@@ -76,7 +76,7 @@ class DialogueTest {
                 .build();
     }
 
-    @DialogueFactory(BlockingFooService.MyFactory.class)
+    @ConstructUsing(BlockingFooService.MyFactory.class)
     private interface BlockingFooService {
 
         String doSomething();

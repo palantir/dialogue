@@ -17,12 +17,11 @@
 package com.palantir.dialogue.core;
 
 import java.io.Closeable;
-import java.util.function.Supplier;
 
-public interface Listenable<T> extends Supplier<T> {
+public interface Listenable<T> {
 
-    @Override
-    T get();
+    // long method name just to make it obvious when something is not live reloading
+    T getListenableCurrentValue();
 
     default Subscription subscribe(Runnable _updateListener) {
         throw new UnsupportedOperationException("TODO dfox build live reloading support");

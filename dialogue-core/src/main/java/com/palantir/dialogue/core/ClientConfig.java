@@ -19,6 +19,8 @@ package com.palantir.dialogue.core;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.List;
 
 /**
@@ -28,17 +30,18 @@ import java.util.List;
  *
  * All getters package private initially.
  */
-@SuppressWarnings("VisibilityModifier") // TODO(dfox): switch to getters when we can be bothered
+@SuppressWarnings("VisibilityModifier")
 public final class ClientConfig {
 
-    final ClientConfiguration legacyClientConfiguration;
-    final HttpClientType httpClientType;
+    // TODO(dfox): switch to getters when we can be bothered
+    public final ClientConfiguration legacyClientConfiguration;
+    final Class<? extends HttpChannelFactory> httpClientType;
     final UserAgent userAgent;
 
     private ClientConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
-        this.httpClientType = Preconditions.checkNotNull(builder.httpClientType, "rawClientType");
+        this.httpClientType = Preconditions.checkNotNull(builder.httpClientType, "httpClientType");
         this.userAgent = Preconditions.checkNotNull(builder.userAgent, "userAgent");
     }
 
@@ -53,7 +56,7 @@ public final class ClientConfig {
     public static final class Builder {
 
         private ClientConfiguration legacyClientConfiguration;
-        private HttpClientType httpClientType;
+        private Class<? extends HttpChannelFactory> httpClientType;
         private UserAgent userAgent;
 
         /** this method exists for backcompat reasons. */
@@ -62,8 +65,8 @@ public final class ClientConfig {
             return this;
         }
 
-        public Builder rawClientType(HttpClientType rawType) {
-            this.httpClientType = rawType;
+        public Builder httpClientType(HttpClientType rawType) {
+            this.httpClientType = rawType.getFactoryClass();
             return this;
         }
 
@@ -78,9 +81,27 @@ public final class ClientConfig {
     }
 
     public enum HttpClientType {
-        APACHE,
-        OKHTTP,
-        HTTP_URL_CONNECTION,
-        JAVA9_HTTPCLIENT
+        APACHE("com.palantir.dialogue.hc4.DialogueApache"),
+        OKHTTP("TODO"),
+        HTTP_URL_CONNECTION("TODO"),
+        JAVA9_HTTPCLIENT("TODO");
+
+        private final String className;
+
+        HttpClientType(String className) {
+            this.className = className;
+        }
+
+        Class<? extends HttpChannelFactory> getFactoryClass() {
+            try {
+                return (Class<? extends HttpChannelFactory>) Class.forName(className);
+            } catch (ClassNotFoundException e) {
+                throw new SafeRuntimeException(
+                        "Unable to find HttpClientType, are you missing a dependency?",
+                        e,
+                        SafeArg.of("type", this.name()),
+                        SafeArg.of("class", className));
+            }
+        }
     }
 }

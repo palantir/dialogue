@@ -19,17 +19,18 @@ package com.palantir.dialogue.core;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Lists;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.DialogueFactory;
+import com.palantir.dialogue.ConstructUsing;
 import com.palantir.dialogue.Factory;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
 public final class ClientPoolImpl implements ClientPool {
+
+    private final SharedResources sharedResources = null;
 
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
@@ -39,7 +40,7 @@ public final class ClientPoolImpl implements ClientPool {
 
     @Override
     public Channel smartChannel(Listenable<ClientConfig> config) {
-        ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
+        ClientConfig clientConfig = config.getListenableCurrentValue(); // TODO(dfox): live reloading!
 
         List<String> uris = clientConfig.uris();
         List<Channel> channels = Lists.transform(uris, uri -> rawHttpChannel(uri, config));
@@ -48,44 +49,37 @@ public final class ClientPoolImpl implements ClientPool {
     }
 
     @Override
-    public Channel rawHttpChannel(String _uri, Listenable<ClientConfig> config) {
-        ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
+    public Channel rawHttpChannel(String uri, Listenable<ClientConfig> config) {
+        // TODO(dfox):
+        Class<? extends HttpChannelFactory> httpClientFactory = config.getListenableCurrentValue().httpClientType;
 
-        // TODO(dfox): jokes we can't directly compile against any of the impls as this would be circular... SERVICELOAD
-        switch (clientConfig.httpClientType) {
-            case APACHE:
-                // ApacheHttpClientChannels.create(clientConfig)
-                break;
-            case OKHTTP:
-                break;
-            case HTTP_URL_CONNECTION:
-                break;
-            case JAVA9_HTTPCLIENT:
-                break;
-        }
+        HttpChannelFactory channelFactory = invokeZeroArgConstructor(httpClientFactory);
 
-        throw new SafeIllegalArgumentException(
-                "Unable to construct a raw channel", SafeArg.of("type", clientConfig.httpClientType));
+        return channelFactory.construct(uri, config, sharedResources);
     }
 
     @VisibleForTesting
     static <T> T instantiate(Class<T> dialogueInterface, Channel smartChannel) {
-        DialogueFactory annotation = dialogueInterface.getDeclaredAnnotation(DialogueFactory.class);
+        ConstructUsing annotation = dialogueInterface.getDeclaredAnnotation(ConstructUsing.class);
         Preconditions.checkNotNull(
                 annotation,
                 "@DialogueInterface annotation must be present on interface",
                 SafeArg.of("interface", dialogueInterface.getName()));
 
-        Class<? extends Factory<?>> factoryClass = annotation.value();
+        Class<?> factoryClass = annotation.value();
+        // this is safe because the annotation constrains the value
+        Factory<T> factory = (Factory<T>) invokeZeroArgConstructor(factoryClass);
+        return factory.construct(smartChannel);
+    }
+
+    private static <F> F invokeZeroArgConstructor(Class<F> factoryClass) {
         try {
             Constructor<?> constructor = factoryClass.getDeclaredConstructors()[0];
             Preconditions.checkState(constructor.getParameterCount() == 0, "Constructor must be 0 arg");
-            // this is safe because the annotation constrains the value
-            Factory<T> factory = (Factory<T>) constructor.newInstance();
-            return factory.construct(smartChannel);
+            return (F) constructor.newInstance();
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new SafeRuntimeException(
-                    "Failed to reflectively instantiate", SafeArg.of("interface", dialogueInterface.getName()));
+                    "Failed to reflectively instantiate", SafeArg.of("interface", factoryClass.getName()));
         }
     }
 

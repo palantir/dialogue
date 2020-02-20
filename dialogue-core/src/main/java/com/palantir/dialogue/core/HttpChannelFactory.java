@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
-/**
- * Used with {@link com.palantir.dialogue.ConstructUsing} to allow reflective construction of
- * conjure-generated dialogue interfaces.
- */
-public interface Factory<T> {
+import com.palantir.dialogue.Channel;
 
-    T construct(Channel channel);
+/** Used with {@link com.palantir.dialogue.ConstructUsing} to allow reflective construction. */
+public interface HttpChannelFactory {
+
+    Channel construct(String uri, Listenable<ClientConfig> config, SharedResources sharedResources);
 }
