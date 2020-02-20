@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.logsafe.Preconditions;
 
@@ -25,11 +26,17 @@ import com.palantir.logsafe.Preconditions;
  * point in the future.
  */
 public final class ClientConfig {
-    private final ClientConfiguration legacyClientConfiguration;
+
+    // TODO(dfox): getters
+    final ClientConfiguration legacyClientConfiguration;
+    final RawClientType rawClientType;
+    final UserAgent userAgent;
 
     private ClientConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
+        this.rawClientType = builder.rawClientType;
+        this.userAgent = builder.userAgent;
     }
 
     public static Builder builder() {
@@ -39,6 +46,8 @@ public final class ClientConfig {
     public static class Builder {
 
         private ClientConfiguration legacyClientConfiguration;
+        private RawClientType rawClientType;
+        private UserAgent userAgent;
 
         /** this method exists for backcompat reasons. */
         public Builder from(ClientConfiguration cjrClientConfig) {
@@ -46,8 +55,25 @@ public final class ClientConfig {
             return this;
         }
 
+        public Builder rawClientType(RawClientType rawType) {
+            this.rawClientType = rawType;
+            return this;
+        }
+
+        public Builder userAgent(UserAgent value) {
+            this.userAgent = value;
+            return this;
+        }
+
         public ClientConfig build() {
             return new ClientConfig(this);
         }
+    }
+
+    public enum RawClientType {
+        APACHE,
+        OKHTTP,
+        HTTP_URL_CONNECTION,
+        JAVA9_HTTPCLIENT
     }
 }
