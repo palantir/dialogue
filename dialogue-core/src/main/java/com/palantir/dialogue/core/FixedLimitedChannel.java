@@ -42,7 +42,7 @@ final class FixedLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        // Doesn't check for integer underflow, we don't have enough threads for that to be possible
+        // Doesn't check for integer overflow, we don't have enough threads for that to occur.
         if (availablePermits.decrementAndGet() < 0) {
             availablePermits.incrementAndGet();
             if (log.isDebugEnabled()) {
