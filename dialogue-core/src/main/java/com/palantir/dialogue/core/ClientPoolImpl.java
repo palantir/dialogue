@@ -23,10 +23,7 @@ import com.palantir.dialogue.ConstructUsing;
 import com.palantir.dialogue.Factory;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
-import java.lang.reflect.Constructor;
-import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -77,7 +74,7 @@ final class ClientPoolImpl implements ClientPool {
         // TODO(dfox): allow people to live-reload the entire client type!
         Class<? extends HttpChannelFactory> httpChannelFactory = config.getListenableCurrentValue().httpChannelFactory;
 
-        HttpChannelFactory channelFactory = invokeZeroArgConstructor(httpChannelFactory);
+        HttpChannelFactory channelFactory = getOnlyEnumConstant(httpChannelFactory);
 
         return channelFactory.construct(uri, config, sharedResources);
     }
@@ -93,19 +90,14 @@ final class ClientPoolImpl implements ClientPool {
 
         Class<?> factoryClass = annotation.value();
         // this is safe because the annotation constrains the value
-        Factory<T> factory = (Factory<T>) invokeZeroArgConstructor(factoryClass);
+        Factory<T> factory = (Factory<T>) getOnlyEnumConstant(factoryClass);
         return factory.construct(smartChannel, runtime);
     }
 
-    private static <F> F invokeZeroArgConstructor(Class<F> factoryClass) {
-        try {
-            Constructor<?> constructor = factoryClass.getDeclaredConstructors()[0];
-            Preconditions.checkState(constructor.getParameterCount() == 0, "Constructor must be 0 arg");
-            return (F) constructor.newInstance();
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-            throw new SafeRuntimeException(
-                    "Failed to reflectively instantiate", SafeArg.of("interface", factoryClass.getName()));
-        }
+    private static <F> F getOnlyEnumConstant(Class<F> factoryClass) {
+        Preconditions.checkState(factoryClass.isEnum(), "Factory must be an enum");
+        Preconditions.checkState(factoryClass.getEnumConstants().length == 1, "Enum must have 1 value");
+        return factoryClass.getEnumConstants()[0];
     }
 
     @Override

@@ -59,23 +59,44 @@ class DialogueTest {
             Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),
             Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
             "keystore");
-
-    private static final ClientConfiguration LEGACY = createTestConfig("https://foo", "https://bar");
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final ConjureRuntime RUNTIME =
             DefaultConjureRuntime.builder().build();
-    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(
-            DialogueConfig.builder()
-                    .from(LEGACY)
-                    .httpClientType(DialogueConfig.HttpClientType.APACHE)
-                    .userAgent(USER_AGENT)
-                    .build());
+    private static final DialogueConfig FOO = DialogueConfig.builder()
+            .from(createTestConfig("https://foo"))
+            .httpClientType(DialogueConfig.HttpClientType.APACHE)
+            .userAgent(USER_AGENT)
+            .build();
+    private static final DialogueConfig NEW_URLS = DialogueConfig.builder()
+            .from(createTestConfig("https://baz"))
+            .httpClientType(DialogueConfig.HttpClientType.APACHE)
+            .userAgent(USER_AGENT)
+            .build();
+    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(FOO);
+
+    @Test
+    void live_reloads_urls() throws Exception {
+        try (ClientPool clients = Dialogue.newClientPool(RUNTIME)) {
+
+            // this is how I want people to interact with dialogue!
+            AsyncFooService asyncFooService = clients.get(AsyncFooService.class, listenableConfig);
+
+            assertThatThrownBy(asyncFooService.doSomething()::get)
+                    .hasMessageContaining("java.net.UnknownHostException: foo");
+
+            listenableConfig.setValue(NEW_URLS);
+
+            assertThatThrownBy(asyncFooService.doSomething()::get)
+                    .describedAs("urls live-reloaded under the hood!")
+                    .hasMessageContaining("java.net.UnknownHostException: baz");
+        }
+    }
 
     @Test
     void can_create_a_raw_apache_channel() throws Exception {
-        try (ClientPool clientPool = Dialogue.newClientPool(RUNTIME)) {
+        try (ClientPool clients = Dialogue.newClientPool(RUNTIME)) {
 
-            Channel channel = clientPool.rawHttpChannel("https://foo", listenableConfig);
+            Channel channel = clients.rawHttpChannel("https://foo", listenableConfig);
             assertThat(channel).isNotNull();
 
             ListenableFuture<Response> response =
@@ -96,15 +117,10 @@ class DialogueTest {
                     .httpClientType(DialogueConfig.HttpClientType.APACHE)
                     .userAgent(USER_AGENT)
                     .from(ClientConfiguration.builder()
-                            .from(LEGACY)
-                            .connectTimeout(Duration.ofSeconds(1))
+                            .from(createTestConfig("https://foo"))
+                            .connectTimeout(Duration.ofSeconds(1)) // produces a log.warn, but nothing assertable
                             .build())
                     .build());
-
-            ListenableFuture<Response> response =
-                    channel.execute(FakeEndpoint.INSTANCE, Request.builder().build());
-            assertThatThrownBy(() -> Futures.getUnchecked(response))
-                    .hasMessageContaining("java.net.UnknownHostException: foo");
         }
     }
 
@@ -128,29 +144,34 @@ class DialogueTest {
                 .build();
     }
 
-    @ConstructUsing(AsyncFooService.MyFactory.class)
+    /** This is an example of what I'd like conjure-java to generate. */
+    @ConstructUsing(MyFactory.class)
     private interface AsyncFooService {
-
         ListenableFuture<String> doSomething();
 
-        class MyFactory implements Factory<AsyncFooService> {
-            @Override
-            public AsyncFooService construct(Channel channel, ConjureRuntime runtime) {
-                return new AsyncFooService() {
-                    private Deserializer<String> stringDeserializer =
-                            runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+        // still fine to have a little static method here, but I don't expect people to use it much
+        static AsyncFooService of(Channel channel, ConjureRuntime runtime) {
+            return MyFactory.INSTANCE.construct(channel, runtime);
+        }
+    }
 
-                    @Override
-                    public ListenableFuture<String> doSomething() {
-                        Request request = Request.builder().build();
-                        ListenableFuture<Response> call = channel.execute(FakeEndpoint.INSTANCE, request);
-                        return Futures.transform(
-                                call,
-                                response -> stringDeserializer.deserialize(response),
-                                MoreExecutors.directExecutor());
-                    }
-                };
-            }
+    /** This is an example of what I'd like conjure-java to generate. */
+    enum MyFactory implements Factory<AsyncFooService> {
+        INSTANCE;
+
+        @Override
+        public AsyncFooService construct(Channel channel, ConjureRuntime runtime) {
+            return new AsyncFooService() {
+                private final Deserializer<String> stringDeserializer =
+                        runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+
+                @Override
+                public ListenableFuture<String> doSomething() {
+                    Request request = Request.builder().build();
+                    ListenableFuture<Response> call = channel.execute(FakeEndpoint.INSTANCE, request);
+                    return Futures.transform(call, stringDeserializer::deserialize, MoreExecutors.directExecutor());
+                }
+            };
         }
     }
 
@@ -164,7 +185,7 @@ class DialogueTest {
 
         @Override
         public HttpMethod httpMethod() {
-            return HttpMethod.POST;
+            return HttpMethod.GET;
         }
 
         @Override

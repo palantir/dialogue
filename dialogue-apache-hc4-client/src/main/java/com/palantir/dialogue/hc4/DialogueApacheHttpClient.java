@@ -69,12 +69,11 @@ import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class DialogueApacheHttpClient implements HttpChannelFactory {
+public enum DialogueApacheHttpClient implements HttpChannelFactory {
+    INSTANCE;
+
     private static final Logger log = LoggerFactory.getLogger(DialogueApacheHttpClient.class);
     private static final String STORE = "DialogueApacheHttpClient";
-
-    /** Zero-arg constructor allows reflective construction. */
-    public DialogueApacheHttpClient() {}
 
     @Override
     public Channel construct(String uri, Listenable<DialogueConfig> config, SharedResources sharedResources) {
@@ -150,7 +149,6 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                 .evictIdleConnections(55, TimeUnit.SECONDS)
                 .setMaxConnPerRoute(1000)
                 .setMaxConnTotal(Integer.MAX_VALUE)
-                // TODO(ckozak): proxy credentials
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy))
                 .disableAutomaticRetries()
                 // Must be disabled otherwise connections are not reused when client certificates are provided
