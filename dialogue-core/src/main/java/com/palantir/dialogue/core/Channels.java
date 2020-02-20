@@ -42,11 +42,10 @@ public final class Channels {
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
-                .map(channel -> new DeprecationWarningChannel(channel, clientMetrics))
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
-                .map(ContentDecodingChannel::new)
+                .map(LimitedChannelAdapter::new)
                 .map(concurrencyLimiter(config))
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL))
                 .collect(ImmutableList.toImmutableList());
@@ -56,6 +55,8 @@ public final class Channels {
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
+        channel = new DeprecationWarningChannel(channel, clientMetrics);
+        channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-request");
 
@@ -79,13 +80,13 @@ public final class Channels {
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<Channel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
+    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return ConcurrencyLimitedChannel::create;
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return UnlimitedChannel::new;
+                return Function.identity();
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
