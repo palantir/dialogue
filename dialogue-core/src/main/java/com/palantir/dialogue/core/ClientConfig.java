@@ -17,9 +17,20 @@
 package com.palantir.dialogue.core;
 
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.logsafe.Preconditions;
 
-/** Configuration specifying everything necessasry to talk to an upstream comprised of n nodes. */
-public final class DialogConfig {
+/**
+ * Configuration specifying everything necessary to talk to an abstract upstream 'service', with a number of
+ * possible uris. Intended to give us the flexibility to not require the legacy conjure-java-runtime jars at some
+ * point in the future.
+ */
+public final class ClientConfig {
+    private final ClientConfiguration legacyClientConfiguration;
+
+    private ClientConfig(Builder builder) {
+        this.legacyClientConfiguration =
+                Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
+    }
 
     public static Builder builder() {
         return new Builder();
@@ -27,14 +38,16 @@ public final class DialogConfig {
 
     public static class Builder {
 
+        private ClientConfiguration legacyClientConfiguration;
+
         /** this method exists for backcompat reasons. */
         public Builder from(ClientConfiguration cjrClientConfig) {
-            //TODO
+            this.legacyClientConfiguration = cjrClientConfig;
             return this;
         }
 
-        public DialogConfig build() {
-            return new DialogConfig();
+        public ClientConfig build() {
+            return new ClientConfig(this);
         }
     }
 }

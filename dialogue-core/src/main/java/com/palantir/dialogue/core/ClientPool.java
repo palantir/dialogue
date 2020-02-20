@@ -21,19 +21,27 @@ import java.io.Closeable;
 import java.net.URI;
 import jdk.internal.net.http.websocket.RawChannel;
 
+/**
+ * Facilitates creating many clients which all share the same connection pool and smart logic (including
+ * concurrency limiters / blacklisting info etc. Should only create one of these per server. Close it when your
+ * server shuts down to release resources.
+ */
 public interface ClientPool extends Closeable {
 
     /** Returns a working implementation of the given dialogueInterface, hooked up to a smart channel underneath. */
-    <T> T get(Class<T> dialogueInterface, String serviceName, Listenable<DialogConfig> config);
+    <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config);
 
-    /** Load balances nicely across hosts in the given {@link DialogConfig}. */
-    Channel smartChannel(String serviceName, ConfigSource configSupplier);
+    /**
+     * Returns a channel for interacting with the given abstract upstream service, which routes traffic
+     * appropriately to the various available nodes.
+     */
+    Channel smartChannel(Listenable<ClientConfig> config);
 
     /**
      * Gets us a direct line to a single host within the specified Config. Live-reloads under the hood. The channel
      * will always fail if the specified uri is not listed in the latest version of the config.
      */
-    RawChannel rawChannel(URI uri, String serviceName, ConfigSource configSupplier);
+    RawChannel rawChannel(URI uri, Listenable<ClientConfig> config);
 
     /**
      * Releases all underlying resources (e.g. connection pools). All previously returned clients will become
