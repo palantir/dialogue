@@ -49,9 +49,9 @@ class DialogueTest {
 
     private static final ClientConfiguration LEGACY = createTestConfig("https://foo", "https://bar");
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
-    private static final ListenableValue<ClientConfig> listenableConfig = new ListenableValue<>(ClientConfig.builder()
+    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(DialogueConfig.builder()
             .from(LEGACY)
-            .httpClientType(ClientConfig.HttpClientType.APACHE)
+            .httpClientType(DialogueConfig.HttpClientType.APACHE)
             .userAgent(USER_AGENT)
             .build());
 

@@ -22,7 +22,7 @@ import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
-import com.palantir.dialogue.core.ClientConfig;
+import com.palantir.dialogue.core.DialogueConfig;
 import com.palantir.dialogue.core.HttpChannelFactory;
 import com.palantir.dialogue.core.Listenable;
 import com.palantir.dialogue.core.SharedResources;
@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +65,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 import org.apache.http.protocol.HttpContext;
-import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,7 +76,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     public DialogueApacheHttpClient() {}
 
     @Override
-    public Channel construct(String uri, Listenable<ClientConfig> config, SharedResources sharedResources) {
+    public Channel construct(String uri, Listenable<DialogueConfig> config, SharedResources sharedResources) {
         CloseableHttpClient client = sharedResources
                 .getStore(STORE)
                 .getOrComputeIfAbsent(
@@ -89,7 +89,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
         return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
     }
 
-    private static CloseableHttpClient constructLiveReloadingClient(Listenable<ClientConfig> listenable) {
+    private static CloseableHttpClient constructLiveReloadingClient(Listenable<DialogueConfig> listenable) {
         ConfigurationSubset params = deriveSubsetWeCareAbout(listenable.getListenableCurrentValue());
 
         listenable.subscribe(() -> {
@@ -108,33 +108,31 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
         return createCloseableHttpClient(params);
     }
 
-    private static ConfigurationSubset deriveSubsetWeCareAbout(ClientConfig config) {
-        ClientConfiguration conf = config.legacyClientConfiguration;
+    private static ConfigurationSubset deriveSubsetWeCareAbout(DialogueConfig config) {
+        ClientConfiguration legacyConf = config.legacyClientConfiguration;
 
-        return ImmutableConfigurationSubset.builder()
-                .connectTimeout(conf.connectTimeout())
-                .readTimeout(conf.readTimeout())
-                .writeTimeout(conf.writeTimeout())
-                .sslSocketFactory(conf.sslSocketFactory())
-                .enableGcmCipherSuites(conf.enableGcmCipherSuites())
-                .fallbackToCommonNameVerification(conf.fallbackToCommonNameVerification())
-                .meshProxy(conf.meshProxy())
-                .proxy(conf.proxy())
-                .proxyCredentials(conf.proxyCredentials())
-                .build();
+        ConfigurationSubset conf = new ConfigurationSubset();
+        conf.connectTimeout = legacyConf.connectTimeout();
+        conf.readTimeout = legacyConf.readTimeout();
+        conf.writeTimeout = legacyConf.writeTimeout();
+        conf.sslSocketFactory = legacyConf.sslSocketFactory();
+        conf.enableGcmCipherSuites = legacyConf.enableGcmCipherSuites();
+        conf.fallbackToCommonNameVerification = legacyConf.fallbackToCommonNameVerification();
+        conf.meshProxy = legacyConf.meshProxy();
+        conf.proxy = legacyConf.proxy();
+        conf.proxyCredentials = legacyConf.proxyCredentials();
+        return conf;
     }
 
     private static CloseableHttpClient createCloseableHttpClient(ConfigurationSubset conf) {
         log.info("Constructing ClosableHttpClient with conf {}", conf);
         Preconditions.checkArgument(
-                !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
-        Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+                !conf.fallbackToCommonNameVerification, "fallback-to-common-name-verification is not supported");
+        Preconditions.checkArgument(!conf.meshProxy.isPresent(), "Mesh proxy is not supported");
 
-        long socketTimeoutMillis =
-                Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
-        int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
+        long socketTimeoutMillis = Math.max(conf.readTimeout.toMillis(), conf.writeTimeout.toMillis());
+        int connectTimeout = Ints.checkedCast(conf.connectTimeout.toMillis());
 
-        // TODO(ckozak): close resources? - they will be closed when SharedResources is closed!
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
@@ -151,7 +149,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                 .setMaxConnPerRoute(1000)
                 .setMaxConnTotal(Integer.MAX_VALUE)
                 // TODO(ckozak): proxy credentials
-                .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
+                .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy))
                 .disableAutomaticRetries()
                 // Must be disabled otherwise connections are not reused when client certificates are provided
                 .disableConnectionState()
@@ -161,9 +159,9 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                 .disableContentCompression()
                 .setSSLSocketFactory(
                         new SSLConnectionSocketFactory(
-                                conf.sslSocketFactory(),
+                                conf.sslSocketFactory,
                                 new String[] {"TLSv1.2"},
-                                conf.enableGcmCipherSuites()
+                                conf.enableGcmCipherSuites
                                         ? CipherSuites.allCipherSuites()
                                         : CipherSuites.fastCipherSuites(),
                                 new DefaultHostnameVerifier()))
@@ -173,7 +171,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                 .setDefaultAuthSchemeRegistry(
                         RegistryBuilder.<AuthSchemeProvider>create().build());
 
-        conf.proxyCredentials().ifPresent(credentials -> {
+        conf.proxyCredentials.ifPresent(credentials -> {
             builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
                     .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
@@ -181,28 +179,88 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                             .build());
         });
 
-        return builder.build();
+        CloseableHttpClient build = builder.build();
+        // resources will be closed by the 'SharedResources' class
+        return build;
     }
 
-    @Value.Immutable
-    interface ConfigurationSubset {
-        Duration connectTimeout();
+    // can't use immutables because intellij complains of a cycles
+    static class ConfigurationSubset {
+        private Duration connectTimeout;
 
-        Duration readTimeout();
+        private Duration readTimeout;
 
-        Duration writeTimeout();
+        private Duration writeTimeout;
 
-        boolean enableGcmCipherSuites();
+        private boolean enableGcmCipherSuites;
 
-        boolean fallbackToCommonNameVerification();
+        private boolean fallbackToCommonNameVerification;
 
-        Optional<BasicCredentials> proxyCredentials();
+        private Optional<BasicCredentials> proxyCredentials;
 
-        Optional<HostAndPort> meshProxy();
+        private Optional<HostAndPort> meshProxy;
 
-        ProxySelector proxy();
+        private ProxySelector proxy;
 
-        SSLSocketFactory sslSocketFactory();
+        private SSLSocketFactory sslSocketFactory;
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            ConfigurationSubset that = (ConfigurationSubset) o;
+            return enableGcmCipherSuites == that.enableGcmCipherSuites
+                    && fallbackToCommonNameVerification == that.fallbackToCommonNameVerification
+                    && connectTimeout.equals(that.connectTimeout)
+                    && readTimeout.equals(that.readTimeout)
+                    && writeTimeout.equals(that.writeTimeout)
+                    && proxyCredentials.equals(that.proxyCredentials)
+                    && meshProxy.equals(that.meshProxy)
+                    && proxy.equals(that.proxy)
+                    && sslSocketFactory.equals(that.sslSocketFactory);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                    connectTimeout,
+                    readTimeout,
+                    writeTimeout,
+                    enableGcmCipherSuites,
+                    fallbackToCommonNameVerification,
+                    proxyCredentials,
+                    meshProxy,
+                    proxy,
+                    sslSocketFactory);
+        }
+
+        @Override
+        public String toString() {
+            return "ConfigurationSubset{"
+                    + "connectTimeout="
+                    + connectTimeout
+                    + ", readTimeout="
+                    + readTimeout
+                    + ", writeTimeout="
+                    + writeTimeout
+                    + ", enableGcmCipherSuites="
+                    + enableGcmCipherSuites
+                    + ", fallbackToCommonNameVerification="
+                    + fallbackToCommonNameVerification
+                    + ", proxyCredentials="
+                    + proxyCredentials
+                    + ", meshProxy="
+                    + meshProxy
+                    + ", proxy="
+                    + proxy
+                    + ", sslSocketFactory="
+                    + sslSocketFactory
+                    + '}';
+        }
     }
 
     private static URL url(String uri) {

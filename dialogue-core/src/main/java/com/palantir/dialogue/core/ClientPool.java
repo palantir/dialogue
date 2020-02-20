@@ -28,20 +28,20 @@ import java.io.IOException;
 public interface ClientPool extends Closeable {
 
     /** Returns a working implementation of the given dialogueInterface, hooked up to a smart channel underneath. */
-    <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config);
+    <T> T get(Class<T> dialogueInterface, Listenable<DialogueConfig> config);
 
     /**
      * Returns a channel for interacting with the given abstract upstream service, which routes traffic
      * appropriately to the various available nodes.
      */
-    Channel smartChannel(Listenable<ClientConfig> config);
+    Channel smartChannel(Listenable<DialogueConfig> config);
 
     /**
      * Gets a direct channel to a single host within the specified Config. Live-reloads under the hood. The channel
      * will always fail if the specified uri is not listed in the latest version of the config. Somewhat dangerous
      * because this has no limits / failover.
      */
-    Channel rawHttpChannel(String uri, Listenable<ClientConfig> config);
+    Channel rawHttpChannel(String uri, Listenable<DialogueConfig> config);
 
     /**
      * Releases all underlying resources (e.g. connection pools). All previously returned clients will become

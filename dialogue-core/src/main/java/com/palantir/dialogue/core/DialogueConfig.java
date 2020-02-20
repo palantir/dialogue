@@ -31,14 +31,14 @@ import java.util.List;
  * All getters package private initially.
  */
 @SuppressWarnings("VisibilityModifier")
-public final class ClientConfig {
+public final class DialogueConfig {
 
     // TODO(dfox): switch to getters when we can be bothered
     public final ClientConfiguration legacyClientConfiguration;
     final Class<? extends HttpChannelFactory> httpChannelFactory;
     final UserAgent userAgent;
 
-    private ClientConfig(Builder builder) {
+    private DialogueConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
         this.httpChannelFactory = Preconditions.checkNotNull(builder.httpClientType, "httpClientType");
@@ -75,8 +75,8 @@ public final class ClientConfig {
             return this;
         }
 
-        public ClientConfig build() {
-            return new ClientConfig(this);
+        public DialogueConfig build() {
+            return new DialogueConfig(this);
         }
     }
 

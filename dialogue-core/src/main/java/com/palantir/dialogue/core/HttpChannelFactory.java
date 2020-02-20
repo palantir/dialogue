@@ -21,5 +21,5 @@ import com.palantir.dialogue.Channel;
 /** Used with {@link com.palantir.dialogue.ConstructUsing} to allow reflective construction. */
 public interface HttpChannelFactory {
 
-    Channel construct(String uri, Listenable<ClientConfig> config, SharedResources sharedResources);
+    Channel construct(String uri, Listenable<DialogueConfig> config, SharedResources sharedResources);
 }

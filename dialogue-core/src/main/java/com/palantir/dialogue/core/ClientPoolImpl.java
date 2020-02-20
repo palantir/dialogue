@@ -33,13 +33,13 @@ public final class ClientPoolImpl implements ClientPool {
     private final SharedResources sharedResources = new SharedResourcesImpl();
 
     @Override
-    public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
+    public <T> T get(Class<T> dialogueInterface, Listenable<DialogueConfig> config) {
         Channel channel = smartChannel(config);
         return instantiateDialogueInterface(dialogueInterface, channel);
     }
 
     @Override
-    public Channel smartChannel(Listenable<ClientConfig> config) {
+    public Channel smartChannel(Listenable<DialogueConfig> config) {
         // This is a naive live reloading approach, as it throws away all kinds of useful state (active
         // request count, blacklisting info etc).
         return RefreshingChannelFactory.RefreshingChannel.create(config::getListenableCurrentValue, conf -> {
@@ -55,7 +55,7 @@ public final class ClientPoolImpl implements ClientPool {
     }
 
     @Override
-    public Channel rawHttpChannel(String uri, Listenable<ClientConfig> config) {
+    public Channel rawHttpChannel(String uri, Listenable<DialogueConfig> config) {
         // TODO(dfox): allow people to live-reload the entire client type!
         Class<? extends HttpChannelFactory> httpChannelFactory = config.getListenableCurrentValue().httpChannelFactory;
 
