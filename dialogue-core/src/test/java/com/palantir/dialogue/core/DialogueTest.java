@@ -28,7 +28,6 @@ import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.DialogueFactory;
 import com.palantir.dialogue.Factory;
-import java.net.URI;
 import java.nio.file.Paths;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ class DialogueTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final ClientConfig CONFIG = ClientConfig.builder()
             .from(LEGACY)
-            .rawClientType(ClientConfig.RawClientType.APACHE)
+            .rawClientType(ClientConfig.HttpClientType.APACHE)
             .userAgent(USER_AGENT)
             .build();
     private static final Listenable<ClientConfig> listenableConfig = () -> CONFIG;
@@ -52,9 +51,9 @@ class DialogueTest {
     void can_create_a_raw_apache_channel() {
         try (ClientPool clientPool = Dialogue.newClientPool()) {
             Assertions.assertThatThrownBy(() -> {
-                        clientPool.rawChannel(URI.create("node1"), listenableConfig);
+                        clientPool.rawHttpChannel("node1", listenableConfig);
                     })
-                    .hasMessageContaining("APACHE"); // TODO service loading??
+                    .hasMessageContaining("APACHE"); // TODO(dfox): service loading??
         }
     }
 

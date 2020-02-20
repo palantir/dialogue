@@ -36,14 +36,16 @@ public interface ClientPool extends Closeable {
     Channel smartChannel(Listenable<ClientConfig> config);
 
     /**
-     * Gets us a direct line to a single host within the specified Config. Live-reloads under the hood. The channel
-     * will always fail if the specified uri is not listed in the latest version of the config.
+     * Gets a direct channel to a single host within the specified Config. Live-reloads under the hood. The channel
+     * will always fail if the specified uri is not listed in the latest version of the config. Somewhat dangerous
+     * because this has no limits / failover.
      */
-    Channel rawChannel(String uri, Listenable<ClientConfig> config);
+    Channel rawHttpChannel(String uri, Listenable<ClientConfig> config);
 
     /**
      * Releases all underlying resources (e.g. connection pools). All previously returned clients will become
      * non-functional after calling this. Call this at server shutdown time.
      */
+    @Override
     void close();
 }

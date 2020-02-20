@@ -28,17 +28,17 @@ import java.util.List;
  *
  * All getters package private initially.
  */
+@SuppressWarnings("VisibilityModifier") // TODO(dfox): switch to getters when we can be bothered
 public final class ClientConfig {
 
-    // TODO(dfox): getters
     final ClientConfiguration legacyClientConfiguration;
-    final RawClientType rawClientType;
+    final HttpClientType httpClientType;
     final UserAgent userAgent;
 
     private ClientConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
-        this.rawClientType = Preconditions.checkNotNull(builder.rawClientType, "rawClientType");
+        this.httpClientType = Preconditions.checkNotNull(builder.httpClientType, "rawClientType");
         this.userAgent = Preconditions.checkNotNull(builder.userAgent, "userAgent");
     }
 
@@ -50,10 +50,10 @@ public final class ClientConfig {
         return new Builder();
     }
 
-    public static class Builder {
+    public static final class Builder {
 
         private ClientConfiguration legacyClientConfiguration;
-        private RawClientType rawClientType;
+        private HttpClientType httpClientType;
         private UserAgent userAgent;
 
         /** this method exists for backcompat reasons. */
@@ -62,8 +62,8 @@ public final class ClientConfig {
             return this;
         }
 
-        public Builder rawClientType(RawClientType rawType) {
-            this.rawClientType = rawType;
+        public Builder rawClientType(HttpClientType rawType) {
+            this.httpClientType = rawType;
             return this;
         }
 
@@ -77,7 +77,7 @@ public final class ClientConfig {
         }
     }
 
-    public enum RawClientType {
+    public enum HttpClientType {
         APACHE,
         OKHTTP,
         HTTP_URL_CONNECTION,

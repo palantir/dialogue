@@ -21,13 +21,15 @@ import java.util.function.Supplier;
 
 public interface Listenable<T> extends Supplier<T> {
 
+    @Override
     T get();
 
-    default Subscription subscribe(Runnable updateListener) {
+    default Subscription subscribe(Runnable _updateListener) {
         throw new UnsupportedOperationException("TODO dfox build live reloading support");
     }
 
     interface Subscription extends Closeable {
+        @Override
         void close();
     }
 }

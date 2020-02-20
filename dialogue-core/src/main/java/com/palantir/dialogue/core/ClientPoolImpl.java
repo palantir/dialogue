@@ -29,7 +29,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 
-public class ClientPoolImpl implements ClientPool {
+public final class ClientPoolImpl implements ClientPool {
 
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
@@ -42,17 +42,17 @@ public class ClientPoolImpl implements ClientPool {
         ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
 
         List<String> uris = clientConfig.uris();
-        List<Channel> channels = Lists.transform(uris, uri -> rawChannel(uri, config));
+        List<Channel> channels = Lists.transform(uris, uri -> rawHttpChannel(uri, config));
 
         return Channels.create(channels, clientConfig.userAgent, clientConfig.legacyClientConfiguration);
     }
 
     @Override
-    public Channel rawChannel(String uri, Listenable<ClientConfig> config) {
+    public Channel rawHttpChannel(String _uri, Listenable<ClientConfig> config) {
         ClientConfig clientConfig = config.get(); // TODO(dfox): live reloading!
 
         // TODO(dfox): jokes we can't directly compile against any of the impls as this would be circular... SERVICELOAD
-        switch (clientConfig.rawClientType) {
+        switch (clientConfig.httpClientType) {
             case APACHE:
                 // ApacheHttpClientChannels.create(clientConfig)
                 break;
@@ -65,7 +65,7 @@ public class ClientPoolImpl implements ClientPool {
         }
 
         throw new SafeIllegalArgumentException(
-                "Unable to construct a raw channel", SafeArg.of("type", clientConfig.rawClientType));
+                "Unable to construct a raw channel", SafeArg.of("type", clientConfig.httpClientType));
     }
 
     @VisibleForTesting
