@@ -40,6 +40,7 @@ import java.nio.file.Paths;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 
+// has to live in a separate project to avoid IntelliJ complaining about a cycle
 class DialogueTest {
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),

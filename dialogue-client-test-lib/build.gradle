@@ -9,4 +9,9 @@ dependencies {
     compile 'junit:junit'
     compile 'org.assertj:assertj-core'
     compile 'org.mockito:mockito-core'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testRuntimeOnly 'org.slf4j:slf4j-simple'
+    testRuntimeOnly project(':dialogue-apache-hc4-client')
 }
