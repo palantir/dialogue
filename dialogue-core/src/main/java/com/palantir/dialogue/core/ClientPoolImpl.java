@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.Lists;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConstructUsing;
 import com.palantir.dialogue.Factory;
@@ -27,6 +26,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public final class ClientPoolImpl implements ClientPool {
 
@@ -40,17 +40,23 @@ public final class ClientPoolImpl implements ClientPool {
 
     @Override
     public Channel smartChannel(Listenable<ClientConfig> config) {
-        ClientConfig clientConfig = config.getListenableCurrentValue(); // TODO(dfox): live reloading!
+        // This is a naive live reloading approach, as it throws away all kinds of useful state (active
+        // request count, blacklisting info etc).
+        return RefreshingChannelFactory.RefreshingChannel.create(config::getListenableCurrentValue, conf -> {
+            List<Channel> channels = conf.uris().stream()
+                    .map(uri -> {
+                        // important that this re-uses resources under the hood, as we'll be calling it often!
+                        return rawHttpChannel(uri, config);
+                    })
+                    .collect(Collectors.toList());
 
-        List<String> uris = clientConfig.uris();
-        List<Channel> channels = Lists.transform(uris, uri -> rawHttpChannel(uri, config));
-
-        return Channels.create(channels, clientConfig.userAgent, clientConfig.legacyClientConfiguration);
+            return Channels.create(channels, conf.userAgent, conf.legacyClientConfiguration);
+        });
     }
 
     @Override
     public Channel rawHttpChannel(String uri, Listenable<ClientConfig> config) {
-        // TODO(dfox):
+        // TODO(dfox): allow people to live-reload the entire client type!
         Class<? extends HttpChannelFactory> httpClientFactory = config.getListenableCurrentValue().httpClientType;
 
         HttpChannelFactory channelFactory = invokeZeroArgConstructor(httpClientFactory);
