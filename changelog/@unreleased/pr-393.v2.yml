@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: QueuedChannel no longer leaks responses on cancel
+  links:
+  - https://github.com/palantir/dialogue/pull/393
