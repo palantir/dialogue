@@ -60,7 +60,7 @@ class DialogueTest {
     @Test
     void dialogue_can_reflectively_instantiate_stuff() {
         Channel channel = mock(Channel.class);
-        BlockingFooService instance = ClientPoolImpl.instantiate(BlockingFooService.class, channel);
+        BlockingFooService instance = ClientPoolImpl.instantiateDialogueInterface(BlockingFooService.class, channel);
         assertThat(instance).isInstanceOf(BlockingFooService.class);
 
         assertThat(instance.doSomething()).isEqualTo("Hello");

@@ -35,7 +35,7 @@ public final class ClientPoolImpl implements ClientPool {
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
         Channel channel = smartChannel(config);
-        return instantiate(dialogueInterface, channel);
+        return instantiateDialogueInterface(dialogueInterface, channel);
     }
 
     @Override
@@ -57,15 +57,15 @@ public final class ClientPoolImpl implements ClientPool {
     @Override
     public Channel rawHttpChannel(String uri, Listenable<ClientConfig> config) {
         // TODO(dfox): allow people to live-reload the entire client type!
-        Class<? extends HttpChannelFactory> httpClientFactory = config.getListenableCurrentValue().httpClientType;
+        Class<? extends HttpChannelFactory> httpChannelFactory = config.getListenableCurrentValue().httpChannelFactory;
 
-        HttpChannelFactory channelFactory = invokeZeroArgConstructor(httpClientFactory);
+        HttpChannelFactory channelFactory = invokeZeroArgConstructor(httpChannelFactory);
 
         return channelFactory.construct(uri, config, sharedResources);
     }
 
     @VisibleForTesting
-    static <T> T instantiate(Class<T> dialogueInterface, Channel smartChannel) {
+    static <T> T instantiateDialogueInterface(Class<T> dialogueInterface, Channel smartChannel) {
         ConstructUsing annotation = dialogueInterface.getDeclaredAnnotation(ConstructUsing.class);
         Preconditions.checkNotNull(
                 annotation,

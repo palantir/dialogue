@@ -15,25 +15,32 @@
  */
 package com.palantir.dialogue.hc4;
 
+import com.google.common.net.HostAndPort;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
+import com.palantir.dialogue.core.Channels;
 import com.palantir.dialogue.core.ClientConfig;
-import com.palantir.dialogue.core.Listenable;
 import com.palantir.dialogue.core.HttpChannelFactory;
+import com.palantir.dialogue.core.Listenable;
 import com.palantir.dialogue.core.SharedResources;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.MalformedURLException;
+import java.net.ProxySelector;
 import java.net.URL;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -58,8 +65,12 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 import org.apache.http.protocol.HttpContext;
+import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class DialogueApacheHttpClient implements HttpChannelFactory {
+    private static final Logger log = LoggerFactory.getLogger(Channels.class);
 
     /** Zero-arg constructor allows reflective construction. */
     public DialogueApacheHttpClient() {}
@@ -67,20 +78,53 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     @Override
     public Channel construct(String uri, Listenable<ClientConfig> config, SharedResources sharedResources) {
         CloseableHttpClient client = sharedResources
-                .getStore("apache")
+                .getStore("DialogueApacheHttpClient")
                 .getOrComputeIfAbsent(
-                        "client",
+                        "one-off-client-construction",
                         unused -> {
-                            return constructSharedResources(config); // this needs to live reload, not be recreated
+                            return constructLiveReloadingClient(config); // we'll re-use this instance every time
                         },
                         CloseableHttpClient.class);
 
         return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
     }
 
-    private CloseableHttpClient constructSharedResources(Listenable<ClientConfig> config) {
-        ClientConfiguration conf = config.getListenableCurrentValue().legacyClientConfiguration; // TODO(dfox): live reload?
+    private static CloseableHttpClient constructLiveReloadingClient(Listenable<ClientConfig> listenable) {
+        ConfigurationSubset params = deriveSubsetWeCareAbout(listenable.getListenableCurrentValue());
 
+        listenable.subscribe(() -> {
+            ConfigurationSubset newParams = deriveSubsetWeCareAbout(listenable.getListenableCurrentValue());
+            if (params.equals(newParams)) {
+                // this means users changed something which is irrelevant to us (e.g. a url)
+                return;
+            }
+
+            log.warn(
+                    "Unable to live-reload some configuration changes, ignoring them and using the old configuration",
+                    SafeArg.of("old", params),
+                    SafeArg.of("new", newParams));
+        });
+
+        return createCloseableHttpClient(params);
+    }
+
+    private static ConfigurationSubset deriveSubsetWeCareAbout(ClientConfig config) {
+        ClientConfiguration conf = config.legacyClientConfiguration;
+
+        return ImmutableConfigurationSubset.builder()
+                .connectTimeout(conf.connectTimeout())
+                .readTimeout(conf.readTimeout())
+                .writeTimeout(conf.writeTimeout())
+                .sslSocketFactory(conf.sslSocketFactory())
+                .enableGcmCipherSuites(conf.enableGcmCipherSuites())
+                .fallbackToCommonNameVerification(conf.fallbackToCommonNameVerification())
+                .meshProxy(conf.meshProxy())
+                .proxy(conf.proxy())
+                .proxyCredentials(conf.proxyCredentials())
+                .build();
+    }
+
+    private static CloseableHttpClient createCloseableHttpClient(ConfigurationSubset conf) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -88,7 +132,8 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
-        // TODO(ckozak): close resources?
+
+        // TODO(ckozak): close resources? - they will be closed when SharedResources is closed!
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
@@ -126,6 +171,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                 .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                 .setDefaultAuthSchemeRegistry(
                         RegistryBuilder.<AuthSchemeProvider>create().build());
+
         conf.proxyCredentials().ifPresent(credentials -> {
             builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
                     .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
@@ -133,7 +179,29 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
                             .register(AuthSchemes.BASIC, new BasicSchemeFactory())
                             .build());
         });
+
         return builder.build();
+    }
+
+    @Value.Immutable
+    interface ConfigurationSubset {
+        Duration connectTimeout();
+
+        Duration readTimeout();
+
+        Duration writeTimeout();
+
+        boolean enableGcmCipherSuites();
+
+        boolean fallbackToCommonNameVerification();
+
+        Optional<BasicCredentials> proxyCredentials();
+
+        Optional<HostAndPort> meshProxy();
+
+        ProxySelector proxy();
+
+        SSLSocketFactory sslSocketFactory();
     }
 
     private static URL url(String uri) {

@@ -35,13 +35,13 @@ public final class ClientConfig {
 
     // TODO(dfox): switch to getters when we can be bothered
     public final ClientConfiguration legacyClientConfiguration;
-    final Class<? extends HttpChannelFactory> httpClientType;
+    final Class<? extends HttpChannelFactory> httpChannelFactory;
     final UserAgent userAgent;
 
     private ClientConfig(Builder builder) {
         this.legacyClientConfiguration =
                 Preconditions.checkNotNull(builder.legacyClientConfiguration, "legacyClientConfiguration");
-        this.httpClientType = Preconditions.checkNotNull(builder.httpClientType, "httpClientType");
+        this.httpChannelFactory = Preconditions.checkNotNull(builder.httpClientType, "httpClientType");
         this.userAgent = Preconditions.checkNotNull(builder.userAgent, "userAgent");
     }
 
