@@ -16,7 +16,8 @@
 
 package com.palantir.dialogue;
 
+/** Must have a zero-arg constructor that can be invoked reflectively. */
 public interface Factory<T> {
 
-    T newInstance();
+    T construct(Channel channel);
 }

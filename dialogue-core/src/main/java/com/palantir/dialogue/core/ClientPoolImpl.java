@@ -16,15 +16,23 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.DialogueFactory;
+import com.palantir.dialogue.Factory;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URI;
 
 public class ClientPoolImpl implements ClientPool {
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
-        return null;
+        Channel channel = smartChannel(config);
+        return instantiate(dialogueInterface, channel);
     }
 
     @Override
@@ -51,6 +59,27 @@ public class ClientPoolImpl implements ClientPool {
 
         throw new SafeIllegalArgumentException(
                 "Unable to construct a raw channel", SafeArg.of("type", clientConfig.rawClientType));
+    }
+
+    @VisibleForTesting
+    static <T> T instantiate(Class<T> dialogueInterface, Channel smartChannel) {
+        DialogueFactory annotation = dialogueInterface.getDeclaredAnnotation(DialogueFactory.class);
+        Preconditions.checkNotNull(
+                annotation,
+                "@DialogueInterface annotation must be present on interface",
+                SafeArg.of("interface", dialogueInterface.getName()));
+
+        Class<? extends Factory<?>> factoryClass = annotation.value();
+        try {
+            // TODO(dfox): pass stuff to the constructor??
+            Constructor<?> constructor = factoryClass.getDeclaredConstructors()[0];
+            Preconditions.checkState(constructor.getParameterCount() == 0, "Constructor must be 0 arg");
+            Factory<T> factory = (Factory<T>) constructor.newInstance();
+            return factory.construct(smartChannel);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
+            throw new SafeRuntimeException(
+                    "Failed to reflectively instantiate", SafeArg.of("interface", dialogueInterface.getName()));
+        }
     }
 
     @Override

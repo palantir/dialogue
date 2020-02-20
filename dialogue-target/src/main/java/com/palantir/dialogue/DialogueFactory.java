@@ -23,7 +23,7 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface DialogueInterface {
+public @interface DialogueFactory {
 
     /**
      *  A factory class with a zero-arg constructor that can be used to construct an instance of this dialogue

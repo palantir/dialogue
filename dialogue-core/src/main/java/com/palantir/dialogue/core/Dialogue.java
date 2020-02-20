@@ -33,8 +33,4 @@ public final class Dialogue {
     }
 
     private Dialogue() {}
-
-    public static void instantiate() {
-
-    }
 }
