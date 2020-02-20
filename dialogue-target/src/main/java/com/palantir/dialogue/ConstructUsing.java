@@ -23,11 +23,11 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
-public @interface DialogueFactory {
+public @interface ConstructUsing {
 
     /**
-     *  A factory class with a zero-arg constructor that can be used to construct an instance of this dialogue
-     * interface using reflection.
+     *  A factory class with a zero-arg constructor that can be used to construct an instance of this interface using
+     *  reflection.
      */
     Class<? extends Factory<?>> value();
 }
