@@ -152,8 +152,8 @@ final class QueuedChannel implements Channel {
             return true;
         }
         try (CloseableSpan ignored = components.span().childSpan("Dialogue-request-scheduled")) {
-            Optional<ListenableFuture<Response>> maybeResponse =
-                    delegate.maybeExecute(components.endpoint(), components.request());
+            Endpoint endpoint = components.endpoint();
+            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, components.request());
 
             if (maybeResponse.isPresent()) {
                 ListenableFuture<Response> response = maybeResponse.get();
@@ -167,7 +167,13 @@ final class QueuedChannel implements Channel {
                                 // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
                                 // here.
                                 // Currently cancel(false) will be converted to cancel(true)
-                                response.cancel(true);
+                                if (!response.cancel(true) && log.isDebugEnabled()) {
+                                    log.debug(
+                                            "Failed to cancel delegate response, it should be reported by"
+                                                    + " ForwardAndSchedule logging",
+                                            SafeArg.of("service", endpoint.serviceName()),
+                                            SafeArg.of("endpoint", endpoint.endpointName()));
+                                }
                             }
                         },
                         DIRECT);
