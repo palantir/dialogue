@@ -28,6 +28,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -144,18 +145,20 @@ final class QueuedChannel implements Channel {
             return false;
         }
 
-        Optional<ListenableFuture<Response>> response =
-                delegate.maybeExecute(components.endpoint(), components.request());
+        try (CloseableSpan ignored = components.span().childSpan("Dialogue-request-scheduled")) {
+            Optional<ListenableFuture<Response>> response =
+                    delegate.maybeExecute(components.endpoint(), components.request());
 
-        if (response.isPresent()) {
-            components.span().complete();
-            numRunningRequests.incrementAndGet();
-            response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
-            Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
-            return true;
-        } else {
-            queuedCalls.addFirst(components);
-            return false;
+            if (response.isPresent()) {
+                components.span().complete();
+                numRunningRequests.incrementAndGet();
+                response.get().addListener(numRunningRequests::decrementAndGet, DIRECT);
+                Futures.addCallback(response.get(), new ForwardAndSchedule(components.response()), DIRECT);
+                return true;
+            } else {
+                queuedCalls.addFirst(components);
+                return false;
+            }
         }
     }
 
