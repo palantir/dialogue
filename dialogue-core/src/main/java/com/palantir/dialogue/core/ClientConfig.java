@@ -81,7 +81,7 @@ public final class ClientConfig {
     }
 
     public enum HttpClientType {
-        APACHE("com.palantir.dialogue.hc4.DialogueApache"),
+        APACHE("com.palantir.dialogue.hc4.DialogueApacheHttpClient"),
         OKHTTP("TODO"),
         HTTP_URL_CONNECTION("TODO"),
         JAVA9_HTTPCLIENT("TODO");

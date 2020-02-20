@@ -69,9 +69,4 @@ subprojects {
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Werror']
     }
-
-    dependencies {
-        annotationProcessor 'org.immutables:value'
-        compile 'org.immutables:value::annotations'
-    }
 }

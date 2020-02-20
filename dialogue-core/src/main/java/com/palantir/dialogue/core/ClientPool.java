@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
 import java.io.Closeable;
+import java.io.IOException;
 
 /**
  * Facilitates creating many clients which all share the same connection pool and smart logic (including
@@ -47,5 +48,5 @@ public interface ClientPool extends Closeable {
      * non-functional after calling this. Call this at server shutdown time.
      */
     @Override
-    void close();
+    void close() throws IOException;
 }

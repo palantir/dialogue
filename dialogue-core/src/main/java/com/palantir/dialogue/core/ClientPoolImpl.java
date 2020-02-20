@@ -23,14 +23,14 @@ import com.palantir.dialogue.Factory;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.util.List;
 import java.util.stream.Collectors;
 
 public final class ClientPoolImpl implements ClientPool {
-
-    private final SharedResources sharedResources = null;
+    private final SharedResources sharedResources = new SharedResourcesImpl();
 
     @Override
     public <T> T get(Class<T> dialogueInterface, Listenable<ClientConfig> config) {
@@ -90,5 +90,7 @@ public final class ClientPoolImpl implements ClientPool {
     }
 
     @Override
-    public void close() {}
+    public void close() throws IOException {
+        sharedResources.close();
+    }
 }

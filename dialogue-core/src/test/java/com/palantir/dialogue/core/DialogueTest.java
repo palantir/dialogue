@@ -17,9 +17,12 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -27,9 +30,14 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConstructUsing;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Factory;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.UrlBuilder;
 import java.nio.file.Paths;
-import org.assertj.core.api.Assertions;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 class DialogueTest {
@@ -38,22 +46,25 @@ class DialogueTest {
             Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
             "keystore");
 
-    private static final ClientConfiguration LEGACY = createTestConfig("node1", "node2");
+    private static final ClientConfiguration LEGACY = createTestConfig("https://foo", "https://bar");
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
-    private static final ClientConfig CONFIG = ClientConfig.builder()
+    private static final ListenableValue<ClientConfig> listenableConfig = new ListenableValue<>(ClientConfig.builder()
             .from(LEGACY)
             .httpClientType(ClientConfig.HttpClientType.APACHE)
             .userAgent(USER_AGENT)
-            .build();
-    private static final Listenable<ClientConfig> listenableConfig = () -> CONFIG;
+            .build());
 
     @Test
-    void can_create_a_raw_apache_channel() {
+    void can_create_a_raw_apache_channel() throws Exception {
         try (ClientPool clientPool = Dialogue.newClientPool()) {
-            Assertions.assertThatThrownBy(() -> {
-                        clientPool.rawHttpChannel("node1", listenableConfig);
-                    })
-                    .hasMessageContaining("APACHE"); // TODO(dfox): service loading??
+
+            Channel channel = clientPool.rawHttpChannel("https://foo", listenableConfig);
+            assertThat(channel).isNotNull();
+
+            ListenableFuture<Response> response =
+                    channel.execute(FakeEndpoint.INSTANCE, Request.builder().build());
+            assertThatThrownBy(() -> Futures.getUnchecked(response))
+                    .hasMessageContaining("foo: nodename nor servname provided, or not known");
         }
     }
 
@@ -91,6 +102,35 @@ class DialogueTest {
                     }
                 };
             }
+        }
+    }
+
+    private enum FakeEndpoint implements Endpoint {
+        INSTANCE;
+
+        @Override
+        public void renderPath(Map<String, String> _params, UrlBuilder url) {
+            url.pathSegment("/string");
+        }
+
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.POST;
+        }
+
+        @Override
+        public String serviceName() {
+            return "service";
+        }
+
+        @Override
+        public String endpointName() {
+            return "endpoint";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
         }
     }
 }

@@ -23,9 +23,7 @@ public interface Listenable<T> {
     // long method name just to make it obvious when something is not live reloading
     T getListenableCurrentValue();
 
-    default Subscription subscribe(Runnable _updateListener) {
-        throw new UnsupportedOperationException("TODO dfox build live reloading support");
-    }
+    Subscription subscribe(Runnable _updateListener);
 
     interface Subscription extends Closeable {
         @Override

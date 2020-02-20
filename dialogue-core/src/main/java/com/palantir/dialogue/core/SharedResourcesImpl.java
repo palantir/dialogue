@@ -22,6 +22,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import javax.annotation.concurrent.ThreadSafe;
@@ -41,8 +42,10 @@ final class SharedResourcesImpl implements SharedResources {
 
     @Override
     public void close() {
-        stores.asMap().forEach((namespace, store) -> {
+        Map<String, StoreImpl> map = stores.asMap();
+        map.forEach((namespace, store) -> {
             try {
+                log.info("Closing store for namespace {}", namespace);
                 store.close();
             } catch (RuntimeException e) {
                 log.info("Failed to close store, resources may be leaked", SafeArg.of("namespace", namespace), e);

@@ -22,7 +22,6 @@ import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
-import com.palantir.dialogue.core.Channels;
 import com.palantir.dialogue.core.ClientConfig;
 import com.palantir.dialogue.core.HttpChannelFactory;
 import com.palantir.dialogue.core.Listenable;
@@ -70,7 +69,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class DialogueApacheHttpClient implements HttpChannelFactory {
-    private static final Logger log = LoggerFactory.getLogger(Channels.class);
+    private static final Logger log = LoggerFactory.getLogger(DialogueApacheHttpClient.class);
+    private static final String STORE = "DialogueApacheHttpClient";
 
     /** Zero-arg constructor allows reflective construction. */
     public DialogueApacheHttpClient() {}
@@ -78,7 +78,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     @Override
     public Channel construct(String uri, Listenable<ClientConfig> config, SharedResources sharedResources) {
         CloseableHttpClient client = sharedResources
-                .getStore("DialogueApacheHttpClient")
+                .getStore(STORE)
                 .getOrComputeIfAbsent(
                         "one-off-client-construction",
                         unused -> {
@@ -125,6 +125,7 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
     }
 
     private static CloseableHttpClient createCloseableHttpClient(ConfigurationSubset conf) {
+        log.info("Constructing ClosableHttpClient with conf {}", conf);
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
