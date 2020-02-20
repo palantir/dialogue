@@ -102,8 +102,8 @@ public enum Strategy {
     }
 
     private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
-        return channel ->
-                new ConcurrencyLimitedChannel(channel, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
+        return channel -> new ConcurrencyLimitedChannel(
+                new LimitedChannelAdapter(channel), () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
     }
 
     private static Function<LimitedChannel, LimitedChannel> addFixedLimiter() {
