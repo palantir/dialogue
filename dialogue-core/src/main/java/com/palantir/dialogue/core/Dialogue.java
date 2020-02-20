@@ -25,7 +25,6 @@ public final class Dialogue {
      * Facilitates creating many clients which all share the same connection pool and smart logic (including
      * concurrency limiters / blacklisting info etc). Should only create one of these per server. Close it when your
      * server shuts down to release resources.
-     * @param runtime
      */
     @MustBeClosed
     public static ClientPool newClientPool(ConjureRuntime runtime) {

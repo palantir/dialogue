@@ -207,14 +207,15 @@ public final class DialogueApacheHttpClient implements HttpChannelFactory {
         private SSLSocketFactory sslSocketFactory;
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) {
+        @SuppressWarnings("CyclomaticComplexity")
+        public boolean equals(Object obj) {
+            if (this == obj) {
                 return true;
             }
-            if (o == null || getClass() != o.getClass()) {
+            if (obj == null || getClass() != obj.getClass()) {
                 return false;
             }
-            ConfigurationSubset that = (ConfigurationSubset) o;
+            ConfigurationSubset that = (ConfigurationSubset) obj;
             return enableGcmCipherSuites == that.enableGcmCipherSuites
                     && fallbackToCommonNameVerification == that.fallbackToCommonNameVerification
                     && connectTimeout.equals(that.connectTimeout)

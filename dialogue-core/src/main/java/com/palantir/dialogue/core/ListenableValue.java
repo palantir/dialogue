@@ -53,14 +53,18 @@ final class ListenableValue<T> implements Listenable<T> {
     public Subscription subscribe(Runnable updateListener) {
         for (ImmutableList<Runnable> items = listeners.get();
                 !listeners.compareAndSet(items, add(items, updateListener));
-                items = listeners.get()) {}
+                items = listeners.get()) {
+            /* empty */
+        }
 
         return new Subscription() {
             @Override
             public void close() {
                 for (ImmutableList<Runnable> items = listeners.get();
                         !listeners.compareAndSet(items, remove(items, updateListener));
-                        items = listeners.get()) {}
+                        items = listeners.get()) {
+                    /* empty */
+                }
             }
         };
     }
