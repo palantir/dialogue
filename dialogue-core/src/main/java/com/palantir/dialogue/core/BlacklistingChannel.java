@@ -33,6 +33,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -122,11 +123,8 @@ final class BlacklistingChannel implements LimitedChannel {
                 DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty(), endpoint)));
     }
 
-    // scheduled future
-    @SuppressWarnings("FutureReturnValueIgnored")
     private void blacklist(Endpoint endpoint) {
-        BlacklistState state = new BlacklistState(ticker.read() + duration.toNanos(), NUM_PROBATION_REQUESTS);
-        scheduler.schedule(state::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
+        BlacklistState state = new BlacklistState(duration, NUM_PROBATION_REQUESTS);
         perEndpointBlacklistState.put(endpoint, state);
     }
 
@@ -174,10 +172,12 @@ final class BlacklistingChannel implements LimitedChannel {
         private final AtomicBoolean inProbation = new AtomicBoolean();
         private final BlacklistUntil blacklistUntil;
         private final Probation probation;
+        private final ScheduledFuture<?> future;
 
-        BlacklistState(long blacklistUntilNanos, int probationPermits) {
-            this.blacklistUntil = new BlacklistUntil(blacklistUntilNanos);
+        BlacklistState(Duration duration, int probationPermits) {
+            this.blacklistUntil = new BlacklistUntil(ticker.read() + duration.toNanos());
             this.probation = new Probation(probationPermits);
+            this.future = scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
         }
 
         BlacklistStage maybeProgressAndGet() {
@@ -187,6 +187,7 @@ final class BlacklistingChannel implements LimitedChannel {
             if (ticker.read() >= blacklistUntil.untilNanos) {
                 if (inProbation.compareAndSet(false, true)) {
                     listener.ready();
+                    future.cancel(false);
                 }
                 return probation;
             }
