@@ -77,21 +77,26 @@ public class PinUntilErrorChannelTest {
 
     @Test
     public void various_error_status_codes_cause_node_switch() {
-        for (int errorStatus = 300; errorStatus < 600; errorStatus++) {
-            before();
-            setResponse(channel1, 100);
-            setResponse(channel2, 204);
-
-            assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
-                    .describedAs("Should be locked on to channel2 initially")
-                    .contains(204, 204, 204, 204, 204, 204);
-
-            setResponse(channel2, errorStatus);
-
-            assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
-                    .describedAs("A single error code should switch us to channel 1")
-                    .contains(errorStatus, 100, 100, 100, 100, 100);
+        testStatusCausesNodeSwitch(429);
+        for (int errorStatus = 500; errorStatus < 600; errorStatus++) {
+            testStatusCausesNodeSwitch(errorStatus);
         }
+    }
+
+    private void testStatusCausesNodeSwitch(int errorStatus) {
+        before();
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Should be locked on to channel2 initially")
+                .contains(204, 204, 204, 204, 204, 204);
+
+        setResponse(channel2, errorStatus);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("A single error code should switch us to channel 1")
+                .contains(errorStatus, 100, 100, 100, 100, 100);
     }
 
     @Test

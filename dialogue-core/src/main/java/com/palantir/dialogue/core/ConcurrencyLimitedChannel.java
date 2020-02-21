@@ -20,7 +20,6 @@ import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
@@ -92,7 +91,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
     private static final class LimiterCallback implements FutureCallback<Response> {
-        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429);
 
         private final Limiter.Listener listener;
 
@@ -102,7 +100,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
         @Override
         public void onSuccess(Response result) {
-            if (DROP_CODES.contains(result.code())) {
+            if (Responses.isTooManyRequests(result)) {
                 listener.onDropped();
             } else {
                 listener.onSuccess();

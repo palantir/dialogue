@@ -119,7 +119,7 @@ final class BlacklistingChannel implements LimitedChannel {
         @Override
         public void onSuccess(Response response) {
             // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
-            if (response.code() == 503 || response.code() == 500) {
+            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                 log.debug(
                         "Blacklisting {} due to status code {}",
                         UnsafeArg.of("delegate", delegate),
