@@ -318,7 +318,7 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void supportsGzipEncryptedResponse() throws Exception {
+    public void supportsGzipEncodedResponse() throws Exception {
         // drain enqueued response
         channel.execute(endpoint, request).get();
         server.takeRequest();
