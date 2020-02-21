@@ -142,7 +142,7 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testBlocking_voidToVoid_doesNotThrowsWhenResponseBodyIsNonEmpty() {
+    public void testBlocking_voidToVoid_doesNotThrowWhenResponseBodyIsNonEmpty() {
         server.enqueue(new MockResponse().setBody("Unexpected response"));
         blockingClient.voidToVoid();
     }
