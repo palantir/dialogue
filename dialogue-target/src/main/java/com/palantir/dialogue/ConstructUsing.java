@@ -29,5 +29,5 @@ public @interface ConstructUsing {
      *  A factory class with a zero-arg constructor that can be used to construct an instance of this interface using
      *  reflection.
      */
-    Class<? extends Factory<?>> value();
+    Class<Factory<?>> value();
 }

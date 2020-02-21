@@ -23,13 +23,14 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class ListenableValue<T> implements Listenable<T> {
-    private static final Logger log = LoggerFactory.getLogger(ListenableValue.class);
+// this is a test only implementation, I'd prefer to pass in Witchcraft's Refreshable
+final class TestListenableValue<T> implements Listenable<T> {
+    private static final Logger log = LoggerFactory.getLogger(TestListenableValue.class);
 
     private final AtomicReference<ImmutableList<Runnable>> listeners = new AtomicReference<>(ImmutableList.of());
     private volatile T value;
 
-    ListenableValue(T value) {
+    TestListenableValue(T value) {
         this.value = Preconditions.checkNotNull(value, "initial value");
     }
 

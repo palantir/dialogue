@@ -72,7 +72,7 @@ class DialogueTest {
             .httpClientType(DialogueConfig.HttpClientType.APACHE)
             .userAgent(USER_AGENT)
             .build();
-    private static final ListenableValue<DialogueConfig> listenableConfig = new ListenableValue<>(FOO);
+    private static final TestListenableValue<DialogueConfig> listenableConfig = new TestListenableValue<>(FOO);
 
     @Test
     void live_reloads_urls() throws Exception {
