@@ -14,34 +14,45 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.net.MalformedURLException;
 import java.net.URL;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class UrlBuilderTest {
 
     @Test
     public void differentProtocols() throws Exception {
-        assertThat(UrlBuilder.from(new URL("http://host:80")).build().toString())
+        assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("http://host:80"))
+                        .build()
+                        .toString())
                 .isEqualTo("http://host:80");
-        assertThat(UrlBuilder.from(new URL("https://host:80")).build().toString())
+        assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("https://host:80"))
+                        .build()
+                        .toString())
                 .isEqualTo("https://host:80");
     }
 
     @Test
     public void populatesDefaultPort() throws Exception {
-        assertThat(UrlBuilder.from(new URL("http://host")).build().toString()).isEqualTo("http://host:80");
-        assertThat(UrlBuilder.from(new URL("https://host")).build().toString()).isEqualTo("https://host:443");
+        assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("http://host"))
+                        .build()
+                        .toString())
+                .isEqualTo("http://host:80");
+        assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("https://host"))
+                        .build()
+                        .toString())
+                .isEqualTo("https://host:443");
     }
 
     @Test
     public void validatesPort() {
-        assertThatThrownBy(() -> UrlBuilder.from(new URL("http://host:65536")).build())
+        assertThatThrownBy(() -> BaseUrl.DefaultUrlBuilder.from(new URL("http://host:65536"))
+                        .build())
                 .hasMessage("port must be in range [0, 65535]");
     }
 
@@ -118,7 +129,7 @@ public final class UrlBuilderTest {
 
     @Test
     public void fullExample() throws Exception {
-        assertThat(UrlBuilder.from(new URL("https://host:80"))
+        assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("https://host:80"))
                         .pathSegment("foo")
                         .pathSegment("bar")
                         .queryParam("boom", "baz")
@@ -130,42 +141,43 @@ public final class UrlBuilderTest {
 
     @Test
     public void urlEncoder_isHost_acceptsHostsPerRfc() {
-        assertThat(UrlBuilder.UrlEncoder.isHost("aAzZ09!$&'()*+,;=")).isTrue();
-        assertThat(UrlBuilder.UrlEncoder.isHost("192.168.0.1")).isTrue();
-        assertThat(UrlBuilder.UrlEncoder.isHost("[2010:836B:4179::836B:4179]")).isTrue();
+        assertThat(BaseUrl.UrlEncoder.isHost("aAzZ09!$&'()*+,;=")).isTrue();
+        assertThat(BaseUrl.UrlEncoder.isHost("192.168.0.1")).isTrue();
+        assertThat(BaseUrl.UrlEncoder.isHost("[2010:836B:4179::836B:4179]")).isTrue();
 
-        assertThat(UrlBuilder.UrlEncoder.isHost("ö")).isFalse();
-        assertThat(UrlBuilder.UrlEncoder.isHost("#")).isFalse();
-        assertThat(UrlBuilder.UrlEncoder.isHost("@")).isFalse();
-        assertThat(UrlBuilder.UrlEncoder.isHost("2010:836B:4179::836B:4179")).isFalse();
+        assertThat(BaseUrl.UrlEncoder.isHost("ö")).isFalse();
+        assertThat(BaseUrl.UrlEncoder.isHost("#")).isFalse();
+        assertThat(BaseUrl.UrlEncoder.isHost("@")).isFalse();
+        assertThat(BaseUrl.UrlEncoder.isHost("2010:836B:4179::836B:4179")).isFalse();
     }
 
     @Test
     public void urlEncoder_encodePathSegment_onlyEncodesNonReservedChars() {
         String nonReserved = "aAzZ09!$&'()*+,;=";
-        assertThat(UrlBuilder.UrlEncoder.encodePathSegment(nonReserved)).isEqualTo(nonReserved);
-        assertThat(UrlBuilder.UrlEncoder.encodePathSegment("/")).isEqualTo("%2F");
+        assertThat(BaseUrl.UrlEncoder.encodePathSegment(nonReserved)).isEqualTo(nonReserved);
+        assertThat(BaseUrl.UrlEncoder.encodePathSegment("/")).isEqualTo("%2F");
     }
 
     @Test
     public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
         String nonReserved = "aAzZ09!$'()*+,;?/";
-        assertThat(UrlBuilder.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
-        assertThat(UrlBuilder.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
                 .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
-        assertThat(UrlBuilder.UrlEncoder.encodeQueryNameOrValue("&=")).isEqualTo("%26%3D");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("&=")).isEqualTo("%26%3D");
     }
 
     @Test
     public void newBuilderCopiesAllFields() throws Exception {
-        UrlBuilder original =
-                UrlBuilder.from(new URL("http://foo:42")).pathSegment("foo").queryParam("name", "value");
-        UrlBuilder copy = original.newBuilder();
+        BaseUrl.DefaultUrlBuilder original = BaseUrl.DefaultUrlBuilder.from(new URL("http://foo:42"))
+                .pathSegment("foo")
+                .queryParam("name", "value");
+        BaseUrl.DefaultUrlBuilder copy = original.newBuilder();
         original.pathSegment("foo-new").queryParam("name-new", "value-new");
         assertThat(copy.build().toString()).isEqualTo("http://foo:42/foo?name=value");
     }
 
-    private static UrlBuilder minimalUrl() throws MalformedURLException {
-        return UrlBuilder.from(new URL("http://host:80"));
+    private static BaseUrl.DefaultUrlBuilder minimalUrl() throws MalformedURLException {
+        return BaseUrl.DefaultUrlBuilder.from(new URL("http://host:80"));
     }
 }
