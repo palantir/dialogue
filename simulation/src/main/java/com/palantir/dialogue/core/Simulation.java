@@ -23,6 +23,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
@@ -78,6 +79,10 @@ final class Simulation {
 
     public Ticker clock() {
         return ticker; // read only!
+    }
+
+    public ScheduledExecutorService scheduler() {
+        return deterministicExecutor;
     }
 
     public CodahaleClock codahaleClock() {
