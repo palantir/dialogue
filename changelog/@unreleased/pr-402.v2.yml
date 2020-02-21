@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Centralize status code checks in a utility class
+  links:
+  - https://github.com/palantir/dialogue/pull/402
