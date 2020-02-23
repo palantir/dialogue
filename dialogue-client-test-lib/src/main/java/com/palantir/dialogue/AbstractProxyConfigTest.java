@@ -21,10 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.api.config.service.UserAgent;
-import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -33,7 +30,6 @@ import java.net.ProxySelector;
 import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.util.List;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
@@ -43,12 +39,6 @@ import org.junit.Rule;
 import org.junit.Test;
 
 public abstract class AbstractProxyConfigTest {
-
-    protected static final UserAgent AGENT = UserAgent.of(UserAgent.Agent.of("test", "0.0.1"));
-    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),
-            Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
-            "keystore");
 
     private static final Request request = Request.builder()
             .body(new RequestBody() {
@@ -77,12 +67,13 @@ public abstract class AbstractProxyConfigTest {
         server.enqueue(new MockResponse().setBody("server"));
         proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
 
-        Channel directChannel = create(createTestConfig("http://localhost:" + server.getPort()), AGENT);
+        Channel directChannel =
+                create(TestConfigurations.create("http://localhost:" + server.getPort()), TestConfigurations.AGENT);
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
-                .from(createTestConfig("http://localhost:" + server.getPort()))
+                .from(TestConfigurations.create("http://localhost:" + server.getPort()))
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
                 .build();
-        Channel proxiedChannel = create(proxiedConfig, AGENT);
+        Channel proxiedChannel = create(proxiedConfig, TestConfigurations.AGENT);
 
         try (Response response =
                 directChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
@@ -106,11 +97,11 @@ public abstract class AbstractProxyConfigTest {
         proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
 
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
-                .from(createTestConfig("http://localhost:" + server.getPort()))
+                .from(TestConfigurations.create("http://localhost:" + server.getPort()))
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
                 .proxyCredentials(BasicCredentials.of("fakeUser", "fakePassword"))
                 .build();
-        Channel proxiedChannel = create(proxiedConfig, AGENT);
+        Channel proxiedChannel = create(proxiedConfig, TestConfigurations.AGENT);
 
         try (Response response =
                 proxiedChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
@@ -121,16 +112,6 @@ public abstract class AbstractProxyConfigTest {
         assertThat(firstRequest.getHeader("Proxy-Authorization")).isNull();
         RecordedRequest secondRequest = proxyServer.takeRequest();
         assertThat(secondRequest.getHeader("Proxy-Authorization")).isEqualTo("Basic ZmFrZVVzZXI6ZmFrZVBhc3N3b3Jk");
-    }
-
-    protected static ClientConfiguration createTestConfig(String... uri) {
-        return ClientConfiguration.builder()
-                .from(ClientConfigurations.of(
-                        ImmutableList.copyOf(uri),
-                        SslSocketFactories.createSslSocketFactory(SSL_CONFIG),
-                        SslSocketFactories.createX509TrustManager(SSL_CONFIG)))
-                .maxNumRetries(0)
-                .build();
     }
 
     private static ProxySelector createProxySelector(String host, int port) {
