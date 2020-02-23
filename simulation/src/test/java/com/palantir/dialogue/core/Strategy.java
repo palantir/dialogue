@@ -57,7 +57,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter())
+                    .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
@@ -69,7 +69,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter())
+                    .map(addFixedLimiter(sim))
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
@@ -82,7 +82,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter())
+                    .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
@@ -94,7 +94,7 @@ public enum Strategy {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(Strategy::noOpLimitedChannel)
-                    .map(addFixedLimiter())
+                    .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited);
@@ -103,11 +103,13 @@ public enum Strategy {
 
     private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel -> new ConcurrencyLimitedChannel(
-                new LimitedChannelAdapter(channel), () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
+                new LimitedChannelAdapter(channel),
+                () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()),
+                DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter() {
-        return channel -> new FixedLimitedChannel(channel, 256);
+    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
+        return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {

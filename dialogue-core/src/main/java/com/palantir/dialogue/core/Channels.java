@@ -46,8 +46,8 @@ public final class Channels {
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                 .map(LimitedChannelAdapter::new)
-                .map(concurrencyLimiter(config))
-                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL))
+                .map(concurrencyLimiter(config, clientMetrics))
+                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
@@ -80,11 +80,12 @@ public final class Channels {
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
+    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
+            ClientConfiguration config, DialogueClientMetrics metrics) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
-                return ConcurrencyLimitedChannel::create;
+                return channel -> ConcurrencyLimitedChannel.create(channel, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return Function.identity();
         }

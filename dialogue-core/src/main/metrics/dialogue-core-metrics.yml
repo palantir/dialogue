@@ -23,3 +23,7 @@ namespaces:
         type: meter
         tags: [service-name]
         docs: Rate of deprecated endpoints being invoked.
+      limited:
+        type: meter
+        tags: [reason]
+        docs: Rate of client-side request rejection.
