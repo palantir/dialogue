@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Blacklisting channel notifies the queue when it can handle events
+  links:
+  - https://github.com/palantir/dialogue/pull/401

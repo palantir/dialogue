@@ -18,9 +18,11 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -28,8 +30,14 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,44 +54,67 @@ final class BlacklistingChannel implements CompositeLimitedChannel {
 
     private static final Logger log = LoggerFactory.getLogger(BlacklistingChannel.class);
     private static final int NUM_PROBATION_REQUESTS = 5;
+    /*
+     * Shared single thread executor is reused between all blacklisting channels. If it becomes oversaturated
+     * we may wait longer than expected before resuming requests to blacklisted channels, but this is an
+     * edge case where things are already operating in a degraded state.
+     */
+    private static final Supplier<ScheduledExecutorService> sharedScheduler = Suppliers.memoize(
+            () -> Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                    .setNameFormat("dialogue-BlacklistingChannel-scheduler-%d")
+                    .setDaemon(false)
+                    .build()));
 
     private final CompositeLimitedChannel delegate;
     private final Duration duration;
     private final Ticker ticker;
+    private final LimitedChannelListener listener;
+    private final ScheduledExecutorService scheduler;
     private final AtomicReference<BlacklistState> channelBlacklistState;
 
-    BlacklistingChannel(CompositeLimitedChannel delegate, Duration duration) {
-        this(delegate, duration, Ticker.systemTicker());
+    BlacklistingChannel(CompositeLimitedChannel delegate, Duration duration, LimitedChannelListener listener) {
+        this(delegate, duration, listener, Ticker.systemTicker(), sharedScheduler.get());
     }
 
     @VisibleForTesting
-    BlacklistingChannel(CompositeLimitedChannel delegate, Duration duration, Ticker ticker) {
+    BlacklistingChannel(
+            CompositeLimitedChannel delegate, Duration duration, LimitedChannelListener listener, Ticker ticker) {
+        this(delegate, duration, listener, ticker, sharedScheduler.get());
+    }
+
+    @VisibleForTesting
+    BlacklistingChannel(
+            CompositeLimitedChannel delegate,
+            Duration duration,
+            LimitedChannelListener listener,
+            Ticker ticker,
+            ScheduledExecutorService scheduler) {
         this.delegate = delegate;
         this.duration = duration;
         this.ticker = ticker;
+        this.listener = listener;
+        this.scheduler = scheduler;
         this.channelBlacklistState = new AtomicReference<>();
     }
 
     @Override
     public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
         BlacklistState state = channelBlacklistState.get();
-
-        if (state instanceof BlacklistUntil) {
-            if (ticker.read() < ((BlacklistUntil) state).untilNanos) {
+        if (state != null) {
+            BlacklistStage stage = state.maybeProgressAndGet();
+            if (stage instanceof BlacklistUntil) {
                 return LimitedResponses.blacklisted();
             }
 
-            state = beginProbation();
-        }
-
-        if (state instanceof Probation) {
-            Probation probation = (Probation) state;
-            if (probation.acquireStartPermit()) {
-                log.debug("Probation channel request allowed");
-                return wrap(delegate.maybeExecute(endpoint, request), Optional.of(probation));
-            } else {
-                log.debug("Probation channel request not allowed");
-                return LimitedResponses.blacklisted();
+            if (stage instanceof Probation) {
+                Probation probation = (Probation) stage;
+                if (probation.acquireStartPermit()) {
+                    log.debug("Probation channel request allowed");
+                    return wrap(delegate.maybeExecute(endpoint, request), Optional.of(probation));
+                } else {
+                    log.debug("Probation channel request not allowed");
+                    return LimitedResponses.blacklisted();
+                }
             }
         }
 
@@ -91,17 +122,13 @@ final class BlacklistingChannel implements CompositeLimitedChannel {
     }
 
     private void blacklist() {
-        channelBlacklistState.set(new BlacklistUntil(ticker.read() + duration.toNanos()));
-    }
-
-    private Probation beginProbation() {
-        Probation probation = new Probation(NUM_PROBATION_REQUESTS);
-        channelBlacklistState.set(probation);
-        return probation;
+        BlacklistState state = new BlacklistState(duration, NUM_PROBATION_REQUESTS);
+        channelBlacklistState.set(state);
     }
 
     private void probationComplete() {
         channelBlacklistState.set(null);
+        listener.onChannelReady();
     }
 
     private LimitedResponse wrap(LimitedResponse limitedResponse, Optional<Probation> probation) {
@@ -144,10 +171,37 @@ final class BlacklistingChannel implements CompositeLimitedChannel {
         return "BlacklistingChannel{" + delegate + '}';
     }
 
-    // I wish java had union types
-    interface BlacklistState {}
+    private final class BlacklistState {
+        private final AtomicBoolean inProbation = new AtomicBoolean();
+        private final BlacklistUntil blacklistUntil;
+        private final Probation probation;
+        private final ScheduledFuture<?> future;
 
-    private static final class BlacklistUntil implements BlacklistState {
+        BlacklistState(Duration duration, int probationPermits) {
+            this.blacklistUntil = new BlacklistUntil(ticker.read() + duration.toNanos());
+            this.probation = new Probation(probationPermits);
+            this.future = scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
+        }
+
+        BlacklistStage maybeProgressAndGet() {
+            if (inProbation.get()) {
+                return probation;
+            }
+            if (ticker.read() >= blacklistUntil.untilNanos) {
+                if (inProbation.compareAndSet(false, true)) {
+                    listener.onChannelReady();
+                    future.cancel(false);
+                }
+                return probation;
+            }
+            return blacklistUntil;
+        }
+    }
+
+    // I wish java had union types
+    interface BlacklistStage {}
+
+    private static final class BlacklistUntil implements BlacklistStage {
         private final long untilNanos;
 
         private BlacklistUntil(long untilNanos) {
@@ -155,7 +209,7 @@ final class BlacklistingChannel implements CompositeLimitedChannel {
         }
     }
 
-    private static final class Probation implements BlacklistState {
+    private static final class Probation implements BlacklistStage {
         private final AtomicInteger startPermits;
         private final AtomicInteger successesRequired;
 

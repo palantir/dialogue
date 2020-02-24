@@ -138,15 +138,19 @@ public final class Benchmark {
         return this;
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
+    @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public Benchmark abortAfter(Duration cutoff) {
-        simulation.schedule(
-                () -> {
-                    log.warn("Aborted running benchmark after cutoff reached - strategy might be buggy {}", cutoff);
-                    benchmarkFinished.getFuture().set(null);
-                },
-                cutoff.toNanos(),
-                TimeUnit.NANOSECONDS);
+        simulation
+                .scheduler()
+                .schedule(
+                        () -> {
+                            log.warn(
+                                    "Aborted running benchmark after cutoff reached - strategy might be buggy {}",
+                                    cutoff);
+                            benchmarkFinished.getFuture().set(null);
+                        },
+                        cutoff.toNanos(),
+                        TimeUnit.NANOSECONDS);
         return this;
     }
 
@@ -158,7 +162,7 @@ public final class Benchmark {
         return Futures.getUnchecked(result);
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
+    @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
 
@@ -186,27 +190,33 @@ public final class Benchmark {
                 }
             };
 
-            simulation.schedule(
-                    () -> {
-                        log.debug(
-                                "time={} starting num={} {}", simulation.clock().read(), req.number(), req);
-                        Channel channel = channels[clientIndexChooser.getAsInt()];
-                        ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
-                        requestsStarted[0] += 1;
+            simulation
+                    .scheduler()
+                    .schedule(
+                            () -> {
+                                log.debug(
+                                        "time={} starting num={} {}",
+                                        simulation.clock().read(),
+                                        req.number(),
+                                        req);
+                                Channel channel = channels[clientIndexChooser.getAsInt()];
+                                ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                requestsStarted[0] += 1;
 
-                        Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                        future.addListener(
-                                () -> {
-                                    responsesReceived[0] += 1;
-                                    benchmarkFinished.update(
-                                            Duration.ofNanos(simulation.clock().read()),
-                                            requestsStarted[0],
-                                            responsesReceived[0]);
-                                },
-                                MoreExecutors.directExecutor());
-                    },
-                    req.sendTime().toNanos(),
-                    TimeUnit.NANOSECONDS);
+                                Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                future.addListener(
+                                        () -> {
+                                            responsesReceived[0] += 1;
+                                            benchmarkFinished.update(
+                                                    Duration.ofNanos(
+                                                            simulation.clock().read()),
+                                                    requestsStarted[0],
+                                                    responsesReceived[0]);
+                                        },
+                                        MoreExecutors.directExecutor());
+                            },
+                            req.sendTime().toNanos(),
+                            TimeUnit.NANOSECONDS);
         });
         log.info("Scheduled all requests ({} ms)", scheduling.elapsed(TimeUnit.MILLISECONDS));
 

@@ -56,7 +56,7 @@ public class BlacklistingChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new BlacklistingChannel(delegate, BLACKLIST_DURATION, ticker);
+        channel = new BlacklistingChannel(delegate, BLACKLIST_DURATION, () -> {}, ticker);
 
         futureResponse = SettableFuture.create();
         when(delegate.maybeExecute(endpoint, request)).thenReturn(LimitedResponses.response(futureResponse));

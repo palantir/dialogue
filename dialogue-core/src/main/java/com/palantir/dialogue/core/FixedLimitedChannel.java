@@ -51,8 +51,8 @@ final class FixedLimitedChannel implements CompositeLimitedChannel {
 
     @Override
     public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
-        boolean optimisticallyAcquiredPermit = usedPermits.incrementAndGet() > totalPermits;
-        if (optimisticallyAcquiredPermit) {
+        boolean failedToOptimisticallyAcquirePermit = usedPermits.incrementAndGet() > totalPermits;
+        if (failedToOptimisticallyAcquirePermit) {
             returnPermit.run();
             limitedMeter.mark();
             logExhaustion(endpoint);

@@ -24,7 +24,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
@@ -40,6 +39,9 @@ public final class Channels {
         Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
+        // n.b. This becomes cleaner once we support reloadable channels, the queue can be created first, and
+        // each limited channel can be created later and passed a method reference to the queued channel.
+        DeferredLimitedChannelListener queueListener = new DeferredLimitedChannelListener();
         List<CompositeLimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
@@ -48,12 +50,14 @@ public final class Channels {
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                 .map(CompositeLimitedChannelAdapter::new)
                 .map(concurrencyLimiter(config, clientMetrics))
-                .map(channel -> new BlacklistingChannel(channel, Duration.ofNanos(10000)))
+                .map(channel -> new BlacklistingChannel(channel, config.failedUrlCooldown(), queueListener))
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        QueuedChannel queuedChannel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        queueListener.delegate = queuedChannel::schedule;
+        Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
@@ -96,5 +100,15 @@ public final class Channels {
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    }
+
+    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        private LimitedChannelListener delegate;
+
+        @Override
+        public void onChannelReady() {
+            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
+                    .onChannelReady();
+        }
     }
 }
