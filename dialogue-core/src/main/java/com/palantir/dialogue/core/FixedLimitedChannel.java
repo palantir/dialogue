@@ -43,7 +43,7 @@ final class FixedLimitedChannel implements LimitedChannel {
     FixedLimitedChannel(LimitedChannel delegate, int totalPermits, DialogueClientMetrics metrics) {
         this.delegate = delegate;
         this.totalPermits = totalPermits;
-        this.limitedMeter = metrics.limited("FixedLimitedChannel");
+        this.limitedMeter = metrics.limited(getClass().getSimpleName());
         // Doesn't check for integer overflow, we don't have enough threads for that to occur.
         Preconditions.checkArgument(totalPermits <= 1_000_000, "total permits must not exceed one million");
         this.returnPermit = usedPermits::decrementAndGet;

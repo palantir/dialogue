@@ -26,4 +26,4 @@ namespaces:
       limited:
         type: meter
         tags: [reason]
-        docs: Rate of client-side request rejection.
+        docs: Rate that client-side requests are deferred to be retried later.

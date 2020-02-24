@@ -53,7 +53,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     ConcurrencyLimitedChannel(
             LimitedChannel delegate, Supplier<Limiter<Void>> limiterSupplier, DialogueClientMetrics metrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter = metrics.limited("ConcurrencyLimitedChannel");
+        this.limitedMeter = metrics.limited(getClass().getSimpleName());
         this.limiters =
                 Caffeine.newBuilder().expireAfterAccess(Duration.ofMinutes(5)).build(key -> limiterSupplier.get());
     }
