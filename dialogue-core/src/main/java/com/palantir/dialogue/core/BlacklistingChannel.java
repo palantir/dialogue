@@ -70,6 +70,30 @@ final class BlacklistingChannel implements LimitedChannel {
     private final LimitedChannelListener listener;
     private final ScheduledExecutorService scheduler;
     private final AtomicReference<BlacklistState> channelBlacklistState;
+    private final FutureCallback<Response> blacklistingCallback = new FutureCallback<Response>() {
+
+        @Override
+        public void onSuccess(Response response) {
+            // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
+            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                log.debug(
+                        "Blacklisting {} due to status code {}",
+                        UnsafeArg.of("delegate", delegate),
+                        SafeArg.of("code", response.code()));
+                channelBlacklistState.set(new BlacklistState(duration, NUM_PROBATION_REQUESTS));
+            } else {
+                BlacklistState state = channelBlacklistState.get();
+                if (state != null) {
+                    state.markSuccess();
+                }
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable _throwable) {
+            channelBlacklistState.set(new BlacklistState(duration, NUM_PROBATION_REQUESTS));
+        }
+    };
 
     BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener) {
         this(delegate, duration, listener, Ticker.systemTicker(), sharedScheduler.get());
@@ -99,64 +123,10 @@ final class BlacklistingChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         BlacklistState state = channelBlacklistState.get();
         if (state != null) {
-            BlacklistStage stage = state.maybeProgressAndGet();
-            if (stage instanceof BlacklistUntil) {
-                return Optional.empty();
-            }
-
-            if (stage instanceof Probation) {
-                Probation probation = (Probation) stage;
-                if (probation.acquireStartPermit()) {
-                    log.debug("Probation channel request allowed");
-                    return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
-                            future, new BlacklistingCallback(Optional.of(probation))));
-                } else {
-                    log.debug("Probation channel request not allowed");
-                    return Optional.empty();
-                }
-            }
+            return state.maybeExecute(endpoint, request);
         }
-
         return delegate.maybeExecute(endpoint, request)
-                .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty())));
-    }
-
-    private void blacklist() {
-        BlacklistState state = new BlacklistState(duration, NUM_PROBATION_REQUESTS);
-        channelBlacklistState.set(state);
-    }
-
-    private void probationComplete() {
-        channelBlacklistState.set(null);
-        listener.onChannelReady();
-    }
-
-    private final class BlacklistingCallback implements FutureCallback<Response> {
-        private final Optional<Probation> probationPermit;
-
-        private BlacklistingCallback(Optional<Probation> probationPermit) {
-            this.probationPermit = probationPermit;
-        }
-
-        @Override
-        public void onSuccess(Response response) {
-            // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
-            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                log.debug(
-                        "Blacklisting {} due to status code {}",
-                        UnsafeArg.of("delegate", delegate),
-                        SafeArg.of("code", response.code()));
-                blacklist();
-            } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
-                log.debug("Probation is complete");
-                probationComplete();
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable _throwable) {
-            blacklist();
-        }
+                .map(future -> DialogueFutures.addDirectCallback(future, blacklistingCallback));
     }
 
     @Override
@@ -166,43 +136,59 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private final class BlacklistState {
         private final AtomicBoolean inProbation = new AtomicBoolean();
-        private final BlacklistUntil blacklistUntil;
+        private final long blacklistUntilNanos;
         private final Probation probation;
-        private final ScheduledFuture<?> future;
+        private final ScheduledFuture<?> scheduledFuture;
 
         BlacklistState(Duration duration, int probationPermits) {
-            this.blacklistUntil = new BlacklistUntil(ticker.read() + duration.toNanos());
+            this.blacklistUntilNanos = ticker.read() + duration.toNanos();
             this.probation = new Probation(probationPermits);
-            this.future = scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
+            this.scheduledFuture =
+                    scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
         }
 
-        BlacklistStage maybeProgressAndGet() {
-            if (inProbation.get()) {
-                return probation;
+        Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            Optional<Probation> maybeProbation = maybeProgressAndGet();
+            if (!maybeProbation.isPresent()) {
+                return Optional.empty();
             }
-            if (ticker.read() >= blacklistUntil.untilNanos) {
+            if (maybeProbation.get().acquireStartPermit()) {
+                log.debug("Probation channel request allowed");
+                return delegate.maybeExecute(endpoint, request)
+                        .map(future -> DialogueFutures.addDirectCallback(future, blacklistingCallback));
+            } else {
+                log.debug("Probation channel request not allowed");
+                return Optional.empty();
+            }
+        }
+
+        Optional<Probation> maybeProgressAndGet() {
+            if (inProbation.get()) {
+                return Optional.of(probation);
+            }
+            if (ticker.read() >= blacklistUntilNanos) {
                 if (inProbation.compareAndSet(false, true)) {
                     listener.onChannelReady();
-                    future.cancel(false);
+                    scheduledFuture.cancel(false);
                 }
-                return probation;
+                return Optional.of(probation);
             }
-            return blacklistUntil;
+            return Optional.empty();
+        }
+
+        void markSuccess() {
+            if (inProbation.get() && probation.checkIfProbationIsComplete()) {
+                log.debug("Clearing probation state");
+                if (channelBlacklistState.compareAndSet(this, null)) {
+                    listener.onChannelReady();
+                } else {
+                    log.debug("Blacklist state has already been updated");
+                }
+            }
         }
     }
 
-    // I wish java had union types
-    interface BlacklistStage {}
-
-    private static final class BlacklistUntil implements BlacklistStage {
-        private final long untilNanos;
-
-        private BlacklistUntil(long untilNanos) {
-            this.untilNanos = untilNanos;
-        }
-    }
-
-    private static final class Probation implements BlacklistStage {
+    private static final class Probation {
         private final AtomicInteger startPermits;
         private final AtomicInteger successesRequired;
 
