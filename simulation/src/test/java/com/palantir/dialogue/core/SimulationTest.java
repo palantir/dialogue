@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Response;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -33,6 +34,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -365,6 +368,43 @@ public class SimulationTest {
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
+    }
+
+    @Test
+    public void uncommon_flakes() {
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("fast0")
+                        .simulation(simulation)
+                        .handler(h -> h.response(respond500Every(100)).responseTime(Duration.ofNanos(1000)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(respond500Every(100)).responseTime(Duration.ofNanos(1000)))
+                        .build());
+
+        result = Benchmark.builder()
+                .requestsPerSecond(1000)
+                .sendUntil(Duration.ofSeconds(10))
+                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
+    private Function<SimulationServer, Response> respond500Every(int reqs) {
+        return new Function<SimulationServer, Response>() {
+            private final AtomicInteger count = new AtomicInteger();
+
+            @Override
+            public Response apply(SimulationServer _server) {
+                if (count.incrementAndGet() % reqs == 0) {
+                    return SimulationUtils.response(500, "1.0.0");
+                }
+                return SimulationUtils.response(200, "1.0.0");
+            }
+        };
     }
 
     private Supplier<List<SimulationServer>> servers(SimulationServer... values) {
