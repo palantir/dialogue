@@ -1,0 +1,6 @@
+type: break
+break:
+  description: Dialogue Response headers are represented using a multimap for symmetry
+    with request headers.
+  links:
+  - https://github.com/palantir/dialogue/pull/483
