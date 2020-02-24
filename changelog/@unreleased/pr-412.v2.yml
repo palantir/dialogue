@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: RemoteExceptions.getUnchecked cancels futures on interruption
+  links:
+  - https://github.com/palantir/dialogue/pull/412
