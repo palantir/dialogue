@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import java.io.IOException;
 import java.net.URL;
@@ -33,11 +34,11 @@ public final class OkHttpChannel implements Channel {
 
     private static final RequestBody EMPTY_REQUEST_BODY = RequestBody.create(null, new byte[] {});
     private final OkHttpClient client;
-    private final UrlBuilder baseUrl;
+    private final BaseUrl baseUrl;
 
     private OkHttpChannel(OkHttpClient client, URL baseUrl) {
         this.client = client;
-        this.baseUrl = UrlBuilder.from(baseUrl);
+        this.baseUrl = BaseUrl.of(baseUrl);
     }
 
     /** Creates a new channel with the given underlying client, baseUrl, and error decoder. Note that */
@@ -67,10 +68,7 @@ public final class OkHttpChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // Create base request given the URL
-        UrlBuilder url = baseUrl.newBuilder();
-        endpoint.renderPath(request.pathParams(), url);
-        request.queryParams().entries().forEach(entry -> url.queryParam(entry.getKey(), entry.getValue()));
-        okhttp3.Request.Builder okRequest = new okhttp3.Request.Builder().url(url.build());
+        okhttp3.Request.Builder okRequest = new okhttp3.Request.Builder().url(baseUrl.render(endpoint, request));
 
         // Fill request body and set HTTP method
         switch (endpoint.httpMethod()) {
