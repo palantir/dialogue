@@ -22,11 +22,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import org.junit.Test;
 
 public class RemoteExceptionsTest {
@@ -76,6 +78,20 @@ public class RemoteExceptionsTest {
         assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(ExecutionError.class)
                 .hasCauseInstanceOf(Error.class);
+    }
+
+    @Test
+    public void testInterruption() {
+        ListenableFuture<Object> future = SettableFuture.create();
+        Thread.currentThread().interrupt();
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(future))
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("Interrupted waiting for future");
+        // Clear interrupted state as well as test.
+        assertThat(Thread.interrupted())
+                .as("getUnchecked should not clear interrupted state")
+                .isTrue();
+        assertThat(future).isCancelled();
     }
 
     private static RemoteException remoteException(ServiceException exception) {

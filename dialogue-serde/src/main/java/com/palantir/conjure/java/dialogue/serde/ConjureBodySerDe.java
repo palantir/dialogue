@@ -78,7 +78,7 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     public Deserializer<Void> emptyBodyDeserializer() {
         return input -> {
-            // We should not fail if a server that previously return nothing starts returning a response
+            // We should not fail if a server that previously returned nothing starts returning a response
             input.close();
             return null;
         };

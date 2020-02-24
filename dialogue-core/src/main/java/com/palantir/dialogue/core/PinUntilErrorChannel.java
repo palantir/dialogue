@@ -101,7 +101,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
-                if (response.code() >= 300) {
+                if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                     OptionalInt next = incrementHostIfNecessary(currentIndex);
                     debugLogReceivedErrorStatus(currentIndex, channel, response, next);
                     // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping

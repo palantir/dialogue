@@ -16,11 +16,11 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
@@ -44,18 +44,22 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Void NO_CONTEXT = null;
     private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
 
+    private final Meter limitedMeter;
     private final LimitedChannel delegate;
     private final LoadingCache<Endpoint, Limiter<Void>> limiters;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(LimitedChannel delegate, Supplier<Limiter<Void>> limiterSupplier) {
+    ConcurrencyLimitedChannel(
+            LimitedChannel delegate, Supplier<Limiter<Void>> limiterSupplier, DialogueClientMetrics metrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.limitedMeter = metrics.limited(getClass().getSimpleName());
         this.limiters =
                 Caffeine.newBuilder().expireAfterAccess(Duration.ofMinutes(5)).build(key -> limiterSupplier.get());
     }
 
-    static ConcurrencyLimitedChannel create(LimitedChannel delegate) {
-        return new ConcurrencyLimitedChannel(delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME));
+    static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
+        return new ConcurrencyLimitedChannel(
+                delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
     }
 
     @VisibleForTesting
@@ -77,7 +81,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return limiters.get(endpoint).acquire(NO_CONTEXT).flatMap(listener -> {
+        Optional<Limiter.Listener> maybeListener = limiters.get(endpoint).acquire(NO_CONTEXT);
+        if (maybeListener.isPresent()) {
+            Limiter.Listener listener = maybeListener.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
@@ -85,14 +91,16 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 listener.onIgnore();
             }
             return result;
-        });
+        } else {
+            limitedMeter.mark();
+            return Optional.empty();
+        }
     }
 
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
     private static final class LimiterCallback implements FutureCallback<Response> {
-        private static final ImmutableSet<Integer> DROP_CODES = ImmutableSet.of(429);
 
         private final Limiter.Listener listener;
 
@@ -102,7 +110,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
         @Override
         public void onSuccess(Response result) {
-            if (DROP_CODES.contains(result.code())) {
+            if (Responses.isTooManyRequests(result)) {
                 listener.onDropped();
             } else {
                 listener.onSuccess();

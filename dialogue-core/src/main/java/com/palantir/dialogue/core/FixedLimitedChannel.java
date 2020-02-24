@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
@@ -35,12 +36,14 @@ final class FixedLimitedChannel implements LimitedChannel {
 
     private final LimitedChannel delegate;
     private final AtomicInteger usedPermits = new AtomicInteger(0);
+    private final Meter limitedMeter;
     private final int totalPermits;
     private final Runnable returnPermit;
 
-    FixedLimitedChannel(LimitedChannel delegate, int totalPermits) {
+    FixedLimitedChannel(LimitedChannel delegate, int totalPermits, DialogueClientMetrics metrics) {
         this.delegate = delegate;
         this.totalPermits = totalPermits;
+        this.limitedMeter = metrics.limited(getClass().getSimpleName());
         // Doesn't check for integer overflow, we don't have enough threads for that to occur.
         Preconditions.checkArgument(totalPermits <= 1_000_000, "total permits must not exceed one million");
         this.returnPermit = usedPermits::decrementAndGet;
@@ -51,6 +54,7 @@ final class FixedLimitedChannel implements LimitedChannel {
         boolean optimisticallyAcquiredPermit = usedPermits.incrementAndGet() > totalPermits;
         if (optimisticallyAcquiredPermit) {
             returnPermit.run();
+            limitedMeter.mark();
             logExhaustion(endpoint);
             return Optional.empty();
         }
