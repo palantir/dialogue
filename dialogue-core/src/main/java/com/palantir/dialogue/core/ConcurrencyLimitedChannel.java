@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Nullable
     private static final Void NO_CONTEXT = null;
+
     private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
 
     private final Meter limitedMeter;

@@ -77,6 +77,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
+
         @Nullable
         private Map<String, List<String>> headers;
 

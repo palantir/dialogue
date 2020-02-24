@@ -31,6 +31,7 @@ final class MemoizingComposingSupplier<T, V> implements Supplier<V> {
 
     @Nullable
     private volatile T input = null;
+
     @Nullable
     private volatile V result = null;
 

@@ -146,6 +146,7 @@ final class ContentDecodingChannel implements Channel {
     private static class DeferredGzipInputStream extends InputStream {
         private static final int BUFFER_SIZE = 8 * 1024;
         private final InputStream original;
+
         @Nullable
         private InputStream delegate;
 
