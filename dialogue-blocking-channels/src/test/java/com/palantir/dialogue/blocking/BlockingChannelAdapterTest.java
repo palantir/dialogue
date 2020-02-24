@@ -18,7 +18,8 @@ package com.palantir.dialogue.blocking;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -30,7 +31,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -51,8 +51,8 @@ public class BlockingChannelAdapterTest {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
-            return ImmutableMap.of();
+        public ListMultimap<String, String> headers() {
+            return ImmutableListMultimap.of();
         }
 
         @Override

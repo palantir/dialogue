@@ -166,3 +166,24 @@ acceptedBreaks:
       old: null
       new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer()"
       justification: "fixin' apis"
+  "0.13.1":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core: []
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client:
+    - code: "java.method.returnTypeChanged"
+      old: "method java.util.Map<java.lang.String, java.util.List<java.lang.String>>\
+        \ com.palantir.dialogue.OkHttpResponse::headers()"
+      new: "method com.google.common.collect.ListMultimap<java.lang.String, java.lang.String>\
+        \ com.palantir.dialogue.OkHttpResponse::headers()"
+      justification: "break for consistent header api"
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.returnTypeChanged"
+      old: "method java.util.Map<java.lang.String, java.util.List<java.lang.String>>\
+        \ com.palantir.dialogue.Response::headers()"
+      new: "method com.google.common.collect.ListMultimap<java.lang.String, java.lang.String>\
+        \ com.palantir.dialogue.Response::headers()"
+      justification: "break for consistent header api"

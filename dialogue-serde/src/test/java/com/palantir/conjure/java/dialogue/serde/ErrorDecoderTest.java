@@ -24,7 +24,8 @@ import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -37,8 +38,6 @@ import com.palantir.logsafe.SafeArg;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
-import java.util.Map;
 import javax.annotation.CheckForNull;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
@@ -185,8 +184,8 @@ public final class ErrorDecoderTest {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
-                return ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(mediaType));
+            public ListMultimap<String, String> headers() {
+                return ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, mediaType);
             }
 
             @Override
