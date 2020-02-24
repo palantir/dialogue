@@ -37,9 +37,6 @@ final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
 
-    private static final int UNAVAILABLE_503 = 503;
-    private static final int TOO_MANY_REQUESTS_429 = 429;
-
     private final Channel delegate;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -83,7 +80,7 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> success(Response response) {
             // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
             // a row
-            if (response.code() == UNAVAILABLE_503 || response.code() == TOO_MANY_REQUESTS_429) {
+            if (Responses.isQosStatus(response)) {
                 response.close();
                 Throwable failure =
                         new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
