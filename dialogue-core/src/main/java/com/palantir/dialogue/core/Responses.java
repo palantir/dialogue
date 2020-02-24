@@ -20,15 +20,12 @@ import com.palantir.dialogue.Response;
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
 
-    private static final int TOO_MANY_REQUESTS_429 = 429;
-    private static final int UNAVAILABLE_503 = 503;
-
     static boolean isTooManyRequests(Response response) {
-        return response.code() == TOO_MANY_REQUESTS_429;
+        return response.code() == 429;
     }
 
-    static boolean isUnavailable(Response response) {
-        return response.code() == UNAVAILABLE_503;
+    private static boolean isUnavailable(Response response) {
+        return response.code() == 503;
     }
 
     static boolean isQosStatus(Response response) {
