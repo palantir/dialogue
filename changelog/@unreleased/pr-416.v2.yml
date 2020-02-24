@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: QueuedChannel does not leak responses in edge cases
+  links:
+  - https://github.com/palantir/dialogue/pull/416
