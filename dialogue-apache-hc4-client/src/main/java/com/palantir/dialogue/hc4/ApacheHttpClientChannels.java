@@ -16,6 +16,7 @@
 package com.palantir.dialogue.hc4;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.api.config.service.UserAgent;
@@ -25,14 +26,22 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.Channels;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Queue;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -57,8 +66,12 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 import org.apache.http.protocol.HttpContext;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class ApacheHttpClientChannels {
+    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
+
     private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
@@ -99,8 +112,8 @@ public final class ApacheHttpClientChannels {
                                 conf.sslSocketFactory(),
                                 new String[] {"TLSv1.2"},
                                 conf.enableGcmCipherSuites()
-                                        ? CipherSuites.allCipherSuites()
-                                        : CipherSuites.fastCipherSuites(),
+                                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
+                                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
                                 new DefaultHostnameVerifier()))
                 .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                 .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
@@ -120,6 +133,43 @@ public final class ApacheHttpClientChannels {
                 .collect(ImmutableList.toImmutableList());
 
         return Channels.create(channels, baseAgent, conf);
+    }
+
+    /**
+     * Filters the given cipher suites (preserving order) to return only those that are actually supported by this JVM.
+     * Otherwise {@code SSLSocketImpl#setEnabledCipherSuites} throws and IllegalArgumentException complaining about an
+     * "Unsupported ciphersuite" at client construction time!
+     */
+    private static String[] jvmSupportedCipherSuites(String[] cipherSuites) {
+        Set<String> jvmSupported = jvmSupportedCipherSuites();
+        List<String> enabled = new ArrayList<>();
+        List<String> unsupported = new ArrayList<>();
+
+        for (String cipherSuite : cipherSuites) {
+            if (jvmSupported.contains(cipherSuite)) {
+                enabled.add(cipherSuite);
+            } else {
+                unsupported.add(cipherSuite);
+            }
+        }
+
+        log.info(
+                "Skipping unsupported cipher suites",
+                SafeArg.of("numEnabled", enabled.size()),
+                SafeArg.of("numUnsupported", unsupported.size()),
+                SafeArg.of("cipher", unsupported),
+                SafeArg.of("javaVendor", System.getProperty("java.vendor")),
+                SafeArg.of("javaVersion", System.getProperty("java.version")));
+        return enabled.toArray(new String[0]);
+    }
+
+    private static ImmutableSet<String> jvmSupportedCipherSuites() {
+        try {
+            SSLSocketFactory socketFactory = SSLContext.getDefault().getSocketFactory();
+            return ImmutableSet.copyOf(socketFactory.getSupportedCipherSuites());
+        } catch (NoSuchAlgorithmException e) {
+            throw new SafeRuntimeException("Unable to determine JVM supported cipher suites", e);
+        }
     }
 
     private static URL url(String uri) {
