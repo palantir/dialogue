@@ -16,12 +16,12 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -29,7 +29,14 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,74 +53,89 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private static final Logger log = LoggerFactory.getLogger(BlacklistingChannel.class);
     private static final int NUM_PROBATION_REQUESTS = 5;
+    /*
+     * Shared single thread executor is reused between all blacklisting channels. If it becomes oversaturated
+     * we may wait longer than expected before resuming requests to blacklisted channels, but this is an
+     * edge case where things are already operating in a degraded state.
+     */
+    private static final Supplier<ScheduledExecutorService> sharedScheduler = Suppliers.memoize(
+            () -> Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                    .setNameFormat("dialogue-BlacklistingChannel-scheduler-%d")
+                    .setDaemon(false)
+                    .build()));
 
     private final LimitedChannel delegate;
     private final Duration duration;
     private final Ticker ticker;
-    private final Cache<Endpoint, BlacklistState> perEndpointBlacklistState;
+    private final LimitedChannelListener listener;
+    private final ScheduledExecutorService scheduler;
+    private final AtomicReference<BlacklistState> channelBlacklistState;
 
-    BlacklistingChannel(LimitedChannel delegate, Duration duration) {
-        this(delegate, duration, Ticker.systemTicker());
+    BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener) {
+        this(delegate, duration, listener, Ticker.systemTicker(), sharedScheduler.get());
     }
 
     @VisibleForTesting
-    BlacklistingChannel(LimitedChannel delegate, Duration duration, Ticker ticker) {
+    BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener, Ticker ticker) {
+        this(delegate, duration, listener, ticker, sharedScheduler.get());
+    }
+
+    @VisibleForTesting
+    BlacklistingChannel(
+            LimitedChannel delegate,
+            Duration duration,
+            LimitedChannelListener listener,
+            Ticker ticker,
+            ScheduledExecutorService scheduler) {
         this.delegate = delegate;
         this.duration = duration;
         this.ticker = ticker;
-        this.perEndpointBlacklistState =
-                Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build();
+        this.listener = listener;
+        this.scheduler = scheduler;
+        this.channelBlacklistState = new AtomicReference<>();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        BlacklistState state = perEndpointBlacklistState.getIfPresent(endpoint);
-
-        if (state instanceof BlacklistUntil) {
-            if (ticker.read() < ((BlacklistUntil) state).untilNanos) {
+        BlacklistState state = channelBlacklistState.get();
+        if (state != null) {
+            BlacklistStage stage = state.maybeProgressAndGet();
+            if (stage instanceof BlacklistUntil) {
                 return Optional.empty();
             }
 
-            state = beginProbation(endpoint);
-        }
-
-        if (state instanceof Probation) {
-            Probation probation = (Probation) state;
-            if (probation.acquireStartPermit()) {
-                log.debug("Probation channel request allowed");
-                return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
-                        future, new BlacklistingCallback(Optional.of(probation), endpoint)));
-            } else {
-                log.debug("Probation channel request not allowed");
-                return Optional.empty();
+            if (stage instanceof Probation) {
+                Probation probation = (Probation) stage;
+                if (probation.acquireStartPermit()) {
+                    log.debug("Probation channel request allowed");
+                    return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
+                            future, new BlacklistingCallback(Optional.of(probation))));
+                } else {
+                    log.debug("Probation channel request not allowed");
+                    return Optional.empty();
+                }
             }
         }
 
-        return delegate.maybeExecute(endpoint, request).map(future ->
-                DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty(), endpoint)));
+        return delegate.maybeExecute(endpoint, request)
+                .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty())));
     }
 
-    private void blacklist(Endpoint endpoint) {
-        perEndpointBlacklistState.put(endpoint, new BlacklistUntil(ticker.read() + duration.toNanos()));
+    private void blacklist() {
+        BlacklistState state = new BlacklistState(duration, NUM_PROBATION_REQUESTS);
+        channelBlacklistState.set(state);
     }
 
-    private Probation beginProbation(Endpoint endpoint) {
-        Probation probation = new Probation(NUM_PROBATION_REQUESTS);
-        perEndpointBlacklistState.put(endpoint, probation);
-        return probation;
-    }
-
-    private void probationComplete(Endpoint endpoint) {
-        perEndpointBlacklistState.invalidate(endpoint);
+    private void probationComplete() {
+        channelBlacklistState.set(null);
+        listener.onChannelReady();
     }
 
     private final class BlacklistingCallback implements FutureCallback<Response> {
         private final Optional<Probation> probationPermit;
-        private final Endpoint endpoint;
 
-        private BlacklistingCallback(Optional<Probation> probationPermit, Endpoint endpoint) {
+        private BlacklistingCallback(Optional<Probation> probationPermit) {
             this.probationPermit = probationPermit;
-            this.endpoint = endpoint;
         }
 
         @Override
@@ -124,16 +146,16 @@ final class BlacklistingChannel implements LimitedChannel {
                         "Blacklisting {} due to status code {}",
                         UnsafeArg.of("delegate", delegate),
                         SafeArg.of("code", response.code()));
-                blacklist(endpoint);
+                blacklist();
             } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
                 log.debug("Probation is complete");
-                probationComplete(endpoint);
+                probationComplete();
             }
         }
 
         @Override
         public void onFailure(Throwable _throwable) {
-            blacklist(endpoint);
+            blacklist();
         }
     }
 
@@ -142,10 +164,37 @@ final class BlacklistingChannel implements LimitedChannel {
         return "BlacklistingChannel{" + delegate + '}';
     }
 
-    // I wish java had union types
-    interface BlacklistState {}
+    private final class BlacklistState {
+        private final AtomicBoolean inProbation = new AtomicBoolean();
+        private final BlacklistUntil blacklistUntil;
+        private final Probation probation;
+        private final ScheduledFuture<?> future;
 
-    private static final class BlacklistUntil implements BlacklistState {
+        BlacklistState(Duration duration, int probationPermits) {
+            this.blacklistUntil = new BlacklistUntil(ticker.read() + duration.toNanos());
+            this.probation = new Probation(probationPermits);
+            this.future = scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
+        }
+
+        BlacklistStage maybeProgressAndGet() {
+            if (inProbation.get()) {
+                return probation;
+            }
+            if (ticker.read() >= blacklistUntil.untilNanos) {
+                if (inProbation.compareAndSet(false, true)) {
+                    listener.onChannelReady();
+                    future.cancel(false);
+                }
+                return probation;
+            }
+            return blacklistUntil;
+        }
+    }
+
+    // I wish java had union types
+    interface BlacklistStage {}
+
+    private static final class BlacklistUntil implements BlacklistStage {
         private final long untilNanos;
 
         private BlacklistUntil(long untilNanos) {
@@ -153,7 +202,7 @@ final class BlacklistingChannel implements LimitedChannel {
         }
     }
 
-    private static final class Probation implements BlacklistState {
+    private static final class Probation implements BlacklistStage {
         private final AtomicInteger startPermits;
         private final AtomicInteger successesRequired;
 
