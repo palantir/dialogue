@@ -14,19 +14,20 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
+import com.palantir.dialogue.PathTemplate;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class PathTemplateTest {
 
@@ -86,7 +87,7 @@ public final class PathTemplateTest {
 
     private static String fill(PathTemplate template, Map<String, String> params) {
         try {
-            UrlBuilder url = UrlBuilder.from(new URL("http://unused:1"));
+            BaseUrl.DefaultUrlBuilder url = BaseUrl.DefaultUrlBuilder.from(new URL("http://unused:1"));
             template.fill(params, url);
             return url.build().getPath();
         } catch (IOException e) {
