@@ -33,8 +33,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -376,12 +376,12 @@ public class SimulationTest {
                 SimulationServer.builder()
                         .serverName("fast0")
                         .simulation(simulation)
-                        .handler(h -> h.response(respond500Every(100)).responseTime(Duration.ofNanos(1000)))
+                        .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build(),
                 SimulationServer.builder()
                         .serverName("fast1")
                         .simulation(simulation)
-                        .handler(h -> h.response(respond500Every(100)).responseTime(Duration.ofNanos(1000)))
+                        .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build());
 
         result = Benchmark.builder()
@@ -393,17 +393,13 @@ public class SimulationTest {
                 .run();
     }
 
-    private Function<SimulationServer, Response> respond500Every(int reqs) {
-        return new Function<SimulationServer, Response>() {
-            private final AtomicInteger count = new AtomicInteger();
-
-            @Override
-            public Response apply(SimulationServer _server) {
-                if (count.incrementAndGet() % reqs == 0) {
-                    return SimulationUtils.response(500, "1.0.0");
-                }
-                return SimulationUtils.response(200, "1.0.0");
+    private Function<SimulationServer, Response> respond500AtRate(double rate) {
+        Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
+        return _server -> {
+            if (random.nextDouble() <= rate) {
+                return SimulationUtils.response(500, "1.0.0");
             }
+            return SimulationUtils.response(200, "1.0.0");
         };
     }
 

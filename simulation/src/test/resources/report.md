@@ -37,10 +37,10 @@ slowdown_and_error_thresholds[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	su
 slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=1.8%	client_mean=PT20.068609533S	server_cpu=PT10H35M7.200666646S	client_received=10000/10000	server_resps=10000	codes={200=176, 500=9824}
     slowdown_and_error_thresholds[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT16.859225466S	server_cpu=PT10H30M49.207333306S	client_received=10000/10000	server_resps=10000	codes={200=120, 500=9880}
               slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT3.974119999S 	server_cpu=PT11H2M21.19999998S	client_received=10000/10000	server_resps=10000	codes={200=120, 500=9880}
-        uncommon_flakes[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=97.6%	client_mean=PT0.125642485S 	server_cpu=PT0.009853S    	client_received=9853/10000	server_resps=9853	codes={200=9755, 500=98}
-              uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9901, 500=99}
-                  uncommon_flakes[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9901, 500=99}
-                            uncommon_flakes[UNLIMITED_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9901, 500=99}
+        uncommon_flakes[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=97.2%	client_mean=PT0.084883633S 	server_cpu=PT0.009818S    	client_received=9818/10000	server_resps=9818	codes={200=9719, 500=99}
+              uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9902, 500=98}
+                  uncommon_flakes[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9900, 500=100}
+                            uncommon_flakes[UNLIMITED_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9900, 500=100}
 ```
 
 
