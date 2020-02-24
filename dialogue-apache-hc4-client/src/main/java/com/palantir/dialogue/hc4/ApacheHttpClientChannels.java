@@ -153,13 +153,17 @@ public final class ApacheHttpClientChannels {
             }
         }
 
-        log.info(
-                "Skipping unsupported cipher suites",
-                SafeArg.of("numEnabled", enabled.size()),
-                SafeArg.of("numUnsupported", unsupported.size()),
-                SafeArg.of("cipher", unsupported),
-                SafeArg.of("javaVendor", System.getProperty("java.vendor")),
-                SafeArg.of("javaVersion", System.getProperty("java.version")));
+        if (!unsupported.isEmpty()) {
+            log.info(
+                    "Skipping unsupported cipher suites",
+                    SafeArg.of("numEnabled", enabled.size()),
+                    SafeArg.of("numUnsupported", unsupported.size()),
+                    SafeArg.of("cipher", unsupported),
+                    SafeArg.of("javaVendor", System.getProperty("java.vendor")),
+                    SafeArg.of("javaVersion", System.getProperty("java.version")));
+        }
+
+        Preconditions.checkState(!enabled.isEmpty(), "Zero supported cipher suites");
         return enabled.toArray(new String[0]);
     }
 
