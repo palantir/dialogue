@@ -17,13 +17,9 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
@@ -34,8 +30,7 @@ final class Simulation {
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
 
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
-    private final ListeningScheduledExecutorService listenableExecutor =
-            MoreExecutors.listeningDecorator(deterministicExecutor);
+    private final ListeningScheduledExecutorService listenableExecutor;
 
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
     private final SimulationMetricsReporter metrics = new SimulationMetricsReporter(this);
@@ -45,44 +40,16 @@ final class Simulation {
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
-    }
-
-    public <T> ListenableScheduledFuture<T> schedule(Callable<T> command, long delay, TimeUnit unit) {
-        long scheduleTime = ticker.read();
-        long delayNanos = unit.toNanos(delay);
-
-        RuntimeException exceptionForStackTrace = new RuntimeException();
-
-        return listenableExecutor.schedule(
-                () -> {
-                    try {
-                        ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                        return command.call();
-                    } catch (Throwable e) {
-                        e.addSuppressed(exceptionForStackTrace);
-                        throw e;
-                    }
-                },
-                delay,
-                unit);
-    }
-
-    public <T> ListenableScheduledFuture<T> schedule(Runnable command, long delay, TimeUnit unit) {
-        return schedule(
-                () -> {
-                    command.run();
-                    return null;
-                },
-                delay,
-                unit);
+        this.listenableExecutor =
+                new ExternalDeterministicScheduler(MoreExecutors.listeningDecorator(deterministicExecutor), ticker);
     }
 
     public Ticker clock() {
         return ticker; // read only!
     }
 
-    public ScheduledExecutorService scheduler() {
-        return deterministicExecutor;
+    public ListeningScheduledExecutorService scheduler() {
+        return listenableExecutor;
     }
 
     public CodahaleClock codahaleClock() {
@@ -103,30 +70,5 @@ final class Simulation {
 
     public void runClockToInfinity() {
         deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);
-    }
-
-    private static final class TestCaffeineTicker implements Ticker {
-        private long nanos = 0;
-
-        @Override
-        public long read() {
-            return nanos;
-        }
-
-        void advanceTo(Duration duration) {
-            long newNanos = duration.toNanos();
-            if (newNanos < nanos) {
-                long difference = nanos - newNanos;
-                Preconditions.checkState(
-                        difference < Duration.ofMillis(1).toNanos(),
-                        "Large time rewind - this is likely a bug in the test harness");
-                log.debug(
-                        "Tried to rewind time by {} micros - no-op as this is deterministic and harmless",
-                        TimeUnit.MICROSECONDS.convert(difference, TimeUnit.NANOSECONDS));
-                return;
-            }
-
-            nanos = newNanos;
-        }
     }
 }
