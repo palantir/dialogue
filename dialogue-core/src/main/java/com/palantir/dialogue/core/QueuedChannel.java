@@ -78,7 +78,6 @@ final class QueuedChannel implements Channel {
     }
 
     @VisibleForTesting
-    @SuppressWarnings("FutureReturnValueIgnored")
     QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
@@ -96,8 +95,7 @@ final class QueuedChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
-        int currentQueueSize = queueSizeEstimate.get();
-        if (currentQueueSize <= 0) {
+        if (queueSizeEstimate.get() <= 0) {
             Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
@@ -107,6 +105,12 @@ final class QueuedChannel implements Channel {
             }
         }
 
+        // Important to read the queue size here as well as prior to the optimistic maybeExecute because
+        // maybeExecute may take sufficiently long that other requests could be queued.
+        if (queueSizeEstimate.get() >= maxQueueSize) {
+            return queueFullResponse();
+        }
+
         DeferredCall components = DeferredCall.builder()
                 .endpoint(endpoint)
                 .request(request)
@@ -114,14 +118,19 @@ final class QueuedChannel implements Channel {
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
                 .build();
 
-        if (currentQueueSize >= maxQueueSize || !queuedCalls.offer(components)) {
-            return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
+        if (!queuedCalls.offer(components)) {
+            // Should never happen, ConcurrentLinkedDeque has no maximum size
+            return queueFullResponse();
         }
         queueSizeEstimate.incrementAndGet();
 
         schedule();
 
         return components.response();
+    }
+
+    private ListenableFuture<Response> queueFullResponse() {
+        return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
     }
 
     private void onCompletion() {
@@ -191,7 +200,8 @@ final class QueuedChannel implements Channel {
                 return true;
             } else {
                 if (!queuedCalls.offerFirst(components)) {
-                    log.warn(
+                    // Should never happen, ConcurrentLinkedDeque has no maximum size
+                    log.error(
                             "Failed to add an attempted call back to the deque",
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()));
