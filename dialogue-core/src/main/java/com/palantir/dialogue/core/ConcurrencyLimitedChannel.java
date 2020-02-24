@@ -30,7 +30,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -46,16 +45,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final Limiter<Void> limiter;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(
-            LimitedChannel delegate, Supplier<Limiter<Void>> limiterSupplier, DialogueClientMetrics metrics) {
+    ConcurrencyLimitedChannel(LimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.limitedMeter = metrics.limited(getClass().getSimpleName());
-        this.limiter = limiterSupplier.get();
+        this.limiter = limiter;
     }
 
     static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
         return new ConcurrencyLimitedChannel(
-                delegate, () -> ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
+                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
     }
 
     @VisibleForTesting
