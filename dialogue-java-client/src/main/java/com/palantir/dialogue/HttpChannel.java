@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayOutputStream;
@@ -39,12 +40,12 @@ public final class HttpChannel implements Channel {
 
     private final HttpClient client;
     private final Duration requestTimeout;
-    private final UrlBuilder baseUrl;
+    private final BaseUrl baseUrl;
 
     private HttpChannel(HttpClient client, URL baseUrl, Duration requestTimeout) {
         this.client = client;
         this.requestTimeout = requestTimeout;
-        this.baseUrl = UrlBuilder.from(baseUrl);
+        this.baseUrl = BaseUrl.of(baseUrl);
     }
 
     public static HttpChannel of(HttpClient client, URL baseUrl) {
@@ -58,10 +59,7 @@ public final class HttpChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // Create base request given the URL
-        UrlBuilder url = baseUrl.newBuilder();
-        endpoint.renderPath(request.pathParams(), url);
-        request.queryParams().forEach(url::queryParam);
-        HttpRequest.Builder httpRequest = newRequestBuilder(url);
+        HttpRequest.Builder httpRequest = newRequestBuilder(baseUrl.render(endpoint, request));
 
         // Fill request body and set HTTP method
         Preconditions.checkArgument(
@@ -83,9 +81,9 @@ public final class HttpChannel implements Channel {
         return new CompletableToListenableFuture<>(future);
     }
 
-    private static HttpRequest.Builder newRequestBuilder(UrlBuilder url) {
+    private static HttpRequest.Builder newRequestBuilder(URL url) {
         try {
-            return HttpRequest.newBuilder().uri(url.build().toURI());
+            return HttpRequest.newBuilder().uri(url.toURI());
         } catch (URISyntaxException e) {
             throw new SafeRuntimeException("Failed to construct URI, this is a bug", e);
         }

@@ -21,8 +21,8 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.blocking.BlockingChannel;
+import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
@@ -47,20 +47,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
 
     private final CloseableHttpClient client;
-    private final UrlBuilder baseUrl;
+    private final BaseUrl baseUrl;
 
     ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
         this.client = client;
-        this.baseUrl = UrlBuilder.from(baseUrl);
+        this.baseUrl = BaseUrl.of(baseUrl);
     }
 
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
         // Create base request given the URL
-        UrlBuilder url = baseUrl.newBuilder();
-        endpoint.renderPath(request.pathParams(), url);
-        request.queryParams().forEach(url::queryParam);
-        URL target = url.build();
+        URL target = baseUrl.render(endpoint, request);
         RequestBuilder builder =
                 RequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
 
