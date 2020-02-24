@@ -18,6 +18,12 @@ package com.palantir.dialogue.core;
 @FunctionalInterface
 interface LimitedChannelListener {
 
-    /** Invoked when requests may succeed. There is no guarantee that requests will be accepted. */
+    /**
+     * Invoked when requests may succeed. There is no guarantee that requests will be accepted.
+     * This is only necessary if edge-triggering is not sufficient. For example if permits are based
+     * on the number of active requests, when existing requests complete this is triggered automatically.
+     * LimitedChannel implementations <i>should</i> invoke {@link #onChannelReady()} when another
+     * event (scheduled timeout) allows requests to proceed.
+     */
     void onChannelReady();
 }
