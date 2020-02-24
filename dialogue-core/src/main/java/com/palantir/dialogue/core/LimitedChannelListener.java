@@ -15,8 +15,9 @@
  */
 package com.palantir.dialogue.core;
 
+@FunctionalInterface
 interface LimitedChannelListener {
 
     /** Invoked when requests may succeed. There is no guarantee that requests will be accepted. */
-    void ready();
+    void onChannelReady();
 }

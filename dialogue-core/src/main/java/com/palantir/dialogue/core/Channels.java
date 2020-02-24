@@ -39,6 +39,8 @@ public final class Channels {
         Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
+        // n.b. This becomes cleaner once we support reloadable channels, the queue can be created first, and
+        // each limited channel can be created later and passed a method reference to the queued channel.
         DeferredLimitedChannelListener queueListener = new DeferredLimitedChannelListener();
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
@@ -100,9 +102,9 @@ public final class Channels {
         private LimitedChannelListener delegate;
 
         @Override
-        public void ready() {
+        public void onChannelReady() {
             Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
-                    .ready();
+                    .onChannelReady();
         }
     }
 }

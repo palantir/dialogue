@@ -130,7 +130,7 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private void probationComplete(Endpoint endpoint) {
         perEndpointBlacklistState.invalidate(endpoint);
-        listener.ready();
+        listener.onChannelReady();
     }
 
     private final class BlacklistingCallback implements FutureCallback<Response> {
@@ -186,7 +186,7 @@ final class BlacklistingChannel implements LimitedChannel {
             }
             if (ticker.read() >= blacklistUntil.untilNanos) {
                 if (inProbation.compareAndSet(false, true)) {
-                    listener.ready();
+                    listener.onChannelReady();
                     future.cancel(false);
                 }
                 return probation;

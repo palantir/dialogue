@@ -172,9 +172,9 @@ public enum Strategy {
         private LimitedChannelListener delegate;
 
         @Override
-        public void ready() {
+        public void onChannelReady() {
             Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
-                    .ready();
+                    .onChannelReady();
         }
     }
 }
