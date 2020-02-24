@@ -109,6 +109,7 @@ public final class DefaultErrorDecoderTest {
     }
 
     @Test
+    @SuppressWarnings("NullAway") // intentionally testing null body
     public void doesNotHandleNullBody() {
         assertThatThrownBy(() -> decoder.decode(response(500, "application/json", null)))
                 .isInstanceOf(SafeRuntimeException.class)
@@ -120,7 +121,7 @@ public final class DefaultErrorDecoderTest {
         Preconditions.checkArgument(!(exception instanceof ServiceException), "Use SerializableError#forException");
         Object error = SerializableError.builder()
                 .errorCode(exception.getClass().getName())
-                .errorName(exception.getMessage())
+                .errorName(Preconditions.checkNotNull(exception.getMessage(), "exception message"))
                 .build();
         String json;
         try {

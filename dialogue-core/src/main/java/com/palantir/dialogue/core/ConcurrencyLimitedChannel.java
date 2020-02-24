@@ -30,6 +30,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -37,6 +38,7 @@ import java.util.concurrent.TimeUnit;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
+    @Nullable
     private static final Void NO_CONTEXT = null;
     private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
 

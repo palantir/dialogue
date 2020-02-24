@@ -76,6 +76,7 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("NullAway") // empty body is a special case
     public Deserializer<Void> emptyBodyDeserializer() {
         return input -> {
             // We should not fail if a server that previously returned nothing starts returning a response

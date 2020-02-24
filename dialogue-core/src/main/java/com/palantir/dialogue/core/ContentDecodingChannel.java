@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -144,12 +146,14 @@ final class ContentDecodingChannel implements Channel {
     private static class DeferredGzipInputStream extends InputStream {
         private static final int BUFFER_SIZE = 8 * 1024;
         private final InputStream original;
+        @Nullable
         private InputStream delegate;
 
         DeferredGzipInputStream(InputStream original) {
             this.original = original;
         }
 
+        @Nonnull
         private InputStream getDelegate() throws IOException {
             if (delegate == null) {
                 // Buffer the GZIPInputStream contents in order to reduce expensive native Deflater interactions.

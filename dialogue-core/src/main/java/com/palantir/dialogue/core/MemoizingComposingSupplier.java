@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import java.util.function.Function;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 /**
  * Returns the result of applying the given function to the result of calling {@link Supplier#get()}}, only reapplying
@@ -28,7 +29,9 @@ final class MemoizingComposingSupplier<T, V> implements Supplier<V> {
     private final Supplier<T> delegate;
     private final Function<T, V> function;
 
+    @Nullable
     private volatile T input = null;
+    @Nullable
     private volatile V result = null;
 
     MemoizingComposingSupplier(Supplier<T> delegate, Function<T, V> function) {
@@ -37,6 +40,7 @@ final class MemoizingComposingSupplier<T, V> implements Supplier<V> {
     }
 
     @Override
+    @Nullable
     public V get() {
         if (!delegate.get().equals(input)) {
             synchronized (this) {

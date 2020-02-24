@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -76,6 +77,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
+        @Nullable
         private Map<String, List<String>> headers;
 
         HttpClientResponse(CloseableHttpResponse response) {
@@ -167,6 +169,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        @Nullable
         public Header getContentEncoding() {
             return null;
         }
