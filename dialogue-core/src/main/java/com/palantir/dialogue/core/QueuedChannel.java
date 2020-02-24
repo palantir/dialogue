@@ -28,16 +28,17 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.Deque;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.Executor;
-import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -65,10 +66,12 @@ final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
-    private final BlockingDeque<DeferredCall> queuedCalls;
+    private final Deque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
+    private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
+    private final int maxQueueSize;
 
     QueuedChannel(LimitedChannel channel, DispatcherMetrics metrics) {
         this(channel, 1_000, metrics);
@@ -78,9 +81,11 @@ final class QueuedChannel implements Channel {
     @SuppressWarnings("FutureReturnValueIgnored")
     QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
+        // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
+        this.queuedCalls = new ConcurrentLinkedDeque<>();
+        this.maxQueueSize = maxQueueSize;
 
-        metrics.callsQueued(queuedCalls::size);
+        metrics.callsQueued(queueSizeEstimate::get);
         metrics.callsRunning(numRunningRequests::get);
     }
 
@@ -91,12 +96,15 @@ final class QueuedChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
-        Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
-        if (maybeResult.isPresent()) {
-            ListenableFuture<Response> result = maybeResult.get();
-            numRunningRequests.incrementAndGet();
-            result.addListener(this::onCompletion, DIRECT);
-            return result;
+        int currentQueueSize = queueSizeEstimate.get();
+        if (currentQueueSize <= 0) {
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            if (maybeResult.isPresent()) {
+                ListenableFuture<Response> result = maybeResult.get();
+                numRunningRequests.incrementAndGet();
+                result.addListener(this::onCompletion, DIRECT);
+                return result;
+            }
         }
 
         DeferredCall components = DeferredCall.builder()
@@ -106,9 +114,10 @@ final class QueuedChannel implements Channel {
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
                 .build();
 
-        if (!queuedCalls.offer(components)) {
+        if (currentQueueSize >= maxQueueSize || !queuedCalls.offer(components)) {
             return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
         }
+        queueSizeEstimate.incrementAndGet();
 
         schedule();
 
@@ -149,6 +158,7 @@ final class QueuedChannel implements Channel {
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
         if (queuedResponse.isDone()) {
+            queueSizeEstimate.decrementAndGet();
             return true;
         }
         try (CloseableSpan ignored = components.span().childSpan("Dialogue-request-scheduled")) {
@@ -156,6 +166,7 @@ final class QueuedChannel implements Channel {
             Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, components.request());
 
             if (maybeResponse.isPresent()) {
+                queueSizeEstimate.decrementAndGet();
                 ListenableFuture<Response> response = maybeResponse.get();
                 components.span().complete();
                 numRunningRequests.incrementAndGet();
@@ -179,7 +190,23 @@ final class QueuedChannel implements Channel {
                         DIRECT);
                 return true;
             } else {
-                queuedCalls.addFirst(components);
+                if (!queuedCalls.offerFirst(components)) {
+                    log.warn(
+                            "Failed to add an attempted call back to the deque",
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()));
+                    queueSizeEstimate.decrementAndGet();
+                    if (!queuedResponse.setException(
+                            new SafeRuntimeException(
+                                    "Failed to req-queue request",
+                                    SafeArg.of("service", endpoint.serviceName()),
+                                    SafeArg.of("endpoint", endpoint.endpointName())))) {
+                        log.debug(
+                                "Queued response has already been completed",
+                                SafeArg.of("service", endpoint.serviceName()),
+                                SafeArg.of("endpoint", endpoint.endpointName()));
+                    }
+                }
                 return false;
             }
         }
