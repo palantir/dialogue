@@ -55,7 +55,7 @@ public enum Strategy {
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
+            List<CompositeLimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
@@ -67,7 +67,7 @@ public enum Strategy {
     private static Channel concurrencyLimiterBlacklistRoundRobin(
             Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
+            List<CompositeLimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
@@ -80,7 +80,7 @@ public enum Strategy {
     private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
+            List<CompositeLimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
@@ -92,7 +92,7 @@ public enum Strategy {
 
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
+            List<CompositeLimitedChannel> limitedChannels = channels.stream()
                     .map(Strategy::noOpLimitedChannel)
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
@@ -101,14 +101,14 @@ public enum Strategy {
         });
     }
 
-    private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
+    private static Function<Channel, CompositeLimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel -> new ConcurrencyLimitedChannel(
-                new LimitedChannelAdapter(channel),
+                new CompositeLimitedChannelAdapter(channel),
                 ConcurrencyLimitedChannel.createLimiter(sim.clock()),
                 DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
+    private static Function<CompositeLimitedChannel, CompositeLimitedChannel> addFixedLimiter(Simulation sim) {
         return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
@@ -146,11 +146,11 @@ public enum Strategy {
         };
     }
 
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
+    private static CompositeLimitedChannel noOpLimitedChannel(Channel delegate) {
+        return new CompositeLimitedChannel() {
             @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
+            public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
+                return LimitedResponses.response(delegate.execute(endpoint, request));
             }
 
             @Override
