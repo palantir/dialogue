@@ -39,6 +39,9 @@ public final class Channels {
         Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
+        // n.b. This becomes cleaner once we support reloadable channels, the queue can be created first, and
+        // each limited channel can be created later and passed a method reference to the queued channel.
+        DeferredLimitedChannelListener queueListener = new DeferredLimitedChannelListener();
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
@@ -51,7 +54,9 @@ public final class Channels {
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        QueuedChannel queuedChannel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        queueListener.delegate = queuedChannel::schedule;
+        Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
@@ -91,5 +96,15 @@ public final class Channels {
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    }
+
+    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        private LimitedChannelListener delegate;
+
+        @Override
+        public void onChannelReady() {
+            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
+                    .onChannelReady();
+        }
     }
 }

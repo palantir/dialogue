@@ -24,6 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -66,14 +67,15 @@ public enum Strategy {
 
     private static Channel concurrencyLimiterBlacklistRoundRobin(
             Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
+            return queuedChannelAndRetrying(sim, limited1, listener);
         });
     }
 
@@ -113,8 +115,14 @@ public enum Strategy {
     }
 
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
+        return queuedChannelAndRetrying(sim, limited, new DeferredLimitedChannelListener());
+    }
+
+    private static Channel queuedChannelAndRetrying(
+            Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
+        QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
+        listener.delegate = channel::schedule;
         return new RetryingChannel(
                 channel,
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
@@ -158,5 +166,15 @@ public enum Strategy {
                 return delegate.toString();
             }
         };
+    }
+
+    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        private LimitedChannelListener delegate;
+
+        @Override
+        public void onChannelReady() {
+            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
+                    .onChannelReady();
+        }
     }
 }
