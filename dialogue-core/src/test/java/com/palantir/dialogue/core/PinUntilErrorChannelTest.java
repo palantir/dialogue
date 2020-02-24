@@ -30,7 +30,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -45,10 +44,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class PinUntilErrorChannelTest {
 
     @Mock
-    private LimitedChannel channel1;
+    private CompositeLimitedChannel channel1;
 
     @Mock
-    private LimitedChannel channel2;
+    private CompositeLimitedChannel channel2;
 
     @Mock
     private Ticker clock;
@@ -58,7 +57,7 @@ public class PinUntilErrorChannelTest {
 
     @BeforeEach
     public void before() {
-        List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        List<CompositeLimitedChannel> channels = ImmutableList.of(channel1, channel2);
         pinUntilErrorWithoutReshuffle =
                 new PinUntilErrorChannel(new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L)));
         pinUntilError = new PinUntilErrorChannel(
@@ -125,7 +124,7 @@ public class PinUntilErrorChannelTest {
     }
 
     @Test
-    public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
+    public void out_of_order_responses_dont_cause_us_to_switch_channel() {
         setResponse(channel1, 100);
         setResponse(channel2, 101);
         assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(100);
@@ -133,8 +132,8 @@ public class PinUntilErrorChannelTest {
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
         when(channel1.maybeExecute(any(), any()))
-                .thenReturn(Optional.of(future1))
-                .thenReturn(Optional.of(future2));
+                .thenReturn(LimitedResponses.response(future1))
+                .thenReturn(LimitedResponses.response(future2));
 
         // kick off two requests
         pinUntilError.maybeExecute(null, null).get();
@@ -164,11 +163,13 @@ public class PinUntilErrorChannelTest {
         }
     }
 
-    private static void setResponse(LimitedChannel mockChannel, int status) {
+    private static void setResponse(CompositeLimitedChannel mockChannel, int status) {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
         Response resp = response(status);
-        lenient().when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
+        lenient()
+                .when(mockChannel.maybeExecute(any(), any()))
+                .thenReturn(LimitedResponses.response(Futures.immediateFuture(resp)));
     }
 
     private static Response response(int status) {

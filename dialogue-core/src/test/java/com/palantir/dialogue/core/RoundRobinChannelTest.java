@@ -26,7 +26,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,15 +35,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class RoundRobinChannelTest {
 
-    private static final Optional<ListenableFuture<Response>> CHANNEL_A_RESPONSE = Optional.of(SettableFuture.create());
-    private static final Optional<ListenableFuture<Response>> CHANNEL_B_RESPONSE = Optional.of(SettableFuture.create());
-    private static final Optional<ListenableFuture<Response>> UNAVAILABLE = Optional.empty();
+    private static final ListenableFuture<Response> CHANNEL_A_RESPONSE = SettableFuture.create();
+    private static final ListenableFuture<Response> CHANNEL_B_RESPONSE = SettableFuture.create();
 
     @Mock
-    private LimitedChannel channelA;
+    private CompositeLimitedChannel channelA;
 
     @Mock
-    private LimitedChannel channelB;
+    private CompositeLimitedChannel channelB;
 
     @Mock
     private Endpoint endpoint;
@@ -58,29 +56,40 @@ public class RoundRobinChannelTest {
     public void before() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of(channelA, channelB));
 
-        lenient().when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
-        lenient().when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
+        lenient()
+                .when(channelA.maybeExecute(endpoint, request))
+                .thenReturn(LimitedResponses.response(CHANNEL_A_RESPONSE));
+        lenient()
+                .when(channelB.maybeExecute(endpoint, request))
+                .thenReturn(LimitedResponses.response(CHANNEL_B_RESPONSE));
     }
 
     @Test
     public void testRoundRobins() {
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).hasValue(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).hasValue(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).hasValue(CHANNEL_A_RESPONSE);
     }
 
     @Test
     public void testIgnoresUnavailableChannels() {
-        when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(LimitedResponses.blacklisted());
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).hasValue(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).hasValue(CHANNEL_B_RESPONSE);
+    }
+
+    @Test
+    void testLimitedResponse() {
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(LimitedResponses.limited());
+
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
     }
 
     @Test
     public void testNoChannelsAvailable() {
-        when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
-        when(channelB.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
+        when(channelA.maybeExecute(endpoint, request)).thenReturn(LimitedResponses.blacklisted());
+        when(channelB.maybeExecute(endpoint, request)).thenReturn(LimitedResponses.blacklisted());
 
         assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
     }

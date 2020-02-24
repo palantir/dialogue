@@ -31,9 +31,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 final class RoundRobinChannel implements LimitedChannel {
 
     private final AtomicInteger currentHost = new AtomicInteger(0);
-    private final ImmutableList<LimitedChannel> delegates;
+    private final ImmutableList<CompositeLimitedChannel> delegates;
+    private static final LimitedResponse.Cases<Boolean> isLimited =
+            LimitedResponses.cases(() -> false, () -> true, unused -> false);
+    private static final LimitedResponse.Cases<Boolean> isBlacklisted =
+            LimitedResponses.cases(() -> true, () -> false, unused -> false);
 
-    RoundRobinChannel(List<LimitedChannel> delegates) {
+    RoundRobinChannel(List<CompositeLimitedChannel> delegates) {
         this.delegates = ImmutableList.copyOf(delegates);
     }
 
@@ -46,11 +50,14 @@ final class RoundRobinChannel implements LimitedChannel {
         int host = currentHost.getAndUpdate(value -> toIndex(value + 1));
 
         for (int i = 0; i < delegates.size(); i++) {
-            LimitedChannel channel = delegates.get(toIndex(host + i));
-            Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
-            if (maybeCall.isPresent()) {
-                return maybeCall;
+            CompositeLimitedChannel channel = delegates.get(toIndex(host + i));
+            LimitedResponse maybeCall = channel.maybeExecute(endpoint, request);
+            if (maybeCall.matches(isBlacklisted)) {
+                continue;
+            } else if (maybeCall.matches(isLimited)) {
+                return Optional.empty();
             }
+            return LimitedResponses.getResponse(maybeCall);
         }
 
         return Optional.empty();

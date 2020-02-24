@@ -58,10 +58,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
     // TODO(dfox): could we make this endpoint-specific?
     private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
-    private final NodeList nodeList;
+    private final NodeList<CompositeLimitedChannel> nodeList;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList) {
+    PinUntilErrorChannel(NodeList<CompositeLimitedChannel> nodeList) {
         this.nodeList = nodeList;
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
@@ -69,7 +69,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilError(List<CompositeLimitedChannel> channels) {
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime);
         return new PinUntilErrorChannel(shufflingNodeList);
@@ -80,7 +80,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilErrorWithoutReshuffle(List<CompositeLimitedChannel> channels) {
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
         return new PinUntilErrorChannel(constantNodeList);
     }
@@ -88,32 +88,44 @@ final class PinUntilErrorChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         int currentIndex = currentHost.get();
-        LimitedChannel channel = nodeList.get(currentIndex);
+        CompositeLimitedChannel channel = nodeList.get(currentIndex);
 
-        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
-        if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementHostIfNecessary(currentIndex);
-            debugLogCurrentChannelRejected(currentIndex, channel, next);
-            return Optional.empty(); // if the caller retries immediately, we'll get the next host
-        }
-
-        ListenableFuture<Response> future = maybeFuture.get();
-        return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+        LimitedResponse limitedResponse = channel.maybeExecute(endpoint, request);
+        return limitedResponse.matches(new LimitedResponse.Cases<Optional<ListenableFuture<Response>>>() {
             @Override
-            public void onSuccess(Response response) {
-                if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                    OptionalInt next = incrementHostIfNecessary(currentIndex);
-                    debugLogReceivedErrorStatus(currentIndex, channel, response, next);
-                    // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable throwable) {
+            public Optional<ListenableFuture<Response>> blacklisted() {
                 OptionalInt next = incrementHostIfNecessary(currentIndex);
-                debugLogReceivedThrowable(currentIndex, channel, throwable, next);
+                debugLogCurrentChannelRejected(currentIndex, channel, next);
+                return maybeExecute(endpoint, request);
             }
-        }));
+
+            @Override
+            public Optional<ListenableFuture<Response>> limited() {
+                debugLogLimitedRequest(currentIndex, channel);
+                return Optional.empty();
+            }
+
+            @Override
+            public Optional<ListenableFuture<Response>> response(ListenableFuture<Response> future) {
+                return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                            OptionalInt next = incrementHostIfNecessary(currentIndex);
+                            debugLogReceivedErrorStatus(currentIndex, channel, response, next);
+                            // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel
+                            // mapping
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        OptionalInt next = incrementHostIfNecessary(currentIndex);
+                        debugLogReceivedThrowable(currentIndex, channel, throwable, next);
+                    }
+                }));
+            }
+        });
     }
 
     /**
@@ -127,17 +139,17 @@ final class PinUntilErrorChannel implements LimitedChannel {
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
-    interface NodeList {
-        LimitedChannel get(int index);
+    interface NodeList<T> {
+        T get(int index);
 
         int size();
     }
 
     @VisibleForTesting
-    static final class ConstantNodeList implements NodeList {
-        private final List<LimitedChannel> channels;
+    static final class ConstantNodeList implements NodeList<CompositeLimitedChannel> {
+        private final List<CompositeLimitedChannel> channels;
 
-        ConstantNodeList(List<LimitedChannel> channels, Random random) {
+        ConstantNodeList(List<CompositeLimitedChannel> channels, Random random) {
             /**
              * Shuffle the initial list to ensure that clients across the fleet don't all traverse the list in the
              * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
@@ -148,7 +160,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         }
 
         @Override
-        public LimitedChannel get(int index) {
+        public CompositeLimitedChannel get(int index) {
             return channels.get(index);
         }
 
@@ -159,16 +171,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    static final class ReshufflingNodeList implements NodeList {
+    static final class ReshufflingNodeList implements NodeList<CompositeLimitedChannel> {
         private final Ticker clock;
         private final Random random;
         private final long intervalWithJitter;
         private final int channelsSize;
 
         private final AtomicLong nextReshuffle;
-        private volatile ImmutableList<LimitedChannel> channels;
+        private volatile ImmutableList<CompositeLimitedChannel> channels;
 
-        ReshufflingNodeList(List<LimitedChannel> channels, Random random, Ticker clock) {
+        ReshufflingNodeList(List<CompositeLimitedChannel> channels, Random random, Ticker clock) {
             this.channels = shuffleImmutableList(channels, random);
             this.channelsSize = channels.size();
             this.random = random;
@@ -180,7 +192,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         }
 
         @Override
-        public LimitedChannel get(int index) {
+        public CompositeLimitedChannel get(int index) {
             reshuffleChannelsIfNecessary();
             return channels.get(index);
         }
@@ -197,7 +209,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
             }
 
             if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
-                ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
+                ImmutableList<CompositeLimitedChannel> newList = shuffleImmutableList(channels, random);
                 if (log.isDebugEnabled()) {
                     log.debug(
                             "Reshuffling channels {} {}",
@@ -216,7 +228,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
         return ImmutableList.copyOf(mutableList);
     }
 
-    private void debugLogCurrentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
+    private void debugLogLimitedRequest(int currentIndex, CompositeLimitedChannel channel) {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Current channel limited request",
+                    SafeArg.of("currentIndex", currentIndex),
+                    UnsafeArg.of("current", channel));
+        }
+    }
+
+    private void debugLogCurrentChannelRejected(int currentIndex, CompositeLimitedChannel channel, OptionalInt next) {
         if (log.isDebugEnabled()) {
             if (next.isPresent()) {
                 log.debug(
@@ -234,7 +255,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     private void debugLogReceivedErrorStatus(
-            int currentIndex, LimitedChannel channel, Response response, OptionalInt next) {
+            int currentIndex, CompositeLimitedChannel channel, Response response, OptionalInt next) {
         if (log.isDebugEnabled()) {
             if (next.isPresent()) {
                 log.debug(
@@ -254,7 +275,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     private void debugLogReceivedThrowable(
-            int currentIndex, LimitedChannel channel, Throwable throwable, OptionalInt next) {
+            int currentIndex, CompositeLimitedChannel channel, Throwable throwable, OptionalInt next) {
         if (log.isDebugEnabled()) {
             if (next.isPresent()) {
                 log.debug(

@@ -19,7 +19,8 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -41,22 +42,22 @@ import org.slf4j.LoggerFactory;
  * unblacklisted. Without this functionality, hundreds of requests could be sent to a still-broken
  * server before the first of them returns and tells us it's still broken.
  */
-final class BlacklistingChannel implements LimitedChannel {
+final class BlacklistingChannel implements CompositeLimitedChannel {
 
     private static final Logger log = LoggerFactory.getLogger(BlacklistingChannel.class);
     private static final int NUM_PROBATION_REQUESTS = 5;
 
-    private final LimitedChannel delegate;
+    private final CompositeLimitedChannel delegate;
     private final Duration duration;
     private final Ticker ticker;
     private final AtomicReference<BlacklistState> channelBlacklistState;
 
-    BlacklistingChannel(LimitedChannel delegate, Duration duration) {
+    BlacklistingChannel(CompositeLimitedChannel delegate, Duration duration) {
         this(delegate, duration, Ticker.systemTicker());
     }
 
     @VisibleForTesting
-    BlacklistingChannel(LimitedChannel delegate, Duration duration, Ticker ticker) {
+    BlacklistingChannel(CompositeLimitedChannel delegate, Duration duration, Ticker ticker) {
         this.delegate = delegate;
         this.duration = duration;
         this.ticker = ticker;
@@ -64,12 +65,12 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
         BlacklistState state = channelBlacklistState.get();
 
         if (state instanceof BlacklistUntil) {
             if (ticker.read() < ((BlacklistUntil) state).untilNanos) {
-                return Optional.empty();
+                return LimitedResponses.blacklisted();
             }
 
             state = beginProbation();
@@ -79,16 +80,14 @@ final class BlacklistingChannel implements LimitedChannel {
             Probation probation = (Probation) state;
             if (probation.acquireStartPermit()) {
                 log.debug("Probation channel request allowed");
-                return delegate.maybeExecute(endpoint, request).map(future ->
-                        DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.of(probation))));
+                return wrap(delegate.maybeExecute(endpoint, request), Optional.of(probation));
             } else {
                 log.debug("Probation channel request not allowed");
-                return Optional.empty();
+                return LimitedResponses.blacklisted();
             }
         }
 
-        return delegate.maybeExecute(endpoint, request)
-                .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty())));
+        return wrap(delegate.maybeExecute(endpoint, request), Optional.empty());
     }
 
     private void blacklist() {
@@ -103,6 +102,13 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private void probationComplete() {
         channelBlacklistState.set(null);
+    }
+
+    private LimitedResponse wrap(LimitedResponse limitedResponse, Optional<Probation> probation) {
+        LimitedResponses.getResponse(limitedResponse).ifPresent(response -> {
+            Futures.addCallback(response, new BlacklistingCallback(probation), MoreExecutors.directExecutor());
+        });
+        return limitedResponse;
     }
 
     private final class BlacklistingCallback implements FutureCallback<Response> {

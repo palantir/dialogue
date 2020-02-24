@@ -20,7 +20,8 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
 import com.netflix.concurrency.limits.limit.WindowedLimit;
@@ -36,22 +37,22 @@ import java.util.concurrent.TimeUnit;
  * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the
  * {@link #maybeExecute} method returns empty.
  */
-final class ConcurrencyLimitedChannel implements LimitedChannel {
+final class ConcurrencyLimitedChannel implements CompositeLimitedChannel {
     private static final Void NO_CONTEXT = null;
     private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
 
     private final Meter limitedMeter;
-    private final LimitedChannel delegate;
+    private final CompositeLimitedChannel delegate;
     private final Limiter<Void> limiter;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(LimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+    ConcurrencyLimitedChannel(CompositeLimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
+        this.delegate = new NeverThrowCompositeLimitedChannel(delegate);
         this.limitedMeter = metrics.limited(getClass().getSimpleName());
         this.limiter = limiter;
     }
 
-    static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
+    static ConcurrencyLimitedChannel create(CompositeLimitedChannel delegate, DialogueClientMetrics metrics) {
         return new ConcurrencyLimitedChannel(
                 delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
     }
@@ -74,20 +75,18 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
         Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
         if (maybeListener.isPresent()) {
             Limiter.Listener listener = maybeListener.get();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
-            if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
-            } else {
-                listener.onIgnore();
-            }
-            return result;
+            LimitedResponse limitedResponse = delegate.maybeExecute(endpoint, request);
+            LimitedResponses.getResponse(limitedResponse).ifPresent(response -> {
+                Futures.addCallback(response, new LimiterCallback(listener), MoreExecutors.directExecutor());
+            });
+            return limitedResponse;
         } else {
             limitedMeter.mark();
-            return Optional.empty();
+            return LimitedResponses.limited();
         }
     }
 

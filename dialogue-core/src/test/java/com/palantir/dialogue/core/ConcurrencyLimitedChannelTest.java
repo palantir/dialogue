@@ -65,7 +65,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new LimitedChannelAdapter(delegate), limiter, metrics);
+        channel = new ConcurrencyLimitedChannel(new CompositeLimitedChannelAdapter(delegate), limiter, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -76,7 +76,8 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(200);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(LimitedResponses.getResponse(channel.maybeExecute(endpoint, request)))
+                .contains(responseFuture);
         verify(listener).onSuccess();
     }
 
@@ -85,7 +86,8 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(429);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(LimitedResponses.getResponse(channel.maybeExecute(endpoint, request)))
+                .contains(responseFuture);
         verify(listener).onDropped();
     }
 
@@ -94,7 +96,8 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(LimitedResponses.getResponse(channel.maybeExecute(endpoint, request)))
+                .contains(responseFuture);
         verify(listener).onIgnore();
     }
 
@@ -102,15 +105,17 @@ public class ConcurrencyLimitedChannelTest {
     public void testUnavailable() {
         mockLimitUnavailable();
 
-        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(LimitedResponses.getResponse(channel.maybeExecute(endpoint, request)))
+                .isEmpty();
         verifyNoMoreInteractions(listener);
     }
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new LimitedChannelAdapter(delegate), metrics);
+        channel = ConcurrencyLimitedChannel.create(new CompositeLimitedChannelAdapter(delegate), metrics);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(LimitedResponses.getResponse(channel.maybeExecute(endpoint, request)))
+                .contains(responseFuture);
     }
 
     private void mockResponseCode(int code) {

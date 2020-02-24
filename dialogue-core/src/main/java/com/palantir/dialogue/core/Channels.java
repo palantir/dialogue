@@ -24,6 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
@@ -39,14 +40,15 @@ public final class Channels {
         Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
-        List<LimitedChannel> limitedChannels = channels.stream()
+        List<CompositeLimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
-                .map(LimitedChannelAdapter::new)
+                .map(CompositeLimitedChannelAdapter::new)
                 .map(concurrencyLimiter(config, clientMetrics))
+                .map(channel -> new BlacklistingChannel(channel, Duration.ofNanos(10000)))
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
@@ -63,9 +65,12 @@ public final class Channels {
         return channel;
     }
 
-    private static LimitedChannel nodeSelectionStrategy(ClientConfiguration config, List<LimitedChannel> channels) {
+    private static LimitedChannel nodeSelectionStrategy(
+            ClientConfiguration config, List<CompositeLimitedChannel> channels) {
+        // no fancy node selection heuristic can save us if our one node goes down
         if (channels.size() == 1) {
-            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+            return (endpoint, request) ->
+                    LimitedResponses.getResponse(channels.get(0).maybeExecute(endpoint, request));
         }
 
         switch (config.nodeSelectionStrategy()) {
@@ -80,7 +85,7 @@ public final class Channels {
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
+    private static Function<CompositeLimitedChannel, CompositeLimitedChannel> concurrencyLimiter(
             ClientConfiguration config, DialogueClientMetrics metrics) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {

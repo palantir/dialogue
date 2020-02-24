@@ -21,8 +21,11 @@ dependencies {
     testRuntimeOnly 'org.slf4j:slf4j-simple'
 
     annotationProcessor 'org.immutables:value'
+    annotationProcessor 'org.derive4j:derive4j'
+    compileOnly 'org.derive4j:derive4j-annotation'
+    compileOnly 'org.immutables:value::annotations'
+
     testAnnotationProcessor 'org.immutables:value'
-    compile 'org.immutables:value::annotations'
 }
 
 configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5

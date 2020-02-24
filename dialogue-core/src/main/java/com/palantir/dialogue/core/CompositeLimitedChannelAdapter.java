@@ -15,26 +15,23 @@
  */
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
-import java.util.Optional;
 
-/** Adapter from {@link Channel} to {@link LimitedChannel} which always returns a {@link Optional#isPresent() value}. */
-final class LimitedChannelAdapter implements LimitedChannel {
+/** Adapter from {@link Channel} to {@link CompositeLimitedChannel} which always returns a response value}. */
+final class CompositeLimitedChannelAdapter implements CompositeLimitedChannel {
 
     private final Channel delegate;
 
-    LimitedChannelAdapter(Channel delegate) {
+    CompositeLimitedChannelAdapter(Channel delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel");
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return Optional.of(delegate.execute(endpoint, request));
+    public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
+        return LimitedResponses.response(delegate.execute(endpoint, request));
     }
 
     @Override

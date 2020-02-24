@@ -31,16 +31,16 @@ import org.slf4j.LoggerFactory;
 /**
  * Channel with a fixed number of available permits. This can be used to enforce a per-route request limit.
  */
-final class FixedLimitedChannel implements LimitedChannel {
+final class FixedLimitedChannel implements CompositeLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(FixedLimitedChannel.class);
 
-    private final LimitedChannel delegate;
+    private final CompositeLimitedChannel delegate;
     private final AtomicInteger usedPermits = new AtomicInteger(0);
     private final Meter limitedMeter;
     private final int totalPermits;
     private final Runnable returnPermit;
 
-    FixedLimitedChannel(LimitedChannel delegate, int totalPermits, DialogueClientMetrics metrics) {
+    FixedLimitedChannel(CompositeLimitedChannel delegate, int totalPermits, DialogueClientMetrics metrics) {
         this.delegate = delegate;
         this.totalPermits = totalPermits;
         this.limitedMeter = metrics.limited(getClass().getSimpleName());
@@ -50,22 +50,23 @@ final class FixedLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public LimitedResponse maybeExecute(Endpoint endpoint, Request request) {
         boolean optimisticallyAcquiredPermit = usedPermits.incrementAndGet() > totalPermits;
         if (optimisticallyAcquiredPermit) {
             returnPermit.run();
             limitedMeter.mark();
             logExhaustion(endpoint);
-            return Optional.empty();
+            return LimitedResponses.limited();
         }
         boolean resetOptimisticallyConsumedPermit = true;
         try {
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
+            LimitedResponse response = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> result = LimitedResponses.getResponse(response);
             if (result.isPresent()) {
                 result.get().addListener(returnPermit, MoreExecutors.directExecutor());
                 resetOptimisticallyConsumedPermit = false;
             }
-            return result;
+            return response;
         } finally {
             if (resetOptimisticallyConsumedPermit) {
                 returnPermit.run();
