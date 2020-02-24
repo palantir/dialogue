@@ -21,8 +21,8 @@
                live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=58.9%	client_mean=PT3.5763136S   	server_cpu=PT1H58M42.9S   	client_received=2500/2500	server_resps=2500	codes={200=1473, 500=1027}
                    live_reloading[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=58.6%	client_mean=PT3.5376608S   	server_cpu=PT1H58M19S     	client_received=2500/2500	server_resps=2500	codes={200=1466, 500=1034}
                              live_reloading[UNLIMITED_ROUND_ROBIN].txt:	success=58.4%	client_mean=PT2.8396S      	server_cpu=PT1H58M19S     	client_received=2500/2500	server_resps=2500	codes={200=1461, 500=1039}
-one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=87.9%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=2197, 500=303}
-one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=63.8%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1596, 500=904}
+one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=42.7%	client_mean=PT1.373242603S 	server_cpu=PT13M31.2S     	client_received=1352/2500	server_resps=1352	codes={200=1067, 500=285}
+one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=63.8%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1594, 500=906}
  one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=65.5%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1638, 500=862}
            one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].txt:	success=65.5%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1638, 500=862}
  simplest_possible_case[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.799939393S 	server_cpu=PT2H55M59.2S   	client_received=13200/13200	server_resps=13200	codes={200=13200}

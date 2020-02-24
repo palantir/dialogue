@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
@@ -37,6 +35,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,9 +67,9 @@ final class BlacklistingChannel implements LimitedChannel {
     private final LimitedChannel delegate;
     private final Duration duration;
     private final Ticker ticker;
-    private final Cache<Endpoint, BlacklistState> perEndpointBlacklistState;
     private final LimitedChannelListener listener;
     private final ScheduledExecutorService scheduler;
+    private final AtomicReference<BlacklistState> channelBlacklistState;
 
     BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener) {
         this(delegate, duration, listener, Ticker.systemTicker(), sharedScheduler.get());
@@ -93,13 +92,12 @@ final class BlacklistingChannel implements LimitedChannel {
         this.ticker = ticker;
         this.listener = listener;
         this.scheduler = scheduler;
-        this.perEndpointBlacklistState =
-                Caffeine.newBuilder().maximumSize(1000).ticker(ticker).build();
+        this.channelBlacklistState = new AtomicReference<>();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        BlacklistState state = perEndpointBlacklistState.getIfPresent(endpoint);
+        BlacklistState state = channelBlacklistState.get();
         if (state != null) {
             BlacklistStage stage = state.maybeProgressAndGet();
             if (stage instanceof BlacklistUntil) {
@@ -111,7 +109,7 @@ final class BlacklistingChannel implements LimitedChannel {
                 if (probation.acquireStartPermit()) {
                     log.debug("Probation channel request allowed");
                     return delegate.maybeExecute(endpoint, request).map(future -> DialogueFutures.addDirectCallback(
-                            future, new BlacklistingCallback(Optional.of(probation), endpoint)));
+                            future, new BlacklistingCallback(Optional.of(probation))));
                 } else {
                     log.debug("Probation channel request not allowed");
                     return Optional.empty();
@@ -119,27 +117,25 @@ final class BlacklistingChannel implements LimitedChannel {
             }
         }
 
-        return delegate.maybeExecute(endpoint, request).map(future ->
-                DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty(), endpoint)));
+        return delegate.maybeExecute(endpoint, request)
+                .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(Optional.empty())));
     }
 
-    private void blacklist(Endpoint endpoint) {
+    private void blacklist() {
         BlacklistState state = new BlacklistState(duration, NUM_PROBATION_REQUESTS);
-        perEndpointBlacklistState.put(endpoint, state);
+        channelBlacklistState.set(state);
     }
 
-    private void probationComplete(Endpoint endpoint) {
-        perEndpointBlacklistState.invalidate(endpoint);
+    private void probationComplete() {
+        channelBlacklistState.set(null);
         listener.onChannelReady();
     }
 
     private final class BlacklistingCallback implements FutureCallback<Response> {
         private final Optional<Probation> probationPermit;
-        private final Endpoint endpoint;
 
-        private BlacklistingCallback(Optional<Probation> probationPermit, Endpoint endpoint) {
+        private BlacklistingCallback(Optional<Probation> probationPermit) {
             this.probationPermit = probationPermit;
-            this.endpoint = endpoint;
         }
 
         @Override
@@ -150,16 +146,16 @@ final class BlacklistingChannel implements LimitedChannel {
                         "Blacklisting {} due to status code {}",
                         UnsafeArg.of("delegate", delegate),
                         SafeArg.of("code", response.code()));
-                blacklist(endpoint);
+                blacklist();
             } else if (probationPermit.isPresent() && probationPermit.get().checkIfProbationIsComplete()) {
                 log.debug("Probation is complete");
-                probationComplete(endpoint);
+                probationComplete();
             }
         }
 
         @Override
         public void onFailure(Throwable _throwable) {
-            blacklist(endpoint);
+            blacklist();
         }
     }
 
