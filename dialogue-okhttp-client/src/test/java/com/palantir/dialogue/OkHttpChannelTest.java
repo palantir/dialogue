@@ -16,13 +16,12 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 
 public final class OkHttpChannelTest extends AbstractChannelTest {
 
     @Override
-    protected Channel createChannel(ClientConfiguration config, UserAgent agent) {
-        return OkHttpChannels.create(config, agent);
+    protected Channel createChannel(ClientConfiguration config) {
+        return OkHttpChannels.create(config);
     }
 }

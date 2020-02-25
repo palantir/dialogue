@@ -1,0 +1,6 @@
+type: break
+break:
+  description: A bunch of our method signatures now just take a `ClientConfiguration`
+    parameter instead of `ClientConfiguration` and `UserAgent`.
+  links:
+  - https://github.com/palantir/dialogue/pull/431
