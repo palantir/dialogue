@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
@@ -28,6 +30,8 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -64,6 +68,9 @@ public final class UserAgentChannelTest {
     @Mock
     private Channel delegate;
 
+    @Captor
+    private ArgumentCaptor<Request> requestCaptor;
+
     private UserAgentChannel channel;
 
     @BeforeEach
@@ -87,11 +94,9 @@ public final class UserAgentChannelTest {
             dialogueVersion = "0.0.0";
         }
 
-        Request augmentedRequest = Request.builder()
-                .from(request)
-                .putHeaderParams("user-agent", "test-class/1.2.3 test-service/2.3.4 dialogue/" + dialogueVersion)
-                .build();
         channel.execute(endpoint, request);
-        verify(delegate).execute(endpoint, augmentedRequest);
+        verify(delegate).execute(eq(endpoint), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
+                .containsExactly("test-class/1.2.3 test-service/2.3.4 dialogue/" + dialogueVersion);
     }
 }
