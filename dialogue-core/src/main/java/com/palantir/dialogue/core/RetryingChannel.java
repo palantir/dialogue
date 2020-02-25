@@ -38,6 +38,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -105,9 +106,16 @@ final class RetryingChannel implements Channel {
             this.request = request;
         }
 
-        @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
         ListenableFuture<Response> execute() {
+            return execute(null);
+        }
+
+        @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
+        ListenableFuture<Response> execute(@Nullable Throwable cause) {
             long backoffNanoseconds = getBackoffNanoseconds();
+            if (failures > 0) {
+                logRetry(cause, backoffNanoseconds);
+            }
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -132,8 +140,7 @@ final class RetryingChannel implements Channel {
                 Throwable failure =
                         new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
                 if (++failures <= maxRetries) {
-                    logRetry(failure);
-                    return execute();
+                    return execute(failure);
                 }
                 if (log.isDebugEnabled()) {
                     log.debug(
@@ -150,18 +157,18 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> failure(Throwable throwable) {
             if (++failures <= maxRetries) {
-                logRetry(throwable);
-                return execute();
+                return execute(throwable);
             }
             return Futures.immediateFailedFuture(throwable);
         }
 
-        private void logRetry(Throwable throwable) {
+        private void logRetry(@Nullable Throwable throwable, long backoffNanoseconds) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
+                        SafeArg.of("backoffNanoseconds", backoffNanoseconds),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);
