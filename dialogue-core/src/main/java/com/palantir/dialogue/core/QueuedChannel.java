@@ -61,7 +61,7 @@ import org.slf4j.LoggerFactory;
  *
  * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
-final class QueuedChannel implements Channel {
+final class QueuedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
     private static final Executor DIRECT = MoreExecutors.directExecutor();
 
@@ -88,10 +88,10 @@ final class QueuedChannel implements Channel {
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
-        Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+        ListenableFuture<LimitedResponse> maybeResult = delegate.maybeExecute(endpoint, request);
         if (maybeResult.isPresent()) {
             ListenableFuture<Response> result = maybeResult.get();
             numRunningRequests.incrementAndGet();

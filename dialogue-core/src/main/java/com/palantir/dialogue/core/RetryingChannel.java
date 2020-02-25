@@ -37,11 +37,11 @@ final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
 
-    private final Channel delegate;
+    private final LimitedChannel delegate;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
 
-    RetryingChannel(Channel delegate, int maxRetries, ClientConfiguration.ServerQoS serverQoS) {
+    RetryingChannel(LimitedChannel delegate, int maxRetries, ClientConfiguration.ServerQoS serverQoS) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
         this.serverQoS = serverQoS;
@@ -53,7 +53,7 @@ final class RetryingChannel implements Channel {
     }
 
     private static final class RetryingCallback {
-        private final Channel delegate;
+        private final LimitedChannel delegate;
         private final Endpoint endpoint;
         private final Request request;
         private final int maxRetries;
@@ -61,7 +61,7 @@ final class RetryingChannel implements Channel {
         private int failures = 0;
 
         private RetryingCallback(
-                Channel delegate,
+                LimitedChannel delegate,
                 Endpoint endpoint,
                 Request request,
                 int maxRetries,
@@ -74,7 +74,7 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> execute() {
-            return wrap(delegate.execute(endpoint, request));
+            return wrap(delegate.maybeExecute(endpoint, request));
         }
 
         ListenableFuture<Response> success(Response response) {
@@ -101,6 +101,28 @@ final class RetryingChannel implements Channel {
             return Futures.immediateFuture(response);
         }
 
+        ListenableFuture<Response> convertToResponse(LimitedResponse response) {
+            response.matches(new LimitedResponse.Cases<ListenableFuture<Response>>() {
+                @Override
+                public ListenableFuture<Response> serverLimited(Response response) {
+                    if (shouldPropagateQos(serverQoS)) {
+                        return
+                    }
+                    return null;
+                }
+
+                @Override
+                public ListenableFuture<Response> clientLimited() {
+                    return null;
+                }
+
+                @Override
+                public ListenableFuture<Response> success(Response response) {
+                    return null;
+                }
+            });
+        }
+
         ListenableFuture<Response> failure(Throwable throwable) {
             if (++failures <= maxRetries) {
                 logRetry(throwable);
@@ -121,10 +143,12 @@ final class RetryingChannel implements Channel {
             }
         }
 
-        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            ListenableFuture<Response> result = input;
+        private ListenableFuture<Response> wrap(ListenableFuture<LimitedResponse> input) {
+            ListenableFuture<Response> result;
             if (!shouldPropagateQos(serverQoS)) {
                 result = Futures.transformAsync(result, this::success, MoreExecutors.directExecutor());
+            } else {
+                result = Futures.transformAsync(result, )
             }
             result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
             return result;
