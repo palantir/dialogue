@@ -31,7 +31,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -86,34 +85,42 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
 
-        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
-        if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementHostIfNecessary(currentIndex);
-            debugLogCurrentChannelRejected(currentIndex, channel, next);
-            return Optional.empty(); // if the caller retries immediately, we'll get the next host
+        return DialogueFutures.addDirectCallback(
+                channel.maybeExecute(endpoint, request), new PinUntilErrorCallback(currentIndex, channel));
+    }
+
+    private class PinUntilErrorCallback implements FutureCallback<LimitedResponse> {
+
+        private final int currentIndex;
+        private final LimitedChannel channel;
+
+        PinUntilErrorCallback(int currentIndex, LimitedChannel channel) {
+            this.currentIndex = currentIndex;
+            this.channel = channel;
         }
 
-        ListenableFuture<Response> future = maybeFuture.get();
-        return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
-            @Override
-            public void onSuccess(Response response) {
-                if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                    OptionalInt next = incrementHostIfNecessary(currentIndex);
-                    debugLogReceivedErrorStatus(currentIndex, channel, response, next);
-                    // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable throwable) {
+        @Override
+        public void onSuccess(LimitedResponse result) {
+            // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
+            if (result.matches(LimitedResponse.isServerLimited) || result.matches(LimitedResponse.isServerError)) {
                 OptionalInt next = incrementHostIfNecessary(currentIndex);
-                debugLogReceivedThrowable(currentIndex, channel, throwable, next);
+                debugLogReceivedErrorStatus(
+                        currentIndex,
+                        channel,
+                        LimitedResponses.getResponse(result).get(),
+                        next);
             }
-        }));
+        }
+
+        @Override
+        public void onFailure(Throwable throwable) {
+            OptionalInt next = incrementHostIfNecessary(currentIndex);
+            debugLogReceivedThrowable(currentIndex, channel, throwable, next);
+        }
     }
 
     /**
@@ -214,23 +221,6 @@ final class PinUntilErrorChannel implements LimitedChannel {
         List<T> mutableList = new ArrayList<>(sourceList);
         Collections.shuffle(mutableList, random);
         return ImmutableList.copyOf(mutableList);
-    }
-
-    private void debugLogCurrentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
-        if (log.isDebugEnabled()) {
-            if (next.isPresent()) {
-                log.debug(
-                        "Current channel rejected request, switching to next channel",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next.getAsInt()));
-            } else {
-                log.debug(
-                        "Current channel rejected request, but we've already switched",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel));
-            }
-        }
     }
 
     private void debugLogReceivedErrorStatus(
