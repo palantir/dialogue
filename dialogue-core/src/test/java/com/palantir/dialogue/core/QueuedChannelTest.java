@@ -115,7 +115,7 @@ public class QueuedChannelTest {
 
         mockHasCapacity();
         queuedChannel.execute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, request);
+        verify(delegate, times(4)).maybeExecute(endpoint, request);
     }
 
     @Test
@@ -164,15 +164,15 @@ public class QueuedChannelTest {
         mockNoCapacity();
         queuedChannel.execute(endpoint, request);
         queuedChannel.execute(endpoint, request);
-        verify(delegate, times(4)).maybeExecute(endpoint, request);
+        verify(delegate, times(3)).maybeExecute(endpoint, request);
 
         // flush queue by completing a request
         mockHasCapacity();
         queuedChannel.execute(endpoint, request);
-        verify(delegate, times(5)).maybeExecute(endpoint, request);
+        verify(delegate, times(6)).maybeExecute(endpoint, request);
         futureResponse.set(mockResponse);
 
-        verify(delegate, times(7)).maybeExecute(endpoint, request);
+        verify(delegate, times(6)).maybeExecute(endpoint, request);
     }
 
     @Test
