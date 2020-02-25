@@ -91,6 +91,12 @@ public final class ApacheHttpClientChannels {
                 "Out of bounds hostIndex",
                 SafeArg.of("hostIndex", uriIndex),
                 SafeArg.of("numUris", conf.uris().size()));
+        String uri = conf.uris().get(uriIndex);
+        CloseableHttpClient client = createCloseableHttpClient(conf);
+        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
+    }
+
+    public static CloseableHttpClient createCloseableHttpClient(ClientConfiguration conf) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -98,7 +104,6 @@ public final class ApacheHttpClientChannels {
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
-        // TODO(ckozak): close resources?
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
@@ -144,10 +149,7 @@ public final class ApacheHttpClientChannels {
                             .build());
         });
 
-        CloseableHttpClient client = builder.build();
-
-        String uri = conf.uris().get(uriIndex);
-        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
+        return builder.build();
     }
 
     /**
