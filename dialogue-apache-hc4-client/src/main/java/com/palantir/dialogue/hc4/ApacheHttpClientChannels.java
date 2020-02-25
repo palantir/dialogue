@@ -15,7 +15,6 @@
  */
 package com.palantir.dialogue.hc4;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
@@ -40,6 +39,8 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -75,7 +76,21 @@ public final class ApacheHttpClientChannels {
 
     private ApacheHttpClientChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
+    public static Channel create(ClientConfiguration conf, UserAgent agent) {
+        List<Channel> channels = IntStream.range(0, conf.uris().size())
+                .mapToObj(index -> createSingleUri(conf, index))
+                .collect(Collectors.toList());
+
+        return Channels.create(channels, agent, conf);
+    }
+
+    public static Channel createSingleUri(ClientConfiguration conf, int uriIndex) {
+        Preconditions.checkArgument(!conf.uris().isEmpty(), "At least one uri must be provided");
+        Preconditions.checkArgument(
+                0 <= uriIndex && uriIndex < conf.uris().size(),
+                "Out of bounds hostIndex",
+                SafeArg.of("hostIndex", uriIndex),
+                SafeArg.of("numUris", conf.uris().size()));
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -128,12 +143,11 @@ public final class ApacheHttpClientChannels {
                             .register(AuthSchemes.BASIC, new BasicSchemeFactory())
                             .build());
         });
-        CloseableHttpClient client = builder.build();
-        ImmutableList<Channel> channels = conf.uris().stream()
-                .map(uri -> BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri))))
-                .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, conf);
+        CloseableHttpClient client = builder.build();
+
+        String uri = conf.uris().get(uriIndex);
+        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
     }
 
     /**
