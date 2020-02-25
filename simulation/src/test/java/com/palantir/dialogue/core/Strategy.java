@@ -124,12 +124,13 @@ public enum Strategy {
     private static Channel queuedChannelAndRetrying(
             Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        RetryingQueuedChannel channel = new RetryingQueuedChannel(
+        Channel channel = new RetryingChannel(
                 limited1,
-                4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                DispatcherMetrics.of(sim.taggedMetrics()));
-        listener.delegate = channel::schedule;
+                new RetryingChannel.ExponentialBackoff(
+                        4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */, Duration.ofMillis(250)),
+                sim.scheduler());
+        // listener.delegate = channel::schedule;
 
         return channel;
     }

@@ -67,8 +67,12 @@ public final class Channels {
                 config.serverQoS(),
                 DispatcherMetrics.of(config.taggedMetricRegistry()));
         queueListener.delegate = queuedChannel::schedule;
-        Channel channel = queuedChannel;
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
+        // Channel channel = queuedChannel;
+        // channel = new TracedChannel(channel, "Dialogue-request-attempt");
+        Channel channel = new RetryingChannel(
+                limited,
+                config.serverQoS(),
+                new RetryingChannel.ExponentialBackoff(config.maxNumRetries(), config.backoffSlotSize()));
         channel = new UserAgentChannel(channel, userAgent);
         channel = new DeprecationWarningChannel(channel, clientMetrics);
         channel = new ContentDecodingChannel(channel);

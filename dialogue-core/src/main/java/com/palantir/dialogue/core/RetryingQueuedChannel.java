@@ -169,8 +169,7 @@ final class RetryingQueuedChannel implements Channel {
             // TODO(forozco): this is totally broken
             ListenableFuture<LimitedResponse> result = delegate.maybeExecute(endpoint, request);
             if (deferredCall.get() == null) {
-                result = Futures.transformAsync(
-                        delegate.maybeExecute(endpoint, request), this::initialRequest, MoreExecutors.directExecutor());
+                result = Futures.transformAsync(result, this::initialRequest, MoreExecutors.directExecutor());
             } else {
                 DeferredCall call = deferredCall.get();
                 queuedCalls.addFirst(call);

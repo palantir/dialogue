@@ -22,16 +22,18 @@ import org.derive4j.Data;
 @Data
 public interface LimitedResponse {
     Cases<Boolean> isServerLimited =
-            LimitedResponses.cases(_response -> true, () -> false, _response -> false, _response -> false);
+            LimitedResponses.cases(_response -> true, () -> false, () -> false, _response -> false, _response -> false);
     Cases<Boolean> isClientLimited =
-            LimitedResponses.cases(_response -> false, () -> true, _response -> false, _response -> false);
+            LimitedResponses.cases(_response -> false, () -> true, () -> false, _response -> false, _response -> false);
     Cases<Boolean> isServerError =
-            LimitedResponses.cases(_response -> false, () -> false, _response -> true, _response -> false);
+            LimitedResponses.cases(_response -> false, () -> false, () -> false, _response -> true, _response -> false);
 
     interface Cases<T> {
         T serverLimited(Response response);
 
         T clientLimited();
+
+        T clientBackOff();
 
         T serverError(Response response);
 
