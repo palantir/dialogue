@@ -1,1 +1,1 @@
-success=12.3%	client_mean=PT9.156086414S 	server_cpu=PT1H22M10.65S  	client_received=2407/10000	server_resps=2407	codes={200=1227, 500=1180}
+success=3.7%	client_mean=PT2.0471542S   	server_cpu=PT1H26M34.726S 	client_received=10000/10000	server_resps=1614	codes={200=370, 500=1244, Failed to make a request=8386}
