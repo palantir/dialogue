@@ -18,7 +18,6 @@ package com.palantir.dialogue.hc4;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
@@ -75,12 +74,12 @@ public final class ApacheHttpClientChannels {
 
     private ApacheHttpClientChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent agent) {
+    public static Channel create(ClientConfiguration conf) {
         CloseableHttpClient client = createCloseableHttpClient(conf);
         List<Channel> channels =
                 conf.uris().stream().map(uri -> createSingleUri(uri, client)).collect(Collectors.toList());
 
-        return Channels.create(channels, agent, conf);
+        return Channels.create(channels, conf);
     }
 
     public static Channel createSingleUri(String uri, CloseableHttpClient client) {

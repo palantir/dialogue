@@ -19,7 +19,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
@@ -37,8 +36,8 @@ import org.junit.Test;
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     @Override
-    protected Channel createChannel(ClientConfiguration config, UserAgent agent) {
-        return ApacheHttpClientChannels.create(config, agent);
+    protected Channel createChannel(ClientConfiguration config) {
+        return ApacheHttpClientChannels.create(config);
     }
 
     @Test
