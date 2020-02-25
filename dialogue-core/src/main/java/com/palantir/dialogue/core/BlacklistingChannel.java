@@ -33,7 +33,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -135,14 +134,14 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     private final class BlacklistState {
-        private final AtomicBoolean inProbation = new AtomicBoolean();
-        private final long blacklistUntilNanos;
-        private final Probation probation;
+        private final AtomicReference<Probation> probation = new AtomicReference<>();
         private final ScheduledFuture<?> scheduledFuture;
+        private final long blacklistUntilNanos;
+        private final int probationPermits;
 
         BlacklistState(Duration duration, int probationPermits) {
             this.blacklistUntilNanos = ticker.read() + duration.toNanos();
-            this.probation = new Probation(probationPermits);
+            this.probationPermits = probationPermits;
             this.scheduledFuture =
                     scheduler.schedule(this::maybeProgressAndGet, duration.toNanos(), TimeUnit.NANOSECONDS);
         }
@@ -163,21 +162,26 @@ final class BlacklistingChannel implements LimitedChannel {
         }
 
         Optional<Probation> maybeProgressAndGet() {
-            if (inProbation.get()) {
-                return Optional.of(probation);
+            Optional<Probation> maybeProbation = Optional.ofNullable(probation.get());
+            if (maybeProbation.isPresent()) {
+                return maybeProbation;
             }
             if (ticker.read() >= blacklistUntilNanos) {
-                if (inProbation.compareAndSet(false, true)) {
+                if (probation.compareAndSet(null, new Probation(probationPermits))) {
+                    if (log.isDebugEnabled()) {
+                        log.debug("Channel {} is entering probation", UnsafeArg.of("channel", delegate));
+                    }
                     listener.onChannelReady();
                     scheduledFuture.cancel(false);
                 }
-                return Optional.of(probation);
+                return Optional.ofNullable(probation.get());
             }
             return Optional.empty();
         }
 
         void markSuccess() {
-            if (inProbation.get() && probation.checkIfProbationIsComplete()) {
+            Probation maybeProbation = probation.get();
+            if (maybeProbation != null && maybeProbation.checkIfProbationIsComplete()) {
                 log.debug("Clearing probation state");
                 if (channelBlacklistState.compareAndSet(this, null)) {
                     listener.onChannelReady();
