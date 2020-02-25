@@ -29,9 +29,9 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.UrlBuilder;
-import java.io.Closeable;
 import java.net.UnknownHostException;
 import java.util.Map;
+import org.apache.http.impl.client.CloseableHttpClient;
 import org.junit.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -44,13 +44,15 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     @Test
     public void close_works() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
-        Channel channel = ApacheHttpClientChannels.createSingleUri(conf, 0);
 
-        ListenableFuture<Response> response =
-                channel.execute(new TestEndpoint(), Request.builder().build());
-        assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
+        Channel channel;
+        try (CloseableHttpClient client = ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
 
-        ((Closeable) channel).close();
+            channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
+            ListenableFuture<Response> response =
+                    channel.execute(new TestEndpoint(), Request.builder().build());
+            assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
+        }
 
         ListenableFuture<Response> again =
                 channel.execute(new TestEndpoint(), Request.builder().build());
