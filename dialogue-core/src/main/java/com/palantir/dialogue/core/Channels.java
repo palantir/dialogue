@@ -34,8 +34,7 @@ public final class Channels {
 
     private Channels() {}
 
-    public static Channel create(
-            Collection<? extends Channel> channels, ClientConfiguration config) {
+    public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
         Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
         Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
 

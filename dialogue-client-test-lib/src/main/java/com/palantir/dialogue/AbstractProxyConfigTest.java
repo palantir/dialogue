@@ -66,8 +66,7 @@ public abstract class AbstractProxyConfigTest {
         server.enqueue(new MockResponse().setBody("server"));
         proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
 
-        Channel directChannel =
-                create(TestConfigurations.create("http://localhost:" + server.getPort()));
+        Channel directChannel = create(TestConfigurations.create("http://localhost:" + server.getPort()));
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("http://localhost:" + server.getPort()))
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
