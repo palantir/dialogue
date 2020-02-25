@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import javax.annotation.Nullable;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
@@ -191,6 +192,7 @@ public final class ApacheHttpClientChannels {
         public void setCredentials(AuthScope _authscope, Credentials _credentials) {}
 
         @Override
+        @Nullable
         public Credentials getCredentials(AuthScope _authscope) {
             return null;
         }

@@ -23,6 +23,7 @@ import com.google.common.base.VerifyException;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.net.URL;
@@ -71,7 +72,7 @@ public final class PathTemplateTest {
         PathTemplate template =
                 PathTemplate.builder().variable("a").variable("b").build();
         assertThatThrownBy(() -> fill(template, A))
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(SafeNullPointerException.class)
                 .isInstanceOf(SafeLoggable.class)
                 .hasMessage("Provided parameter map does not contain segment variable name: {variable=b}");
     }
