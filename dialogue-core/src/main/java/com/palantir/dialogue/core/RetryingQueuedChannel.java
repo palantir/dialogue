@@ -1,0 +1,328 @@
+/*
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.palantir.dialogue.core;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import org.immutables.value.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+final class RetryingQueuedChannel implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(RetryingQueuedChannel.class);
+
+    private final int maxRetries;
+    private final BlockingDeque<DeferredCall> queuedCalls;
+    private final ClientConfiguration.ServerQoS serverQoS;
+    private final LimitedChannel delegate;
+    // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
+    private final AtomicInteger numRunningRequests = new AtomicInteger(0);
+
+    RetryingQueuedChannel(
+            LimitedChannel channel,
+            int maxRetries,
+            ClientConfiguration.ServerQoS serverQoS,
+            DispatcherMetrics metrics) {
+        this(channel, maxRetries, 1_000, serverQoS, metrics);
+    }
+
+    @VisibleForTesting
+    RetryingQueuedChannel(
+            LimitedChannel delegate,
+            int maxRetries,
+            int maxQueueSize,
+            ClientConfiguration.ServerQoS serverQoS,
+            DispatcherMetrics metrics) {
+        this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.maxRetries = maxRetries;
+        this.queuedCalls = new LinkedBlockingDeque<>(maxQueueSize);
+        this.serverQoS = serverQoS;
+
+        metrics.callsQueued(queuedCalls::size);
+        metrics.callsRunning(numRunningRequests::get);
+    }
+
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return new RetryingCallback(queuedCalls, delegate, endpoint, request, maxRetries, serverQoS).execute();
+    }
+
+    /**
+     * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
+     */
+    void schedule() {
+        int numScheduled = 0;
+        while (scheduleNextTask()) {
+            numScheduled++;
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug("Scheduled {} requests", SafeArg.of("numScheduled", numScheduled));
+        }
+    }
+
+    /**
+     * Get the next call and attempt to execute it. If it is runnable, wire up the underlying future to the one
+     * previously returned to the caller. If it is not runnable, add it back into the queue. Returns true if more
+     * tasks may be able to be scheduled, and false otherwise.
+     */
+    private boolean scheduleNextTask() {
+        DeferredCall components = queuedCalls.poll();
+        if (components == null) {
+            return false;
+        }
+        SettableFuture<LimitedResponse> queuedResponse = components.response();
+        // If the future has been completed (most likely via cancel) the call should not be queued.
+        // There's a race where cancel may be invoked between this check and execution, but the scheduled
+        // request will be quickly cancelled in that case.
+        if (queuedResponse.isDone()) {
+            return true;
+        }
+        try (CloseableSpan ignored = components.span().childSpan("Dialogue-request-scheduled")) {
+            Endpoint endpoint = components.endpoint();
+            ListenableFuture<LimitedResponse> response = delegate.maybeExecute(endpoint, components.request());
+
+            components.span().complete();
+            // TODO(forozco): keep track of this
+            // numRunningRequests.incrementAndGet();
+            // response.addListener(numRunningRequests::decrementAndGet, DIRECT);
+            Futures.addCallback(response, new ForwardAndSchedule(queuedResponse), MoreExecutors.directExecutor());
+            queuedResponse.addListener(
+                    () -> {
+                        if (queuedResponse.isCancelled()) {
+                            // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                            // here.
+                            // Currently cancel(false) will be converted to cancel(true)
+                            if (!response.cancel(true) && log.isDebugEnabled()) {
+                                log.debug(
+                                        "Failed to cancel delegate response, it should be reported by"
+                                                + " ForwardAndSchedule logging",
+                                        SafeArg.of("service", endpoint.serviceName()),
+                                        SafeArg.of("endpoint", endpoint.endpointName()));
+                            }
+                        }
+                    },
+                    MoreExecutors.directExecutor());
+            // TODO(forozco): Maybe theres a better way to handle removing from the queue
+            return true;
+        }
+    }
+
+    private final class RetryingCallback {
+        private final BlockingDeque<DeferredCall> queuedCalls;
+        private final LimitedChannel delegate;
+        private final Endpoint endpoint;
+        private final Request request;
+        private final int maxRetries;
+        private final ClientConfiguration.ServerQoS serverQoS;
+        private int failures = 0;
+        private final AtomicReference<DeferredCall> deferredCall = new AtomicReference<>();
+
+        private RetryingCallback(
+                BlockingDeque<DeferredCall> queuedCalls,
+                LimitedChannel delegate,
+                Endpoint endpoint,
+                Request request,
+                int maxRetries,
+                ClientConfiguration.ServerQoS serverQoS) {
+            this.queuedCalls = queuedCalls;
+            this.delegate = delegate;
+            this.endpoint = endpoint;
+            this.request = request;
+            this.maxRetries = maxRetries;
+            this.serverQoS = serverQoS;
+        }
+
+        ListenableFuture<Response> execute() {
+            // TODO(forozco): this is totally broken
+            ListenableFuture<LimitedResponse> result = delegate.maybeExecute(endpoint, request);
+            if (deferredCall.get() == null) {
+                result = Futures.transformAsync(
+                        delegate.maybeExecute(endpoint, request), this::initialRequest, MoreExecutors.directExecutor());
+            } else {
+                DeferredCall call = deferredCall.get();
+                queuedCalls.addFirst(call);
+                result = call.response();
+            }
+            return wrap(result);
+        }
+
+        private ListenableFuture<LimitedResponse> initialRequest(LimitedResponse response) {
+            if (response.matches(LimitedResponse.isClientLimited)
+                    || (!shouldPropagateQos(serverQoS) && response.matches(LimitedResponse.isServerLimited))) {
+                DeferredCall components = DeferredCall.builder()
+                        .endpoint(endpoint)
+                        .request(request)
+                        .response(SettableFuture.create())
+                        .span(DetachedSpan.start("Dialogue-request-enqueued"))
+                        .build();
+                deferredCall.set(components);
+
+                if (!queuedCalls.offer(components)) {
+                    return Futures.immediateFuture(LimitedResponses.clientLimited());
+                }
+
+                schedule();
+
+                return components.response();
+            }
+            return Futures.immediateFuture(response);
+        }
+
+        ListenableFuture<Response> convertToResponse(LimitedResponse response) {
+            return response.matches(new LimitedResponse.Cases<ListenableFuture<Response>>() {
+                @Override
+                public ListenableFuture<Response> serverLimited(Response response) {
+                    if (shouldPropagateQos(serverQoS)) {
+                        return Futures.immediateFuture(response);
+                    }
+                    response.close();
+                    Throwable failure = new SafeRuntimeException(
+                            "Received retryable response", SafeArg.of("status", response.code()));
+                    if (failures++ <= maxRetries) {
+                        logRetry(failure);
+                        return execute();
+                    }
+                    if (log.isDebugEnabled()) {
+                        log.debug(
+                                "Retries exhausted, returning a retryable response with status {}",
+                                SafeArg.of("status", response.code()));
+                    }
+                    return Futures.immediateFuture(response);
+                }
+
+                @Override
+                public ListenableFuture<Response> clientLimited() {
+                    // Always retry client side limited requests
+                    return execute();
+                }
+
+                @Override
+                public ListenableFuture<Response> serverError(Response response) {
+                    return Futures.immediateFuture(response);
+                }
+
+                @Override
+                public ListenableFuture<Response> success(Response response) {
+                    return Futures.immediateFuture(response);
+                }
+            });
+        }
+
+        ListenableFuture<Response> failure(Throwable throwable) {
+            if (failures++ <= maxRetries) {
+                logRetry(throwable);
+                return execute();
+            }
+            return Futures.immediateFailedFuture(throwable);
+        }
+
+        private void logRetry(Throwable throwable) {
+            if (log.isInfoEnabled()) {
+                log.info(
+                        "Retrying call after failure",
+                        SafeArg.of("failures", failures),
+                        SafeArg.of("maxRetries", maxRetries),
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()),
+                        throwable);
+            }
+        }
+
+        private ListenableFuture<Response> wrap(ListenableFuture<LimitedResponse> input) {
+            ListenableFuture<Response> result =
+                    Futures.transformAsync(input, this::convertToResponse, MoreExecutors.directExecutor());
+            result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
+            return result;
+        }
+    }
+
+    /**
+     * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
+     * This also schedules the next set of requests to be run.
+     */
+    private class ForwardAndSchedule implements FutureCallback<LimitedResponse> {
+        private final SettableFuture<LimitedResponse> response;
+
+        ForwardAndSchedule(SettableFuture<LimitedResponse> response) {
+            this.response = response;
+        }
+
+        @Override
+        public void onSuccess(LimitedResponse result) {
+            if (!response.set(result)) {
+                LimitedResponses.getResponse(result).ifPresent(Response::close);
+            }
+            schedule();
+        }
+
+        @Override
+        public void onFailure(Throwable throwable) {
+            if (!response.setException(throwable)) {
+                log.info("Call failed after the future completed", throwable);
+            }
+            schedule();
+        }
+    }
+
+    private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
+        switch (serverQoS) {
+            case PROPAGATE_429_and_503_TO_CALLER:
+                return true;
+            case AUTOMATIC_RETRY:
+                return false;
+        }
+
+        throw new SafeIllegalStateException(
+                "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
+    }
+
+    @Value.Immutable
+    interface DeferredCall {
+        Endpoint endpoint();
+
+        Request request();
+
+        SettableFuture<LimitedResponse> response();
+
+        DetachedSpan span();
+
+        class Builder extends ImmutableDeferredCall.Builder {}
+
+        static Builder builder() {
+            return new Builder();
+        }
+    }
+}

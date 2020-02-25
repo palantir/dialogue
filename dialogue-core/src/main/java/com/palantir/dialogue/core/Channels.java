@@ -49,17 +49,26 @@ public final class Channels {
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
                 .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
-                .map(LimitedChannelAdapter::new)
+                .map(StatusCodeConvertingChannel::new)
                 .map(concurrencyLimiter(config, clientMetrics))
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
+                .map(channel -> {
+                    if (config.failedUrlCooldown().isZero()) {
+                        return channel;
+                    }
+                    return new BlacklistingChannel(channel, config.failedUrlCooldown(), queueListener);
+                })
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
-        QueuedChannel queuedChannel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        RetryingQueuedChannel queuedChannel = new RetryingQueuedChannel(
+                limited,
+                config.maxNumRetries(),
+                config.serverQoS(),
+                DispatcherMetrics.of(config.taggedMetricRegistry()));
         queueListener.delegate = queuedChannel::schedule;
         Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
         channel = new UserAgentChannel(channel, userAgent);
         channel = new DeprecationWarningChannel(channel, clientMetrics);
         channel = new ContentDecodingChannel(channel);
