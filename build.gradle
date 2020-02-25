@@ -69,4 +69,16 @@ subprojects {
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Werror']
     }
+
+    plugins.withId('com.palantir.baseline-error-prone', {
+        dependencies {
+            errorprone 'com.uber.nullaway:nullaway'
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.errorprone.errorproneArgs += [
+                !name.toLowerCase().contains("test") ? '-XepOpt:NullAway:AnnotatedPackages=com.palantir' : '-Xep:NullAway:OFF'
+            ]
+        }
+    })
 }

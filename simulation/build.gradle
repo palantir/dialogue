@@ -20,5 +20,5 @@ dependencies {
 }
 
 tasks.withType(JavaCompile) {
-    options.errorprone.errorproneArgs += '-Xep:Slf4jLogsafeArgs:OFF'
+    options.errorprone.errorproneArgs += [ '-Xep:Slf4jLogsafeArgs:OFF', '-Xep:NullAway:OFF' ]
 }
