@@ -27,6 +27,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.Closeable;
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.NoSuchAlgorithmException;
@@ -75,18 +77,18 @@ public final class ApacheHttpClientChannels {
     private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf) {
-        CloseableHttpClient client = createCloseableHttpClient(conf);
+        CloseableClient client = createCloseableHttpClient(conf);
         List<Channel> channels =
                 conf.uris().stream().map(uri -> createSingleUri(uri, client)).collect(Collectors.toList());
 
         return Channels.create(channels, conf);
     }
 
-    public static Channel createSingleUri(String uri, CloseableHttpClient client) {
-        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client, url(uri)));
+    public static Channel createSingleUri(String uri, CloseableClient client) {
+        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client.client, url(uri)));
     }
 
-    public static CloseableHttpClient createCloseableHttpClient(ClientConfiguration conf) {
+    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -139,7 +141,26 @@ public final class ApacheHttpClientChannels {
                             .build());
         });
 
-        return builder.build();
+        return new CloseableClient(builder.build());
+    }
+
+    /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
+    public static class CloseableClient implements Closeable {
+        private final CloseableHttpClient client;
+
+        CloseableClient(CloseableHttpClient client) {
+            this.client = client;
+        }
+
+        @Override
+        public void close() throws IOException {
+            client.close();
+        }
+
+        @Override
+        public String toString() {
+            return "SharedResource{client=" + client + '}';
+        }
     }
 
     /**

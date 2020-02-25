@@ -30,7 +30,6 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.UrlBuilder;
 import java.net.UnknownHostException;
 import java.util.Map;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.junit.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -45,7 +44,8 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
 
         Channel channel;
-        try (CloseableHttpClient client = ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
 
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
