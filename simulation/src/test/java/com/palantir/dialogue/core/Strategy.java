@@ -18,21 +18,21 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,6 +57,7 @@ public enum Strategy {
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(StatusCodeConvertingChannel::new)
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
@@ -70,6 +71,7 @@ public enum Strategy {
         DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(StatusCodeConvertingChannel::new)
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
@@ -83,6 +85,7 @@ public enum Strategy {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(StatusCodeConvertingChannel::new)
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
@@ -95,7 +98,7 @@ public enum Strategy {
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(Strategy::noOpLimitedChannel)
+                    .map(StatusCodeConvertingChannel::new)
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
@@ -103,9 +106,9 @@ public enum Strategy {
         });
     }
 
-    private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
+    private static Function<LimitedChannel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel -> new ConcurrencyLimitedChannel(
-                new LimitedChannelAdapter(channel),
+                channel,
                 ConcurrencyLimitedChannel.createLimiter(sim.clock()),
                 DialogueClientMetrics.of(sim.taggedMetrics()));
     }
@@ -121,12 +124,14 @@ public enum Strategy {
     private static Channel queuedChannelAndRetrying(
             Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-        listener.delegate = channel::schedule;
-        return new RetryingChannel(
-                channel,
+        RetryingQueuedChannel channel = new RetryingQueuedChannel(
+                limited1,
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY);
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                DispatcherMetrics.of(sim.taggedMetrics()));
+        listener.delegate = channel::schedule;
+
+        return channel;
     }
 
     private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
@@ -135,30 +140,23 @@ public enum Strategy {
         return new LimitedChannel() {
 
             @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
                 log.debug(
                         "starting request={}",
                         request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
                 starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
-                if (!response.isPresent()) {
-                    metric.inc();
-                }
-                return response;
-            }
+                return DialogueFutures.addDirectCallback(
+                        delegate.maybeExecute(endpoint, request), new FutureCallback<LimitedResponse>() {
+                            @Override
+                            public void onSuccess(@Nullable LimitedResponse result) {
+                                if (result.matches(LimitedResponse.isClientLimited)) {
+                                    metric.inc();
+                                }
+                            }
 
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
+                            @Override
+                            public void onFailure(Throwable _throwable) {}
+                        });
             }
 
             @Override
