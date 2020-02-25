@@ -20,6 +20,7 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
@@ -27,7 +28,6 @@ import com.netflix.concurrency.limits.limit.WindowedLimit;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -77,27 +77,22 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
         if (maybeListener.isPresent()) {
             Limiter.Listener listener = maybeListener.get();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
-            if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
-            } else {
-                listener.onIgnore();
-            }
-            return result;
+            return DialogueFutures.addDirectCallback(
+                    delegate.maybeExecute(endpoint, request), new LimiterCallback(listener));
         } else {
             limitedMeter.mark();
-            return Optional.empty();
+            return Futures.immediateFuture(LimitedResponses.clientLimited());
         }
     }
 
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
-    private static final class LimiterCallback implements FutureCallback<Response> {
+    private static final class LimiterCallback implements FutureCallback<LimitedResponse> {
 
         private final Limiter.Listener listener;
 
@@ -106,9 +101,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
 
         @Override
-        public void onSuccess(Response result) {
-            if (Responses.isTooManyRequests(result)) {
+        public void onSuccess(LimitedResponse result) {
+            if (result.matches(LimitedResponse.isServerLimited)) {
                 listener.onDropped();
+            } else if (result.matches(LimitedResponse.isClientLimited)) {
+                listener.onIgnore();
             } else {
                 listener.onSuccess();
             }

@@ -20,9 +20,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.util.List;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -34,26 +33,14 @@ final class RoundRobinChannel implements LimitedChannel {
     private final ImmutableList<LimitedChannel> delegates;
 
     RoundRobinChannel(List<LimitedChannel> delegates) {
+        Preconditions.checkArgument(!delegates.isEmpty(), "At least one channel must be specified for round robin");
         this.delegates = ImmutableList.copyOf(delegates);
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (delegates.isEmpty()) {
-            return Optional.empty();
-        }
-
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         int host = currentHost.getAndUpdate(value -> toIndex(value + 1));
-
-        for (int i = 0; i < delegates.size(); i++) {
-            LimitedChannel channel = delegates.get(toIndex(host + i));
-            Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
-            if (maybeCall.isPresent()) {
-                return maybeCall;
-            }
-        }
-
-        return Optional.empty();
+        return delegates.get(toIndex(host)).maybeExecute(endpoint, request);
     }
 
     private int toIndex(int value) {
