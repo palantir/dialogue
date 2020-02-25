@@ -145,7 +145,7 @@ public final class ApacheHttpClientChannels {
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
-    public static class CloseableClient implements Closeable {
+    public static final class CloseableClient implements Closeable {
         private final CloseableHttpClient client;
 
         CloseableClient(CloseableHttpClient client) {
