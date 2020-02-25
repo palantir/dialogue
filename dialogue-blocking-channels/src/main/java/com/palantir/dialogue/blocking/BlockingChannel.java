@@ -18,6 +18,7 @@ package com.palantir.dialogue.blocking;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.io.Closeable;
 import java.io.IOException;
 
 /**
@@ -25,6 +26,9 @@ import java.io.IOException;
  * BlockingChannel is identical to Channel except that invocations block rather than returning
  * a future.
  */
-public interface BlockingChannel {
+public interface BlockingChannel extends Closeable {
     Response execute(Endpoint endpoint, Request request) throws IOException;
+
+    @Override
+    default void close() throws IOException {}
 }

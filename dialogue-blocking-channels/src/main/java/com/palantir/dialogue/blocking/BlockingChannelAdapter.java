@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
@@ -49,7 +50,7 @@ public final class BlockingChannelAdapter {
 
     private BlockingChannelAdapter() {}
 
-    private static final class BlockingChannelAdapterChannel implements Channel {
+    private static final class BlockingChannelAdapterChannel implements Channel, Closeable {
 
         private final BlockingChannel delegate;
         private final ListeningExecutorService executor;
@@ -67,6 +68,11 @@ public final class BlockingChannelAdapter {
         @Override
         public String toString() {
             return "BlockingChannelAdapterChannel{delegate=" + delegate + ", executor=" + executor + '}';
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
         }
 
         /**
