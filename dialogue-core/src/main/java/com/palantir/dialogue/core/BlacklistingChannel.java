@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Endpoint;
@@ -96,13 +97,13 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         BlacklistState state = channelBlacklistState.get();
         if (state != null) {
             return state.maybeExecute(endpoint, request);
         }
-        return delegate.maybeExecute(endpoint, request)
-                .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(null)));
+        return DialogueFutures.addDirectCallback(
+                delegate.maybeExecute(endpoint, request), new BlacklistingCallback(null));
     }
 
     @Override
@@ -110,7 +111,7 @@ final class BlacklistingChannel implements LimitedChannel {
         return "BlacklistingChannel{" + delegate + '}';
     }
 
-    private final class BlacklistState {
+    private final class BlacklistState implements LimitedChannel {
         private final AtomicReference<Probation> probation = new AtomicReference<>();
         private final ScheduledFuture<?> scheduledFuture;
         private final long blacklistUntilNanos;
@@ -123,18 +124,19 @@ final class BlacklistingChannel implements LimitedChannel {
                     scheduler.schedule(this::maybeBeginProbation, duration.toNanos(), TimeUnit.NANOSECONDS);
         }
 
-        Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        @Override
+        public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
             Optional<Probation> maybeProbation = maybeBeginProbation();
             if (!maybeProbation.isPresent()) {
-                return Optional.empty();
+                return Futures.immediateFuture(LimitedResponses.clientLimited());
             }
             if (maybeProbation.get().acquireStartPermit()) {
                 log.debug("Probation channel request allowed");
-                return delegate.maybeExecute(endpoint, request)
-                        .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(this)));
+                return DialogueFutures.addDirectCallback(
+                        delegate.maybeExecute(endpoint, request), new BlacklistingCallback(this));
             } else {
                 log.debug("Probation channel request not allowed");
-                return Optional.empty();
+                return Futures.immediateFuture(LimitedResponses.clientLimited());
             }
         }
 
@@ -189,7 +191,7 @@ final class BlacklistingChannel implements LimitedChannel {
         }
     }
 
-    private final class BlacklistingCallback implements FutureCallback<Response> {
+    private final class BlacklistingCallback implements FutureCallback<LimitedResponse> {
 
         @Nullable
         private final BlacklistState initialState;
@@ -199,24 +201,48 @@ final class BlacklistingChannel implements LimitedChannel {
         }
 
         @Override
-        public void onSuccess(Response response) {
-            // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
-            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                log.debug(
-                        "Blacklisting {} due to status code {}",
-                        UnsafeArg.of("delegate", delegate),
-                        SafeArg.of("code", response.code()));
-                if (!channelBlacklistState.compareAndSet(
-                        initialState, new BlacklistState(duration, NUM_PROBATION_REQUESTS))) {
-                    log.debug("blacklist state has not been updated because it has changed since this request was"
-                            + " created");
+        public void onSuccess(LimitedResponse response) {
+            response.matches(new LimitedResponse.Cases<Void>() {
+                // TODO(jellis): use the Retry-After header (if present) to determine how long to blacklist the channel
+                @Override
+                public Void serverLimited(Response response) {
+                    handleFailure(response);
+                    return null;
                 }
-            } else {
-                BlacklistState state = channelBlacklistState.get();
-                if (state != null) {
-                    state.markSuccess();
+
+                @Override
+                public Void clientLimited() {
+                    // No-op if the client limited the request
+                    return null;
                 }
-            }
+
+                @Override
+                public Void serverError(Response response) {
+                    handleFailure(response);
+                    return null;
+                }
+
+                @Override
+                public Void success(Response response) {
+                    BlacklistState state = channelBlacklistState.get();
+                    if (state != null) {
+                        state.markSuccess();
+                    }
+                    return null;
+                }
+
+                private void handleFailure(Response response) {
+                    log.debug(
+                            "Blacklisting {} due to status code {}",
+                            UnsafeArg.of("delegate", delegate),
+                            SafeArg.of("code", response.code()));
+                    if (!channelBlacklistState.compareAndSet(
+                            initialState, new BlacklistState(duration, NUM_PROBATION_REQUESTS))) {
+                        log.debug("blacklist state has not been updated because it has changed since this request was"
+                                + " created");
+                    }
+                }
+            });
         }
 
         @Override
