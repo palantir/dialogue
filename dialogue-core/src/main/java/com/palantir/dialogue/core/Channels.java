@@ -27,6 +27,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 
 public final class Channels {
 
@@ -99,6 +100,7 @@ public final class Channels {
     }
 
     private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        @Nullable
         private LimitedChannelListener delegate;
 
         @Override

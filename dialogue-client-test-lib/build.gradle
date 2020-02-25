@@ -10,3 +10,7 @@ dependencies {
     compile 'org.assertj:assertj-core'
     compile 'org.mockito:mockito-core'
 }
+
+tasks.withType(JavaCompile) {
+    options.errorprone.errorproneArgs += '-Xep:NullAway:OFF'
+}
