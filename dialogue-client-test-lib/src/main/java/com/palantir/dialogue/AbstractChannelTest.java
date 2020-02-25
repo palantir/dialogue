@@ -27,7 +27,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -62,10 +61,10 @@ public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
 
-    protected abstract Channel createChannel(ClientConfiguration config, UserAgent agent);
+    protected abstract Channel createChannel(ClientConfiguration config);
 
     private Channel createChannel(URL baseUrl) {
-        return createChannel(TestConfigurations.create(baseUrl.toString()), TestConfigurations.AGENT);
+        return createChannel(TestConfigurations.create(baseUrl.toString()));
     }
 
     @Rule

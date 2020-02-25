@@ -16,7 +16,6 @@
 package com.palantir.dialogue.httpurlconnection;
 
 import com.google.common.collect.ImmutableList;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
@@ -30,12 +29,12 @@ public final class HttpUrlConnectionChannels {
 
     private HttpUrlConnectionChannels() {}
 
-    public static Channel create(ClientConfiguration conf, UserAgent baseAgent) {
+    public static Channel create(ClientConfiguration conf) {
         ImmutableList<Channel> channels = conf.uris().stream()
                 .map(uri -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(uri))))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, conf);
+        return Channels.create(channels, conf);
     }
 
     private static URL url(String uri) {

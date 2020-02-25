@@ -15,14 +15,13 @@
  */
 package com.palantir.dialogue.hc4;
 
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractProxyConfigTest;
 import com.palantir.dialogue.Channel;
 
 public final class ApacheProxyConfigTest extends AbstractProxyConfigTest {
     @Override
-    protected Channel create(ClientConfiguration config, UserAgent agent) {
-        return ApacheHttpClientChannels.create(config, agent);
+    protected Channel create(ClientConfiguration config) {
+        return ApacheHttpClientChannels.create(config);
     }
 }

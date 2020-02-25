@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
@@ -93,7 +92,7 @@ public final class OkHttpChannels {
 
     private OkHttpChannels() {}
 
-    public static Channel create(ClientConfiguration config, UserAgent baseAgent) {
+    public static Channel create(ClientConfiguration config) {
         Preconditions.checkArgument(
                 !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -135,7 +134,7 @@ public final class OkHttpChannels {
                 .map(uri -> OkHttpChannel.of(client, url(uri)))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, config);
+        return Channels.create(channels, config);
     }
 
     private static URL url(String uri) {

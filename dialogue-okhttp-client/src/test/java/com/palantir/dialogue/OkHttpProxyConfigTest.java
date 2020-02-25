@@ -15,12 +15,11 @@
  */
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 
 public final class OkHttpProxyConfigTest extends AbstractProxyConfigTest {
     @Override
-    protected Channel create(ClientConfiguration config, UserAgent agent) {
-        return OkHttpChannels.create(config, agent);
+    protected Channel create(ClientConfiguration config) {
+        return OkHttpChannels.create(config);
     }
 }

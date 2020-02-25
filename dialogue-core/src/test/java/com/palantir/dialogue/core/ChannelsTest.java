@@ -94,7 +94,7 @@ public final class ChannelsTest {
 
     @BeforeEach
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(delegate), stubConfig);
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
         lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
@@ -114,7 +114,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);
@@ -132,7 +132,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);

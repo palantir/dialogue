@@ -38,6 +38,7 @@ public final class TestConfigurations {
                         SslSocketFactories.createSslSocketFactory(SSL_CONFIG),
                         SslSocketFactories.createX509TrustManager(SSL_CONFIG)))
                 .maxNumRetries(0)
+                .userAgent(AGENT)
                 .build();
     }
 

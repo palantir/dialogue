@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.logsafe.Preconditions;
@@ -36,8 +35,9 @@ public final class Channels {
     private Channels() {}
 
     public static Channel create(
-            Collection<? extends Channel> channels, UserAgent userAgent, ClientConfiguration config) {
-        Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
+            Collection<? extends Channel> channels, ClientConfiguration config) {
+        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
+        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
         // n.b. This becomes cleaner once we support reloadable channels, the queue can be created first, and
@@ -60,7 +60,7 @@ public final class Channels {
         Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
-        channel = new UserAgentChannel(channel, userAgent);
+        channel = new UserAgentChannel(channel, config.userAgent().get());
         channel = new DeprecationWarningChannel(channel, clientMetrics);
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
