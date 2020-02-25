@@ -223,7 +223,7 @@ final class BlacklistingChannel implements LimitedChannel {
                 }
 
                 @Override
-                public Void success(Response response) {
+                public Void success(Response _response) {
                     BlacklistState state = channelBlacklistState.get();
                     if (state != null) {
                         state.markSuccess();

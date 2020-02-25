@@ -27,10 +27,10 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -45,10 +45,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public class PinUntilErrorChannelTest {
 
     @Mock
-    private LimitedChannel channel1;
+    private Channel channel1;
 
     @Mock
-    private LimitedChannel channel2;
+    private Channel channel2;
 
     @Mock
     private Ticker clock;
@@ -58,7 +58,8 @@ public class PinUntilErrorChannelTest {
 
     @BeforeEach
     public void before() {
-        List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        List<LimitedChannel> channels =
+                ImmutableList.of(new StatusCodeConvertingChannel(channel1), new StatusCodeConvertingChannel(channel2));
         pinUntilErrorWithoutReshuffle =
                 new PinUntilErrorChannel(new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L)));
         pinUntilError = new PinUntilErrorChannel(
@@ -132,13 +133,11 @@ public class PinUntilErrorChannelTest {
 
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel1.maybeExecute(any(), any()))
-                .thenReturn(Optional.of(future1))
-                .thenReturn(Optional.of(future2));
+        when(channel1.execute(any(), any())).thenReturn(future1).thenReturn(future2);
 
         // kick off two requests
-        pinUntilError.maybeExecute(null, null).get();
-        pinUntilError.maybeExecute(null, null).get();
+        pinUntilError.maybeExecute(null, null);
+        pinUntilError.maybeExecute(null, null);
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
         future2.set(response(500));
@@ -156,19 +155,20 @@ public class PinUntilErrorChannelTest {
 
     private static int getCode(PinUntilErrorChannel channel) {
         try {
-            ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
-            Response response = future.get(1, TimeUnit.MILLISECONDS);
+            ListenableFuture<LimitedResponse> future = channel.maybeExecute(null, null);
+            Response response = LimitedResponses.getResponse(future.get(1, TimeUnit.MILLISECONDS))
+                    .get();
             return response.code();
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private static void setResponse(LimitedChannel mockChannel, int status) {
+    private static void setResponse(Channel mockChannel, int status) {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
         Response resp = response(status);
-        lenient().when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
+        lenient().when(mockChannel.execute(any(), any())).thenReturn(Futures.immediateFuture(resp));
     }
 
     private static Response response(int status) {

@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import static com.palantir.dialogue.core.LimitedResponseUtils.assertThatIsClientLimited;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -65,7 +65,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new LimitedChannelAdapter(delegate), limiter, metrics);
+        channel = new ConcurrencyLimitedChannel(new StatusCodeConvertingChannel(delegate), limiter, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -76,7 +76,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(200);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        channel.maybeExecute(endpoint, request);
         verify(listener).onSuccess();
     }
 
@@ -85,7 +85,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         mockResponseCode(429);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        channel.maybeExecute(endpoint, request);
         verify(listener).onDropped();
     }
 
@@ -94,7 +94,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        channel.maybeExecute(endpoint, request);
         verify(listener).onIgnore();
     }
 
@@ -102,15 +102,15 @@ public class ConcurrencyLimitedChannelTest {
     public void testUnavailable() {
         mockLimitUnavailable();
 
-        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThatIsClientLimited(channel.maybeExecute(endpoint, request));
         verifyNoMoreInteractions(listener);
     }
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new LimitedChannelAdapter(delegate), metrics);
+        channel = ConcurrencyLimitedChannel.create(new StatusCodeConvertingChannel(delegate), metrics);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        channel.maybeExecute(endpoint, request);
     }
 
     private void mockResponseCode(int code) {

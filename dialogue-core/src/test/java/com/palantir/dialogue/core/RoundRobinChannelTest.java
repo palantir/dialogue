@@ -17,16 +17,17 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
-import java.util.Optional;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,9 +37,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class RoundRobinChannelTest {
 
-    private static final Optional<ListenableFuture<Response>> CHANNEL_A_RESPONSE = Optional.of(SettableFuture.create());
-    private static final Optional<ListenableFuture<Response>> CHANNEL_B_RESPONSE = Optional.of(SettableFuture.create());
-    private static final Optional<ListenableFuture<Response>> UNAVAILABLE = Optional.empty();
+    private static final ListenableFuture<LimitedResponse> CHANNEL_A_RESPONSE = SettableFuture.create();
+    private static final ListenableFuture<LimitedResponse> CHANNEL_B_RESPONSE = SettableFuture.create();
+    private static final ListenableFuture<LimitedResponse> UNAVAILABLE =
+            Futures.immediateFuture(LimitedResponses.clientLimited());
 
     @Mock
     private LimitedChannel channelA;
@@ -73,22 +75,13 @@ public class RoundRobinChannelTest {
     public void testIgnoresUnavailableChannels() {
         when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(UNAVAILABLE);
         assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
     }
 
     @Test
-    public void testNoChannelsAvailable() {
-        when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
-        when(channelB.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
-
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
-    }
-
-    @Test
-    public void testNoChannelsConfigured() {
-        loadBalancer = new RoundRobinChannel(ImmutableList.of());
-
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
+    public void testFailsIfNoChannelsConfigured() {
+        assertThatThrownBy(() -> new RoundRobinChannel(ImmutableList.of()))
+                .isInstanceOf(SafeIllegalArgumentException.class);
     }
 }

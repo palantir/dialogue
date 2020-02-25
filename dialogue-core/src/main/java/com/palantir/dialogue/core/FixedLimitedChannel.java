@@ -57,10 +57,17 @@ final class FixedLimitedChannel implements LimitedChannel {
             logExhaustion(endpoint);
             return Futures.immediateFuture(LimitedResponses.clientLimited());
         }
-
-        ListenableFuture<LimitedResponse> result = delegate.maybeExecute(endpoint, request);
-        result.addListener(returnPermit, MoreExecutors.directExecutor());
-        return result;
+        boolean resetOptimisticallyConsumedPermit = true;
+        try {
+            ListenableFuture<LimitedResponse> result = delegate.maybeExecute(endpoint, request);
+            resetOptimisticallyConsumedPermit = false;
+            result.addListener(returnPermit, MoreExecutors.directExecutor());
+            return result;
+        } finally {
+            if (resetOptimisticallyConsumedPermit) {
+                returnPermit.run();
+            }
+        }
     }
 
     private void logExhaustion(Endpoint endpoint) {
