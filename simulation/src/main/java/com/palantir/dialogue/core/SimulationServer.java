@@ -84,9 +84,9 @@ final class SimulationServer implements Channel {
             }
 
             ListenableFuture<Response> resp = maybeResp.get();
+            DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(ignored -> globalResponses.inc()));
             resp.addListener(
                     () -> {
-                        globalResponses.inc();
                         activeRequests.dec();
                         globalServerTimeNanos.inc(simulation.clock().read() - beforeNanos);
                     },

@@ -24,11 +24,11 @@ import com.palantir.logsafe.Preconditions;
 import java.util.Optional;
 
 /** Adapter from {@link Channel} to {@link LimitedChannel} which always returns a {@link Optional#isPresent() value}. */
-final class LimitedChannelAdapter implements LimitedChannel {
+final class ChannelToLimitedChannelAdapter implements LimitedChannel {
 
     private final Channel delegate;
 
-    LimitedChannelAdapter(Channel delegate) {
+    ChannelToLimitedChannelAdapter(Channel delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel");
     }
 
@@ -39,6 +39,6 @@ final class LimitedChannelAdapter implements LimitedChannel {
 
     @Override
     public String toString() {
-        return "LimitedChannelAdapter{delegate=" + delegate + '}';
+        return "ChannelToLimitedChannelAdapter{delegate=" + delegate + '}';
     }
 }

@@ -148,13 +148,17 @@ public final class ChannelsTest {
     @TestTracing(snapshot = true)
     public void traces_on_retries() throws Exception {
         when(response.code()).thenReturn(429);
-        channel.execute(endpoint, request).get();
+        try (Response response = channel.execute(endpoint, request).get()) {
+            assertThat(response.code()).isEqualTo(429);
+        }
     }
 
     @Test
     @TestTracing(snapshot = true)
     public void traces_on_succes() throws Exception {
         when(response.code()).thenReturn(200);
-        channel.execute(endpoint, request).get();
+        try (Response response = channel.execute(endpoint, request).get()) {
+            assertThat(response.code()).isEqualTo(200);
+        }
     }
 }

@@ -65,7 +65,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new LimitedChannelAdapter(delegate), limiter, metrics);
+        channel = new ConcurrencyLimitedChannel(new ChannelToLimitedChannelAdapter(delegate), limiter, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -108,7 +108,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new LimitedChannelAdapter(delegate), metrics);
+        channel = ConcurrencyLimitedChannel.create(new ChannelToLimitedChannelAdapter(delegate), metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
