@@ -15,15 +15,70 @@
  */
 package com.palantir.dialogue.hc4;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.UrlBuilder;
+import java.io.Closeable;
+import java.net.UnknownHostException;
+import java.util.Map;
+import org.junit.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     @Override
     protected Channel createChannel(ClientConfiguration config, UserAgent agent) {
         return ApacheHttpClientChannels.create(config, agent);
+    }
+
+    @Test
+    public void close_works() throws Exception {
+        ClientConfiguration conf = TestConfigurations.create("http://foo");
+        Channel channel = ApacheHttpClientChannels.createSingleUri(conf, 0);
+
+        ListenableFuture<Response> response =
+                channel.execute(new TestEndpoint(), Request.builder().build());
+        assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
+
+        ((Closeable) channel).close();
+
+        ListenableFuture<Response> again =
+                channel.execute(new TestEndpoint(), Request.builder().build());
+        assertThatThrownBy(() -> again.get()).hasMessageContaining("Connection pool shut down");
+    }
+
+    private static final class TestEndpoint implements Endpoint {
+        @Override
+        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
+
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.GET;
+        }
+
+        @Override
+        public String serviceName() {
+            return "service";
+        }
+
+        @Override
+        public String endpointName() {
+            return "endpoint";
+        }
+
+        @Override
+        public String version() {
+            return "1.0.0";
+        }
     }
 }
