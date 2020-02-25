@@ -70,7 +70,7 @@ public enum Strategy {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), () -> {}, sim.clock(), sim.scheduler()))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
