@@ -16,14 +16,13 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,27 +49,18 @@ final class FixedLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<LimitedResponse> maybeExecute(Endpoint endpoint, Request request) {
         boolean failedToOptimisticallyAcquirePermit = usedPermits.incrementAndGet() > totalPermits;
         if (failedToOptimisticallyAcquirePermit) {
             returnPermit.run();
             limitedMeter.mark();
             logExhaustion(endpoint);
-            return Optional.empty();
+            return Futures.immediateFuture(LimitedResponses.clientLimited());
         }
-        boolean resetOptimisticallyConsumedPermit = true;
-        try {
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
-            if (result.isPresent()) {
-                result.get().addListener(returnPermit, MoreExecutors.directExecutor());
-                resetOptimisticallyConsumedPermit = false;
-            }
-            return result;
-        } finally {
-            if (resetOptimisticallyConsumedPermit) {
-                returnPermit.run();
-            }
-        }
+
+        ListenableFuture<LimitedResponse> result = delegate.maybeExecute(endpoint, request);
+        result.addListener(returnPermit, MoreExecutors.directExecutor());
+        return result;
     }
 
     private void logExhaustion(Endpoint endpoint) {
