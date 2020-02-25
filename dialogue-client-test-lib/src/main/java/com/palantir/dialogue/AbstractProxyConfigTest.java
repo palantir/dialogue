@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -60,20 +59,19 @@ public abstract class AbstractProxyConfigTest {
     @Rule
     public final MockWebServer proxyServer = new MockWebServer();
 
-    protected abstract Channel create(ClientConfiguration config, UserAgent agent);
+    protected abstract Channel create(ClientConfiguration config);
 
     @Test
     public void testDirectVersusProxyConnection() throws Exception {
         server.enqueue(new MockResponse().setBody("server"));
         proxyServer.enqueue(new MockResponse().setBody("proxyServer"));
 
-        Channel directChannel =
-                create(TestConfigurations.create("http://localhost:" + server.getPort()), TestConfigurations.AGENT);
+        Channel directChannel = create(TestConfigurations.create("http://localhost:" + server.getPort()));
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("http://localhost:" + server.getPort()))
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
                 .build();
-        Channel proxiedChannel = create(proxiedConfig, TestConfigurations.AGENT);
+        Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
                 directChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
@@ -101,7 +99,7 @@ public abstract class AbstractProxyConfigTest {
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
                 .proxyCredentials(BasicCredentials.of("fakeUser", "fakePassword"))
                 .build();
-        Channel proxiedChannel = create(proxiedConfig, TestConfigurations.AGENT);
+        Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
                 proxiedChannel.execute(FakeEndpoint.INSTANCE, request).get()) {

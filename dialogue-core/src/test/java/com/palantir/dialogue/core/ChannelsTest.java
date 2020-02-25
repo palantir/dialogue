@@ -53,10 +53,13 @@ public final class ChannelsTest {
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
-    private static final ClientConfiguration stubConfig = ClientConfigurations.of(ServiceConfiguration.builder()
-            .addUris("http://localhost")
-            .security(SSL_CONFIG)
-            .build());
+    private static final ClientConfiguration stubConfig = ClientConfiguration.builder()
+            .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                    .addUris("http://localhost")
+                    .security(SSL_CONFIG)
+                    .build()))
+            .userAgent(USER_AGENT)
+            .build();
 
     @Mock
     private Channel delegate;
@@ -94,7 +97,7 @@ public final class ChannelsTest {
 
     @BeforeEach
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(delegate), stubConfig);
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
         lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
@@ -114,7 +117,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);
@@ -132,7 +135,7 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), USER_AGENT, stubConfig);
+        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);

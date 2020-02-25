@@ -15,7 +15,6 @@
  */
 package com.palantir.dialogue.httpurlconnection;
 
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
@@ -23,7 +22,7 @@ import com.palantir.dialogue.Channel;
 public final class HttpUrlConnectionChannelsTest extends AbstractChannelTest {
 
     @Override
-    protected Channel createChannel(ClientConfiguration config, UserAgent agent) {
-        return HttpUrlConnectionChannels.create(config, agent);
+    protected Channel createChannel(ClientConfiguration config) {
+        return HttpUrlConnectionChannels.create(config);
     }
 }
