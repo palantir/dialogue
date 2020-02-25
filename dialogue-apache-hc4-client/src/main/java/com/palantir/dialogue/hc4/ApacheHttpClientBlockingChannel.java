@@ -25,7 +25,6 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -45,7 +44,7 @@ import org.apache.http.message.BasicHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class ApacheHttpClientBlockingChannel implements BlockingChannel, Closeable {
+final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
 
     private final CloseableHttpClient client;
@@ -73,11 +72,6 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel, Closeabl
             builder.setEntity(new RequestBodyEntity(body));
         }
         return new HttpClientResponse(client.execute(builder.build()));
-    }
-
-    @Override
-    public void close() throws IOException {
-        client.close();
     }
 
     private static final class HttpClientResponse implements Response {
