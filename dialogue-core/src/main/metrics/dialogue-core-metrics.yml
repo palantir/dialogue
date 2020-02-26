@@ -2,16 +2,6 @@ options:
   javaPackage: com.palantir.dialogue.core
   javaVisibility: packagePrivate
 namespaces:
-  com.palantir.conjure.java.dispatcher:
-    shortName: Dispatcher
-    docs: Dialogue client dispatcher metrics
-    metrics:
-      calls.queued:
-        type: gauge
-        docs: Number of queued calls waiting to execute.
-      calls.running:
-        type: gauge
-        docs: Number of active outgoing requests.
   dialogue.client:
     docs: Dialogue client response metrics.
     metrics:

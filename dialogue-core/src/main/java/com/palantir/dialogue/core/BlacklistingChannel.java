@@ -18,10 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -29,13 +27,8 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,45 +46,21 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private static final Logger log = LoggerFactory.getLogger(BlacklistingChannel.class);
     private static final int NUM_PROBATION_REQUESTS = 5;
-    /*
-     * Shared single thread executor is reused between all blacklisting channels. If it becomes oversaturated
-     * we may wait longer than expected before resuming requests to blacklisted channels, but this is an
-     * edge case where things are already operating in a degraded state.
-     */
-    private static final Supplier<ScheduledExecutorService> sharedScheduler = Suppliers.memoize(
-            () -> Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
-                    .setNameFormat("dialogue-BlacklistingChannel-scheduler-%d")
-                    .setDaemon(false)
-                    .build()));
 
     private final LimitedChannel delegate;
     private final Duration duration;
     private final Ticker ticker;
-    private final LimitedChannelListener listener;
-    private final ScheduledExecutorService scheduler;
     private final AtomicReference<BlacklistState> channelBlacklistState;
 
-    BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener) {
-        this(delegate, duration, listener, Ticker.systemTicker(), sharedScheduler.get());
+    BlacklistingChannel(LimitedChannel delegate, Duration duration) {
+        this(delegate, duration, Ticker.systemTicker());
     }
 
     @VisibleForTesting
-    BlacklistingChannel(LimitedChannel delegate, Duration duration, LimitedChannelListener listener, Ticker ticker) {
-        this(delegate, duration, listener, ticker, sharedScheduler.get());
-    }
-
-    @VisibleForTesting
-    BlacklistingChannel(
-            LimitedChannel delegate,
-            Duration duration,
-            LimitedChannelListener listener,
-            Ticker ticker,
-            ScheduledExecutorService scheduler) {
+    BlacklistingChannel(LimitedChannel delegate, Duration duration, Ticker ticker) {
         this.delegate = delegate;
         this.duration = duration;
         this.ticker = ticker;
-        this.listener = listener;
-        this.scheduler = scheduler;
         this.channelBlacklistState = new AtomicReference<>();
     }
 
@@ -112,15 +81,12 @@ final class BlacklistingChannel implements LimitedChannel {
 
     private final class BlacklistState {
         private final AtomicReference<Probation> probation = new AtomicReference<>();
-        private final ScheduledFuture<?> scheduledFuture;
         private final long blacklistUntilNanos;
         private final int probationPermits;
 
         BlacklistState(Duration duration, int probationPermits) {
             this.blacklistUntilNanos = ticker.read() + duration.toNanos();
             this.probationPermits = probationPermits;
-            this.scheduledFuture =
-                    scheduler.schedule(this::maybeBeginProbation, duration.toNanos(), TimeUnit.NANOSECONDS);
         }
 
         Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
@@ -148,8 +114,6 @@ final class BlacklistingChannel implements LimitedChannel {
                     if (log.isDebugEnabled()) {
                         log.debug("Channel {} is entering probation", UnsafeArg.of("channel", delegate));
                     }
-                    listener.onChannelReady();
-                    scheduledFuture.cancel(false);
                 }
                 return Optional.ofNullable(probation.get());
             }
@@ -161,7 +125,7 @@ final class BlacklistingChannel implements LimitedChannel {
             if (maybeProbation != null && maybeProbation.checkIfProbationIsComplete()) {
                 log.debug("Clearing probation state");
                 if (channelBlacklistState.compareAndSet(this, null)) {
-                    listener.onChannelReady();
+                    log.debug("Channel is no longer blacklisted");
                 } else {
                     log.debug("Blacklist state has already been updated");
                 }

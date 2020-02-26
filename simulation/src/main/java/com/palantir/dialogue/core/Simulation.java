@@ -18,8 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
@@ -40,8 +40,7 @@ final class Simulation {
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
-        this.listenableExecutor =
-                new ExternalDeterministicScheduler(MoreExecutors.listeningDecorator(deterministicExecutor), ticker);
+        this.listenableExecutor = new ExternalDeterministicScheduler(deterministicExecutor, ticker);
     }
 
     public Ticker clock() {
@@ -68,7 +67,7 @@ final class Simulation {
         return eventMarkers;
     }
 
-    public void runClockToInfinity() {
-        deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);
+    public void runClockToInfinity(Optional<Duration> infinity) {
+        deterministicExecutor.tick(infinity.orElseGet(() -> Duration.ofDays(1)).toNanos(), TimeUnit.NANOSECONDS);
     }
 }

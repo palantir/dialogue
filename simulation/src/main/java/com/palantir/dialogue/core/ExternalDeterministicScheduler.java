@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import java.time.Duration;
+import com.google.common.util.concurrent.MoreExecutors;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -26,14 +26,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import org.jmock.lib.concurrent.DeterministicScheduler;
 
 final class ExternalDeterministicScheduler implements ListeningScheduledExecutorService {
 
+    private final DeterministicScheduler deterministicExecutor;
     private final ListeningScheduledExecutorService delegate;
     private final TestCaffeineTicker ticker;
 
-    ExternalDeterministicScheduler(ListeningScheduledExecutorService delegate, TestCaffeineTicker ticker) {
-        this.delegate = delegate;
+    ExternalDeterministicScheduler(DeterministicScheduler deterministicExecutor, TestCaffeineTicker ticker) {
+        this.deterministicExecutor = deterministicExecutor;
+        this.delegate = MoreExecutors.listeningDecorator(deterministicExecutor);
         this.ticker = ticker;
     }
 
@@ -50,22 +53,20 @@ final class ExternalDeterministicScheduler implements ListeningScheduledExecutor
 
     @Override
     public <V> ListenableScheduledFuture<V> schedule(Callable<V> command, long delay, TimeUnit unit) {
+        deterministicExecutor.tick(0, TimeUnit.NANOSECONDS);
         long scheduleTime = ticker.read();
-        long delayNanos = unit.toNanos(delay);
-
-        RuntimeException exceptionForStackTrace = new RuntimeException();
-        return delegate.schedule(
-                () -> {
-                    try {
-                        ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
+        long delayNanos = Math.max(0L, unit.toNanos(delay));
+        try {
+            return delegate.schedule(
+                    () -> {
+                        ticker.advanceTo(scheduleTime + delayNanos);
                         return command.call();
-                    } catch (Throwable e) {
-                        e.addSuppressed(exceptionForStackTrace);
-                        throw e;
-                    }
-                },
-                delay,
-                unit);
+                    },
+                    delayNanos,
+                    TimeUnit.NANOSECONDS);
+        } finally {
+            deterministicExecutor.tick(0, TimeUnit.NANOSECONDS);
+        }
     }
 
     @Override

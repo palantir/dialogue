@@ -31,6 +31,7 @@ import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +60,7 @@ public final class Benchmark {
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
+    private Duration abortAfter;
 
     private Benchmark() {}
 
@@ -139,17 +141,18 @@ public final class Benchmark {
     }
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
-    public Benchmark abortAfter(Duration cutoff) {
+    public Benchmark abortAfter(Duration value) {
+        this.abortAfter = value;
         simulation
                 .scheduler()
                 .schedule(
                         () -> {
                             log.warn(
                                     "Aborted running benchmark after cutoff reached - strategy might be buggy {}",
-                                    cutoff);
+                                    value);
                             benchmarkFinished.getFuture().set(null);
                         },
-                        cutoff.toNanos(),
+                        value.toNanos(),
                         TimeUnit.NANOSECONDS);
         return this;
     }
@@ -157,7 +160,7 @@ public final class Benchmark {
     public BenchmarkResult run() {
         ListenableFuture<BenchmarkResult> result = schedule();
         Stopwatch run = Stopwatch.createStarted();
-        simulation.runClockToInfinity();
+        simulation.runClockToInfinity(Optional.ofNullable(abortAfter));
         log.info("Ran clock to infinity ({} ms)", run.elapsed(TimeUnit.MILLISECONDS));
         return Futures.getUnchecked(result);
     }

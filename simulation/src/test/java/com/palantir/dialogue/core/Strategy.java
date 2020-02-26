@@ -24,7 +24,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -61,21 +60,20 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
+            return retryingChannel(sim, limited1);
         });
     }
 
     private static Channel concurrencyLimiterBlacklistRoundRobin(
             Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1, listener);
+            return retryingChannel(sim, limited1);
         });
     }
 
@@ -88,7 +86,7 @@ public enum Strategy {
                     .collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
-            return queuedChannelAndRetrying(sim, limited);
+            return retryingChannel(sim, limited);
         });
     }
 
@@ -99,13 +97,13 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited);
+            return retryingChannel(sim, limited);
         });
     }
 
     private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
         return channel -> new ConcurrencyLimitedChannel(
-                new LimitedChannelAdapter(channel),
+                new ChannelToLimitedChannelAdapter(channel),
                 ConcurrencyLimitedChannel.createLimiter(sim.clock()),
                 DialogueClientMetrics.of(sim.taggedMetrics()));
     }
@@ -114,19 +112,15 @@ public enum Strategy {
         return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
-    private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
-        return queuedChannelAndRetrying(sim, limited, new DeferredLimitedChannelListener());
-    }
-
-    private static Channel queuedChannelAndRetrying(
-            Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
+    private static Channel retryingChannel(Simulation sim, LimitedChannel limited) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-        listener.delegate = channel::schedule;
         return new RetryingChannel(
-                channel,
+                new LimitedChannelToChannelAdapter(limited1),
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY);
+                Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                sim.scheduler(),
+                new Random(8 /* Guaranteed lucky */)::nextDouble);
     }
 
     private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
@@ -166,15 +160,5 @@ public enum Strategy {
                 return delegate.toString();
             }
         };
-    }
-
-    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
-        private LimitedChannelListener delegate;
-
-        @Override
-        public void onChannelReady() {
-            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
-                    .onChannelReady();
-        }
     }
 }

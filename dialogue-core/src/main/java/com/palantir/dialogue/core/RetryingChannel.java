@@ -16,9 +16,13 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableScheduledFuture;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -27,6 +31,13 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.Tracers;
+import java.time.Duration;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,44 +48,85 @@ final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
 
+    /*
+     * Shared single thread executor is reused between all retrying channels. If it becomes oversaturated
+     * we may wait longer than expected before resuming requests, but this is an
+     * edge case where services are already operating in a degraded state and we should not
+     * spam servers.
+     */
+    private static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
+            () -> MoreExecutors.listeningDecorator(Tracers.wrap(
+                    "dialogue-RetryingChannel-scheduler",
+                    Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                            .setNameFormat("dialogue-RetryingChannel-scheduler-%d")
+                            .setDaemon(false)
+                            .build()))));
+
+    private final ListeningScheduledExecutorService scheduler;
     private final Channel delegate;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
+    private final Duration backoffSlotSize;
+    private final DoubleSupplier jitter;
 
-    RetryingChannel(Channel delegate, int maxRetries, ClientConfiguration.ServerQoS serverQoS) {
+    RetryingChannel(
+            Channel delegate, int maxRetries, Duration backoffSlotSize, ClientConfiguration.ServerQoS serverQoS) {
+        this(delegate, maxRetries, backoffSlotSize, serverQoS, sharedScheduler.get(), () ->
+                ThreadLocalRandom.current().nextDouble());
+    }
+
+    RetryingChannel(
+            Channel delegate,
+            int maxRetries,
+            Duration backoffSlotSize,
+            ClientConfiguration.ServerQoS serverQoS,
+            ListeningScheduledExecutorService scheduler,
+            DoubleSupplier jitter) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
+        this.backoffSlotSize = backoffSlotSize;
         this.serverQoS = serverQoS;
+        this.scheduler = scheduler;
+        this.jitter = jitter;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return new RetryingCallback(delegate, endpoint, request, maxRetries, serverQoS).execute();
+        return new RetryingCallback(endpoint, request).execute();
     }
 
-    private static final class RetryingCallback {
-        private final Channel delegate;
+    private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
-        private final int maxRetries;
-        private final ClientConfiguration.ServerQoS serverQoS;
         private int failures = 0;
 
-        private RetryingCallback(
-                Channel delegate,
-                Endpoint endpoint,
-                Request request,
-                int maxRetries,
-                ClientConfiguration.ServerQoS serverQoS) {
-            this.delegate = delegate;
+        private RetryingCallback(Endpoint endpoint, Request request) {
             this.endpoint = endpoint;
             this.request = request;
-            this.maxRetries = maxRetries;
-            this.serverQoS = serverQoS;
         }
 
         ListenableFuture<Response> execute() {
             return wrap(delegate.execute(endpoint, request));
+        }
+
+        @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
+        ListenableFuture<Response> retry(Throwable cause) {
+            long backoffNanoseconds = getBackoffNanoseconds();
+            logRetry(backoffNanoseconds, cause);
+            if (backoffNanoseconds <= 0) {
+                return wrap(delegate.execute(endpoint, request));
+            }
+            ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
+                    () -> delegate.execute(endpoint, request), backoffNanoseconds, TimeUnit.NANOSECONDS);
+            return wrap(Futures.transformAsync(scheduled, input -> input, MoreExecutors.directExecutor()));
+        }
+
+        private long getBackoffNanoseconds() {
+            if (failures == 0) {
+                return 0L;
+            }
+            int upperBound = (int) Math.pow(2, failures - 1);
+            return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
         ListenableFuture<Response> success(Response response) {
@@ -85,12 +137,12 @@ final class RetryingChannel implements Channel {
                 Throwable failure =
                         new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
                 if (++failures <= maxRetries) {
-                    logRetry(failure);
-                    return execute();
+                    return retry(failure);
                 }
                 if (log.isDebugEnabled()) {
                     log.debug(
-                            "Retries exhausted, returning a retryable response with status {}",
+                            "Exhausted {} retries, returning a retryable response with status {}",
+                            SafeArg.of("retries", maxRetries),
                             SafeArg.of("status", response.code()));
                 }
                 return Futures.immediateFuture(response);
@@ -103,18 +155,18 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> failure(Throwable throwable) {
             if (++failures <= maxRetries) {
-                logRetry(throwable);
-                return execute();
+                return retry(throwable);
             }
             return Futures.immediateFailedFuture(throwable);
         }
 
-        private void logRetry(Throwable throwable) {
+        private void logRetry(long backoffNanoseconds, Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
+                        SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);

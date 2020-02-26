@@ -26,9 +26,6 @@ import java.util.Optional;
  * Similar to {@link com.palantir.dialogue.Channel}, but may not actually execute the call (eg: when the channel is
  * overloaded). Semantics match {@link com.palantir.dialogue.Channel} aside from returning an
  * {@link Optional optional response}.
- * Limited channels must limit exclusively based on the state of the {@link com.palantir.dialogue.Channel}, not
- * the {@link Endpoint} or {@link Request} arguments, otherwise the caller (generally a {@link QueuedChannel})
- * may prevent <i>all</i> requests from proceeding.
  */
 interface LimitedChannel {
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
