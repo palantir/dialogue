@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -41,8 +40,7 @@ final class Simulation {
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
-        this.listenableExecutor =
-                new ExternalDeterministicScheduler(MoreExecutors.listeningDecorator(deterministicExecutor), ticker);
+        this.listenableExecutor = new ExternalDeterministicScheduler(deterministicExecutor, ticker);
     }
 
     public Ticker clock() {
