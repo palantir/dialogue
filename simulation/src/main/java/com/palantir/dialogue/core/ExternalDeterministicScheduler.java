@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -52,17 +51,10 @@ final class ExternalDeterministicScheduler implements ListeningScheduledExecutor
     public <V> ListenableScheduledFuture<V> schedule(Callable<V> command, long delay, TimeUnit unit) {
         long scheduleTime = ticker.read();
         long delayNanos = unit.toNanos(delay);
-
-        RuntimeException exceptionForStackTrace = new RuntimeException();
         return delegate.schedule(
                 () -> {
-                    try {
-                        ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                        return command.call();
-                    } catch (Throwable e) {
-                        e.addSuppressed(exceptionForStackTrace);
-                        throw e;
-                    }
+                    ticker.advanceTo(scheduleTime + delayNanos);
+                    return command.call();
                 },
                 delay,
                 unit);
