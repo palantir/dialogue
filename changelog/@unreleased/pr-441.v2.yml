@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Tracing spans for RetryingChannel backoff
+  links:
+  - https://github.com/palantir/dialogue/pull/441
