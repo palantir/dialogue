@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: Users of the PinUntilError channel now have metrics available capturing
+    when the list reshuffles, when node switches (including a reason) and how many
+    successful requests we see on each channel.
+  links:
+  - https://github.com/palantir/dialogue/pull/437
