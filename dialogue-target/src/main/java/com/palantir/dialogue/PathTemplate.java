@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 public final class PathTemplate {
 
@@ -56,11 +57,11 @@ public final class PathTemplate {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
             } else {
-                Preconditions.checkArgument(
-                        parameters.containsKey(segment.variable),
+                String variableSegment = Preconditions.checkNotNull(
+                        parameters.get(segment.variable),
                         "Provided parameter map does not contain segment variable name",
                         SafeArg.of("variable", segment.variable));
-                url.pathSegment(parameters.get(segment.variable));
+                url.pathSegment(variableSegment);
                 numVariableSegments += 1;
             }
         }
@@ -86,10 +87,13 @@ public final class PathTemplate {
     }
 
     public static final class Segment {
+        @Nullable
         private final String fixed;
+
+        @Nullable
         private final String variable;
 
-        private Segment(String fixed, String variable) {
+        private Segment(@Nullable String fixed, @Nullable String variable) {
             this.fixed = fixed;
             this.variable = variable;
         }

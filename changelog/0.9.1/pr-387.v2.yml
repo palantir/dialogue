@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: QueuedChannel futures don't wait forever when delegates throw
+  links:
+  - https://github.com/palantir/dialogue/pull/387

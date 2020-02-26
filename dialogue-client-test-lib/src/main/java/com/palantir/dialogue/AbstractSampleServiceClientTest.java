@@ -142,6 +142,18 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
+    public void testBlocking_voidToVoid_doesNotThrowWhenResponseBodyIsNonEmpty() {
+        server.enqueue(new MockResponse().setBody("Unexpected response"));
+        blockingClient.voidToVoid();
+    }
+
+    @Test
+    public void testAsync_voidToVoid_doesNotThrowWhenResponseBodyIsNonEmpty() throws Exception {
+        server.enqueue(new MockResponse().setBody("Unexpected response"));
+        assertThat(asyncClient.voidToVoid().get()).isNull();
+    }
+
+    @Test
     public void testAsync_stringToString_throwsWhenResponseBodyIsEmpty() {
         server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() ->
@@ -169,20 +181,6 @@ public abstract class AbstractSampleServiceClientTest {
     public void testAsync_voidToVoid_expectedCase() throws Exception {
         server.enqueue(new MockResponse());
         assertThat(asyncClient.voidToVoid().get()).isNull();
-    }
-
-    @Test
-    public void testBlocking_voidToVoid_throwsWhenResponseBodyIsNonEmpty() {
-        server.enqueue(new MockResponse().setBody("Unexpected response"));
-        assertThatThrownBy(() -> blockingClient.voidToVoid())
-                .isInstanceOf(RuntimeException.class)
-                .hasMessage("Expected empty response body");
-    }
-
-    @Test
-    public void testAsync_voidToVoid_throwsWhenResponseBodyIsNonEmpty() {
-        server.enqueue(new MockResponse().setBody("Unexpected response"));
-        assertThatThrownBy(() -> asyncClient.voidToVoid().get()).hasMessageContaining("Expected empty response body");
     }
 
     @Test(timeout = 2_000)

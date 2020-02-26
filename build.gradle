@@ -27,10 +27,10 @@ buildscript {
 
     dependencies {
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:0.3.19'
-        classpath 'com.netflix.nebula:gradle-info-plugin:7.1.1'
+        classpath 'com.netflix.nebula:gradle-info-plugin:7.1.2'
         classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.4'
         classpath 'com.netflix.nebula:nebula-publishing-plugin:17.0.5'
-        classpath 'com.palantir.baseline:gradle-baseline-java:3.4.2'
+        classpath 'com.palantir.baseline:gradle-baseline-java:3.5.0'
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.2'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
         classpath 'com.palantir.metricschema:gradle-metric-schema:0.5.2'
@@ -38,7 +38,7 @@ buildscript {
 }
 
 plugins {
-    id 'com.palantir.consistent-versions' version '1.17.2'
+    id 'com.palantir.consistent-versions' version '1.17.3'
 }
 
 apply plugin: 'com.palantir.baseline'
@@ -69,4 +69,16 @@ subprojects {
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Werror']
     }
+
+    plugins.withId('com.palantir.baseline-error-prone', {
+        dependencies {
+            errorprone 'com.uber.nullaway:nullaway'
+        }
+
+        tasks.withType(JavaCompile).configureEach {
+            options.errorprone.errorproneArgs += [
+                !name.toLowerCase().contains("test") ? '-XepOpt:NullAway:AnnotatedPackages=com.palantir' : '-Xep:NullAway:OFF'
+            ]
+        }
+    })
 }

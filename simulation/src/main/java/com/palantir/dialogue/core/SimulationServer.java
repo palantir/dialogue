@@ -198,14 +198,16 @@ final class SimulationServer implements Channel {
             }
 
             Duration responseTime = responseTimeFunction.getResponseTime(server);
-            return Optional.of(server.simulation.schedule(
-                    () -> {
-                        Response response = responseFunction.apply(server);
-                        return SimulationUtils.wrapWithCloseInstrumentation(
-                                response, server.simulation.taggedMetrics());
-                    },
-                    responseTime.toNanos(),
-                    TimeUnit.NANOSECONDS));
+            return Optional.of(server.simulation
+                    .scheduler()
+                    .schedule(
+                            () -> {
+                                Response response = responseFunction.apply(server);
+                                return SimulationUtils.wrapWithCloseInstrumentation(
+                                        response, server.simulation.taggedMetrics());
+                            },
+                            responseTime.toNanos(),
+                            TimeUnit.NANOSECONDS));
         }
 
         @Override

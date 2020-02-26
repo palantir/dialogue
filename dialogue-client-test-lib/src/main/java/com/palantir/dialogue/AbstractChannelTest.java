@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -60,7 +61,11 @@ public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
 
-    protected abstract Channel createChannel(URL baseUrl);
+    protected abstract Channel createChannel(ClientConfiguration config);
+
+    private Channel createChannel(URL baseUrl) {
+        return createChannel(TestConfigurations.create(baseUrl.toString()));
+    }
 
     @Rule
     public final MockWebServer server = new MockWebServer();
@@ -318,7 +323,7 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
-    public void supportsGzipEncryptedResponse() throws Exception {
+    public void supportsGzipEncodedResponse() throws Exception {
         // drain enqueued response
         channel.execute(endpoint, request).get();
         server.takeRequest();

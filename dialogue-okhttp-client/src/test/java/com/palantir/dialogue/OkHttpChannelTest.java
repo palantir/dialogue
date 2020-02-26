@@ -16,24 +16,12 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
-import com.palantir.conjure.java.api.config.service.UserAgent;
-import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
-import java.net.URL;
-import java.nio.file.Paths;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 
 public final class OkHttpChannelTest extends AbstractChannelTest {
-    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
     @Override
-    protected Channel createChannel(URL baseUrl) {
-        ServiceConfiguration serviceConf = ServiceConfiguration.builder()
-                .addUris(baseUrl.toString())
-                .security(SSL_CONFIG)
-                .build();
-        return OkHttpChannels.create(
-                ClientConfigurations.of(serviceConf), UserAgent.of(UserAgent.Agent.of("test-service", "1.0.0")));
+    protected Channel createChannel(ClientConfiguration config) {
+        return OkHttpChannels.create(config);
     }
 }

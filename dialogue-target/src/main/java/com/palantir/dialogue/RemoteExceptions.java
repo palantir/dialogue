@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 
@@ -37,7 +38,8 @@ public final class RemoteExceptions {
             return future.get();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new RuntimeException(e);
+            future.cancel(true);
+            throw new SafeRuntimeException("Interrupted waiting for future", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
             String message = cause.getMessage();

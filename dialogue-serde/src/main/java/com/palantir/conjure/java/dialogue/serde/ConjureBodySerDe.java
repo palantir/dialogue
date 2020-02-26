@@ -76,15 +76,11 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("NullAway") // empty body is a special case
     public Deserializer<Void> emptyBodyDeserializer() {
         return input -> {
-            try (Response response = input) {
-                if (response.body().read() != -1) {
-                    throw new SafeRuntimeException("Expected empty response body");
-                }
-            } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to read from response body", e);
-            }
+            // We should not fail if a server that previously returned nothing starts returning a response
+            input.close();
             return null;
         };
     }

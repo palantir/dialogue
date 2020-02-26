@@ -20,10 +20,12 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -56,8 +58,10 @@ public enum Strategy {
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(addConcurrencyLimiter(sim))
+                    .map(addFixedLimiter(sim))
+                    .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
         });
@@ -65,10 +69,12 @@ public enum Strategy {
 
     private static Channel concurrencyLimiterBlacklistRoundRobin(
             Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
+                    .map(addFixedLimiter(sim))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited1);
@@ -78,8 +84,10 @@ public enum Strategy {
     private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(addConcurrencyLimiter(sim)).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(addConcurrencyLimiter(sim))
+                    .map(addFixedLimiter(sim))
+                    .collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
             return queuedChannelAndRetrying(sim, limited);
@@ -88,8 +96,10 @@ public enum Strategy {
 
     private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels =
-                    channels.stream().map(UnlimitedChannel::new).collect(Collectors.toList());
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(Strategy::noOpLimitedChannel)
+                    .map(addFixedLimiter(sim))
+                    .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
             return queuedChannelAndRetrying(sim, limited);
         });
@@ -97,11 +107,13 @@ public enum Strategy {
 
     private static Channel preferLowest(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         Random pseudoRandom = new Random(21735712L);
+        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
+
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
             ImmutableList<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     // .map(UnlimitedChannel::new)
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
+                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
                     .collect(ImmutableList.toImmutableList());
             LimitedChannel limited = new PreferLowestUtilization(limitedChannels, pseudoRandom);
             return queuedChannelAndRetrying(sim, limited);
@@ -109,14 +121,23 @@ public enum Strategy {
     }
 
     private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
-        return channel ->
-                new ConcurrencyLimitedChannel(channel, () -> ConcurrencyLimitedChannel.createLimiter(sim.clock()));
+        return channel -> new ConcurrencyLimitedChannel(
+                new LimitedChannelAdapter(channel),
+                ConcurrencyLimitedChannel.createLimiter(sim.clock()),
+                DialogueClientMetrics.of(sim.taggedMetrics()));
+    }
+
+    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
+        return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        Channel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-        return new RetryingChannel(channel, 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */);
+        QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
+        return new RetryingChannel(
+                channel,
+                4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY);
     }
 
     private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
@@ -142,5 +163,29 @@ public enum Strategy {
                 return delegate.toString();
             }
         };
+    }
+
+    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
+        return new LimitedChannel() {
+            @Override
+            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+                return Optional.of(delegate.execute(endpoint, request));
+            }
+
+            @Override
+            public String toString() {
+                return delegate.toString();
+            }
+        };
+    }
+
+    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        private LimitedChannelListener delegate;
+
+        @Override
+        public void onChannelReady() {
+            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
+                    .onChannelReady();
+        }
     }
 }

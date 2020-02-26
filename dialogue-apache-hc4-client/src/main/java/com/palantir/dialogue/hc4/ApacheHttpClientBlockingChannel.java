@@ -21,8 +21,8 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.blocking.BlockingChannel;
+import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -47,20 +48,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
 
     private final CloseableHttpClient client;
-    private final UrlBuilder baseUrl;
+    private final BaseUrl baseUrl;
 
     ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
         this.client = client;
-        this.baseUrl = UrlBuilder.from(baseUrl);
+        this.baseUrl = BaseUrl.of(baseUrl);
     }
 
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
         // Create base request given the URL
-        UrlBuilder url = baseUrl.newBuilder();
-        endpoint.renderPath(request.pathParams(), url);
-        request.queryParams().forEach(url::queryParam);
-        URL target = url.build();
+        URL target = baseUrl.render(endpoint, request);
         RequestBuilder builder =
                 RequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
 
@@ -79,6 +77,8 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
+
+        @Nullable
         private Map<String, List<String>> headers;
 
         HttpClientResponse(CloseableHttpResponse response) {
@@ -148,7 +148,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isRepeatable() {
-            return false;
+            // TODO(#328): Binary bodies are not repeatable, however all our structured bodies are.
+            // Marking the entity repeatable allows proxy authentication to work.
+            return true;
         }
 
         @Override
@@ -168,6 +170,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        @Nullable
         public Header getContentEncoding() {
             return null;
         }

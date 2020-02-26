@@ -20,7 +20,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.Channels;
@@ -77,10 +76,9 @@ public final class OkHttpChannels {
 
     static {
         dispatcher = new Dispatcher(executionExecutor);
-        // Restricting concurrency is done elsewhere in ConcurrencyLimiters.
+        // Restricting concurrency is done elsewhere in ConcurrencyLimiters and FixedLimitedChannel.
         dispatcher.setMaxRequests(Integer.MAX_VALUE);
-        // Must be less than maxRequests so a single slow host does not block all requests
-        dispatcher.setMaxRequestsPerHost(256);
+        dispatcher.setMaxRequestsPerHost(Integer.MAX_VALUE);
     }
 
     /** Shared connection pool. */
@@ -94,13 +92,10 @@ public final class OkHttpChannels {
 
     private OkHttpChannels() {}
 
-    public static Channel create(ClientConfiguration config, UserAgent baseAgent) {
+    public static Channel create(ClientConfiguration config) {
         Preconditions.checkArgument(
                 !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
-        Preconditions.checkArgument(
-                config.serverQoS() == ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                "Propagating QoS exceptions is not supported");
         OkHttpClient.Builder builder = new OkHttpClient()
                 .newBuilder()
                 .dispatcher(dispatcher)
@@ -139,7 +134,7 @@ public final class OkHttpChannels {
                 .map(uri -> OkHttpChannel.of(client, url(uri)))
                 .collect(ImmutableList.toImmutableList());
 
-        return Channels.create(channels, baseAgent, config);
+        return Channels.create(channels, config);
     }
 
     private static URL url(String uri) {

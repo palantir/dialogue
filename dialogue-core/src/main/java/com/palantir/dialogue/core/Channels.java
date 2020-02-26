@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
-import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.logsafe.Preconditions;
@@ -27,35 +26,44 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Collection;
 import java.util.List;
 import java.util.function.Function;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import javax.annotation.Nullable;
 
 public final class Channels {
-    private static final Logger log = LoggerFactory.getLogger(Channels.class);
+
+    private static final int MAX_REQUESTS_PER_CHANNEL = 256;
 
     private Channels() {}
 
-    public static Channel create(
-            Collection<? extends Channel> channels, UserAgent userAgent, ClientConfiguration config) {
-        Preconditions.checkState(!channels.isEmpty(), "channels must not be empty");
+    public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
+        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
+        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
 
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
+        // n.b. This becomes cleaner once we support reloadable channels, the queue can be created first, and
+        // each limited channel can be created later and passed a method reference to the queued channel.
+        DeferredLimitedChannelListener queueListener = new DeferredLimitedChannelListener();
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
-                .map(channel -> new DeprecationWarningChannel(channel, clientMetrics))
                 // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                 .map(TracedRequestChannel::new)
-                .map(channel -> new TracedChannel(channel, "Concurrency-Limited Dialogue Request"))
-                .map(ContentDecodingChannel::new)
-                .map(concurrencyLimiter(config))
+                .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
+                .map(LimitedChannelAdapter::new)
+                .map(concurrencyLimiter(config, clientMetrics))
+                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
-        Channel channel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
-        channel = new RetryingChannel(channel, config.maxNumRetries());
-        channel = new UserAgentChannel(channel, userAgent);
+        QueuedChannel queuedChannel = new QueuedChannel(limited, DispatcherMetrics.of(config.taggedMetricRegistry()));
+        queueListener.delegate = queuedChannel::schedule;
+        Channel channel = queuedChannel;
+        channel = new TracedChannel(channel, "Dialogue-request-attempt");
+        channel = new RetryingChannel(channel, config.maxNumRetries(), config.serverQoS());
+        channel = new UserAgentChannel(channel, config.userAgent().get());
+        channel = new DeprecationWarningChannel(channel, clientMetrics);
+        channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
+        channel = new TracedChannel(channel, "Dialogue-request");
 
         return channel;
     }
@@ -77,15 +85,27 @@ public final class Channels {
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<Channel, LimitedChannel> concurrencyLimiter(ClientConfiguration config) {
+    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
+            ClientConfiguration config, DialogueClientMetrics metrics) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
-                return ConcurrencyLimitedChannel::create;
+                return channel -> ConcurrencyLimitedChannel.create(channel, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return UnlimitedChannel::new;
+                return Function.identity();
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    }
+
+    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
+        @Nullable
+        private LimitedChannelListener delegate;
+
+        @Override
+        public void onChannelReady() {
+            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
+                    .onChannelReady();
+        }
     }
 }
