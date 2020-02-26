@@ -62,6 +62,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
         hostIndex.ifPresent(index -> {
             DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
+            // TODO(dfox): hook up the service-name somehow? also when nodes reshuffle these metrics will look odd.
             metrics.utilization().hostIndex(Integer.toString(index)).build(this::getUtilization);
             metrics.max().hostIndex(Integer.toString(index)).build(this::getMax);
         });
@@ -71,14 +72,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             LimitedChannel delegate, OptionalInt hostIndex, TaggedMetricRegistry taggedMetrics) {
         return new ConcurrencyLimitedChannel(
                 delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), hostIndex, taggedMetrics);
-    }
-
-    private double getUtilization() {
-        return (double) limiter.getInflight() / (double) limiter.getLimit();
-    }
-
-    private int getMax() {
-        return limiter.getLimit();
     }
 
     @VisibleForTesting
@@ -140,5 +133,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         public void onFailure(Throwable _throwable) {
             listener.onIgnore();
         }
+    }
+
+    private double getUtilization() {
+        double inflight = limiter.getInflight();
+        double limit = limiter.getLimit();
+        return inflight / limit; // minLimit is 1 so we should never get NaN from this
+    }
+
+    private int getMax() {
+        return limiter.getLimit();
     }
 }

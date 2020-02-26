@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.SettableFuture;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
@@ -30,6 +31,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -42,8 +44,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class ConcurrencyLimitedChannelTest {
 
-    private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-
     @Mock
     private Endpoint endpoint;
 
@@ -54,7 +54,7 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private SimpleLimiter<Void> limiter;
+    private SimpleLimiter<Void> mockLimiter;
 
     @Mock
     private Limiter.Listener listener;
@@ -62,14 +62,15 @@ public class ConcurrencyLimitedChannelTest {
     @Mock
     private Response response;
 
+    private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+    private final OptionalInt hostIndex = OptionalInt.of(3);
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
-    private OptionalInt hostIndex = OptionalInt.of(3);
 
     @BeforeEach
     public void before() {
         channel = new ConcurrencyLimitedChannel(
-                new ChannelToLimitedChannelAdapter(delegate), limiter, hostIndex, metrics);
+                new ChannelToLimitedChannelAdapter(delegate), mockLimiter, hostIndex, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -117,16 +118,43 @@ public class ConcurrencyLimitedChannelTest {
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
 
+    @Test
+    void testGauges() {
+        when(mockLimiter.getInflight()).thenReturn(5);
+        when(mockLimiter.getLimit()).thenReturn(20);
+
+        assertThat(getMax()).isEqualTo(20);
+        assertThat(getUtilization()).isEqualTo(0.25d);
+    }
+
     private void mockResponseCode(int code) {
         when(response.code()).thenReturn(code);
         responseFuture.set(response);
     }
 
     private void mockLimitAvailable() {
-        when(limiter.acquire(null)).thenReturn(Optional.of(listener));
+        when(mockLimiter.acquire(null)).thenReturn(Optional.of(listener));
     }
 
     private void mockLimitUnavailable() {
-        when(limiter.acquire(null)).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(null)).thenReturn(Optional.empty());
+    }
+
+    private Number getUtilization() {
+        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.utilization")
+                        .putSafeTags("hostIndex", Integer.toString(hostIndex.getAsInt()))
+                        .build())
+                .get();
+        return (Number) gauge.getValue();
+    }
+
+    private Number getMax() {
+        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.max")
+                        .putSafeTags("hostIndex", Integer.toString(hostIndex.getAsInt()))
+                        .build())
+                .get();
+        return (Number) gauge.getValue();
     }
 }
