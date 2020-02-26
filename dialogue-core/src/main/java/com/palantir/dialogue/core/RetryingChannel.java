@@ -56,9 +56,9 @@ final class RetryingChannel implements Channel {
      */
     private static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
             () -> MoreExecutors.listeningDecorator(Tracers.wrap(
-                    "dialogue-BlacklistingChannel-scheduler",
+                    "dialogue-RetryingChannel-scheduler",
                     Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
-                            .setNameFormat("dialogue-BlacklistingChannel-scheduler-%d")
+                            .setNameFormat("dialogue-RetryingChannel-scheduler-%d")
                             .setDaemon(false)
                             .build()))));
 
@@ -67,7 +67,7 @@ final class RetryingChannel implements Channel {
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
     private final Duration backoffSlotSize;
-    private final DoubleSupplier random;
+    private final DoubleSupplier jitter;
 
     RetryingChannel(
             Channel delegate, int maxRetries, Duration backoffSlotSize, ClientConfiguration.ServerQoS serverQoS) {
@@ -81,13 +81,13 @@ final class RetryingChannel implements Channel {
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ListeningScheduledExecutorService scheduler,
-            DoubleSupplier random) {
+            DoubleSupplier jitter) {
         this.delegate = delegate;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
         this.serverQoS = serverQoS;
         this.scheduler = scheduler;
-        this.random = random;
+        this.jitter = jitter;
     }
 
     @Override
@@ -126,7 +126,7 @@ final class RetryingChannel implements Channel {
                 return 0L;
             }
             int upperBound = (int) Math.pow(2, failures - 1);
-            return Math.round(backoffSlotSize.toNanos() * random.getAsDouble() * upperBound);
+            return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
         ListenableFuture<Response> success(Response response) {

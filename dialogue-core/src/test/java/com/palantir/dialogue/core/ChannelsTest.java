@@ -155,7 +155,7 @@ public final class ChannelsTest {
 
     @Test
     @TestTracing(snapshot = true)
-    public void traces_on_succes() throws Exception {
+    public void traces_on_success() throws Exception {
         when(response.code()).thenReturn(200);
         try (Response response = channel.execute(endpoint, request).get()) {
             assertThat(response.code()).isEqualTo(200);
