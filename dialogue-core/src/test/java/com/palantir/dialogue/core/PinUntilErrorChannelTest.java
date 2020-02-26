@@ -160,6 +160,13 @@ public class PinUntilErrorChannelTest {
                 .isEqualTo(101);
     }
 
+    @Test
+    public void finds_first_non_limited_channel() {
+        when(channel1.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        setResponse(channel2, 204);
+        assertThat(pinUntilError.maybeExecute(null, null)).isPresent();
+    }
+
     private static int getCode(PinUntilErrorChannel channel) {
         try {
             ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
