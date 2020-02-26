@@ -38,7 +38,6 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -107,15 +106,13 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> execute() {
-            return execute(null);
+            return wrap(delegate.execute(endpoint, request));
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> execute(@Nullable Throwable cause) {
+        ListenableFuture<Response> retry(Throwable cause) {
             long backoffNanoseconds = getBackoffNanoseconds();
-            if (failures > 0) {
-                logRetry(cause, backoffNanoseconds);
-            }
+            logRetry(backoffNanoseconds, cause);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -140,7 +137,7 @@ final class RetryingChannel implements Channel {
                 Throwable failure =
                         new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
                 if (++failures <= maxRetries) {
-                    return execute(failure);
+                    return retry(failure);
                 }
                 if (log.isDebugEnabled()) {
                     log.debug(
@@ -157,12 +154,12 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> failure(Throwable throwable) {
             if (++failures <= maxRetries) {
-                return execute(throwable);
+                return retry(throwable);
             }
             return Futures.immediateFailedFuture(throwable);
         }
 
-        private void logRetry(@Nullable Throwable throwable, long backoffNanoseconds) {
+        private void logRetry(long backoffNanoseconds, Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
