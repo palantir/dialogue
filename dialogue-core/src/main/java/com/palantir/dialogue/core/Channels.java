@@ -37,7 +37,8 @@ public final class Channels {
         Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
         Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
 
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(config.taggedMetricRegistry());
+        DialogueClientMetrics clientMetrics =
+                DialogueClientMetrics.of(new VersionedTaggedMetricRegistry(config.taggedMetricRegistry()));
         List<LimitedChannel> limitedChannels = channels.stream()
                 // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                 .map(channel -> new InstrumentedChannel(channel, clientMetrics))
