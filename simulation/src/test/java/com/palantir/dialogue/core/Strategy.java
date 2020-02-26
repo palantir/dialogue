@@ -60,7 +60,7 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
+            return retryingChannel(sim, limited1);
         });
     }
 
@@ -73,7 +73,7 @@ public enum Strategy {
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
+            return retryingChannel(sim, limited1);
         });
     }
 
@@ -86,7 +86,7 @@ public enum Strategy {
                     .collect(Collectors.toList());
             LimitedChannel limited = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
-            return queuedChannelAndRetrying(sim, limited);
+            return retryingChannel(sim, limited);
         });
     }
 
@@ -97,7 +97,7 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited);
+            return retryingChannel(sim, limited);
         });
     }
 
@@ -112,7 +112,7 @@ public enum Strategy {
         return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
-    private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
+    private static Channel retryingChannel(Simulation sim, LimitedChannel limited) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
         return new RetryingChannel(
                 new LimitedChannelToChannelAdapter(limited1),
