@@ -74,7 +74,7 @@ public final class Channels {
         return channel;
     }
 
-    private static LimitedChannel nodeSelectionStrategy(
+    static LimitedChannel nodeSelectionStrategy(
             ClientConfiguration config, List<LimitedChannel> channels, VersionedTaggedMetricRegistry metrics) {
         if (channels.size() == 1) {
             return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
@@ -93,7 +93,7 @@ public final class Channels {
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
+    static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
             ClientConfiguration config, DialogueClientMetrics metrics) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
