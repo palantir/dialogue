@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -24,15 +25,25 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 public final class DialogueChannel implements Channel {
+
     private final Channel delegate;
 
-    private DialogueChannel(Channel delegate) {
+    // We store any implementation details that might be useful when live-reloading (they're not actually used to
+    // serve requests).
+    private final Object nodeSelectionStrategy;
+
+    private DialogueChannel(Channel delegate, Object nodeSelectionStrategy) {
         this.delegate = delegate;
+        this.nodeSelectionStrategy = nodeSelectionStrategy;
     }
 
     @Override
@@ -45,28 +56,121 @@ public final class DialogueChannel implements Channel {
     }
 
     public static class Builder {
+        private Optional<DialogueChannel> existing = Optional.empty();
         private final List<Channel> channels = new ArrayList<>();
-        private ClientConfiguration conf;
+        private ClientConfiguration config;
 
-        @CheckReturnValue
-        public Builder channels(Collection<Channel> channels) {
-            channels.clear();
-            channels.addAll(channels);
+        public Builder from(DialogueChannel value) {
+            this.existing = Optional.of(value);
             return this;
         }
 
         @CheckReturnValue
-        public Builder clientConfiguration(ClientConfiguration conf) {
-            this.conf = conf;
+        public Builder channels(Collection<Channel> values) {
+            channels.clear();
+            channels.addAll(values);
+            return this;
+        }
+
+        @CheckReturnValue
+        public Builder clientConfiguration(ClientConfiguration value) {
+            this.config = value;
             return this;
         }
 
         @CheckReturnValue
         public DialogueChannel build() {
-            Preconditions.checkNotNull(conf, "ClientConfiguration is required");
-            Preconditions.checkNotNull(channels, "Channels is required");
+            preconditions(channels, config);
 
-            return new DialogueChannel(Channels.create(channels, conf));
+            VersionedTaggedMetricRegistry taggedMetrics =
+                    new VersionedTaggedMetricRegistry(config.taggedMetricRegistry());
+            DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(taggedMetrics);
+
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    .map(chan -> {
+                        LimitedChannel firstInstance = mapSingleUriChannel(chan, config, clientMetrics);
+                        LimitedChannel secondInstance = mapSingleUriChannel(chan, config, clientMetrics);
+                        Preconditions.checkState(
+                                firstInstance.equals(secondInstance),
+                                "things should have a good equals implementation",
+                                UnsafeArg.of("first", firstInstance),
+                                UnsafeArg.of("second", secondInstance));
+                        return firstInstance;
+                    })
+                    .collect(ImmutableList.toImmutableList());
+
+            LimitedChannel nodeSelectionStrategy =
+                    nodeSelectionStrategy(existing, config, limitedChannels, taggedMetrics);
+            Channel channel = new LimitedChannelToChannelAdapter(nodeSelectionStrategy);
+            channel = new TracedChannel(channel, "Dialogue-request-attempt");
+            if (config.maxNumRetries() > 0) {
+                channel = new RetryingChannel(
+                        channel,
+                        config.maxNumRetries(),
+                        config.backoffSlotSize(),
+                        config.serverQoS(),
+                        config.retryOnTimeout());
+            }
+            channel = new UserAgentChannel(channel, config.userAgent().get());
+            channel = new DeprecationWarningChannel(channel, clientMetrics);
+            channel = new ContentDecodingChannel(channel);
+            channel = new NeverThrowChannel(channel);
+            channel = new TracedChannel(channel, "Dialogue-request");
+
+            return new DialogueChannel(channel, nodeSelectionStrategy);
         }
+
+        private static LimitedChannel mapSingleUriChannel(
+                Channel channel, ClientConfiguration config, DialogueClientMetrics clientMetrics) {
+            // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+            Channel chan = new InstrumentedChannel(channel, clientMetrics);
+            // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+            chan = new TracedRequestChannel(chan);
+            chan = new TracedChannel(chan, "Dialogue-http-request");
+            LimitedChannel limitedChan = new ChannelToLimitedChannelAdapter(chan);
+            limitedChan = Channels.concurrencyLimiter(limitedChan, config, clientMetrics);
+            return new FixedLimitedChannel(limitedChan, Channels.MAX_REQUESTS_PER_CHANNEL, clientMetrics);
+        }
+    }
+
+    private static LimitedChannel nodeSelectionStrategy(
+            Optional<DialogueChannel> maybeExisting,
+            ClientConfiguration config,
+            List<LimitedChannel> channels,
+            VersionedTaggedMetricRegistry metrics) {
+        if (channels.size() == 1) {
+            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+        }
+
+        switch (config.nodeSelectionStrategy()) {
+            case PIN_UNTIL_ERROR:
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                // create a fresh instance (ignoring the idea of live reloading initially) - we might throw this away
+                PinUntilErrorChannel goalInstance = PinUntilErrorChannel.of(
+                        config.nodeSelectionStrategy(), channels, DialoguePinuntilerrorMetrics.of(metrics));
+
+                // find out whether we could have live-reloaded to get to the goal state
+                Optional<PinUntilErrorChannel> maybeLiveReloaded = maybeExisting
+                        .flatMap(existing -> goalInstance.reloadableFrom(existing.nodeSelectionStrategy))
+                        .map(existing -> existing.liveReloadNewInstance(channels));
+
+                // if we successfully live-reloaded, just discard the newly created 'goalInstance'
+                return maybeLiveReloaded.orElse(goalInstance);
+            case ROUND_ROBIN:
+                return new RoundRobinChannel(channels);
+        }
+        throw new SafeRuntimeException(
+                "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
+    }
+
+    private static void preconditions(Collection<? extends Channel> channels, ClientConfiguration config) {
+        Preconditions.checkNotNull(config, "ClientConfiguration is required");
+        Preconditions.checkNotNull(channels, "Channels is required");
+
+        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
+        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
+        Preconditions.checkArgument(
+                config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
     }
 }
