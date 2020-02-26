@@ -56,7 +56,7 @@ public class PinUntilErrorChannelTest {
 
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
-    private DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
+    private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
 
     @BeforeEach
     public void before() {
@@ -65,7 +65,7 @@ public class PinUntilErrorChannelTest {
         PinUntilErrorChannel.ConstantNodeList constantList =
                 new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L));
         PinUntilErrorChannel.ReshufflingNodeList shufflingList =
-                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock);
+                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock, metrics);
 
         pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, metrics);
         pinUntilError = new PinUntilErrorChannel(shufflingList, metrics);
