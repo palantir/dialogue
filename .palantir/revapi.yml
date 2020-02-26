@@ -1,0 +1,18 @@
+versionOverrides: {}
+acceptedBreaks:
+  "0.10.6":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter com.palantir.dialogue.Channel com.palantir.dialogue.core.Channels::create(===java.util.Collection<?\
+        \ extends com.palantir.dialogue.Channel>===, com.palantir.conjure.java.client.config.ClientConfiguration)"
+      new: "parameter com.palantir.dialogue.Channel com.palantir.dialogue.core.Channels::create(===java.util.List<?\
+        \ extends com.palantir.dialogue.Channel>===, com.palantir.conjure.java.client.config.ClientConfiguration)"
+      justification: "Collection was unnecessarily broad - we always want to be able\
+        \ to index"
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client: []
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target: []
