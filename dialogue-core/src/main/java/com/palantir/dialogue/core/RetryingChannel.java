@@ -31,6 +31,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
 import java.time.Duration;
 import java.util.concurrent.Executors;
@@ -98,6 +99,7 @@ final class RetryingChannel implements Channel {
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
+        private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
         private RetryingCallback(Endpoint endpoint, Request request) {
@@ -106,7 +108,15 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> execute() {
-            return wrap(delegate.execute(endpoint, request));
+            ListenableFuture<Response> result = wrap(delegate.execute(endpoint, request));
+            result.addListener(
+                    () -> {
+                        if (failures > 0) {
+                            span.complete();
+                        }
+                    },
+                    MoreExecutors.directExecutor());
+            return result;
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
@@ -116,8 +126,14 @@ final class RetryingChannel implements Channel {
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
+            DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff-" + failures);
             ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
-                    () -> delegate.execute(endpoint, request), backoffNanoseconds, TimeUnit.NANOSECONDS);
+                    () -> {
+                        backoffSpan.complete();
+                        return delegate.execute(endpoint, request);
+                    },
+                    backoffNanoseconds,
+                    TimeUnit.NANOSECONDS);
             return wrap(Futures.transformAsync(scheduled, input -> input, MoreExecutors.directExecutor()));
         }
 
