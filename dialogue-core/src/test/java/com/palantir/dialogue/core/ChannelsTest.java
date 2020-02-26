@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
@@ -62,7 +63,10 @@ public final class ChannelsTest {
             .build();
 
     @Mock
-    private Channel delegate;
+    private Channel channel1;
+
+    @Mock
+    private Channel channel2;
 
     private Endpoint endpoint = new Endpoint() {
         @Override
@@ -97,10 +101,10 @@ public final class ChannelsTest {
 
     @BeforeEach
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), stubConfig);
+        channel = Channels.create(ImmutableList.of(channel1), stubConfig);
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+        lenient().when(channel1.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
@@ -142,6 +146,32 @@ public final class ChannelsTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(NoClassDefFoundError.class);
+    }
+
+    @Test
+    // @Disabled("equals methods don't work well yet")
+    void test_my_live_reloading_thingy() throws Exception {
+        lenient()
+                .when(channel2.execute(any(), any()))
+                .thenReturn(Futures.immediateFailedFuture(new RuntimeException("borf")));
+
+        DialogueChannel channel = DialogueChannel.builder()
+                .channels(ImmutableList.of(channel1))
+                .clientConfiguration(stubConfig)
+                .build();
+
+        ListenableFuture<Response> foo = channel.execute(endpoint, request);
+        assertThat(foo.get()).isSameAs(response);
+
+        channel = DialogueChannel.builder()
+                .from(channel)
+                .channels(ImmutableList.of(channel2, channel2, channel2, channel2, channel1, channel2))
+                .clientConfiguration(stubConfig)
+                .build();
+
+        foo = channel.execute(endpoint, request);
+        assertThat(foo.get()).isSameAs(response);
+        verifyNoInteractions(channel2);
     }
 
     @Test
