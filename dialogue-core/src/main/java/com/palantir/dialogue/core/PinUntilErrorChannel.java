@@ -22,12 +22,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -78,19 +80,8 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
-        Random random = SafeThreadLocalRandom.get();
-        NodeList nodeList = ReshufflingNodeList.of(channels, random, System::nanoTime, metrics);
-        return new PinUntilErrorChannel(nodeList, 0, random, metrics);
-    }
-
-    /**
-     * This strategy results in unbalanced server utilization, especially after an upstream restarts.
-     * @deprecated prefer {@link #pinUntilError}
-     */
-    @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(
-            List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
+    static LimitedChannel of(
+            NodeSelectionStrategy strategy, List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
          * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
@@ -99,8 +90,17 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
          */
         Random random = SafeThreadLocalRandom.get();
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
-        NodeList nodeList = new ConstantNodeList(initialShuffle);
-        return new PinUntilErrorChannel(nodeList, 0, random, metrics);
+
+        switch (strategy) {
+            case PIN_UNTIL_ERROR:
+                NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics);
+                return new PinUntilErrorChannel(shuffling, 0, random, metrics);
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                NodeList constant = new ConstantNodeList(initialShuffle);
+                return new PinUntilErrorChannel(constant, 0, random, metrics);
+        }
+
+        throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
     }
 
     @Override
@@ -191,8 +191,8 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         }
 
         @Override
-        public ConstantNodeList newInstance(List<LimitedChannel> params) {
-            return new ConstantNodeList(params);
+        public ConstantNodeList newInstance(List<LimitedChannel> newChannels) {
+            return new ConstantNodeList(newChannels);
         }
     }
 
@@ -209,14 +209,15 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         private volatile ImmutableList<LimitedChannel> channels;
 
         static ReshufflingNodeList of(
-                List<LimitedChannel> channels, Random random, Ticker clock, DialoguePinuntilerrorMetrics metrics) {
+                ImmutableList<LimitedChannel> channels,
+                Random random,
+                Ticker clock,
+                DialoguePinuntilerrorMetrics metrics) {
             long intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
             AtomicLong nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
-
-            return new ReshufflingNodeList(
-                    shuffleImmutableList(channels, random), random, clock, metrics, intervalWithJitter, nextReshuffle);
+            return new ReshufflingNodeList(channels, random, clock, metrics, intervalWithJitter, nextReshuffle);
         }
 
         // Visible for cloning only

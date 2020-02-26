@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
@@ -80,10 +81,10 @@ public enum Strategy {
     private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
         Random psuedoRandom = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
+            ImmutableList<LimitedChannel> limitedChannels = channels.stream()
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
+                    .collect(ImmutableList.toImmutableList());
             DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(sim.taggedMetrics());
             LimitedChannel limited = new PinUntilErrorChannel(
                     PinUntilErrorChannel.ReshufflingNodeList.of(limitedChannels, psuedoRandom, sim.clock(), metrics),

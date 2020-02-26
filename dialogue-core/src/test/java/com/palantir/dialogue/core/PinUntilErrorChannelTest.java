@@ -30,7 +30,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -64,7 +63,7 @@ public class PinUntilErrorChannelTest {
 
     @BeforeEach
     public void before() {
-        List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
 
         PinUntilErrorChannel.ConstantNodeList constantList = new PinUntilErrorChannel.ConstantNodeList(channels);
         PinUntilErrorChannel.ReshufflingNodeList shufflingList =
