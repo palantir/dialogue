@@ -84,8 +84,10 @@ public enum Strategy {
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
+            DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(sim.taggedMetrics());
             LimitedChannel limited = new PinUntilErrorChannel(
-                    new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
+                    new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock(), metrics),
+                    metrics);
             return retryingChannel(sim, limited);
         });
     }

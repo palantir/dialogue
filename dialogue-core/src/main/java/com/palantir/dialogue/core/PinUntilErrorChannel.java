@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -36,6 +37,8 @@ import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -59,20 +62,22 @@ final class PinUntilErrorChannel implements LimitedChannel {
     // TODO(dfox): could we make this endpoint-specific?
     private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
     private final NodeList nodeList;
+    private final Instrumentation instrumentation;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList) {
+    PinUntilErrorChannel(NodeList nodeList, DialoguePinuntilerrorMetrics metrics) {
         this.nodeList = nodeList;
+        this.instrumentation = new Instrumentation(nodeList.size(), metrics);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         ReshufflingNodeList shufflingNodeList =
-                new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime);
-        return new PinUntilErrorChannel(shufflingNodeList);
+                new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime, metrics);
+        return new PinUntilErrorChannel(shufflingNodeList, metrics);
     }
 
     /**
@@ -80,9 +85,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilErrorWithoutReshuffle(
+            List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
-        return new PinUntilErrorChannel(constantNodeList);
+        return new PinUntilErrorChannel(constantNodeList, metrics);
     }
 
     @Override
@@ -93,7 +99,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementHostIfNecessary(currentIndex);
-            debugLogCurrentChannelRejected(currentIndex, channel, next);
+            instrumentation.currentChannelRejected(currentIndex, channel, next);
             return Optional.empty(); // if the caller retries immediately, we'll get the next host
         }
 
@@ -103,15 +109,17 @@ final class PinUntilErrorChannel implements LimitedChannel {
             public void onSuccess(Response response) {
                 if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                     OptionalInt next = incrementHostIfNecessary(currentIndex);
-                    debugLogReceivedErrorStatus(currentIndex, channel, response, next);
+                    instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
                     // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
+                } else {
+                    instrumentation.successfulResponse(currentIndex);
                 }
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 OptionalInt next = incrementHostIfNecessary(currentIndex);
-                debugLogReceivedThrowable(currentIndex, channel, throwable, next);
+                instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
             }
         }));
     }
@@ -164,11 +172,13 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Random random;
         private final long intervalWithJitter;
         private final int channelsSize;
+        private final Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
 
-        ReshufflingNodeList(List<LimitedChannel> channels, Random random, Ticker clock) {
+        ReshufflingNodeList(
+                List<LimitedChannel> channels, Random random, Ticker clock, DialoguePinuntilerrorMetrics metrics) {
             this.channels = shuffleImmutableList(channels, random);
             this.channelsSize = channels.size();
             this.random = random;
@@ -177,6 +187,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                     .toNanos();
             this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
             this.clock = clock;
+            this.instrumentation = new Instrumentation(channelsSize, metrics);
         }
 
         @Override
@@ -198,12 +209,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
             if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
                 ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Reshuffling channels {} {}",
-                            SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
-                            UnsafeArg.of("newList", newList));
-                }
+                instrumentation.reshuffled(newList, intervalWithJitter);
                 channels = newList;
             }
         }
@@ -216,59 +222,111 @@ final class PinUntilErrorChannel implements LimitedChannel {
         return ImmutableList.copyOf(mutableList);
     }
 
-    private void debugLogCurrentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
-        if (log.isDebugEnabled()) {
-            if (next.isPresent()) {
-                log.debug(
-                        "Current channel rejected request, switching to next channel",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next.getAsInt()));
+    /** Purely for metric and service log observability. */
+    private static final class Instrumentation {
+        @Nullable
+        private final Meter[] successesPerHost;
+
+        private final Meter reshuffleMeter;
+        private final Meter nextNodeBecauseLimited;
+        private final Meter nextNodeBecauseResponseCode;
+        private final Meter nextNodeBecauseThrowable;
+
+        Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics) {
+            this.reshuffleMeter = metrics.reshuffle();
+            this.nextNodeBecauseLimited = metrics.nextNode("limited");
+            this.nextNodeBecauseResponseCode = metrics.nextNode("responseCode");
+            this.nextNodeBecauseThrowable = metrics.nextNode("throwable");
+
+            if (numChannels < 10) {
+                // hard limit ensures we don't create unbounded tags
+                this.successesPerHost = IntStream.range(0, numChannels)
+                        .mapToObj(index -> metrics.success(Integer.toString(index)))
+                        .toArray(Meter[]::new);
             } else {
-                log.debug(
-                        "Current channel rejected request, but we've already switched",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel));
+                this.successesPerHost = null;
             }
         }
-    }
 
-    private void debugLogReceivedErrorStatus(
-            int currentIndex, LimitedChannel channel, Response response, OptionalInt next) {
-        if (log.isDebugEnabled()) {
-            if (next.isPresent()) {
+        private void reshuffled(ImmutableList<LimitedChannel> newList, long intervalWithJitter) {
+            reshuffleMeter.mark();
+            if (log.isDebugEnabled()) {
                 log.debug(
-                        "Received error status code, switching to next channel",
-                        SafeArg.of("status", response.code()),
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next.getAsInt()));
-            } else {
-                log.debug(
-                        "Received error status code, but we've already switched",
-                        SafeArg.of("status", response.code()),
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel));
+                        "Reshuffled channels {} {}",
+                        SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
+                        UnsafeArg.of("newList", newList));
             }
         }
-    }
 
-    private void debugLogReceivedThrowable(
-            int currentIndex, LimitedChannel channel, Throwable throwable, OptionalInt next) {
-        if (log.isDebugEnabled()) {
+        private void currentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
             if (next.isPresent()) {
-                log.debug(
-                        "Received throwable, switching to next channel",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        SafeArg.of("nextIndex", next.getAsInt()),
-                        throwable);
-            } else {
-                log.debug(
-                        "Received throwable, but already switched",
-                        SafeArg.of("currentIndex", currentIndex),
-                        UnsafeArg.of("current", channel),
-                        throwable);
+                nextNodeBecauseLimited.mark();
+            }
+            if (log.isDebugEnabled()) {
+                if (next.isPresent()) {
+                    log.debug(
+                            "Current channel rejected request, switching to next channel",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next.getAsInt()));
+                } else {
+                    log.debug(
+                            "Current channel rejected request, but we've already switched",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel));
+                }
+            }
+        }
+
+        private void receivedErrorStatus(
+                int currentIndex, LimitedChannel channel, Response response, OptionalInt next) {
+            if (next.isPresent()) {
+                nextNodeBecauseResponseCode.mark();
+            }
+            if (log.isDebugEnabled()) {
+                if (next.isPresent()) {
+                    log.debug(
+                            "Received error status code, switching to next channel",
+                            SafeArg.of("status", response.code()),
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next.getAsInt()));
+                } else {
+                    log.debug(
+                            "Received error status code, but we've already switched",
+                            SafeArg.of("status", response.code()),
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel));
+                }
+            }
+        }
+
+        private void receivedThrowable(
+                int currentIndex, LimitedChannel channel, Throwable throwable, OptionalInt next) {
+            if (next.isPresent()) {
+                nextNodeBecauseThrowable.mark();
+            }
+            if (log.isDebugEnabled()) {
+                if (next.isPresent()) {
+                    log.debug(
+                            "Received throwable, switching to next channel",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next.getAsInt()),
+                            throwable);
+                } else {
+                    log.debug(
+                            "Received throwable, but already switched",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            throwable);
+                }
+            }
+        }
+
+        private void successfulResponse(int currentIndex) {
+            if (successesPerHost != null) {
+                successesPerHost[currentIndex].mark();
             }
         }
     }

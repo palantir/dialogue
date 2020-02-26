@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
@@ -55,14 +56,19 @@ public class PinUntilErrorChannelTest {
 
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
+    private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
 
     @BeforeEach
     public void before() {
         List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
-        pinUntilErrorWithoutReshuffle =
-                new PinUntilErrorChannel(new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L)));
-        pinUntilError = new PinUntilErrorChannel(
-                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock));
+
+        PinUntilErrorChannel.ConstantNodeList constantList =
+                new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L));
+        PinUntilErrorChannel.ReshufflingNodeList shufflingList =
+                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock, metrics);
+
+        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, metrics);
+        pinUntilError = new PinUntilErrorChannel(shufflingList, metrics);
     }
 
     @Test
