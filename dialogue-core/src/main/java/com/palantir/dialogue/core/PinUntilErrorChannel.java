@@ -37,6 +37,8 @@ import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -65,7 +67,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
     @VisibleForTesting
     PinUntilErrorChannel(NodeList nodeList, DialoguePinuntilerrorMetrics metrics) {
         this.nodeList = nodeList;
-        this.instrumentation = new Instrumentation(metrics);
+        this.instrumentation = new Instrumentation(nodeList.size(), metrics);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
@@ -110,7 +112,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                     instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
                     // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
                 } else {
-                    instrumentation.instrumentSuccessfulResponse(currentIndex, nodeList);
+                    instrumentation.successfulResponse(currentIndex);
                 }
             }
 
@@ -185,7 +187,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                     .toNanos();
             this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
             this.clock = clock;
-            this.instrumentation = new Instrumentation(metrics);
+            this.instrumentation = new Instrumentation(channelsSize, metrics);
         }
 
         @Override
@@ -222,18 +224,28 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
     /** Purely for metric and service log observability. */
     private static final class Instrumentation {
-        private final DialoguePinuntilerrorMetrics metrics;
+        @Nullable
+        private final Meter[] successesPerHost;
+
         private final Meter reshuffleMeter;
         private final Meter nextNodeBecauseLimited;
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
 
-        Instrumentation(DialoguePinuntilerrorMetrics metrics) {
-            this.metrics = metrics;
+        Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics) {
             this.reshuffleMeter = metrics.reshuffle();
             this.nextNodeBecauseLimited = metrics.nextNode("limited");
             this.nextNodeBecauseResponseCode = metrics.nextNode("responseCode");
             this.nextNodeBecauseThrowable = metrics.nextNode("throwable");
+
+            if (numChannels < 10) {
+                // hard limit ensures we don't create unbounded tags
+                this.successesPerHost = IntStream.range(0, numChannels)
+                        .mapToObj(index -> metrics.success(Integer.toString(index)))
+                        .toArray(Meter[]::new);
+            } else {
+                this.successesPerHost = null;
+            }
         }
 
         private void reshuffled(ImmutableList<LimitedChannel> newList, long intervalWithJitter) {
@@ -312,10 +324,9 @@ final class PinUntilErrorChannel implements LimitedChannel {
             }
         }
 
-        private void instrumentSuccessfulResponse(int currentIndex, NodeList nodeList) {
-            if (nodeList.size() < 10) {
-                // hard limit ensures we don't create unbounded tags
-                metrics.success(Integer.toString(currentIndex));
+        private void successfulResponse(int currentIndex) {
+            if (successesPerHost != null) {
+                successesPerHost[currentIndex].mark();
             }
         }
     }
