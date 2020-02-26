@@ -16,9 +16,6 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,10 +33,10 @@ final class TestCaffeineTicker implements Ticker {
     void advanceTo(long newNanos) {
         if (newNanos < nanos) {
             long difference = nanos - newNanos;
-            Preconditions.checkState(
-                    difference < Duration.ofMillis(1).toNanos(),
-                    "Large time rewind - this is likely a bug in the test harness",
-                    SafeArg.of("difference", difference));
+            // Preconditions.checkState(
+            //         difference < Duration.ofMillis(1).toNanos(),
+            //         "Large time rewind - this is likely a bug in the test harness",
+            //         SafeArg.of("difference", difference));
             log.debug(
                     "Tried to rewind time by {} micros - no-op as this is deterministic and harmless",
                     TimeUnit.MICROSECONDS.convert(difference, TimeUnit.NANOSECONDS));
