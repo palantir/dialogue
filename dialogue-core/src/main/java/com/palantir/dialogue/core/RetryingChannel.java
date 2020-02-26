@@ -141,7 +141,8 @@ final class RetryingChannel implements Channel {
                 }
                 if (log.isDebugEnabled()) {
                     log.debug(
-                            "Retries exhausted, returning a retryable response with status {}",
+                            "Exhausted {} retries, returning a retryable response with status {}",
+                            SafeArg.of("retries", maxRetries),
                             SafeArg.of("status", response.code()));
                 }
                 return Futures.immediateFuture(response);
@@ -165,7 +166,7 @@ final class RetryingChannel implements Channel {
                         "Retrying call after failure",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
-                        SafeArg.of("backoffNanoseconds", backoffNanoseconds),
+                        SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);
