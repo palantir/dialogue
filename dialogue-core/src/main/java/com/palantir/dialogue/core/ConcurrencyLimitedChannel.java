@@ -28,7 +28,9 @@ import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
@@ -45,22 +47,42 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final Limiter<Void> limiter;
+    private final SimpleLimiter<Void> limiter;
 
     @VisibleForTesting
-    ConcurrencyLimitedChannel(LimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
+    ConcurrencyLimitedChannel(
+            LimitedChannel delegate,
+            SimpleLimiter<Void> limiter,
+            OptionalInt hostIndex,
+            TaggedMetricRegistry taggedMetrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter = metrics.limited(getClass().getSimpleName());
+        this.limitedMeter =
+                DialogueClientMetrics.of(taggedMetrics).limited(getClass().getSimpleName());
         this.limiter = limiter;
+
+        hostIndex.ifPresent(index -> {
+            DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
+            metrics.utilization().hostIndex(Integer.toString(index)).build(this::getUtilization);
+            metrics.max().hostIndex(Integer.toString(index)).build(this::getMax);
+        });
     }
 
-    static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
+    static ConcurrencyLimitedChannel create(
+            LimitedChannel delegate, OptionalInt hostIndex, TaggedMetricRegistry taggedMetrics) {
         return new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
+                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), hostIndex, taggedMetrics);
+    }
+
+    private double getUtilization() {
+        return (double) limiter.getInflight() / (double) limiter.getLimit();
+    }
+
+    private int getMax() {
+        return limiter.getLimit();
     }
 
     @VisibleForTesting
-    static Limiter<Void> createLimiter(Ticker nanoTimeClock) {
+    static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)

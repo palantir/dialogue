@@ -30,7 +30,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,7 +42,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class ConcurrencyLimitedChannelTest {
 
-    private final DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
+    private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
 
     @Mock
     private Endpoint endpoint;
@@ -62,10 +64,12 @@ public class ConcurrencyLimitedChannelTest {
 
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
+    private OptionalInt hostIndex = OptionalInt.of(3);
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new ChannelToLimitedChannelAdapter(delegate), limiter, metrics);
+        channel = new ConcurrencyLimitedChannel(
+                new ChannelToLimitedChannelAdapter(delegate), limiter, hostIndex, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -108,7 +112,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new ChannelToLimitedChannelAdapter(delegate), metrics);
+        channel = ConcurrencyLimitedChannel.create(new ChannelToLimitedChannelAdapter(delegate), hostIndex, metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }

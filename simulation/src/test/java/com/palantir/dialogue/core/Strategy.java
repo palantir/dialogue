@@ -27,6 +27,7 @@ import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -107,7 +108,8 @@ public enum Strategy {
         return channel -> new ConcurrencyLimitedChannel(
                 new ChannelToLimitedChannelAdapter(channel),
                 ConcurrencyLimitedChannel.createLimiter(sim.clock()),
-                DialogueClientMetrics.of(sim.taggedMetrics()));
+                OptionalInt.empty(),
+                sim.taggedMetrics());
     }
 
     private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
