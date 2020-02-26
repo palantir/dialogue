@@ -33,7 +33,6 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
-import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.Executors;
@@ -70,7 +69,6 @@ final class RetryingChannel implements Channel {
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
-    private final ClientConfiguration.RetryOnSocketException retryOnSocketException;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
 
@@ -79,17 +77,9 @@ final class RetryingChannel implements Channel {
             int maxRetries,
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
-            ClientConfiguration.RetryOnTimeout retryOnTimeout,
-            ClientConfiguration.RetryOnSocketException retryOnSocketException) {
-        this(
-                delegate,
-                maxRetries,
-                backoffSlotSize,
-                serverQoS,
-                retryOnTimeout,
-                retryOnSocketException,
-                sharedScheduler.get(),
-                () -> ThreadLocalRandom.current().nextDouble());
+            ClientConfiguration.RetryOnTimeout retryOnTimeout) {
+        this(delegate, maxRetries, backoffSlotSize, serverQoS, retryOnTimeout, sharedScheduler.get(), () ->
+                ThreadLocalRandom.current().nextDouble());
     }
 
     RetryingChannel(
@@ -98,7 +88,6 @@ final class RetryingChannel implements Channel {
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout,
-            ClientConfiguration.RetryOnSocketException retryOnSocketException,
             ListeningScheduledExecutorService scheduler,
             DoubleSupplier jitter) {
         this.delegate = delegate;
@@ -106,7 +95,6 @@ final class RetryingChannel implements Channel {
         this.backoffSlotSize = backoffSlotSize;
         this.serverQoS = serverQoS;
         this.retryOnTimeout = retryOnTimeout;
-        this.retryOnSocketException = retryOnSocketException;
         this.scheduler = scheduler;
         this.jitter = jitter;
     }
@@ -205,12 +193,6 @@ final class RetryingChannel implements Channel {
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
-            if (retryOnSocketException == ClientConfiguration.RetryOnSocketException.DANGEROUS_DISABLED
-                    // IOException rather than SocketException Matches CJR for safety,
-                    // see RemotingOkHttpCall.should
-                    && throwable instanceof IOException) {
-                return false;
-            }
             if (retryOnTimeout == ClientConfiguration.RetryOnTimeout.DISABLED) {
                 if (throwable instanceof SocketTimeoutException) {
                     // non-connect timeouts should not be retried

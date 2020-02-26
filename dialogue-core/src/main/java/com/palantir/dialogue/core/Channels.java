@@ -36,6 +36,9 @@ public final class Channels {
     public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
         Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
         Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
+        Preconditions.checkArgument(
+                config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
 
         DialogueClientMetrics clientMetrics =
                 DialogueClientMetrics.of(new VersionedTaggedMetricRegistry(config.taggedMetricRegistry()));
@@ -59,8 +62,7 @@ public final class Channels {
                     config.maxNumRetries(),
                     config.backoffSlotSize(),
                     config.serverQoS(),
-                    config.retryOnTimeout(),
-                    config.retryOnSocketException());
+                    config.retryOnTimeout());
         }
         channel = new UserAgentChannel(channel, config.userAgent().get());
         channel = new DeprecationWarningChannel(channel, clientMetrics);

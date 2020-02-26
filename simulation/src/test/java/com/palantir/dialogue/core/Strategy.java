@@ -120,7 +120,6 @@ public enum Strategy {
                 Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED,
-                ClientConfiguration.RetryOnSocketException.ENABLED,
                 sim.scheduler(),
                 new Random(8 /* Guaranteed lucky */)::nextDouble);
     }
