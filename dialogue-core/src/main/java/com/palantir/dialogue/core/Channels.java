@@ -54,8 +54,13 @@ public final class Channels {
         Channel channel = new LimitedChannelToChannelAdapter(limited);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         if (config.maxNumRetries() > 0) {
-            channel =
-                    new RetryingChannel(channel, config.maxNumRetries(), config.backoffSlotSize(), config.serverQoS());
+            channel = new RetryingChannel(
+                    channel,
+                    config.maxNumRetries(),
+                    config.backoffSlotSize(),
+                    config.serverQoS(),
+                    config.retryOnTimeout(),
+                    config.retryOnSocketException());
         }
         channel = new UserAgentChannel(channel, config.userAgent().get());
         channel = new DeprecationWarningChannel(channel, clientMetrics);

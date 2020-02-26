@@ -85,7 +85,8 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client.client, url(uri)));
+        return BlockingChannelAdapter.of(
+                new ApacheExceptionNormalizingChannel(new ApacheHttpClientBlockingChannel(client.client, url(uri))));
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {

@@ -119,6 +119,8 @@ public enum Strategy {
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
                 Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED,
+                ClientConfiguration.RetryOnSocketException.ENABLED,
                 sim.scheduler(),
                 new Random(8 /* Guaranteed lucky */)::nextDouble);
     }
