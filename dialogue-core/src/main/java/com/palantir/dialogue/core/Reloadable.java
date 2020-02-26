@@ -21,5 +21,5 @@ interface Reloadable<SELF extends Reloadable<SELF, P>, P> {
      * Creates a new instance with the given params {@code P} changed, reusing everything else.
      * Should *not* mutate anything internally, just return a fresh instance.
      */
-    SELF newInstance(P params);
+    SELF liveReloadNewInstance(P params);
 }

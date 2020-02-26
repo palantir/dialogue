@@ -175,7 +175,7 @@ public class PinUntilErrorChannelTest {
         assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilError))).contains(111, 111, 111, 111, 111, 111);
 
         PinUntilErrorChannel reloaded =
-                pinUntilError.newInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
+                pinUntilError.liveReloadNewInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
                 .describedAs("We were locked on to channel 1 initially, and after reloading we should "
@@ -183,7 +183,7 @@ public class PinUntilErrorChannelTest {
                 .contains(111, 111, 111, 111, 111, 111);
 
         // take away the node we were locked on to
-        PinUntilErrorChannel reloaded2 = reloaded.newInstance(ImmutableList.of(channel4, channel3));
+        PinUntilErrorChannel reloaded2 = reloaded.liveReloadNewInstance(ImmutableList.of(channel4, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
                 .describedAs("The channel we were locked onto has disappeared, so just pick a new one")
@@ -204,7 +204,7 @@ public class PinUntilErrorChannelTest {
                 .contains(222, 222, 222, 222, 222, 222);
 
         PinUntilErrorChannel reloaded =
-                pinUntilErrorWithoutReshuffle.newInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
+                pinUntilErrorWithoutReshuffle.liveReloadNewInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
                 .describedAs("We were locked on to channel 2 initially, and after reloading we should "
@@ -212,7 +212,7 @@ public class PinUntilErrorChannelTest {
                 .contains(222, 222, 222, 222, 222, 222);
 
         // take away the node we were locked on to
-        PinUntilErrorChannel reloaded2 = reloaded.newInstance(ImmutableList.of(channel4, channel3));
+        PinUntilErrorChannel reloaded2 = reloaded.liveReloadNewInstance(ImmutableList.of(channel4, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
                 .describedAs("The channel we were locked onto has disappeared, so just pick a new one")

@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -80,7 +81,7 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel of(
+    static PinUntilErrorChannel of(
             NodeSelectionStrategy strategy, List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
@@ -147,20 +148,35 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
+    Optional<PinUntilErrorChannel> reloadableFrom(Object other) {
+        if (!(other instanceof PinUntilErrorChannel)) {
+            return Optional.empty();
+        }
+
+        PinUntilErrorChannel previous = (PinUntilErrorChannel) other;
+        if (nodeList.getClass() == previous.nodeList.getClass()) {
+            // we can't live reload from shuffling <-> non-shuffling
+            return Optional.empty();
+        }
+
+        return Optional.of(previous);
+    }
+
     @Override
-    public PinUntilErrorChannel newInstance(List<LimitedChannel> raw) {
+    public PinUntilErrorChannel liveReloadNewInstance(List<LimitedChannel> raw) {
         ImmutableList<LimitedChannel> newList = shuffleImmutableList(raw, initialShuffleRandom);
 
-        NodeList newNodeList = this.nodeList.newInstance(newList);
+        NodeList newNodeList = this.nodeList.liveReloadNewInstance(newList);
 
         LimitedChannel currentChannel = nodeList.get(currentHost.get());
-        int newIndex = newList.indexOf(currentChannel);
+        int newIndex = newList.indexOf(currentChannel); // relies on a good equals implementation for channels!
         if (newIndex == -1) {
-            // the channel we were pinned to has disappeared, so we just start at a new one
+            // can't find the channel we were pinned to in the new list so we just start at a new one
             newIndex = 0;
         } else {
             Preconditions.checkState(
-                    newNodeList.get(newIndex) == currentChannel, "Failed to preserve pinned host index");
+                    Objects.equals(newNodeList.get(newIndex), currentChannel),
+                    "Failed to preserve pinned host " + "index");
         }
 
         return new PinUntilErrorChannel(newNodeList, newIndex, initialShuffleRandom, instrumentation.metrics);
@@ -191,7 +207,7 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         }
 
         @Override
-        public ConstantNodeList newInstance(List<LimitedChannel> newChannels) {
+        public ConstantNodeList liveReloadNewInstance(List<LimitedChannel> newChannels) {
             return new ConstantNodeList(newChannels);
         }
     }
@@ -263,7 +279,7 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         }
 
         @Override
-        public NodeList newInstance(List<LimitedChannel> params) {
+        public NodeList liveReloadNewInstance(List<LimitedChannel> params) {
             return new ReshufflingNodeList(
                     ImmutableList.copyOf(params), random, clock, metrics, intervalWithJitter, nextReshuffle);
         }
