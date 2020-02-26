@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +30,7 @@ final class Simulation {
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
 
     private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
-    private final ExternalDeterministicScheduler listenableExecutor;
+    private final ListeningScheduledExecutorService listenableExecutor;
 
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
     private final SimulationMetricsReporter metrics = new SimulationMetricsReporter(this);
@@ -47,7 +48,7 @@ final class Simulation {
         return ticker; // read only!
     }
 
-    public ExternalDeterministicScheduler scheduler() {
+    public ListeningScheduledExecutorService scheduler() {
         return listenableExecutor;
     }
 

@@ -142,7 +142,7 @@ public final class Benchmark {
     public Benchmark abortAfter(Duration cutoff) {
         simulation
                 .scheduler()
-                .scheduleAndFastForward(
+                .schedule(
                         () -> {
                             log.warn(
                                     "Aborted running benchmark after cutoff reached - strategy might be buggy {}",
@@ -192,7 +192,7 @@ public final class Benchmark {
 
             simulation
                     .scheduler()
-                    .scheduleAndFastForward(
+                    .schedule(
                             () -> {
                                 log.debug(
                                         "time={} starting num={} {}",

@@ -39,25 +39,26 @@ final class ExternalDeterministicScheduler implements ListeningScheduledExecutor
 
     @Override
     public ListenableScheduledFuture<?> schedule(Runnable command, long delay, TimeUnit unit) {
-        return delegate.schedule(command, delay, unit);
+        return schedule(
+                () -> {
+                    command.run();
+                    return null;
+                },
+                delay,
+                unit);
     }
 
     @Override
     public <V> ListenableScheduledFuture<V> schedule(Callable<V> command, long delay, TimeUnit unit) {
-        return delegate.schedule(command, delay, unit);
-    }
-
-    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
-    public void scheduleAndFastForward(Runnable command, long delay, TimeUnit unit) {
         long scheduleTime = ticker.read();
         long delayNanos = unit.toNanos(delay);
 
         RuntimeException exceptionForStackTrace = new RuntimeException();
-        delegate.schedule(
+        return delegate.schedule(
                 () -> {
                     try {
                         ticker.advanceTo(Duration.ofNanos(scheduleTime + delayNanos));
-                        command.run();
+                        return command.call();
                     } catch (Throwable e) {
                         e.addSuppressed(exceptionForStackTrace);
                         throw e;
