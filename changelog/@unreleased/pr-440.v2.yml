@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Implement missing RetryOnTimeout configuration option
+  links:
+  - https://github.com/palantir/dialogue/pull/440
