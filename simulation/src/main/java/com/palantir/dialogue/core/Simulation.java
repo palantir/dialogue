@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
@@ -68,7 +69,7 @@ final class Simulation {
         return eventMarkers;
     }
 
-    public void runClockToInfinity() {
-        deterministicExecutor.tick(Duration.ofDays(1).toNanos(), TimeUnit.NANOSECONDS);
+    public void runClockToInfinity(Optional<Duration> infinity) {
+        deterministicExecutor.tick(infinity.orElseGet(() -> Duration.ofDays(1)).toNanos(), TimeUnit.NANOSECONDS);
     }
 }
