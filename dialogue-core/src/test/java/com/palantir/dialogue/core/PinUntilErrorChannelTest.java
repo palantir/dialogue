@@ -41,8 +41,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class PinUntilErrorChannelTest {
 
     @Mock
@@ -57,18 +60,18 @@ public class PinUntilErrorChannelTest {
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
+    private Random pseudo = new Random(12893712L);
 
     @BeforeEach
     public void before() {
         List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
 
-        PinUntilErrorChannel.ConstantNodeList constantList =
-                new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L));
+        PinUntilErrorChannel.ConstantNodeList constantList = new PinUntilErrorChannel.ConstantNodeList(channels);
         PinUntilErrorChannel.ReshufflingNodeList shufflingList =
-                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock, metrics);
+                PinUntilErrorChannel.ReshufflingNodeList.of(channels, pseudo, clock, metrics);
 
-        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, metrics);
-        pinUntilError = new PinUntilErrorChannel(shufflingList, metrics);
+        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, 1, pseudo, metrics);
+        pinUntilError = new PinUntilErrorChannel(shufflingList, 1, pseudo, metrics);
     }
 
     @Test

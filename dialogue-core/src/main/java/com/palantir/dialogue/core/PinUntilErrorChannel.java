@@ -53,20 +53,24 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorChannel implements LimitedChannel {
+final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilErrorChannel, List<LimitedChannel>> {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
 
     // TODO(dfox): could we make this endpoint-specific?
-    private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
-    private final NodeList nodeList;
     private final Instrumentation instrumentation;
+    private final NodeList nodeList;
+    private final Random initialShuffleRandom;
+    private final AtomicInteger currentHost;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList, DialoguePinuntilerrorMetrics metrics) {
+    PinUntilErrorChannel(
+            NodeList nodeList, int initialHost, Random initialShuffleRandom, DialoguePinuntilerrorMetrics metrics) {
         this.nodeList = nodeList;
+        this.currentHost = new AtomicInteger(initialHost);
+        this.initialShuffleRandom = initialShuffleRandom;
         this.instrumentation = new Instrumentation(nodeList.size(), metrics);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
@@ -75,9 +79,9 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
-        ReshufflingNodeList shufflingNodeList =
-                new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime, metrics);
-        return new PinUntilErrorChannel(shufflingNodeList, metrics);
+        Random random = SafeThreadLocalRandom.get();
+        NodeList nodeList = ReshufflingNodeList.of(channels, random, System::nanoTime, metrics);
+        return new PinUntilErrorChannel(nodeList, 0, random, metrics);
     }
 
     /**
@@ -87,8 +91,16 @@ final class PinUntilErrorChannel implements LimitedChannel {
     @Deprecated
     static LimitedChannel pinUntilErrorWithoutReshuffle(
             List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
-        ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
-        return new PinUntilErrorChannel(constantNodeList, metrics);
+        /**
+         * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
+         * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
+         * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
+         * situation where there might be many nodes but all clients have decided to hammer one of them.
+         */
+        Random random = SafeThreadLocalRandom.get();
+        ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
+        NodeList nodeList = new ConstantNodeList(initialShuffle);
+        return new PinUntilErrorChannel(nodeList, 0, random, metrics);
     }
 
     @Override
@@ -135,7 +147,26 @@ final class PinUntilErrorChannel implements LimitedChannel {
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
-    interface NodeList {
+    @Override
+    public PinUntilErrorChannel newInstance(List<LimitedChannel> raw) {
+        ImmutableList<LimitedChannel> newList = shuffleImmutableList(raw, initialShuffleRandom);
+
+        NodeList newNodeList = this.nodeList.newInstance(newList);
+
+        LimitedChannel currentChannel = nodeList.get(currentHost.get());
+        int newIndex = newList.indexOf(currentChannel);
+        if (newIndex == -1) {
+            // the channel we were pinned to has disappeared, so we just start at a new one
+            newIndex = 0;
+        } else {
+            Preconditions.checkState(
+                    newNodeList.get(newIndex) == currentChannel, "Failed to preserve pinned host index");
+        }
+
+        return new PinUntilErrorChannel(newNodeList, newIndex, initialShuffleRandom, instrumentation.metrics);
+    }
+
+    interface NodeList extends Reloadable<NodeList, List<LimitedChannel>> {
         LimitedChannel get(int index);
 
         int size();
@@ -145,14 +176,8 @@ final class PinUntilErrorChannel implements LimitedChannel {
     static final class ConstantNodeList implements NodeList {
         private final List<LimitedChannel> channels;
 
-        ConstantNodeList(List<LimitedChannel> channels, Random random) {
-            /**
-             * Shuffle the initial list to ensure that clients across the fleet don't all traverse the list in the
-             * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
-             * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
-             * situation where there might be many nodes but all clients have decided to hammer one of them.
-             */
-            this.channels = shuffleImmutableList(channels, random);
+        ConstantNodeList(List<LimitedChannel> channels) {
+            this.channels = channels;
         }
 
         @Override
@@ -164,6 +189,11 @@ final class PinUntilErrorChannel implements LimitedChannel {
         public int size() {
             return channels.size();
         }
+
+        @Override
+        public ConstantNodeList newInstance(List<LimitedChannel> params) {
+            return new ConstantNodeList(params);
+        }
     }
 
     @VisibleForTesting
@@ -172,21 +202,38 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Random random;
         private final long intervalWithJitter;
         private final int channelsSize;
+        private final DialoguePinuntilerrorMetrics metrics;
         private final Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
 
-        ReshufflingNodeList(
+        static ReshufflingNodeList of(
                 List<LimitedChannel> channels, Random random, Ticker clock, DialoguePinuntilerrorMetrics metrics) {
-            this.channels = shuffleImmutableList(channels, random);
-            this.channelsSize = channels.size();
-            this.random = random;
-            this.intervalWithJitter = RESHUFFLE_EVERY
+            long intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
-            this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
+            AtomicLong nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
+
+            return new ReshufflingNodeList(
+                    shuffleImmutableList(channels, random), random, clock, metrics, intervalWithJitter, nextReshuffle);
+        }
+
+        // Visible for cloning only
+        ReshufflingNodeList(
+                ImmutableList<LimitedChannel> channels,
+                Random random,
+                Ticker clock,
+                DialoguePinuntilerrorMetrics metrics,
+                long intervalWithJitter,
+                AtomicLong nextReshuffle) {
+            this.channels = channels;
+            this.channelsSize = channels.size();
+            this.nextReshuffle = nextReshuffle;
+            this.intervalWithJitter = intervalWithJitter;
+            this.random = random;
             this.clock = clock;
+            this.metrics = metrics;
             this.instrumentation = new Instrumentation(channelsSize, metrics);
         }
 
@@ -213,6 +260,12 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 channels = newList;
             }
         }
+
+        @Override
+        public NodeList newInstance(List<LimitedChannel> params) {
+            return new ReshufflingNodeList(
+                    ImmutableList.copyOf(params), random, clock, metrics, intervalWithJitter, nextReshuffle);
+        }
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -224,15 +277,17 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
     /** Purely for metric and service log observability. */
     private static final class Instrumentation {
-        @Nullable
-        private final Meter[] successesPerHost;
-
+        private final DialoguePinuntilerrorMetrics metrics;
         private final Meter reshuffleMeter;
         private final Meter nextNodeBecauseLimited;
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
 
+        @Nullable
+        private final Meter[] successesPerHost;
+
         Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics) {
+            this.metrics = metrics;
             this.reshuffleMeter = metrics.reshuffle();
             this.nextNodeBecauseLimited = metrics.nextNode("limited");
             this.nextNodeBecauseResponseCode = metrics.nextNode("responseCode");
