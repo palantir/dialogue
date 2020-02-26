@@ -163,6 +163,63 @@ public class PinUntilErrorChannelTest {
                 .isEqualTo(101);
     }
 
+    @Test
+    void reloading_the_shuffling_version_stays_pinned_on_the_same_host_where_possible() {
+        LimitedChannel channel3 = mock(LimitedChannel.class);
+        LimitedChannel channel4 = mock(LimitedChannel.class);
+
+        setResponse(channel1, 111);
+        setResponse(channel2, 222);
+        setResponse(channel3, 333);
+        setResponse(channel4, 444);
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilError))).contains(111, 111, 111, 111, 111, 111);
+
+        PinUntilErrorChannel reloaded =
+                pinUntilError.newInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
+                .describedAs("We were locked on to channel 1 initially, and after reloading we should "
+                        + "remain locked on to this channel even though it's in a different place in the list")
+                .contains(111, 111, 111, 111, 111, 111);
+
+        // take away the node we were locked on to
+        PinUntilErrorChannel reloaded2 = reloaded.newInstance(ImmutableList.of(channel4, channel3));
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
+                .describedAs("The channel we were locked onto has disappeared, so just pick a new one")
+                .contains(444, 444, 444, 444, 444, 444);
+    }
+
+    @Test
+    void reloading_the_constant_version_stays_pinned_on_the_same_host_where_possible() {
+        LimitedChannel channel3 = mock(LimitedChannel.class);
+        LimitedChannel channel4 = mock(LimitedChannel.class);
+
+        setResponse(channel1, 111);
+        setResponse(channel2, 222);
+        setResponse(channel3, 333);
+        setResponse(channel4, 444);
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilErrorWithoutReshuffle)))
+                .contains(222, 222, 222, 222, 222, 222);
+
+        PinUntilErrorChannel reloaded =
+                pinUntilErrorWithoutReshuffle.newInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
+                .describedAs("We were locked on to channel 2 initially, and after reloading we should "
+                        + "remain locked on to this channel even though it's in a different place in the list")
+                .contains(222, 222, 222, 222, 222, 222);
+
+        // take away the node we were locked on to
+        PinUntilErrorChannel reloaded2 = reloaded.newInstance(ImmutableList.of(channel4, channel3));
+
+        assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
+                .describedAs("The channel we were locked onto has disappeared, so just pick a new one")
+                .contains(444, 444, 444, 444, 444, 444);
+    }
+
     private static int getCode(PinUntilErrorChannel channel) {
         try {
             ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
