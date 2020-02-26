@@ -73,6 +73,15 @@ final class FixedLimitedChannel implements LimitedChannel {
         }
     }
 
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        // Updates the counter, but doesn't verify space is available.
+        ListenableFuture<Response> result = delegate.execute(endpoint, request);
+        usedPermits.incrementAndGet();
+        result.addListener(returnPermit, MoreExecutors.directExecutor());
+        return result;
+    }
+
     private void logExhaustion(Endpoint endpoint) {
         if (log.isDebugEnabled()) {
             log.debug(

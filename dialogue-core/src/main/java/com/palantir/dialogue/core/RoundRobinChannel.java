@@ -17,10 +17,13 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -28,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * Round robins requests across many channels, attempting to choose a channel that has some available capacity.
  */
-final class RoundRobinChannel implements LimitedChannel {
+final class RoundRobinChannel implements Channel {
 
     private final AtomicInteger currentHost = new AtomicInteger(0);
     private final ImmutableList<LimitedChannel> delegates;
@@ -38,9 +41,9 @@ final class RoundRobinChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         if (delegates.isEmpty()) {
-            return Optional.empty();
+            return Futures.immediateFailedFuture(new SafeIllegalStateException("No nodes are available"));
         }
 
         int host = currentHost.getAndUpdate(value -> toIndex(value + 1));
@@ -49,11 +52,11 @@ final class RoundRobinChannel implements LimitedChannel {
             LimitedChannel channel = delegates.get(toIndex(host + i));
             Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
             if (maybeCall.isPresent()) {
-                return maybeCall;
+                return maybeCall.get();
             }
         }
 
-        return Optional.empty();
+        return delegates.get(toIndex(host)).execute(endpoint, request);
     }
 
     private int toIndex(int value) {

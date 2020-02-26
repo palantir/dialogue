@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -53,7 +54,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorChannel implements LimitedChannel {
+final class PinUntilErrorChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -74,7 +75,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
+    static Channel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime, metrics);
         return new PinUntilErrorChannel(shufflingNodeList, metrics);
@@ -85,26 +86,36 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(
-            List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
+    static Channel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
         return new PinUntilErrorChannel(constantNodeList, metrics);
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return execute(endpoint, request, 0);
+    }
+
+    private ListenableFuture<Response> execute(Endpoint endpoint, Request request, int depth) {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
-
-        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
-        if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementHostIfNecessary(currentIndex);
-            instrumentation.currentChannelRejected(currentIndex, channel, next);
-            return Optional.empty(); // if the caller retries immediately, we'll get the next host
+        if (depth >= nodeList.size()) {
+            return wrap(channel.execute(endpoint, request), currentIndex, channel);
         }
 
-        ListenableFuture<Response> future = maybeFuture.get();
-        return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
+        if (maybeFuture.isPresent()) {
+            ListenableFuture<Response> future = maybeFuture.get();
+            return wrap(future, currentIndex, channel);
+        }
+        OptionalInt next = incrementHostIfNecessary(currentIndex);
+        instrumentation.currentChannelRejected(currentIndex, channel, next);
+        return execute(endpoint, request, depth + 1);
+    }
+
+    private ListenableFuture<Response> wrap(
+            ListenableFuture<Response> future, int currentIndex, LimitedChannel channel) {
+        return DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
                 if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
@@ -121,7 +132,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 OptionalInt next = incrementHostIfNecessary(currentIndex);
                 instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
             }
-        }));
+        });
     }
 
     /**

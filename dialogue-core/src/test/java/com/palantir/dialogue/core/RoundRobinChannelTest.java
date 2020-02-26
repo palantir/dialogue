@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -36,8 +37,12 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public class RoundRobinChannelTest {
 
-    private static final Optional<ListenableFuture<Response>> CHANNEL_A_RESPONSE = Optional.of(SettableFuture.create());
-    private static final Optional<ListenableFuture<Response>> CHANNEL_B_RESPONSE = Optional.of(SettableFuture.create());
+    private static final ListenableFuture<Response> CHANNEL_A_RESPONSE = SettableFuture.create();
+    private static final ListenableFuture<Response> CHANNEL_B_RESPONSE = SettableFuture.create();
+    private static final Optional<ListenableFuture<Response>> CHANNEL_A_LIMITED_RESPONSE =
+            Optional.of(CHANNEL_A_RESPONSE);
+    private static final Optional<ListenableFuture<Response>> CHANNEL_B_LIMITED_RESPONSE =
+            Optional.of(CHANNEL_B_RESPONSE);
     private static final Optional<ListenableFuture<Response>> UNAVAILABLE = Optional.empty();
 
     @Mock
@@ -58,23 +63,25 @@ public class RoundRobinChannelTest {
     public void before() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of(channelA, channelB));
 
-        lenient().when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
-        lenient().when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
+        lenient().when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_LIMITED_RESPONSE);
+        lenient().when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_LIMITED_RESPONSE);
+        lenient().when(channelA.execute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
+        lenient().when(channelB.execute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
     }
 
     @Test
     public void testRoundRobins() {
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
     }
 
     @Test
     public void testIgnoresUnavailableChannels() {
         when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_B_RESPONSE);
     }
 
     @Test
@@ -82,13 +89,13 @@ public class RoundRobinChannelTest {
         when(channelA.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
         when(channelB.maybeExecute(endpoint, request)).thenReturn(UNAVAILABLE);
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(loadBalancer.execute(endpoint, request)).isEqualTo(CHANNEL_A_RESPONSE);
     }
 
     @Test
     public void testNoChannelsConfigured() {
         loadBalancer = new RoundRobinChannel(ImmutableList.of());
 
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
+        assertThatThrownBy(loadBalancer.execute(endpoint, request)::get).hasRootCauseMessage("No nodes are available");
     }
 }

@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -59,8 +58,8 @@ public enum Strategy {
                     .map(addConcurrencyLimiter(sim))
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited1);
+            Channel channel = new RoundRobinChannel(limitedChannels);
+            return retryingChannel(sim, channel);
         });
     }
 
@@ -72,8 +71,8 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
                     .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited1);
+            Channel channel = new RoundRobinChannel(limitedChannels);
+            return retryingChannel(sim, channel);
         });
     }
 
@@ -85,10 +84,10 @@ public enum Strategy {
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
             DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(sim.taggedMetrics());
-            LimitedChannel limited = new PinUntilErrorChannel(
+            Channel channel = new PinUntilErrorChannel(
                     new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock(), metrics),
                     metrics);
-            return retryingChannel(sim, limited);
+            return retryingChannel(sim, channel);
         });
     }
 
@@ -98,8 +97,8 @@ public enum Strategy {
                     .map(Strategy::noOpLimitedChannel)
                     .map(addFixedLimiter(sim))
                     .collect(Collectors.toList());
-            LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited);
+            Channel channel = new RoundRobinChannel(limitedChannels);
+            return retryingChannel(sim, channel);
         });
     }
 
@@ -114,10 +113,10 @@ public enum Strategy {
         return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
     }
 
-    private static Channel retryingChannel(Simulation sim, LimitedChannel limited) {
-        LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
+    private static Channel retryingChannel(Simulation sim, Channel channel) {
+        Channel instrumented = instrumentClient(channel, sim.taggedMetrics());
         return new RetryingChannel(
-                new LimitedChannelToChannelAdapter(limited1),
+                instrumented,
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
                 Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -126,22 +125,17 @@ public enum Strategy {
                 new Random(8 /* Guaranteed lucky */)::nextDouble);
     }
 
-    private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
+    private static Channel instrumentClient(Channel delegate, TaggedMetrics metrics) {
         Meter starts = metrics.meter("test_client.starts");
-        Counter metric = metrics.counter("test_client.refusals");
-        return new LimitedChannel() {
+        return new Channel() {
 
             @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
                 log.debug(
                         "starting request={}",
                         request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
                 starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
-                if (!response.isPresent()) {
-                    metric.inc();
-                }
-                return response;
+                return delegate.execute(endpoint, request);
             }
 
             @Override
@@ -153,6 +147,11 @@ public enum Strategy {
 
     private static LimitedChannel noOpLimitedChannel(Channel delegate) {
         return new LimitedChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                return delegate.execute(endpoint, request);
+            }
+
             @Override
             public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
                 return Optional.of(delegate.execute(endpoint, request));

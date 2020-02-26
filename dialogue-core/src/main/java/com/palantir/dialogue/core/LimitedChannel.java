@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -27,6 +28,6 @@ import java.util.Optional;
  * overloaded). Semantics match {@link com.palantir.dialogue.Channel} aside from returning an
  * {@link Optional optional response}.
  */
-interface LimitedChannel {
+interface LimitedChannel extends Channel {
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
 }

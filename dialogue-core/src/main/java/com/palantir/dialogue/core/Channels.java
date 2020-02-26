@@ -54,8 +54,7 @@ public final class Channels {
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
-        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels, taggedMetrics);
-        Channel channel = new LimitedChannelToChannelAdapter(limited);
+        Channel channel = nodeSelectionStrategy(config, limitedChannels, taggedMetrics);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         if (config.maxNumRetries() > 0) {
             channel = new RetryingChannel(
@@ -74,7 +73,7 @@ public final class Channels {
         return channel;
     }
 
-    private static LimitedChannel nodeSelectionStrategy(
+    private static Channel nodeSelectionStrategy(
             ClientConfiguration config, List<LimitedChannel> channels, VersionedTaggedMetricRegistry metrics) {
         if (channels.size() == 1) {
             return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down

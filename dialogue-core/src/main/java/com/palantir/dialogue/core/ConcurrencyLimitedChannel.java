@@ -94,6 +94,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
     }
 
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return delegate.execute(endpoint, request);
+    }
+
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */

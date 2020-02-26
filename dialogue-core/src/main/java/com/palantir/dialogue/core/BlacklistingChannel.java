@@ -75,6 +75,11 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), new BlacklistingCallback(null));
+    }
+
+    @Override
     public String toString() {
         return "BlacklistingChannel{" + delegate + '}';
     }
