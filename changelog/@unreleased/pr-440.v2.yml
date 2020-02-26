@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Implement missing retry configuration options, RetryOnTimeout and RetryOnSocketException
+  links:
+  - https://github.com/palantir/dialogue/pull/440
