@@ -77,7 +77,7 @@ public enum Strategy {
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
                     .collect(Collectors.toList());
             LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
+            return queuedChannelAndRetrying(sim, limited1, listener);
         });
     }
 
@@ -116,7 +116,7 @@ public enum Strategy {
                     .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
                     .collect(ImmutableList.toImmutableList());
             LimitedChannel limited = new PreferLowestUtilization(limitedChannels, pseudoRandom);
-            return queuedChannelAndRetrying(sim, limited);
+            return queuedChannelAndRetrying(sim, limited, listener);
         });
     }
 
@@ -132,8 +132,14 @@ public enum Strategy {
     }
 
     private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
+        return queuedChannelAndRetrying(sim, limited, new DeferredLimitedChannelListener());
+    }
+
+    private static Channel queuedChannelAndRetrying(
+            Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
         QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
+        listener.delegate = channel::schedule;
         return new RetryingChannel(
                 channel,
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,

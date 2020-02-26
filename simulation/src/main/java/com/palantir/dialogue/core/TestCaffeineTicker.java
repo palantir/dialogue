@@ -37,9 +37,9 @@ final class TestCaffeineTicker implements Ticker {
         if (newNanos < nanos) {
             long difference = nanos - newNanos;
             Preconditions.checkState(
-                    difference < Duration.ofMillis(1).toNanos(),
+                    difference < Duration.ofMillis(10).toNanos(),
                     "Large time rewind - this is likely a bug in the test harness");
-            log.debug(
+            log.info(
                     "Tried to rewind time by {} micros - no-op as this is deterministic and harmless",
                     TimeUnit.MICROSECONDS.convert(difference, TimeUnit.NANOSECONDS));
             return;
