@@ -50,7 +50,7 @@ public final class Channels {
                 .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                 .collect(ImmutableList.toImmutableList());
 
-        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels);
+        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels, clientMetrics);
         Channel channel = new LimitedChannelToChannelAdapter(limited);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         if (config.maxNumRetries() > 0) {
@@ -66,18 +66,19 @@ public final class Channels {
         return channel;
     }
 
-    private static LimitedChannel nodeSelectionStrategy(ClientConfiguration config, List<LimitedChannel> channels) {
+    private static LimitedChannel nodeSelectionStrategy(
+            ClientConfiguration config, List<LimitedChannel> channels, DialogueClientMetrics metrics) {
         if (channels.size() == 1) {
             return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
         }
 
         switch (config.nodeSelectionStrategy()) {
             case PIN_UNTIL_ERROR:
-                return PinUntilErrorChannel.pinUntilError(channels);
+                return PinUntilErrorChannel.pinUntilError(channels, metrics);
             case ROUND_ROBIN:
                 return new RoundRobinChannel(channels);
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                return PinUntilErrorChannel.pinUntilErrorWithoutReshuffle(channels);
+                return PinUntilErrorChannel.pinUntilErrorWithoutReshuffle(channels, metrics);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

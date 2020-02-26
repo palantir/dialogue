@@ -61,7 +61,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
     private final NodeList nodeList;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList) {
+    PinUntilErrorChannel(NodeList nodeList, DialogueClientMetrics metrics) {
         this.nodeList = nodeList;
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
@@ -69,10 +69,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         + " Use an always throwing channel or just pick the only channel in the list.");
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialogueClientMetrics metrics) {
         ReshufflingNodeList shufflingNodeList =
                 new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime);
-        return new PinUntilErrorChannel(shufflingNodeList);
+        return new PinUntilErrorChannel(shufflingNodeList, metrics);
     }
 
     /**
@@ -80,9 +80,9 @@ final class PinUntilErrorChannel implements LimitedChannel {
      * @deprecated prefer {@link #pinUntilError}
      */
     @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels) {
+    static LimitedChannel pinUntilErrorWithoutReshuffle(List<LimitedChannel> channels, DialogueClientMetrics metrics) {
         ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
-        return new PinUntilErrorChannel(constantNodeList);
+        return new PinUntilErrorChannel(constantNodeList, metrics);
     }
 
     @Override
