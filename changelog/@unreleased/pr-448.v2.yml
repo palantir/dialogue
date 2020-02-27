@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: The `DialogueChannel.builder().from()` method can be used to construct
+    a new client (with a new set of urls) that will try to remain pinned to the same
+    URL that it was before.
+  links:
+  - https://github.com/palantir/dialogue/pull/448
