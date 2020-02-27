@@ -101,6 +101,7 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 NodeList constant = new ConstantNodeList(initialShuffle);
                 return new PinUntilErrorChannel(constant, 0, random, metrics);
+            default:
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
@@ -152,16 +153,18 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
 
     Optional<PinUntilErrorChannel> reloadableFrom(Object other) {
         if (!(other instanceof PinUntilErrorChannel)) {
-            log.info("Unable to live reload because previous object was not a PinUntilErrorChannel: {}", other);
+            log.info(
+                    "Unable to live reload because previous object was not a PinUntilErrorChannel",
+                    UnsafeArg.of("other", other));
             return Optional.empty();
         }
 
         PinUntilErrorChannel previous = (PinUntilErrorChannel) other;
         if (!previous.nodeList.getClass().equals(nodeList.getClass())) {
             log.info(
-                    "Unable to live reload between shuffling & non-shuffling modes: {} -> {}",
-                    previous.nodeList.getClass(),
-                    nodeList.getClass());
+                    "Unable to live reload between shuffling & non-shuffling modes",
+                    SafeArg.of("prev", previous.nodeList.getClass()),
+                    SafeArg.of("new", nodeList.getClass()));
             return Optional.empty();
         }
 
@@ -178,14 +181,14 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         int newIndex = newList.indexOf(currentChannel); // relies on a good equals implementation for channels!
         if (newIndex == -1) {
             log.info(
-                    "Unable to find the channel we were pinned to {} in the new list {}, starting fresh",
-                    currentChannel,
-                    newNodeList);
+                    "Unable to find the channel we were pinned to in the new list, starting fresh",
+                    UnsafeArg.of("prev", currentChannel),
+                    UnsafeArg.of("newList", newNodeList));
             newIndex = 0;
         } else {
             Preconditions.checkState(
                     Objects.equals(newNodeList.get(newIndex), currentChannel),
-                    "Failed to preserve pinned host " + "index");
+                    "Failed to preserve pinned host index");
         }
 
         return new PinUntilErrorChannel(newNodeList, newIndex, initialShuffleRandom, instrumentation.metrics);

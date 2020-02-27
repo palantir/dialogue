@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel {
     private final Channel delegate;
@@ -65,10 +66,12 @@ public final class DialogueChannel implements Channel {
 
         private Optional<DialogueChannel> maybeExisting = Optional.empty();
         private final List<Channel> channels = new ArrayList<>();
-        private ClientConfiguration config;
         private Ticker clock = Ticker.systemTicker();
         private Random random = SafeThreadLocalRandom.get();
         private Supplier<ListeningScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
+
+        @Nullable
+        private ClientConfiguration config;
 
         public Builder from(DialogueChannel value) {
             this.maybeExisting = Optional.of(value);
@@ -106,16 +109,17 @@ public final class DialogueChannel implements Channel {
 
         @CheckReturnValue
         public DialogueChannel build() {
-            preconditions(channels, config);
+            ClientConfiguration conf = Preconditions.checkNotNull(config, "ClientConfiguration is required");
+            preconditions(channels, conf);
 
             VersionedTaggedMetricRegistry taggedMetrics =
-                    new VersionedTaggedMetricRegistry(config.taggedMetricRegistry());
+                    new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry());
             DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(taggedMetrics);
 
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(chan -> {
-                        LimitedChannel firstInstance = buildSingleUri(chan, clientMetrics);
-                        LimitedChannel secondInstance = buildSingleUri(chan, clientMetrics);
+                        LimitedChannel firstInstance = buildSingleUri(chan, clientMetrics, conf, clock);
+                        LimitedChannel secondInstance = buildSingleUri(chan, clientMetrics, conf, clock);
                         Preconditions.checkState(
                                 firstInstance.equals(secondInstance),
                                 "a good equals implementation is necessary for smart live-reloading",
@@ -125,11 +129,12 @@ public final class DialogueChannel implements Channel {
                     })
                     .collect(ImmutableList.toImmutableList());
 
-            LimitedChannel nodeSelectionStrategy = nodeSelectionStrategy(limitedChannels, taggedMetrics);
+            LimitedChannel nodeSelectionStrategy =
+                    nodeSelectionStrategy(limitedChannels, taggedMetrics, conf, maybeExisting, random);
             Channel channel = new LimitedChannelToChannelAdapter(nodeSelectionStrategy);
             channel = new TracedChannel(channel, "Dialogue-request-attempt");
-            channel = retryingChannel(channel);
-            channel = new UserAgentChannel(channel, config.userAgent().get());
+            channel = retryingChannel(channel, conf, scheduler, random);
+            channel = new UserAgentChannel(channel, conf.userAgent().get());
             channel = new DeprecationWarningChannel(channel, clientMetrics);
             channel = new ContentDecodingChannel(channel);
             channel = new NeverThrowChannel(channel);
@@ -138,18 +143,23 @@ public final class DialogueChannel implements Channel {
             return new DialogueChannel(channel, nodeSelectionStrategy);
         }
 
-        private LimitedChannel buildSingleUri(Channel channel, DialogueClientMetrics clientMetrics) {
+        private static LimitedChannel buildSingleUri(
+                Channel channel, DialogueClientMetrics clientMetrics, ClientConfiguration conf, Ticker clock) {
             // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
             Channel chan = new InstrumentedChannel(channel, clientMetrics);
             // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
             chan = new TracedRequestChannel(chan);
             chan = new TracedChannel(chan, "Dialogue-http-request");
             LimitedChannel limitedChan = new ChannelToLimitedChannelAdapter(chan);
-            limitedChan = concurrencyLimiter(limitedChan, clientMetrics);
+            limitedChan = concurrencyLimiter(limitedChan, conf, clientMetrics, clock);
             return new FixedLimitedChannel(limitedChan, MAX_REQUESTS_PER_CHANNEL, clientMetrics);
         }
 
-        private Channel retryingChannel(Channel channel) {
+        private static Channel retryingChannel(
+                Channel channel,
+                ClientConfiguration config,
+                Supplier<ListeningScheduledExecutorService> scheduler,
+                Random random) {
             if (config.maxNumRetries() > 0) {
                 channel = new RetryingChannel(
                         channel,
@@ -163,7 +173,8 @@ public final class DialogueChannel implements Channel {
             return channel;
         }
 
-        private LimitedChannel concurrencyLimiter(LimitedChannel channel, DialogueClientMetrics metrics) {
+        private static LimitedChannel concurrencyLimiter(
+                LimitedChannel channel, ClientConfiguration config, DialogueClientMetrics metrics, Ticker clock) {
             ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
             switch (clientQoS) {
                 case ENABLED:
@@ -176,8 +187,13 @@ public final class DialogueChannel implements Channel {
                     "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
         }
 
-        private LimitedChannel nodeSelectionStrategy(
-                List<LimitedChannel> channels, VersionedTaggedMetricRegistry metrics) {
+        private static LimitedChannel nodeSelectionStrategy(
+                List<LimitedChannel> channels,
+                VersionedTaggedMetricRegistry metrics,
+                ClientConfiguration config,
+                Optional<DialogueChannel> maybeExisting,
+                Random random) {
+
             if (channels.size() == 1) {
                 return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
             }
@@ -204,7 +220,6 @@ public final class DialogueChannel implements Channel {
         }
 
         private static void preconditions(Collection<? extends Channel> channels, ClientConfiguration config) {
-            Preconditions.checkNotNull(config, "ClientConfiguration is required");
             Preconditions.checkNotNull(channels, "Channels is required");
 
             Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");

@@ -113,13 +113,13 @@ public class PinUntilErrorChannelTest {
         setResponse(channel2, 204);
 
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("First batch on channel1")
-                .contains(100, 100, 100, 100, 100, 100);
+                .describedAs("First batch on channel2")
+                .contains(204, 204, 204, 204, 204, 204);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("Second batch: reshuffle gave us channel2")
-                .contains(204, 204, 204, 204, 204, 204);
+                .describedAs("Second batch: reshuffle gave us channel1")
+                .contains(100, 100, 100, 100, 100, 100);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(22).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
@@ -128,19 +128,19 @@ public class PinUntilErrorChannelTest {
 
         when(clock.read()).thenReturn(Duration.ofMinutes(33).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("Fourth batch: reshuffle gave us channel1")
-                .contains(100, 100, 100, 100, 100, 100);
+                .describedAs("Fourth batch: reshuffle gave us channel2 again")
+                .contains(204, 204, 204, 204, 204, 204);
     }
 
     @Test
     public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
         setResponse(channel1, 100);
         setResponse(channel2, 101);
-        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(100);
+        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(101);
 
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel1.maybeExecute(any(), any()))
+        when(channel2.maybeExecute(any(), any()))
                 .thenReturn(Optional.of(future1))
                 .thenReturn(Optional.of(future2));
 
@@ -152,14 +152,14 @@ public class PinUntilErrorChannelTest {
         future2.set(response(500));
 
         assertThat(getCode(pinUntilError))
-                .describedAs("A single 500 moved us to channel2")
-                .isEqualTo(101);
+                .describedAs("A single 500 moved us to channel1")
+                .isEqualTo(100);
 
         future1.set(response(500));
 
         assertThat(getCode(pinUntilError))
-                .describedAs("We're still on channel2, as an older 500 doesn't mark this host as bad")
-                .isEqualTo(101);
+                .describedAs("We're still on channel0, as an older 500 doesn't mark this host as bad")
+                .isEqualTo(100);
     }
 
     @Test
@@ -172,22 +172,22 @@ public class PinUntilErrorChannelTest {
         setResponse(channel3, 333);
         setResponse(channel4, 444);
 
-        assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilError))).contains(111, 111, 111, 111, 111, 111);
+        assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilError))).contains(222, 222, 222, 222, 222, 222);
 
         PinUntilErrorChannel reloaded =
                 pinUntilError.liveReloadNewInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
-                .describedAs("We were locked on to channel 1 initially, and after reloading we should "
+                .describedAs("We were locked on to channel 2 initially, and after reloading we should "
                         + "remain locked on to this channel even though it's in a different place in the list")
-                .contains(111, 111, 111, 111, 111, 111);
+                .contains(222, 222, 222, 222, 222, 222);
 
         // take away the node we were locked on to
         PinUntilErrorChannel reloaded2 = reloaded.liveReloadNewInstance(ImmutableList.of(channel4, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
                 .describedAs("The channel we were locked onto has disappeared, so just pick a new one")
-                .contains(444, 444, 444, 444, 444, 444);
+                .contains(333, 333, 333, 333, 333, 333);
     }
 
     @Test
@@ -216,7 +216,7 @@ public class PinUntilErrorChannelTest {
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded2)))
                 .describedAs("The channel we were locked onto has disappeared, so just pick a new one")
-                .contains(444, 444, 444, 444, 444, 444);
+                .contains(333, 333, 333, 333, 333, 333);
     }
 
     private static int getCode(PinUntilErrorChannel channel) {
