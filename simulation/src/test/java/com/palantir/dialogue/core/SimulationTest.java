@@ -393,6 +393,35 @@ public class SimulationTest {
                 .run();
     }
 
+    /**
+     * This simulates an alta client, which might load up some keys and then lookup each key in order to build a big
+     * response for the user. The goal is 100% client-perceived success here, because building up half the response
+     * is no good.
+     */
+    @Test
+    public void one_big_spike() {
+        int capacity = 100;
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("node1")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build());
+
+        result = Benchmark.builder()
+                .requestsPerSecond(30_000) // fire off a ton of requests very quickly
+                .numRequests(1000)
+                .client(strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
         Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
         return _server -> {
