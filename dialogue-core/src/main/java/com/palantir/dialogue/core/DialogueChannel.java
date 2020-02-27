@@ -28,6 +28,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -57,6 +58,8 @@ public final class DialogueChannel implements Channel {
     }
 
     public static class Builder {
+        private static final int MAX_REQUESTS_PER_CHANNEL = 256;
+
         private Optional<DialogueChannel> existing = Optional.empty();
         private final List<Channel> channels = new ArrayList<>();
         private ClientConfiguration config;
@@ -140,8 +143,21 @@ public final class DialogueChannel implements Channel {
             chan = new TracedRequestChannel(chan);
             chan = new TracedChannel(chan, "Dialogue-http-request");
             LimitedChannel limitedChan = new ChannelToLimitedChannelAdapter(chan);
-            limitedChan = Channels.concurrencyLimiter(limitedChan, config, clientMetrics);
-            return new FixedLimitedChannel(limitedChan, Channels.MAX_REQUESTS_PER_CHANNEL, clientMetrics);
+            limitedChan = concurrencyLimiter(limitedChan, config, clientMetrics);
+            return new FixedLimitedChannel(limitedChan, MAX_REQUESTS_PER_CHANNEL, clientMetrics);
+        }
+
+        static LimitedChannel concurrencyLimiter(
+                LimitedChannel channel, ClientConfiguration config, DialogueClientMetrics metrics) {
+            ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
+            switch (clientQoS) {
+                case ENABLED:
+                    return ConcurrencyLimitedChannel.create(channel, metrics);
+                case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
+                    return channel;
+            }
+            throw new SafeIllegalStateException(
+                    "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
         }
 
         private static LimitedChannel nodeSelectionStrategy(

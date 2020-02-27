@@ -16,96 +16,18 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
-import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Collection;
-import java.util.List;
 
 public final class Channels {
 
-    static final int MAX_REQUESTS_PER_CHANNEL = 256;
-
     private Channels() {}
 
-    public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
-        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
-        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
-        Preconditions.checkArgument(
-                config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
-                "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
-
-        VersionedTaggedMetricRegistry taggedMetrics = new VersionedTaggedMetricRegistry(config.taggedMetricRegistry());
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(taggedMetrics);
-
-        List<LimitedChannel> limitedChannels = channels.stream()
-                // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
-                .map(channel -> new InstrumentedChannel(channel, clientMetrics))
-                // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-                .map(TracedRequestChannel::new)
-                .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
-                .map(ChannelToLimitedChannelAdapter::new)
-                .map(channel -> concurrencyLimiter(channel, config, clientMetrics))
-                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
-                .collect(ImmutableList.toImmutableList());
-
-        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels, taggedMetrics);
-        Channel channel = new LimitedChannelToChannelAdapter(limited);
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        if (config.maxNumRetries() > 0) {
-            channel = new RetryingChannel(
-                    channel,
-                    config.maxNumRetries(),
-                    config.backoffSlotSize(),
-                    config.serverQoS(),
-                    config.retryOnTimeout());
-        }
-        channel = new UserAgentChannel(channel, config.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, clientMetrics);
-        channel = new ContentDecodingChannel(channel);
-        channel = new NeverThrowChannel(channel);
-        channel = new TracedChannel(channel, "Dialogue-request");
-
-        return channel;
-    }
-
-    private static LimitedChannel nodeSelectionStrategy(
-            ClientConfiguration config, List<LimitedChannel> channels, VersionedTaggedMetricRegistry metrics) {
-        if (channels.size() == 1) {
-            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
-        }
-
-        switch (config.nodeSelectionStrategy()) {
-            case PIN_UNTIL_ERROR:
-                return PinUntilErrorChannel.of(
-                        NodeSelectionStrategy.PIN_UNTIL_ERROR, channels, DialoguePinuntilerrorMetrics.of(metrics));
-            case ROUND_ROBIN:
-                return new RoundRobinChannel(channels);
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                return PinUntilErrorChannel.of(
-                        NodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
-                        channels,
-                        DialoguePinuntilerrorMetrics.of(metrics));
-        }
-        throw new SafeRuntimeException(
-                "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
-    }
-
-    static LimitedChannel concurrencyLimiter(
-            LimitedChannel channel, ClientConfiguration config, DialogueClientMetrics metrics) {
-        ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
-        switch (clientQoS) {
-            case ENABLED:
-                return ConcurrencyLimitedChannel.create(channel, metrics);
-            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return channel;
-        }
-        throw new SafeIllegalStateException(
-                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    public static Channel create(Collection<Channel> channels, ClientConfiguration config) {
+        return DialogueChannel.builder()
+                .channels(channels)
+                .clientConfiguration(config)
+                .build();
     }
 }
