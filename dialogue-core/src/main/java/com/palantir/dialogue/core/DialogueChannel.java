@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
@@ -59,6 +60,7 @@ public final class DialogueChannel implements Channel {
         private Optional<DialogueChannel> existing = Optional.empty();
         private final List<Channel> channels = new ArrayList<>();
         private ClientConfiguration config;
+        private Ticker clock = Ticker.systemTicker();
 
         public Builder from(DialogueChannel value) {
             this.existing = Optional.of(value);
@@ -75,6 +77,11 @@ public final class DialogueChannel implements Channel {
         @CheckReturnValue
         public Builder clientConfiguration(ClientConfiguration value) {
             this.config = value;
+            return this;
+        }
+
+        public Builder clock(Ticker value) {
+            this.clock = value;
             return this;
         }
 
@@ -95,7 +102,7 @@ public final class DialogueChannel implements Channel {
                                 "things should have a good equals implementation",
                                 UnsafeArg.of("first", firstInstance),
                                 UnsafeArg.of("second", secondInstance));
-                        return firstInstance;
+                        return firstInstance; // find to throw away the other one
                     })
                     .collect(ImmutableList.toImmutableList());
 
@@ -103,6 +110,17 @@ public final class DialogueChannel implements Channel {
                     nodeSelectionStrategy(existing, config, limitedChannels, taggedMetrics);
             Channel channel = new LimitedChannelToChannelAdapter(nodeSelectionStrategy);
             channel = new TracedChannel(channel, "Dialogue-request-attempt");
+            channel = retryingChannel(channel, config);
+            channel = new UserAgentChannel(channel, config.userAgent().get());
+            channel = new DeprecationWarningChannel(channel, clientMetrics);
+            channel = new ContentDecodingChannel(channel);
+            channel = new NeverThrowChannel(channel);
+            channel = new TracedChannel(channel, "Dialogue-request");
+
+            return new DialogueChannel(channel, nodeSelectionStrategy);
+        }
+
+        private static Channel retryingChannel(Channel channel, ClientConfiguration config) {
             if (config.maxNumRetries() > 0) {
                 channel = new RetryingChannel(
                         channel,
@@ -111,13 +129,7 @@ public final class DialogueChannel implements Channel {
                         config.serverQoS(),
                         config.retryOnTimeout());
             }
-            channel = new UserAgentChannel(channel, config.userAgent().get());
-            channel = new DeprecationWarningChannel(channel, clientMetrics);
-            channel = new ContentDecodingChannel(channel);
-            channel = new NeverThrowChannel(channel);
-            channel = new TracedChannel(channel, "Dialogue-request");
-
-            return new DialogueChannel(channel, nodeSelectionStrategy);
+            return channel;
         }
 
         private static LimitedChannel mapSingleUriChannel(
@@ -131,46 +143,46 @@ public final class DialogueChannel implements Channel {
             limitedChan = Channels.concurrencyLimiter(limitedChan, config, clientMetrics);
             return new FixedLimitedChannel(limitedChan, Channels.MAX_REQUESTS_PER_CHANNEL, clientMetrics);
         }
-    }
 
-    private static LimitedChannel nodeSelectionStrategy(
-            Optional<DialogueChannel> maybeExisting,
-            ClientConfiguration config,
-            List<LimitedChannel> channels,
-            VersionedTaggedMetricRegistry metrics) {
-        if (channels.size() == 1) {
-            return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+        private static LimitedChannel nodeSelectionStrategy(
+                Optional<DialogueChannel> maybeExisting,
+                ClientConfiguration config,
+                List<LimitedChannel> channels,
+                VersionedTaggedMetricRegistry metrics) {
+            if (channels.size() == 1) {
+                return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
+            }
+
+            switch (config.nodeSelectionStrategy()) {
+                case PIN_UNTIL_ERROR:
+                case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                    // create a fresh instance (ignoring the idea of live reloading initially) - we might discard this
+                    PinUntilErrorChannel goalInstance = PinUntilErrorChannel.of(
+                            config.nodeSelectionStrategy(), channels, DialoguePinuntilerrorMetrics.of(metrics));
+
+                    // find out whether we could have live-reloaded to get to the goal state
+                    Optional<PinUntilErrorChannel> maybeLiveReloaded = maybeExisting
+                            .flatMap(existing -> goalInstance.reloadableFrom(existing.nodeSelectionStrategy))
+                            .map(existing -> existing.liveReloadNewInstance(channels));
+
+                    // if we successfully live-reloaded, just discard the newly created 'goalInstance'
+                    return maybeLiveReloaded.orElse(goalInstance);
+                case ROUND_ROBIN:
+                    return new RoundRobinChannel(channels);
+            }
+            throw new SafeRuntimeException(
+                    "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
         }
 
-        switch (config.nodeSelectionStrategy()) {
-            case PIN_UNTIL_ERROR:
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                // create a fresh instance (ignoring the idea of live reloading initially) - we might throw this away
-                PinUntilErrorChannel goalInstance = PinUntilErrorChannel.of(
-                        config.nodeSelectionStrategy(), channels, DialoguePinuntilerrorMetrics.of(metrics));
+        private static void preconditions(Collection<? extends Channel> channels, ClientConfiguration config) {
+            Preconditions.checkNotNull(config, "ClientConfiguration is required");
+            Preconditions.checkNotNull(channels, "Channels is required");
 
-                // find out whether we could have live-reloaded to get to the goal state
-                Optional<PinUntilErrorChannel> maybeLiveReloaded = maybeExisting
-                        .flatMap(existing -> goalInstance.reloadableFrom(existing.nodeSelectionStrategy))
-                        .map(existing -> existing.liveReloadNewInstance(channels));
-
-                // if we successfully live-reloaded, just discard the newly created 'goalInstance'
-                return maybeLiveReloaded.orElse(goalInstance);
-            case ROUND_ROBIN:
-                return new RoundRobinChannel(channels);
+            Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
+            Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
+            Preconditions.checkArgument(
+                    config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                    "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
         }
-        throw new SafeRuntimeException(
-                "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
-    }
-
-    private static void preconditions(Collection<? extends Channel> channels, ClientConfiguration config) {
-        Preconditions.checkNotNull(config, "ClientConfiguration is required");
-        Preconditions.checkNotNull(channels, "Channels is required");
-
-        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
-        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
-        Preconditions.checkArgument(
-                config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
-                "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
     }
 }
