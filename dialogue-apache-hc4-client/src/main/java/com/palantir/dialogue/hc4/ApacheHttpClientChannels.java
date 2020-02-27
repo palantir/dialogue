@@ -159,7 +159,7 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public String toString() {
-            return "SharedResource{client=" + client + '}';
+            return "CloseableClient{client=" + client + '}';
         }
     }
 
