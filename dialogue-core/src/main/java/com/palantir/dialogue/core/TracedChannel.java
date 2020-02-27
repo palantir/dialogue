@@ -22,6 +22,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
+import java.util.Objects;
 
 final class TracedChannel implements Channel {
     private final Channel delegate;
@@ -35,5 +36,27 @@ final class TracedChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        TracedChannel that = (TracedChannel) o;
+        return delegate.equals(that.delegate) && operationName.equals(that.operationName);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate, operationName);
+    }
+
+    @Override
+    public String toString() {
+        return "TracedChannel{delegate=" + delegate + ", operationName='" + operationName + "\'}";
     }
 }

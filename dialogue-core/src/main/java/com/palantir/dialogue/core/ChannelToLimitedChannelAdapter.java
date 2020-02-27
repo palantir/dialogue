@@ -21,6 +21,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import java.util.Objects;
 import java.util.Optional;
 
 /** Adapter from {@link Channel} to {@link LimitedChannel} which always returns a {@link Optional#isPresent() value}. */
@@ -40,5 +41,22 @@ final class ChannelToLimitedChannelAdapter implements LimitedChannel {
     @Override
     public String toString() {
         return "ChannelToLimitedChannelAdapter{delegate=" + delegate + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ChannelToLimitedChannelAdapter that = (ChannelToLimitedChannelAdapter) o;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
     }
 }

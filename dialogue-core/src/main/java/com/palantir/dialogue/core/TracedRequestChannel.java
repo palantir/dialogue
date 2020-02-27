@@ -23,10 +23,10 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.TraceHttpHeaders;
+import java.util.Objects;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TracedRequestChannel implements Channel {
-
     private final Channel delegate;
 
     TracedRequestChannel(Channel delegate) {
@@ -60,5 +60,27 @@ final class TracedRequestChannel implements Channel {
                 .orElse(request);
 
         return delegate.execute(endpoint, newRequest);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        TracedRequestChannel that = (TracedRequestChannel) o;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
+    }
+
+    @Override
+    public String toString() {
+        return "TracedRequestChannel{" + delegate + '}';
     }
 }

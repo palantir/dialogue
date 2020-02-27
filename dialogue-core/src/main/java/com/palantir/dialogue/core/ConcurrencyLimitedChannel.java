@@ -28,6 +28,7 @@ import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -92,6 +93,28 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             limitedMeter.mark();
             return Optional.empty();
         }
+    }
+
+    @Override
+    public String toString() {
+        return "ConcurrencyLimitedChannel{" + delegate + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        ConcurrencyLimitedChannel that = (ConcurrencyLimitedChannel) o;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
     }
 
     /**

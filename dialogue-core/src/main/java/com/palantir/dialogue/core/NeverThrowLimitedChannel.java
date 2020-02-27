@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,5 +47,27 @@ final class NeverThrowLimitedChannel implements LimitedChannel {
             log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
             return Optional.of(Futures.immediateFailedFuture(e));
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        NeverThrowLimitedChannel that = (NeverThrowLimitedChannel) o;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
+    }
+
+    @Override
+    public String toString() {
+        return "NeverThrowLimitedChannel{" + delegate + '}';
     }
 }

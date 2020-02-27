@@ -23,6 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Objects;
 
 /**
  * A channel that observes metrics about the processed requests and responses.
@@ -43,5 +44,27 @@ final class InstrumentedChannel implements Channel {
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
         response.addListener(context::stop, MoreExecutors.directExecutor());
         return response;
+    }
+
+    @Override
+    public String toString() {
+        return "InstrumentedChannel{" + delegate + '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        InstrumentedChannel that = (InstrumentedChannel) o;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
     }
 }

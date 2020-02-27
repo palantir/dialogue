@@ -23,6 +23,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
@@ -81,5 +82,34 @@ final class FixedLimitedChannel implements LimitedChannel {
                     SafeArg.of("endpoint", endpoint.endpointName()),
                     SafeArg.of("totalPermits", totalPermits));
         }
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        FixedLimitedChannel that = (FixedLimitedChannel) o;
+        return totalPermits == that.totalPermits && delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate, totalPermits);
+    }
+
+    @Override
+    public String toString() {
+        return "FixedLimitedChannel{"
+                + "delegate="
+                + delegate
+                + ", usedPermits="
+                + usedPermits
+                + ", totalPermits="
+                + totalPermits
+                + '}';
     }
 }
