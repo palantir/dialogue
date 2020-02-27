@@ -27,6 +27,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
@@ -464,7 +465,11 @@ public class SimulationTest {
         } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
-            Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
+            Files.write(
+                    txt,
+                    longSummary.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
 
             XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
             activeRequests.setTitle(String.format(

@@ -78,7 +78,7 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
-        public Builder channels(Collection<Channel> values) {
+        public Builder channels(Collection<? extends Channel> values) {
             channels.clear();
             channels.addAll(values);
             return this;
