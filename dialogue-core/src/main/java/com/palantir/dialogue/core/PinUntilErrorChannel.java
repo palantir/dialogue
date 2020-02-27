@@ -150,12 +150,16 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
 
     Optional<PinUntilErrorChannel> reloadableFrom(Object other) {
         if (!(other instanceof PinUntilErrorChannel)) {
+            log.info("Unable to live reload because previous object was not a PinUntilErrorChannel: {}", other);
             return Optional.empty();
         }
 
         PinUntilErrorChannel previous = (PinUntilErrorChannel) other;
-        if (nodeList.getClass() == previous.nodeList.getClass()) {
-            // we can't live reload from shuffling <-> non-shuffling
+        if (!previous.nodeList.getClass().equals(nodeList.getClass())) {
+            log.info(
+                    "Unable to live reload between shuffling & non-shuffling modes: {} -> {}",
+                    previous.nodeList.getClass(),
+                    nodeList.getClass());
             return Optional.empty();
         }
 
@@ -171,7 +175,10 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         LimitedChannel currentChannel = nodeList.get(currentHost.get());
         int newIndex = newList.indexOf(currentChannel); // relies on a good equals implementation for channels!
         if (newIndex == -1) {
-            // can't find the channel we were pinned to in the new list so we just start at a new one
+            log.info(
+                    "Unable to find the channel we were pinned to {} in the new list {}, starting fresh",
+                    currentChannel,
+                    newNodeList);
             newIndex = 0;
         } else {
             Preconditions.checkState(

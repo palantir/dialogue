@@ -156,21 +156,23 @@ public final class ChannelsTest {
                 .thenReturn(Futures.immediateFailedFuture(new RuntimeException("borf")));
 
         DialogueChannel channel = DialogueChannel.builder()
-                .channels(ImmutableList.of(channel1))
+                .channels(ImmutableList.of(channel1, channel1)) // >1 channels ensures we get PinUntilError
                 .clientConfiguration(stubConfig)
                 .build();
 
-        ListenableFuture<Response> foo = channel.execute(endpoint, request);
-        assertThat(foo.get()).isSameAs(response);
+        ListenableFuture<Response> response1 = channel.execute(endpoint, request);
+        assertThat(response1.get()).isSameAs(response);
 
         channel = DialogueChannel.builder()
                 .from(channel)
-                .channels(ImmutableList.of(channel2, channel2, channel2, channel2, channel1, channel2))
+                .channels(ImmutableList.of(channel2, channel2, channel2, channel2, channel1, channel2, channel2))
                 .clientConfiguration(stubConfig)
                 .build();
 
-        foo = channel.execute(endpoint, request);
-        assertThat(foo.get()).isSameAs(response);
+        ListenableFuture<Response> response2 = channel.execute(endpoint, request);
+        assertThat(response2.get())
+                .describedAs("We should still be locked on to the original channel1")
+                .isSameAs(response);
         verifyNoInteractions(channel2);
     }
 
