@@ -82,14 +82,16 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
     }
 
     static PinUntilErrorChannel of(
-            NodeSelectionStrategy strategy, List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
+            NodeSelectionStrategy strategy,
+            List<LimitedChannel> channels,
+            DialoguePinuntilerrorMetrics metrics,
+            Random random) {
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
          * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
          * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
-        Random random = SafeThreadLocalRandom.get();
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
 
         switch (strategy) {
