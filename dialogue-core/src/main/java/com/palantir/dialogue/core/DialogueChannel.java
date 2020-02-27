@@ -114,14 +114,14 @@ public final class DialogueChannel implements Channel {
 
             List<LimitedChannel> limitedChannels = channels.stream()
                     .map(chan -> {
-                        LimitedChannel firstInstance = mapSingleUriChannel(chan, clientMetrics);
-                        LimitedChannel secondInstance = mapSingleUriChannel(chan, clientMetrics);
+                        LimitedChannel firstInstance = buildSingleUri(chan, clientMetrics);
+                        LimitedChannel secondInstance = buildSingleUri(chan, clientMetrics);
                         Preconditions.checkState(
                                 firstInstance.equals(secondInstance),
-                                "things should have a good equals implementation",
+                                "a good equals implementation is necessary for smart live-reloading",
                                 UnsafeArg.of("first", firstInstance),
                                 UnsafeArg.of("second", secondInstance));
-                        return firstInstance; // find to throw away the other one
+                        return firstInstance; // fine to throw away the secondInstance
                     })
                     .collect(ImmutableList.toImmutableList());
 
@@ -138,6 +138,17 @@ public final class DialogueChannel implements Channel {
             return new DialogueChannel(channel, nodeSelectionStrategy);
         }
 
+        private LimitedChannel buildSingleUri(Channel channel, DialogueClientMetrics clientMetrics) {
+            // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+            Channel chan = new InstrumentedChannel(channel, clientMetrics);
+            // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+            chan = new TracedRequestChannel(chan);
+            chan = new TracedChannel(chan, "Dialogue-http-request");
+            LimitedChannel limitedChan = new ChannelToLimitedChannelAdapter(chan);
+            limitedChan = concurrencyLimiter(limitedChan, clientMetrics);
+            return new FixedLimitedChannel(limitedChan, MAX_REQUESTS_PER_CHANNEL, clientMetrics);
+        }
+
         private Channel retryingChannel(Channel channel) {
             if (config.maxNumRetries() > 0) {
                 channel = new RetryingChannel(
@@ -150,17 +161,6 @@ public final class DialogueChannel implements Channel {
                         random::nextDouble);
             }
             return channel;
-        }
-
-        private LimitedChannel mapSingleUriChannel(Channel channel, DialogueClientMetrics clientMetrics) {
-            // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
-            Channel chan = new InstrumentedChannel(channel, clientMetrics);
-            // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-            chan = new TracedRequestChannel(chan);
-            chan = new TracedChannel(chan, "Dialogue-http-request");
-            LimitedChannel limitedChan = new ChannelToLimitedChannelAdapter(chan);
-            limitedChan = concurrencyLimiter(limitedChan, clientMetrics);
-            return new FixedLimitedChannel(limitedChan, MAX_REQUESTS_PER_CHANNEL, clientMetrics);
         }
 
         private LimitedChannel concurrencyLimiter(LimitedChannel channel, DialogueClientMetrics metrics) {
