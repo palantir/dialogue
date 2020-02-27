@@ -56,7 +56,7 @@ final class RetryingChannel implements Channel {
      * edge case where services are already operating in a degraded state and we should not
      * spam servers.
      */
-    private static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
+    static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
             () -> MoreExecutors.listeningDecorator(Tracers.wrap(
                     "dialogue-RetryingChannel-scheduler",
                     Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()

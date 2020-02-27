@@ -30,7 +30,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
-import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -41,8 +40,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 public class PinUntilErrorChannelTest {
 
     @Mock
@@ -57,18 +59,18 @@ public class PinUntilErrorChannelTest {
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
+    private Random pseudo = new Random(12893712L);
 
     @BeforeEach
     public void before() {
-        List<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
 
-        PinUntilErrorChannel.ConstantNodeList constantList =
-                new PinUntilErrorChannel.ConstantNodeList(channels, new Random(12345L));
+        PinUntilErrorChannel.ConstantNodeList constantList = new PinUntilErrorChannel.ConstantNodeList(channels);
         PinUntilErrorChannel.ReshufflingNodeList shufflingList =
-                new PinUntilErrorChannel.ReshufflingNodeList(channels, new Random(12893712L), clock, metrics);
+                PinUntilErrorChannel.ReshufflingNodeList.of(channels, pseudo, clock, metrics);
 
-        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, metrics);
-        pinUntilError = new PinUntilErrorChannel(shufflingList, metrics);
+        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, 1, metrics);
+        pinUntilError = new PinUntilErrorChannel(shufflingList, 1, metrics);
     }
 
     @Test
@@ -111,13 +113,13 @@ public class PinUntilErrorChannelTest {
         setResponse(channel2, 204);
 
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("First batch on channel1")
-                .contains(100, 100, 100, 100, 100, 100);
+                .describedAs("First batch on channel2")
+                .contains(204, 204, 204, 204, 204, 204);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("Second batch: reshuffle gave us channel2")
-                .contains(204, 204, 204, 204, 204, 204);
+                .describedAs("Second batch: reshuffle gave us channel1")
+                .contains(100, 100, 100, 100, 100, 100);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(22).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
@@ -126,19 +128,19 @@ public class PinUntilErrorChannelTest {
 
         when(clock.read()).thenReturn(Duration.ofMinutes(33).toNanos());
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
-                .describedAs("Fourth batch: reshuffle gave us channel1")
-                .contains(100, 100, 100, 100, 100, 100);
+                .describedAs("Fourth batch: reshuffle gave us channel2 again")
+                .contains(204, 204, 204, 204, 204, 204);
     }
 
     @Test
     public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
         setResponse(channel1, 100);
         setResponse(channel2, 101);
-        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(100);
+        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(101);
 
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel1.maybeExecute(any(), any()))
+        when(channel2.maybeExecute(any(), any()))
                 .thenReturn(Optional.of(future1))
                 .thenReturn(Optional.of(future2));
 
@@ -150,14 +152,14 @@ public class PinUntilErrorChannelTest {
         future2.set(response(500));
 
         assertThat(getCode(pinUntilError))
-                .describedAs("A single 500 moved us to channel2")
-                .isEqualTo(101);
+                .describedAs("A single 500 moved us to channel1")
+                .isEqualTo(100);
 
         future1.set(response(500));
 
         assertThat(getCode(pinUntilError))
-                .describedAs("We're still on channel2, as an older 500 doesn't mark this host as bad")
-                .isEqualTo(101);
+                .describedAs("We're still on channel0, as an older 500 doesn't mark this host as bad")
+                .isEqualTo(100);
     }
 
     @Test

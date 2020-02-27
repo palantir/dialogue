@@ -47,4 +47,9 @@ final class NeverThrowLimitedChannel implements LimitedChannel {
             return Optional.of(Futures.immediateFailedFuture(e));
         }
     }
+
+    @Override
+    public String toString() {
+        return "NeverThrowLimitedChannel{" + delegate + '}';
+    }
 }

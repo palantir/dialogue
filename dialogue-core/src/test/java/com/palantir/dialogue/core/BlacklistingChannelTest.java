@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -60,7 +61,7 @@ public class BlacklistingChannelTest {
         channel = new BlacklistingChannel(delegate, BLACKLIST_DURATION, ticker);
 
         futureResponse = SettableFuture.create();
-        when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(futureResponse));
+        lenient().when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.of(futureResponse));
     }
 
     @Test
