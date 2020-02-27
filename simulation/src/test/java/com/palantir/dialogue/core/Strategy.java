@@ -117,7 +117,7 @@ public enum Strategy {
     private static Channel retryingChannel(Simulation sim, LimitedChannel limited) {
         LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
         return new RetryingChannel(
-                new LimitedChannelToChannelAdapter(limited1),
+                new LimitedChannelToChannelAdapter(new QueuedChannel(limited1)),
                 4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
                 Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,

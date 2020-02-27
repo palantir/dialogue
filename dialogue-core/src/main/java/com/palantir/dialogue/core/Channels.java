@@ -55,6 +55,7 @@ public final class Channels {
                 .collect(ImmutableList.toImmutableList());
 
         LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels, taggedMetrics);
+        limited = new QueuedChannel(limited);
         Channel channel = new LimitedChannelToChannelAdapter(limited);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         if (config.maxNumRetries() > 0) {
