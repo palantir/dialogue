@@ -219,9 +219,8 @@ public final class Benchmark {
                                                         responsesReceived[0]);
                                             },
                                             MoreExecutors.directExecutor());
-                                } catch (Exception e) {
+                                } catch (RuntimeException e) {
                                     log.error("Channels shouldn't throw", e);
-                                    throw new AssertionError("Channels shouldn't throw", e);
                                 }
                             },
                             req.sendTime().toNanos(),

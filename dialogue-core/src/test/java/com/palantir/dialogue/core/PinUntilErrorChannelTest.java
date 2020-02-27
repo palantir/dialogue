@@ -203,8 +203,8 @@ public class PinUntilErrorChannelTest {
         assertThat(IntStream.range(0, 6).map(i -> getCode(pinUntilErrorWithoutReshuffle)))
                 .contains(222, 222, 222, 222, 222, 222);
 
-        PinUntilErrorChannel reloaded =
-                pinUntilErrorWithoutReshuffle.liveReloadNewInstance(ImmutableList.of(channel4, channel1, channel2, channel3));
+        PinUntilErrorChannel reloaded = pinUntilErrorWithoutReshuffle.liveReloadNewInstance(
+                ImmutableList.of(channel4, channel1, channel2, channel3));
 
         assertThat(IntStream.range(0, 6).map(i -> getCode(reloaded)))
                 .describedAs("We were locked on to channel 2 initially, and after reloading we should "

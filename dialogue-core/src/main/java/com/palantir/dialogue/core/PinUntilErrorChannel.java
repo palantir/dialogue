@@ -187,8 +187,7 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
             newIndex = 0;
         } else {
             Preconditions.checkState(
-                    Objects.equals(newNodeList.get(newIndex), currentChannel),
-                    "Failed to preserve pinned host index");
+                    Objects.equals(newNodeList.get(newIndex), currentChannel), "Failed to preserve pinned host index");
         }
 
         return new PinUntilErrorChannel(newNodeList, newIndex, initialShuffleRandom, instrumentation.metrics);

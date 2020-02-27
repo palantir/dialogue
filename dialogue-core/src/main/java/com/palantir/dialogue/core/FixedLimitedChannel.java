@@ -85,14 +85,14 @@ final class FixedLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object object) {
+        if (this == object) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (object == null || getClass() != object.getClass()) {
             return false;
         }
-        FixedLimitedChannel that = (FixedLimitedChannel) o;
+        FixedLimitedChannel that = (FixedLimitedChannel) object;
         return totalPermits == that.totalPermits && delegate.equals(that.delegate);
     }
 

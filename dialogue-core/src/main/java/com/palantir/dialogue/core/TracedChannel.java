@@ -39,14 +39,14 @@ final class TracedChannel implements Channel {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object object) {
+        if (this == object) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (object == null || getClass() != object.getClass()) {
             return false;
         }
-        TracedChannel that = (TracedChannel) o;
+        TracedChannel that = (TracedChannel) object;
         return delegate.equals(that.delegate) && operationName.equals(that.operationName);
     }
 

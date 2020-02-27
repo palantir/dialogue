@@ -61,7 +61,7 @@ public final class DialogueChannel implements Channel {
         return new Builder();
     }
 
-    public static class Builder {
+    public static final class Builder {
         private static final int MAX_REQUESTS_PER_CHANNEL = 256;
 
         private Optional<DialogueChannel> maybeExisting = Optional.empty();
@@ -73,6 +73,7 @@ public final class DialogueChannel implements Channel {
         @Nullable
         private ClientConfiguration config;
 
+        /** Use this method to live-reload from a previous channel, preserving whatever possible state. */
         public Builder from(DialogueChannel value) {
             this.maybeExisting = Optional.of(value);
             return this;
@@ -157,20 +158,21 @@ public final class DialogueChannel implements Channel {
 
         private static Channel retryingChannel(
                 Channel channel,
-                ClientConfiguration config,
+                ClientConfiguration conf,
                 Supplier<ListeningScheduledExecutorService> scheduler,
                 Random random) {
-            if (config.maxNumRetries() > 0) {
-                channel = new RetryingChannel(
-                        channel,
-                        config.maxNumRetries(),
-                        config.backoffSlotSize(),
-                        config.serverQoS(),
-                        config.retryOnTimeout(),
-                        scheduler.get(),
-                        random::nextDouble);
+            if (conf.maxNumRetries() == 0) {
+                return channel;
             }
-            return channel;
+
+            return new RetryingChannel(
+                    channel,
+                    conf.maxNumRetries(),
+                    conf.backoffSlotSize(),
+                    conf.serverQoS(),
+                    conf.retryOnTimeout(),
+                    scheduler.get(),
+                    random::nextDouble);
         }
 
         private static LimitedChannel concurrencyLimiter(

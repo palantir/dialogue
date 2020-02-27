@@ -50,14 +50,14 @@ final class NeverThrowLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object object) {
+        if (this == object) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (object == null || getClass() != object.getClass()) {
             return false;
         }
-        NeverThrowLimitedChannel that = (NeverThrowLimitedChannel) o;
+        NeverThrowLimitedChannel that = (NeverThrowLimitedChannel) object;
         return delegate.equals(that.delegate);
     }
 

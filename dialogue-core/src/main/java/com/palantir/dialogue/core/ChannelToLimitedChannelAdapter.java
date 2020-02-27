@@ -44,14 +44,14 @@ final class ChannelToLimitedChannelAdapter implements LimitedChannel {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) {
+    public boolean equals(Object object) {
+        if (this == object) {
             return true;
         }
-        if (o == null || getClass() != o.getClass()) {
+        if (object == null || getClass() != object.getClass()) {
             return false;
         }
-        ChannelToLimitedChannelAdapter that = (ChannelToLimitedChannelAdapter) o;
+        ChannelToLimitedChannelAdapter that = (ChannelToLimitedChannelAdapter) object;
         return delegate.equals(that.delegate);
     }
 
