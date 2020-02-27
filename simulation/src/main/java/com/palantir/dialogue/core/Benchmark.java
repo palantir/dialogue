@@ -197,26 +197,32 @@ public final class Benchmark {
                     .scheduler()
                     .schedule(
                             () -> {
-                                log.debug(
+                                log.info(
                                         "time={} starting num={} {}",
                                         simulation.clock().read(),
                                         req.number(),
                                         req);
                                 Channel channel = channels[clientIndexChooser.getAsInt()];
-                                ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
-                                requestsStarted[0] += 1;
+                                try {
+                                    ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                    requestsStarted[0] += 1;
 
-                                Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                                future.addListener(
-                                        () -> {
-                                            responsesReceived[0] += 1;
-                                            benchmarkFinished.update(
-                                                    Duration.ofNanos(
-                                                            simulation.clock().read()),
-                                                    requestsStarted[0],
-                                                    responsesReceived[0]);
-                                        },
-                                        MoreExecutors.directExecutor());
+                                    Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                    future.addListener(
+                                            () -> {
+                                                responsesReceived[0] += 1;
+                                                benchmarkFinished.update(
+                                                        Duration.ofNanos(simulation
+                                                                .clock()
+                                                                .read()),
+                                                        requestsStarted[0],
+                                                        responsesReceived[0]);
+                                            },
+                                            MoreExecutors.directExecutor());
+                                } catch (Exception e) {
+                                    log.error("Channels shouldn't throw", e);
+                                    throw new AssertionError("Channels shouldn't throw", e);
+                                }
                             },
                             req.sendTime().toNanos(),
                             TimeUnit.NANOSECONDS);

@@ -96,7 +96,7 @@ final class SimulationServer implements Channel {
                     new FutureCallback<Response>() {
                         @Override
                         public void onSuccess(Response result) {
-                            log.debug(
+                            log.info(
                                     "time={} server={} status={} id={}",
                                     Duration.ofNanos(simulation.clock().read()),
                                     serverName,

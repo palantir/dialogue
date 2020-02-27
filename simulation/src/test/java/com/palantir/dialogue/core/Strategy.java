@@ -24,6 +24,7 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -55,6 +56,7 @@ public enum Strategy {
                             .from(stubConfig())
                             .taggedMetricRegistry(sim.taggedMetrics())
                             .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                            .failedUrlCooldown(Duration.ofMillis(200))
                             .build())
                     .clock(sim.clock())
                     .random(pseudo)
@@ -89,6 +91,7 @@ public enum Strategy {
                             .from(stubConfig())
                             .taggedMetricRegistry(sim.taggedMetrics())
                             .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                            .failedUrlCooldown(Duration.ofMillis(200))
                             .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
                             .build())
                     .clock(sim.clock())
