@@ -109,6 +109,10 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        return executeInternal(endpoint, request, 1);
+    }
+
+    private Optional<ListenableFuture<Response>> executeInternal(Endpoint endpoint, Request request, int depth) {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
 
@@ -116,7 +120,12 @@ final class PinUntilErrorChannel implements LimitedChannel, Reloadable<PinUntilE
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementHostIfNecessary(currentIndex);
             instrumentation.currentChannelRejected(currentIndex, channel, next);
-            return Optional.empty(); // if the caller retries immediately, we'll get the next host
+            // Try enough times to rotate through all nodes (assuming no concurrent clients) before returning
+            // a completely rejected request.
+            if (depth < nodeList.size()) {
+                return executeInternal(endpoint, request, depth + 1);
+            }
+            return Optional.empty();
         }
 
         ListenableFuture<Response> future = maybeFuture.get();

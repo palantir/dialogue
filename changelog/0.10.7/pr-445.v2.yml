@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: Pin until error strategy attempts to find an active channel rather
+    than bailing on the first limited channel. This matches round robin more closely
+    when many channels are blacklisted. Clients are no longer forced to use N retries
+    to find the next available channel.
+  links:
+  - https://github.com/palantir/dialogue/pull/445
