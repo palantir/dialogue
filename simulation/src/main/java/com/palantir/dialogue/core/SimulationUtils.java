@@ -22,13 +22,17 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class SimulationUtils {
+    private static final Logger log = LoggerFactory.getLogger(SimulationUtils.class);
 
     public static Response response(int status, String version) {
         return new Response() {
@@ -57,6 +61,8 @@ final class SimulationUtils {
 
     public static Response wrapWithCloseInstrumentation(Response delegate, TaggedMetricRegistry registry) {
         return new Response() {
+            private int timesClosed = 0;
+
             @Override
             public InputStream body() {
                 return delegate.body();
@@ -74,7 +80,15 @@ final class SimulationUtils {
 
             @Override
             public void close() {
-                MetricNames.responseClose(registry).inc();
+                if (timesClosed == 0) {
+                    MetricNames.responseClose(registry).inc();
+                    timesClosed += 1;
+                } else {
+                    log.warn(
+                            "Duplicate close, already called {} time(s)",
+                            timesClosed,
+                            new SafeRuntimeException("for stacktrace"));
+                }
             }
         };
     }
