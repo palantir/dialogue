@@ -138,13 +138,11 @@ public class PinUntilErrorChannelTest {
 
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel1.maybeExecute(any(), any()))
-                .thenReturn(Optional.of(future1))
-                .thenReturn(Optional.of(future2));
+        when(channel1.maybeExecute(any())).thenReturn(Optional.of(future1)).thenReturn(Optional.of(future2));
 
         // kick off two requests
-        pinUntilError.maybeExecute(null, null).get();
-        pinUntilError.maybeExecute(null, null).get();
+        pinUntilError.maybeExecute(null).get();
+        pinUntilError.maybeExecute(null).get();
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
         future2.set(response(500));
@@ -162,14 +160,14 @@ public class PinUntilErrorChannelTest {
 
     @Test
     public void finds_first_non_limited_channel() {
-        when(channel1.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        when(channel1.maybeExecute(any())).thenReturn(Optional.empty());
         setResponse(channel2, 204);
-        assertThat(pinUntilError.maybeExecute(null, null)).isPresent();
+        assertThat(pinUntilError.maybeExecute(null)).isPresent();
     }
 
     private static int getCode(PinUntilErrorChannel channel) {
         try {
-            ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
+            ListenableFuture<Response> future = channel.maybeExecute(null).get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
             return response.code();
         } catch (Exception e) {
@@ -181,7 +179,7 @@ public class PinUntilErrorChannelTest {
         Mockito.clearInvocations(mockChannel);
         Mockito.reset(mockChannel);
         Response resp = response(status);
-        lenient().when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
+        lenient().when(mockChannel.maybeExecute(any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
     }
 
     private static Response response(int status) {

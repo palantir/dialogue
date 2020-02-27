@@ -21,8 +21,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.SettableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
@@ -37,31 +35,28 @@ class FixedLimitedChannelTest {
     public void testExhaustion() {
         SettableFuture<Response> result = SettableFuture.create();
         LimitedChannel delegate = Mockito.mock(LimitedChannel.class);
-        when(delegate.maybeExecute(any(), any())).thenReturn(Optional.of(result));
+        when(delegate.maybeExecute(any())).thenReturn(Optional.of(result));
         LimitedChannel channel = new FixedLimitedChannel(delegate, 1, metrics);
         // consume the single permit
-        assertThat(channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
-                .isPresent();
+        assertThat(channel.maybeExecute(Mockito.mock(LimitedRequest.class))).isPresent();
         // no permits available
-        assertThat(channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
-                .isEmpty();
+        assertThat(channel.maybeExecute(Mockito.mock(LimitedRequest.class))).isEmpty();
         // after completing the future more requests can be sent
         result.cancel(false);
-        assertThat(channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
-                .isPresent();
+        assertThat(channel.maybeExecute(Mockito.mock(LimitedRequest.class))).isPresent();
     }
 
     @Test
     public void testPermitReturnedOnException() {
         LimitedChannel delegate = Mockito.mock(LimitedChannel.class);
-        when(delegate.maybeExecute(any(), any())).thenThrow(new RuntimeException("expected"));
+        when(delegate.maybeExecute(any())).thenThrow(new RuntimeException("expected"));
         LimitedChannel channel = new FixedLimitedChannel(delegate, 1, metrics);
         // Exceptions shouldn't be thrown, but shouldn't produce leaks either.
-        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
+        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(LimitedRequest.class)))
                 .isExactlyInstanceOf(RuntimeException.class)
                 .hasMessage("expected");
         // If the second call results in am empty value, the first call failed to return a permit.
-        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(Endpoint.class), Mockito.mock(Request.class)))
+        assertThatThrownBy(() -> channel.maybeExecute(Mockito.mock(LimitedRequest.class)))
                 .isExactlyInstanceOf(RuntimeException.class)
                 .hasMessage("expected");
     }

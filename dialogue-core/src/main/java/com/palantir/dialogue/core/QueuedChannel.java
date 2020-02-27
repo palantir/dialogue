@@ -23,8 +23,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -84,11 +82,11 @@ final class QueuedChannel implements LimitedChannel {
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 numRunningRequests.incrementAndGet();
@@ -104,7 +102,6 @@ final class QueuedChannel implements LimitedChannel {
         }
 
         DeferredCall components = DeferredCall.builder()
-                .endpoint(endpoint)
                 .request(request)
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
@@ -159,8 +156,8 @@ final class QueuedChannel implements LimitedChannel {
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
-            Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            LimitedRequest request = queueHead.request();
+            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(request);
 
             if (maybeResponse.isPresent()) {
                 queueSizeEstimate.decrementAndGet();
@@ -179,8 +176,7 @@ final class QueuedChannel implements LimitedChannel {
                                     log.debug(
                                             "Failed to cancel delegate response, it should be reported by"
                                                     + " ForwardAndSchedule logging",
-                                            SafeArg.of("service", endpoint.serviceName()),
-                                            SafeArg.of("endpoint", endpoint.endpointName()));
+                                            SafeArg.of("request", request));
                                 }
                             }
                         },
@@ -189,20 +185,11 @@ final class QueuedChannel implements LimitedChannel {
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
-                    log.error(
-                            "Failed to add an attempted call back to the deque",
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()));
+                    log.error("Failed to add an attempted call back to the deque", SafeArg.of("request", request));
                     queueSizeEstimate.decrementAndGet();
                     if (!queuedResponse.setException(
-                            new SafeRuntimeException(
-                                    "Failed to req-queue request",
-                                    SafeArg.of("service", endpoint.serviceName()),
-                                    SafeArg.of("endpoint", endpoint.endpointName())))) {
-                        log.debug(
-                                "Queued response has already been completed",
-                                SafeArg.of("service", endpoint.serviceName()),
-                                SafeArg.of("endpoint", endpoint.endpointName()));
+                            new SafeRuntimeException("Failed to req-queue request", SafeArg.of("request", request)))) {
+                        log.debug("Queued response has already been completed", SafeArg.of("request", request));
                     }
                 }
                 return false;
@@ -240,9 +227,7 @@ final class QueuedChannel implements LimitedChannel {
 
     @Value.Immutable
     interface DeferredCall {
-        Endpoint endpoint();
-
-        Request request();
+        LimitedRequest request();
 
         SettableFuture<Response> response();
 

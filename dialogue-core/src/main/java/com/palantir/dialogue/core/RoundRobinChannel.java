@@ -18,8 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +36,7 @@ final class RoundRobinChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         if (delegates.isEmpty()) {
             return Optional.empty();
         }
@@ -47,7 +45,7 @@ final class RoundRobinChannel implements LimitedChannel {
 
         for (int i = 0; i < delegates.size(); i++) {
             LimitedChannel channel = delegates.get(toIndex(host + i));
-            Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(request);
             if (maybeCall.isPresent()) {
                 return maybeCall;
             }

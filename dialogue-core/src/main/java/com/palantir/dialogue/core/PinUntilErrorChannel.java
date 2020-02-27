@@ -22,8 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -92,22 +90,22 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return executeInternal(endpoint, request, 1);
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
+        return executeInternal(request, 1);
     }
 
-    private Optional<ListenableFuture<Response>> executeInternal(Endpoint endpoint, Request request, int depth) {
+    private Optional<ListenableFuture<Response>> executeInternal(LimitedRequest request, int depth) {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
 
-        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
+        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(request);
         if (!maybeFuture.isPresent()) {
             OptionalInt next = incrementHostIfNecessary(currentIndex);
             instrumentation.currentChannelRejected(currentIndex, channel, next);
             // Try enough times to rotate through all nodes (assuming no concurrent clients) before returning
             // a completely rejected request.
             if (depth < nodeList.size()) {
-                return executeInternal(endpoint, request, depth + 1);
+                return executeInternal(request, depth + 1);
             }
             return Optional.empty();
         }

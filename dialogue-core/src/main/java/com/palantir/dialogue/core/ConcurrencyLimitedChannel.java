@@ -25,8 +25,6 @@ import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
 import com.netflix.concurrency.limits.limit.WindowedLimit;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -77,11 +75,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
         if (maybeListener.isPresent()) {
             Limiter.Listener listener = maybeListener.get();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(request);
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
             } else {

@@ -41,7 +41,7 @@ final class LimitedChannelToChannelAdapter implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return delegate.maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);
+        return delegate.maybeExecute(LimitedRequest.of(endpoint, request)).orElseGet(limitedResultSupplier);
     }
 
     @Override

@@ -18,8 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -39,9 +37,9 @@ final class NeverThrowLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         try {
-            return delegate.maybeExecute(endpoint, request);
+            return delegate.maybeExecute(request);
         } catch (RuntimeException | Error e) {
             log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
             return Optional.of(Futures.immediateFailedFuture(e));

@@ -21,8 +21,6 @@ import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.time.Duration;
 import java.util.List;
@@ -132,12 +130,9 @@ public enum Strategy {
         return new LimitedChannel() {
 
             @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                log.debug(
-                        "starting request={}",
-                        request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
+            public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
                 starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
+                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(request);
                 if (!response.isPresent()) {
                     metric.inc();
                 }
@@ -154,8 +149,8 @@ public enum Strategy {
     private static LimitedChannel noOpLimitedChannel(Channel delegate) {
         return new LimitedChannel() {
             @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
+            public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
+                return Optional.of(request.execute(delegate));
             }
 
             @Override

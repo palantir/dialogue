@@ -18,8 +18,6 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -50,17 +48,17 @@ final class FixedLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         boolean failedToOptimisticallyAcquirePermit = usedPermits.incrementAndGet() > totalPermits;
         if (failedToOptimisticallyAcquirePermit) {
             returnPermit.run();
             limitedMeter.mark();
-            logExhaustion(endpoint);
+            logExhaustion(request);
             return Optional.empty();
         }
         boolean resetOptimisticallyConsumedPermit = true;
         try {
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(request);
             if (result.isPresent()) {
                 result.get().addListener(returnPermit, MoreExecutors.directExecutor());
                 resetOptimisticallyConsumedPermit = false;
@@ -73,12 +71,11 @@ final class FixedLimitedChannel implements LimitedChannel {
         }
     }
 
-    private void logExhaustion(Endpoint endpoint) {
+    private void logExhaustion(LimitedRequest request) {
         if (log.isDebugEnabled()) {
             log.debug(
                     "Permits have been exhausted",
-                    SafeArg.of("service", endpoint.serviceName()),
-                    SafeArg.of("endpoint", endpoint.endpointName()),
+                    SafeArg.of("request", request),
                     SafeArg.of("totalPermits", totalPermits));
         }
     }

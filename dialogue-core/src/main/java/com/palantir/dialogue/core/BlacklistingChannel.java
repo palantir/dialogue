@@ -20,8 +20,6 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -65,12 +63,12 @@ final class BlacklistingChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
         BlacklistState state = channelBlacklistState.get();
         if (state != null) {
-            return state.maybeExecute(endpoint, request);
+            return state.maybeExecute(request);
         }
-        return delegate.maybeExecute(endpoint, request)
+        return delegate.maybeExecute(request)
                 .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(null)));
     }
 
@@ -89,14 +87,14 @@ final class BlacklistingChannel implements LimitedChannel {
             this.probationPermits = probationPermits;
         }
 
-        Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
             Optional<Probation> maybeProbation = maybeBeginProbation();
             if (!maybeProbation.isPresent()) {
                 return Optional.empty();
             }
             if (maybeProbation.get().acquireStartPermit()) {
                 log.debug("Probation channel request allowed");
-                return delegate.maybeExecute(endpoint, request)
+                return delegate.maybeExecute(request)
                         .map(future -> DialogueFutures.addDirectCallback(future, new BlacklistingCallback(this)));
             } else {
                 log.debug("Probation channel request not allowed");

@@ -17,8 +17,6 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import java.util.Optional;
@@ -33,8 +31,8 @@ final class ChannelToLimitedChannelAdapter implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return Optional.of(delegate.execute(endpoint, request));
+    public Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request) {
+        return Optional.of(request.execute(delegate));
     }
 
     @Override

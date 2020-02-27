@@ -17,8 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 
@@ -28,5 +26,5 @@ import java.util.Optional;
  * {@link Optional optional response}.
  */
 interface LimitedChannel {
-    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
+    Optional<ListenableFuture<Response>> maybeExecute(LimitedRequest request);
 }

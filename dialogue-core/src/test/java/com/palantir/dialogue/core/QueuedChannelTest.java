@@ -22,12 +22,9 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import java.util.Optional;
@@ -49,10 +46,7 @@ public class QueuedChannelTest {
     private LimitedChannel delegate;
 
     @Mock
-    private Endpoint endpoint;
-
-    @Mock
-    private Request request;
+    private LimitedRequest request;
 
     @Mock
     private Response mockResponse;
@@ -73,7 +67,7 @@ public class QueuedChannelTest {
     @Test
     public void testReceivesSuccessfulResponse() throws ExecutionException, InterruptedException {
         ListenableFuture<Response> response =
-                queuedChannel.maybeExecute(endpoint, request).get();
+                queuedChannel.maybeExecute(request).get();
         assertThat(response.isDone()).isFalse();
 
         futureResponse.set(mockResponse);
@@ -85,7 +79,7 @@ public class QueuedChannelTest {
     @Test
     public void testReceivesExceptionalResponse() {
         ListenableFuture<Response> response =
-                queuedChannel.maybeExecute(endpoint, request).get();
+                queuedChannel.maybeExecute(request).get();
         assertThat(response.isDone()).isFalse();
 
         futureResponse.setException(new IllegalArgumentException());
@@ -100,53 +94,53 @@ public class QueuedChannelTest {
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedOnNextSubmission() {
         mockNoCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(2)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(2)).maybeExecute(request);
 
         mockHasCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(4)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(4)).maybeExecute(request);
     }
 
     @Test
     public void testQueuedRequestExecutedOnNextSubmission_throws() throws ExecutionException, InterruptedException {
         // First request is limited by the channel and queued
-        Request queuedRequest = Mockito.mock(Request.class);
-        when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
+        LimitedRequest queuedRequest = Mockito.mock(LimitedRequest.class);
+        when(delegate.maybeExecute(queuedRequest)).thenReturn(Optional.empty());
         ListenableFuture<Response> queuedFuture =
-                queuedChannel.maybeExecute(endpoint, queuedRequest).get();
-        verify(delegate, times(2)).maybeExecute(endpoint, queuedRequest);
+                queuedChannel.maybeExecute(queuedRequest).get();
+        verify(delegate, times(2)).maybeExecute(queuedRequest);
         assertThat(queuedFuture).isNotDone();
 
         // Second request succeeds and the queued request is attempted, but throws an exception
         futureResponse.set(mockResponse);
-        when(delegate.maybeExecute(endpoint, request)).thenReturn(maybeResponse);
-        when(delegate.maybeExecute(endpoint, queuedRequest)).thenThrow(new NullPointerException("expected"));
+        when(delegate.maybeExecute(request)).thenReturn(maybeResponse);
+        when(delegate.maybeExecute(queuedRequest)).thenThrow(new NullPointerException("expected"));
         ListenableFuture<Response> completed =
-                queuedChannel.maybeExecute(endpoint, request).get();
+                queuedChannel.maybeExecute(request).get();
         // Both results should be completed. The thrown exception should
         // be converted into a failed future by NeverThrowLimitedChannel
         assertThat(completed).isDone();
         assertThat(queuedFuture).isDone();
         assertThat(completed.get()).isEqualTo(mockResponse);
         assertThatThrownBy(queuedFuture::get).hasRootCauseMessage("expected");
-        verify(delegate, times(1)).maybeExecute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, queuedRequest);
+        verify(delegate, times(1)).maybeExecute(request);
+        verify(delegate, times(3)).maybeExecute(queuedRequest);
     }
 
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedWhenRunningRequestCompletes() {
         mockHasCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(1)).maybeExecute(request);
 
         mockNoCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(3)).maybeExecute(request);
         futureResponse.set(mockResponse);
 
-        verify(delegate, times(4)).maybeExecute(endpoint, request);
+        verify(delegate, times(4)).maybeExecute(request);
     }
 
     @Test
@@ -154,17 +148,17 @@ public class QueuedChannelTest {
     public void testQueueTracing() {
         // Put requests on queue
         mockNoCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(3)).maybeExecute(request);
 
         // flush queue by completing a request
         mockHasCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(6)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(6)).maybeExecute(request);
         futureResponse.set(mockResponse);
 
-        verify(delegate, times(6)).maybeExecute(endpoint, request);
+        verify(delegate, times(6)).maybeExecute(request);
     }
 
     @Test
@@ -173,78 +167,75 @@ public class QueuedChannelTest {
         queuedChannel = new QueuedChannel(delegate, 1);
 
         mockNoCapacity();
-        queuedChannel.maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
 
-        assertThat(queuedChannel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(queuedChannel.maybeExecute(request)).isEmpty();
     }
 
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponseClosedOnCancel() {
-        Request queuedRequest =
-                Request.builder().pathParams(ImmutableMap.of("foo", "bar")).build();
-        when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
+        LimitedRequest queuedRequest = _channel -> Futures.immediateFailedFuture(new RuntimeException());
+        when(delegate.maybeExecute(queuedRequest)).thenReturn(Optional.empty());
         ListenableFuture<Response> result =
-                queuedChannel.maybeExecute(endpoint, queuedRequest).get();
-        verify(delegate, times(2)).maybeExecute(endpoint, queuedRequest);
+                queuedChannel.maybeExecute(queuedRequest).get();
+        verify(delegate, times(2)).maybeExecute(queuedRequest);
 
-        when(delegate.maybeExecute(endpoint, request))
+        when(delegate.maybeExecute(request))
                 .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
-        when(delegate.maybeExecute(endpoint, queuedRequest))
+        when(delegate.maybeExecute(queuedRequest))
                 .thenAnswer((Answer<Optional<ListenableFuture<Response>>>) _invocation -> {
                     // cancel from this invocation to simulate the race between cancellation and execution
                     assertThat(result.cancel(true)).isTrue();
                     return Optional.of(Futures.immediateFuture(mockResponse));
                 });
         // Force scheduling
-        queuedChannel.maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
         assertThat(result).isCancelled();
-        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        verify(delegate, times(1)).maybeExecute(request);
         verify(mockResponse, times(1)).close();
     }
 
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponsePropagatesCancel() {
-        Request queued = Request.builder().putHeaderParams("key", "val").build();
-        when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
-        ListenableFuture<Response> result =
-                queuedChannel.maybeExecute(endpoint, queued).get();
-        verify(delegate, times(2)).maybeExecute(endpoint, queued);
+        LimitedRequest queued = _channel -> Futures.immediateFailedFuture(new RuntimeException());
+        when(delegate.maybeExecute(queued)).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = queuedChannel.maybeExecute(queued).get();
+        verify(delegate, times(2)).maybeExecute(queued);
 
-        when(delegate.maybeExecute(endpoint, request))
+        when(delegate.maybeExecute(request))
                 .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
-        when(delegate.maybeExecute(endpoint, queued)).thenReturn(maybeResponse);
-        queuedChannel.maybeExecute(endpoint, request);
+        when(delegate.maybeExecute(queued)).thenReturn(maybeResponse);
+        queuedChannel.maybeExecute(request);
         result.cancel(true);
         assertThat(futureResponse).isCancelled();
-        verify(delegate, times(1)).maybeExecute(endpoint, request);
-        verify(delegate, times(3)).maybeExecute(endpoint, queued);
+        verify(delegate, times(1)).maybeExecute(request);
+        verify(delegate, times(3)).maybeExecute(queued);
     }
 
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponseAvoidsExecutingCancelled() {
-        Request queued = Request.builder().putHeaderParams("key", "val").build();
-        when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
-        ListenableFuture<Response> result =
-                queuedChannel.maybeExecute(endpoint, queued).get();
-        verify(delegate, times(2)).maybeExecute(endpoint, queued);
+        LimitedRequest queued = _channel -> Futures.immediateFailedFuture(new RuntimeException());
+        when(delegate.maybeExecute(queued)).thenReturn(Optional.empty());
+        ListenableFuture<Response> result = queuedChannel.maybeExecute(queued).get();
+        verify(delegate, times(2)).maybeExecute(queued);
 
         assertThat(result.cancel(true)).isTrue();
-        when(delegate.maybeExecute(endpoint, request))
+        when(delegate.maybeExecute(request))
                 .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))));
-        queuedChannel.maybeExecute(endpoint, request);
-        verify(delegate, times(1)).maybeExecute(endpoint, request);
+        queuedChannel.maybeExecute(request);
+        verify(delegate, times(1)).maybeExecute(request);
         // Should not have been invoked any more.
-        verify(delegate, times(2)).maybeExecute(endpoint, queued);
+        verify(delegate, times(2)).maybeExecute(queued);
     }
 
     private OngoingStubbing<Optional<ListenableFuture<Response>>> mockHasCapacity() {
-        return when(delegate.maybeExecute(endpoint, request)).thenReturn(maybeResponse);
+        return when(delegate.maybeExecute(request)).thenReturn(maybeResponse);
     }
 
     private OngoingStubbing<Optional<ListenableFuture<Response>>> mockNoCapacity() {
-        return when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.empty());
+        return when(delegate.maybeExecute(request)).thenReturn(Optional.empty());
     }
 }
