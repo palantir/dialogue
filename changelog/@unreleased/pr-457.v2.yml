@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Each closeable apache client now exposes methods which reveal statistics
+    about the connection pool.
+  links:
+  - https://github.com/palantir/dialogue/pull/457
