@@ -20,11 +20,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.CharStreams;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -57,11 +57,7 @@ public enum DefaultErrorDecoder implements ErrorDecoder {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
                 return new RemoteException(serializableError, response.code());
             } catch (Exception e) {
-                throw new SafeRuntimeException(
-                        "Failed to deserialize response body as JSON, could not deserialize SerializableError",
-                        e,
-                        SafeArg.of("code", response.code()),
-                        UnsafeArg.of("body", body));
+                throw new UnknownRemoteException(response.code(), body);
             }
         }
 
