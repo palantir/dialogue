@@ -28,6 +28,7 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import org.junit.Test;
 
@@ -48,6 +49,19 @@ public class RemoteExceptionsTest {
         assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
                 .isInstanceOf(RemoteException.class)
                 .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode());
+    }
+
+    @Test
+    public void testUnknownRemoteException() {
+        UnknownRemoteException remoteException = new UnknownRemoteException(502, "Nginx broke");
+        ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
+
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasMessage("Error 502. (Failed to parse response body as SerializableError.)")
+                .satisfies(exception -> {
+                    assertThat(((UnknownRemoteException) exception).getBody()).isEqualTo("Nginx broke");
+                });
     }
 
     @Test

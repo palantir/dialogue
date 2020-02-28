@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
+import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,12 +29,12 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -97,24 +98,42 @@ public final class DefaultErrorDecoderTest {
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
         assertThatThrownBy(() -> decoder.decode(response(500, "text/plain", SERIALIZED_EXCEPTION)))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Failed to interpret response body as SerializableError: {code=500}");
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
     }
 
     @Test
     public void doesNotHandleUnparseableBody() {
-        assertThatThrownBy(() -> decoder.decode(response(500, "application/json/", "not json")))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessageStartingWith("Failed to interpret response body as SerializableError:");
+        try {
+            decoder.decode(response(500, "application/json/", "not json"));
+            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
+        } catch (UnknownRemoteException expected) {
+            assertThat(expected.getStatus()).isEqualTo(500);
+            assertThat(expected.getBody()).isEqualTo("not json");
+            assertThat(expected.getMessage())
+                    .isEqualTo("Error 500. (Failed to parse response body as SerializableError.)");
+        }
     }
 
     @Test
     @SuppressWarnings("NullAway") // intentionally testing null body
     public void doesNotHandleNullBody() {
         assertThatThrownBy(() -> decoder.decode(response(500, "application/json", null)))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessageStartingWith(
-                        "Failed to deserialize response body as JSON, could not deserialize SerializableError:");
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
+    }
+
+    @Test
+    public void handlesUnexpectedJson() {
+        try {
+            decoder.decode(response(502, "application/json", "{\"error\":\"some-unknown-json\"}"));
+            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
+        } catch (UnknownRemoteException expected) {
+            assertThat(expected.getStatus()).isEqualTo(502);
+            assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
+            assertThat(expected.getMessage())
+                    .isEqualTo("Error 502. (Failed to parse response body as SerializableError.)");
+        }
     }
 
     private static RemoteException encodeAndDecode(Exception exception) {

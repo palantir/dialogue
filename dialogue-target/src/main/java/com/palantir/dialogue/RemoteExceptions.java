@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
@@ -50,6 +51,10 @@ public final class RemoteExceptions {
                 throw newRemoteException((RemoteException) cause);
             }
 
+            if (cause instanceof UnknownRemoteException) {
+                throw newUnknownRemoteException((UnknownRemoteException) cause);
+            }
+
             // This matches the behavior in Futures.getUnchecked(Future)
             if (cause instanceof Error) {
                 throw new ExecutionError(message, (Error) cause);
@@ -63,6 +68,12 @@ public final class RemoteExceptions {
     private static RemoteException newRemoteException(RemoteException remoteException) {
         RemoteException newException = new RemoteException(remoteException.getError(), remoteException.getStatus());
         newException.initCause(remoteException);
+        return newException;
+    }
+
+    private static UnknownRemoteException newUnknownRemoteException(UnknownRemoteException cause) {
+        UnknownRemoteException newException = new UnknownRemoteException(cause.getStatus(), cause.getBody());
+        newException.initCause(cause);
         return newException;
     }
 }

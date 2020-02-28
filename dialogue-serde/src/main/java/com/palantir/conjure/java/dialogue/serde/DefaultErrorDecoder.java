@@ -20,12 +20,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.CharStreams;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
+import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.UnsafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -44,29 +42,26 @@ public enum DefaultErrorDecoder implements ErrorDecoder {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
+        String body;
+        try {
+            body = toString(response.body());
+        } catch (NullPointerException | IOException e) {
+            UnknownRemoteException exception = new UnknownRemoteException(response.code(), "<unparseable>");
+            exception.initCause(e);
+            throw exception;
+        }
+
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (contentType.isPresent() && contentType.get().equals("application/json")) {
-            final String body;
-            try {
-                body = toString(response.body());
-            } catch (NullPointerException | IOException e) {
-                throw new SafeRuntimeException(
-                        "Failed to read response body, could not deserialize SerializableError", e);
-            }
             try {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
                 return new RemoteException(serializableError, response.code());
             } catch (Exception e) {
-                throw new SafeRuntimeException(
-                        "Failed to deserialize response body as JSON, could not deserialize SerializableError",
-                        e,
-                        SafeArg.of("code", response.code()),
-                        UnsafeArg.of("body", body));
+                throw new UnknownRemoteException(response.code(), body);
             }
         }
 
-        throw new SafeRuntimeException(
-                "Failed to interpret response body as SerializableError", SafeArg.of("code", response.code()));
+        throw new UnknownRemoteException(response.code(), body);
     }
 
     private static String toString(InputStream body) throws IOException {
