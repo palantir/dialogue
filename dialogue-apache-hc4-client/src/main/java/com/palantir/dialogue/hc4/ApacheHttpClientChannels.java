@@ -15,9 +15,6 @@
  */
 package com.palantir.dialogue.hc4;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
@@ -30,8 +27,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import com.palantir.tritium.metrics.registry.MetricName;
-import com.palantir.tritium.metrics.registry.TaggedMetricSet;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -76,6 +71,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
+import org.apache.http.pool.PoolStats;
 import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -173,22 +169,13 @@ public final class ApacheHttpClientChannels {
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
-    public static final class CloseableClient implements Closeable, TaggedMetricSet {
+    public static final class CloseableClient implements Closeable {
         private final CloseableHttpClient client;
-        private final ImmutableMap<MetricName, Metric> metrics;
+        private final PoolingHttpClientConnectionManager connectionManager;
 
         CloseableClient(CloseableHttpClient client, PoolingHttpClientConnectionManager connectionManager) {
             this.client = client;
-
-            Gauge<Integer> routes = () -> connectionManager.getRoutes().size();
-            Gauge<Integer> available = () -> connectionManager.getTotalStats().getAvailable();
-            Gauge<Integer> leased = () -> connectionManager.getTotalStats().getLeased();
-            this.metrics = ImmutableMap.<MetricName, Metric>builder()
-                    .put(MetricName.builder().safeName("routes").build(), routes)
-                    .put(MetricName.builder().safeName("available").build(), available)
-                    .put(MetricName.builder().safeName("leased").build(), leased)
-                    //  PoolStats also has 'max' and 'pending', but we use Integer.MAX_VALUE
-                    .build();
+            this.connectionManager = connectionManager;
         }
 
         @Override
@@ -201,9 +188,12 @@ public final class ApacheHttpClientChannels {
             return "CloseableClient{client=" + client + '}';
         }
 
-        @Override
-        public Map<MetricName, Metric> getMetrics() {
-            return metrics;
+        public PoolStats getPoolStats() {
+            return connectionManager.getTotalStats();
+        }
+
+        public int getNumRoutes() {
+            return connectionManager.getRoutes().size();
         }
     }
 

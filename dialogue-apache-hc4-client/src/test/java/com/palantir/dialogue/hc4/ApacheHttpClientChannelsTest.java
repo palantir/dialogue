@@ -18,8 +18,6 @@ package com.palantir.dialogue.hc4;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.codahale.metrics.Gauge;
-import com.codahale.metrics.Metric;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -31,7 +29,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.UrlBuilder;
-import com.palantir.tritium.metrics.registry.MetricName;
 import java.net.UnknownHostException;
 import java.util.Map;
 import org.junit.Test;
@@ -66,30 +63,20 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     public void metrics() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://unused");
 
-        Channel channel;
-        Map<MetricName, Metric> metrics;
         try (ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
 
-            channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
+            Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
             ListenableFuture<Response> response =
                     channel.execute(new TestEndpoint(), Request.builder().build());
             assertThat(Futures.getUnchecked(response).code()).isEqualTo(200);
 
-            metrics = client.getMetrics();
-            assertThat(getGauge(metrics, "routes")).describedAs("routes").isEqualTo(1);
-            assertThat(getGauge(metrics, "available")).describedAs("available").isEqualTo(0);
-            assertThat(getGauge(metrics, "leased")).describedAs("leased").isEqualTo(1);
+            assertThat(client.getNumRoutes()).describedAs("routes").isEqualTo(1);
+            assertThat(client.getPoolStats().getAvailable())
+                    .describedAs("available")
+                    .isEqualTo(0);
+            assertThat(client.getPoolStats().getLeased()).describedAs("leased").isEqualTo(1);
         }
-        assertThat(getGauge(metrics, "leased"))
-                .describedAs("number of leased connections after client closed is 0")
-                .isEqualTo(0);
-    }
-
-    private Integer getGauge(Map<MetricName, Metric> metrics, String metricName) {
-        Gauge<Integer> gauge = (Gauge<Integer>)
-                metrics.get(MetricName.builder().safeName(metricName).build());
-        return gauge.getValue();
     }
 
     private static final class TestEndpoint implements Endpoint {
