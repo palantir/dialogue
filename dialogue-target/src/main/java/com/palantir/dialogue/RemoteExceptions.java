@@ -66,6 +66,8 @@ public final class RemoteExceptions {
                 if (future instanceof ListenableFuture) {
                     ListenableFuture<T> listenable = (ListenableFuture<T>) future;
                     Futures.addCallback(listenable, CancelListener.INSTANCE, MoreExecutors.directExecutor());
+                } else {
+                    log.warn("Unable to ensure result of non-listenable future is closed");
                 }
             }
             throw new SafeRuntimeException("Interrupted waiting for future", e);
