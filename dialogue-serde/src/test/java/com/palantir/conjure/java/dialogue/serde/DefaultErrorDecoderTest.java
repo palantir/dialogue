@@ -19,7 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
-import static org.assertj.core.api.Assertions.shouldHaveThrown;
+import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -106,7 +106,7 @@ public final class DefaultErrorDecoderTest {
     public void doesNotHandleUnparseableBody() {
         try {
             decoder.decode(response(500, "application/json/", "not json"));
-            shouldHaveThrown(UnknownRemoteException.class);
+            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
         } catch (UnknownRemoteException expected) {
             assertThat(expected.getStatus()).isEqualTo(500);
             assertThat(expected.getBody()).isEqualTo("not json");
@@ -127,7 +127,7 @@ public final class DefaultErrorDecoderTest {
     public void handlesUnexpectedJson() {
         try {
             decoder.decode(response(502, "application/json", "{\"error\":\"some-unknown-json\"}"));
-            shouldHaveThrown(UnknownRemoteException.class);
+            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
         } catch (UnknownRemoteException expected) {
             assertThat(expected.getStatus()).isEqualTo(502);
             assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
