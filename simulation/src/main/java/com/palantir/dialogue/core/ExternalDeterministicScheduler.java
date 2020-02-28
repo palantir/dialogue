@@ -26,15 +26,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import org.jmock.lib.concurrent.DeterministicScheduler;
 
 final class ExternalDeterministicScheduler implements ListeningScheduledExecutorService {
 
-    private final DeterministicScheduler deterministicExecutor;
+    private final NanosecondPrecisionDeterministicScheduler deterministicExecutor;
     private final ListeningScheduledExecutorService delegate;
     private final TestCaffeineTicker ticker;
 
-    ExternalDeterministicScheduler(DeterministicScheduler deterministicExecutor, TestCaffeineTicker ticker) {
+    ExternalDeterministicScheduler(
+            NanosecondPrecisionDeterministicScheduler deterministicExecutor, TestCaffeineTicker ticker) {
         this.deterministicExecutor = deterministicExecutor;
         this.delegate = MoreExecutors.listeningDecorator(deterministicExecutor);
         this.ticker = ticker;
