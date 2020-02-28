@@ -82,4 +82,16 @@ final class FixedLimitedChannel implements LimitedChannel {
                     SafeArg.of("totalPermits", totalPermits));
         }
     }
+
+    @Override
+    public String toString() {
+        return "FixedLimitedChannel{"
+                + "delegate="
+                + delegate
+                + ", usedPermits="
+                + usedPermits
+                + ", totalPermits="
+                + totalPermits
+                + '}';
+    }
 }

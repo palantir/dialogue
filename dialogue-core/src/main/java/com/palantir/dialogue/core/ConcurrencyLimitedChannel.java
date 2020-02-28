@@ -94,6 +94,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ConcurrencyLimitedChannel{" + delegate + '}';
+    }
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */

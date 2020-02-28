@@ -203,20 +203,25 @@ public final class Benchmark {
                                         req.number(),
                                         req);
                                 Channel channel = channels[clientIndexChooser.getAsInt()];
-                                ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
-                                requestsStarted[0] += 1;
+                                try {
+                                    ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                    requestsStarted[0] += 1;
 
-                                Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                                future.addListener(
-                                        () -> {
-                                            responsesReceived[0] += 1;
-                                            benchmarkFinished.update(
-                                                    Duration.ofNanos(
-                                                            simulation.clock().read()),
-                                                    requestsStarted[0],
-                                                    responsesReceived[0]);
-                                        },
-                                        MoreExecutors.directExecutor());
+                                    Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                    future.addListener(
+                                            () -> {
+                                                responsesReceived[0] += 1;
+                                                benchmarkFinished.update(
+                                                        Duration.ofNanos(simulation
+                                                                .clock()
+                                                                .read()),
+                                                        requestsStarted[0],
+                                                        responsesReceived[0]);
+                                            },
+                                            MoreExecutors.directExecutor());
+                                } catch (RuntimeException e) {
+                                    log.error("Channels shouldn't throw", e);
+                                }
                             },
                             req.sendTime().toNanos(),
                             TimeUnit.NANOSECONDS);

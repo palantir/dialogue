@@ -44,4 +44,9 @@ final class InstrumentedChannel implements Channel {
         response.addListener(context::stop, MoreExecutors.directExecutor());
         return response;
     }
+
+    @Override
+    public String toString() {
+        return "InstrumentedChannel{" + delegate + '}';
+    }
 }
