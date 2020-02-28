@@ -60,7 +60,6 @@ import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.config.SocketConfig;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.LayeredConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
@@ -111,7 +110,16 @@ public final class ApacheHttpClientChannels {
                         : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
                 new DefaultHostnameVerifier());
 
-        PoolingHttpClientConnectionManager connectionManager = createConnectionManager(sslSocketFactory, socketConfig);
+        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
+                RegistryBuilder.<ConnectionSocketFactory>create()
+                        .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                        .register("https", sslSocketFactory)
+                        .build());
+
+        connectionManager.setDefaultSocketConfig(socketConfig);
+        connectionManager.setMaxTotal(Integer.MAX_VALUE);
+        connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
+
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
@@ -150,22 +158,6 @@ public final class ApacheHttpClientChannels {
         });
 
         return new CloseableClient(builder.build(), connectionManager);
-    }
-
-    private static PoolingHttpClientConnectionManager createConnectionManager(
-            LayeredConnectionSocketFactory sslSocketFactory, SocketConfig socketConfig) {
-
-        PoolingHttpClientConnectionManager poolingmgr = new PoolingHttpClientConnectionManager(
-                RegistryBuilder.<ConnectionSocketFactory>create()
-                        .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                        .register("https", sslSocketFactory)
-                        .build());
-
-        poolingmgr.setDefaultSocketConfig(socketConfig);
-        poolingmgr.setMaxTotal(Integer.MAX_VALUE);
-        poolingmgr.setDefaultMaxPerRoute(Integer.MAX_VALUE);
-
-        return poolingmgr;
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
