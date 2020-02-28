@@ -125,8 +125,8 @@ public final class RemoteExceptions {
         }
 
         @Override
-        public void onFailure(Throwable t) {
-            log.info("Canceled call failed", t);
+        public void onFailure(Throwable throwable) {
+            log.info("Canceled call failed", throwable);
         }
     }
 }
