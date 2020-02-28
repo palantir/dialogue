@@ -67,15 +67,30 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
 
             Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
-            ListenableFuture<Response> response =
+            ListenableFuture<Response> future =
                     channel.execute(new TestEndpoint(), Request.builder().build());
-            assertThat(Futures.getUnchecked(response).code()).isEqualTo(200);
 
-            assertThat(client.getNumRoutes()).describedAs("routes").isEqualTo(1);
+            try (Response response = Futures.getUnchecked(future)) {
+                assertThat(response.code()).isEqualTo(200);
+
+                assertThat(client.getNumRoutes()).describedAs("routes").isEqualTo(1);
+                assertThat(client.getPoolStats().getAvailable())
+                        .describedAs("available")
+                        .isEqualTo(0);
+                assertThat(client.getPoolStats().getLeased())
+                        .describedAs("leased")
+                        .isEqualTo(1);
+            }
+
+            assertThat(client.getNumRoutes())
+                    .describedAs("routes after response closed")
+                    .isEqualTo(1);
             assertThat(client.getPoolStats().getAvailable())
-                    .describedAs("available")
+                    .describedAs("available after response closed")
                     .isEqualTo(0);
-            assertThat(client.getPoolStats().getLeased()).describedAs("leased").isEqualTo(1);
+            assertThat(client.getPoolStats().getLeased())
+                    .describedAs("leased after response closed")
+                    .isEqualTo(0);
         }
     }
 
