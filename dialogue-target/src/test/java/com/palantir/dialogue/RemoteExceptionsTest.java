@@ -18,6 +18,8 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.Futures;
@@ -30,6 +32,8 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
+import java.io.InputStream;
 import org.junit.Test;
 
 public class RemoteExceptionsTest {
@@ -106,6 +110,22 @@ public class RemoteExceptionsTest {
                 .as("getUnchecked should not clear interrupted state")
                 .isTrue();
         assertThat(future).isCancelled();
+    }
+
+    @Test
+    public void testInterruption_resultIsClosed() throws IOException {
+        SettableFuture<Object> future = SettableFuture.create();
+        InputStream responseBody = mock(InputStream.class);
+        future.set(responseBody);
+        Thread.currentThread().interrupt();
+        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(future))
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("Interrupted waiting for future");
+        // Clear interrupted state as well as test.
+        assertThat(Thread.interrupted())
+                .as("getUnchecked should not clear interrupted state")
+                .isTrue();
+        verify(responseBody).close();
     }
 
     private static RemoteException remoteException(ServiceException exception) {
