@@ -35,7 +35,6 @@ import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -99,15 +98,21 @@ public final class DefaultErrorDecoderTest {
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
         assertThatThrownBy(() -> decoder.decode(response(500, "text/plain", SERIALIZED_EXCEPTION)))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Failed to interpret response body as SerializableError: {code=500}");
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
     }
 
     @Test
     public void doesNotHandleUnparseableBody() {
-        assertThatThrownBy(() -> decoder.decode(response(500, "application/json/", "not json")))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessageStartingWith("Failed to interpret response body as SerializableError:");
+        try {
+            decoder.decode(response(500, "application/json/", "not json"));
+            shouldHaveThrown(UnknownRemoteException.class);
+        } catch (UnknownRemoteException expected) {
+            assertThat(expected.getStatus()).isEqualTo(500);
+            assertThat(expected.getBody()).isEqualTo("not json");
+            assertThat(expected.getMessage())
+                    .isEqualTo("Error 500. (Failed to parse response body as SerializableError.)");
+        }
     }
 
     @Test
