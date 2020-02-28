@@ -44,7 +44,7 @@ public final class RemoteExceptions {
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except it propagates
      * {@link RemoteException}s directly, rather than wrapping them in an {@link UncheckedExecutionException}.
      */
-    @SuppressWarnings("deprecated") // match behavior of Futures.getUnchecked(Future)
+    @SuppressWarnings("deprecation") // match behavior of Futures.getUnchecked(Future)
     public static <T> T getUnchecked(ListenableFuture<T> future) {
         return getUnchecked((Future<T>) future);
     }
@@ -67,7 +67,7 @@ public final class RemoteExceptions {
                     ListenableFuture<T> listenable = (ListenableFuture<T>) future;
                     Futures.addCallback(listenable, CancelListener.INSTANCE, MoreExecutors.directExecutor());
                 } else {
-                    log.warn("Unable to ensure result of non-listenable future is closed");
+                    log.warn("Unable to ensure result of non-listenable future is closed", e);
                 }
             }
             throw new SafeRuntimeException("Interrupted waiting for future", e);
