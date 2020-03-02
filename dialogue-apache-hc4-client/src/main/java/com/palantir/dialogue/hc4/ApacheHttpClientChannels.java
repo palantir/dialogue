@@ -120,14 +120,13 @@ public final class ApacheHttpClientChannels {
                 .disableCookieManagement()
                 // Dialogue handles content-compression with ContentDecodingChannel
                 .disableContentCompression()
-                .setSSLSocketFactory(
-                        new SSLConnectionSocketFactory(
-                                conf.sslSocketFactory(),
-                                new String[] {"TLSv1.2"},
-                                conf.enableGcmCipherSuites()
-                                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
-                                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
-                                new DefaultHostnameVerifier()))
+                .setSSLSocketFactory(new SSLConnectionSocketFactory(
+                        conf.sslSocketFactory(),
+                        new String[] {"TLSv1.2"},
+                        conf.enableGcmCipherSuites()
+                                ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
+                                : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
+                        new DefaultHostnameVerifier()))
                 .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                 .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                 .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
