@@ -56,8 +56,8 @@ final class RetryingChannel implements Channel {
      * edge case where services are already operating in a degraded state and we should not
      * spam servers.
      */
-    static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
-            () -> MoreExecutors.listeningDecorator(Tracers.wrap(
+    static final Supplier<ListeningScheduledExecutorService> sharedScheduler =
+            Suppliers.memoize(() -> MoreExecutors.listeningDecorator(Tracers.wrap(
                     "dialogue-RetryingChannel-scheduler",
                     Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
                             .setNameFormat("dialogue-RetryingChannel-scheduler-%d")
@@ -78,8 +78,14 @@ final class RetryingChannel implements Channel {
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
-        this(delegate, maxRetries, backoffSlotSize, serverQoS, retryOnTimeout, sharedScheduler.get(), () ->
-                ThreadLocalRandom.current().nextDouble());
+        this(
+                delegate,
+                maxRetries,
+                backoffSlotSize,
+                serverQoS,
+                retryOnTimeout,
+                sharedScheduler.get(),
+                () -> ThreadLocalRandom.current().nextDouble());
     }
 
     RetryingChannel(
