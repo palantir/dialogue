@@ -29,4 +29,7 @@ public interface ConjureRuntime {
 
     /** Provides the {@link PlainSerDe} used to parse request path, query, and header parameters. */
     PlainSerDe plainSerDe();
+
+    /** Provides the {@link Clients} used to facilitate making requests. */
+    Clients clients();
 }
