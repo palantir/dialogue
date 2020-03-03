@@ -1,0 +1,30 @@
+types:
+  definitions:
+    default-package: com.palantir.dialogue.example
+    objects:
+      SampleObject:
+        fields:
+          intProperty: integer
+
+services:
+  SampleService:
+    name: Sample Service
+    package: com.palantir.dialogue.example
+    default-auth: none
+    endpoints:
+      voidToVoid:
+        http: GET /void
+      objectToObject:
+        http: PUT /object/{path}
+        args:
+          path: string
+          header:
+            param-id: Header
+            type: datetime
+            param-type: header
+          query:
+            type: list<rid>
+            param-type: query
+          body: SampleObject
+        returns: SampleObject
+

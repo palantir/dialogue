@@ -8,6 +8,7 @@
 .node
 /build/
 */build/
+*/*/build
 examples/*/build/
 extras/*/build/
 bin

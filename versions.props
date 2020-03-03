@@ -16,6 +16,7 @@ com.uber.nullaway:nullaway = 0.7.9
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.8.3
 org.slf4j:* = 1.7.30
+com.palantir.conjure:conjure = 4.10.1
 
 # test deps
 junit:junit = 4.12
