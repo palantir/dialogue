@@ -135,15 +135,14 @@ public final class SampleServiceClient {
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
                 return runtime.clients()
-                        .blocking(runtime.clients()
+                        .block(runtime.clients()
                                 .call(channel, STRING_TO_STRING, request, sampleObjectToSampleObjectDeserializer));
             }
 
             @Override
             public void voidToVoid() {
                 Request request = Request.builder().build();
-                runtime.clients()
-                        .blocking(runtime.clients().call(channel, VOID_TO_VOID, request, voidToVoidDeserializer));
+                runtime.clients().block(runtime.clients().call(channel, VOID_TO_VOID, request, voidToVoidDeserializer));
             }
         };
     }

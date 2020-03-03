@@ -38,7 +38,7 @@ enum DefaultClients implements Clients {
     }
 
     @Override
-    public <T> T blocking(ListenableFuture<T> future) {
+    public <T> T block(ListenableFuture<T> future) {
         // TODO(ckozak): remove RemoteExceptions from the codegen target module.
         return RemoteExceptions.getUnchecked(future);
     }

@@ -34,5 +34,5 @@ public interface Clients {
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
      * for conjure exceptions and cancellation on interruption.
      */
-    <T> T blocking(ListenableFuture<T> future);
+    <T> T block(ListenableFuture<T> future);
 }
