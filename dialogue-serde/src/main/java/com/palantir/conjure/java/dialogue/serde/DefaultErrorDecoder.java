@@ -52,7 +52,7 @@ public enum DefaultErrorDecoder implements ErrorDecoder {
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (contentType.isPresent() && contentType.get().equals("application/json")) {
+        if (contentType.isPresent() && contentType.get().startsWith("application/json")) {
             try {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
                 return new RemoteException(serializableError, response.code());
