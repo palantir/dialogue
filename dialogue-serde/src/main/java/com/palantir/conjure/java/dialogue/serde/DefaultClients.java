@@ -26,6 +26,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.RemoteExceptions;
 import com.palantir.dialogue.Request;
 
+/** Package private internal API. */
 enum DefaultClients implements Clients {
     INSTANCE;
 
