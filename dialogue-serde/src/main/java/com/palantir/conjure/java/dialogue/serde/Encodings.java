@@ -29,6 +29,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import javax.annotation.Nullable;
 
 // TODO(rfink): Consider async Jackson, see
 //              https://github.com/spring-projects/spring-framework/commit/31e0e537500c0763a36d3af2570d5c253a374690
@@ -92,10 +93,7 @@ public final class Encodings {
 
             @Override
             public boolean supportsContentType(String contentType) {
-                // TODO(ckozak): support wildcards? See javax.ws.rs.core.MediaType.isCompatible
-                return contentType != null
-                        // Use startsWith to avoid failures due to charset
-                        && contentType.startsWith(CONTENT_TYPE);
+                return matchesContentType(CONTENT_TYPE, contentType);
             }
         };
     }
@@ -112,7 +110,7 @@ public final class Encodings {
 
             @Override
             public boolean supportsContentType(String contentType) {
-                return contentType != null && contentType.startsWith(CONTENT_TYPE);
+                return matchesContentType(CONTENT_TYPE, contentType);
             }
 
             @Override
@@ -121,6 +119,13 @@ public final class Encodings {
                 return (value, output) -> delegate.serialize(value, new ShieldingOutputStream(output));
             }
         };
+    }
+
+    static boolean matchesContentType(String contentType, @Nullable String typeToCheck) {
+        // TODO(ckozak): support wildcards? See javax.ws.rs.core.MediaType.isCompatible
+        return typeToCheck != null
+                // Use startsWith to avoid failures due to charset
+                && typeToCheck.startsWith(contentType);
     }
 
     private static ObjectMapper configure(ObjectMapper mapper) {
