@@ -13,16 +13,16 @@ services:
     default-auth: none
     endpoints:
       voidToVoid:
-        http: GET /void
+        http: GET /voidToVoid
       objectToObject:
-        http: PUT /object/{path}
+        http: POST /objectToObject/objects/{path}
         args:
           path: string
           header:
-            param-id: Header
+            param-id: HeaderKey
             type: datetime
             param-type: header
-          query:
+          queryKey:
             type: list<rid>
             param-type: query
           body: SampleObject

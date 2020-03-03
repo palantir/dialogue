@@ -109,7 +109,7 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testBlocking_stringToString_expectedCase() throws Exception {
+    public void testBlocking_objectToObject_expectedCase() throws Exception {
         server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
 
         assertThat(blockingClient.objectToObject(HEADER, PATH, QUERY, BODY)).isEqualTo(RESPONSE);
@@ -121,20 +121,20 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testBlocking_stringToString_nullRequestBody() {
+    public void testBlocking_objectToObject_nullRequestBody() {
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, null))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("body parameter must not be null");
+                .hasMessage("cannot serialize null value");
     }
 
     @Test
-    public void testAsync_stringToString_expectedCase() throws Exception {
+    public void testAsync_objectToObject_expectedCase() throws Exception {
         server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThat(asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get()).isEqualTo(RESPONSE);
     }
 
     @Test
-    public void testBlocking_stringToString_throwsWhenResponseBodyIsEmpty() {
+    public void testBlocking_objectToObject_throwsWhenResponseBodyIsEmpty() {
         server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
@@ -154,7 +154,7 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testAsync_stringToString_throwsWhenResponseBodyIsEmpty() {
+    public void testAsync_objectToObject_throwsWhenResponseBodyIsEmpty() {
         server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() ->
                         asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get())
@@ -162,11 +162,11 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testAsync_stringToString_nullRequestBody() {
+    public void testAsync_objectToObject_nullRequestBody() {
         assertThatThrownBy(() ->
                         asyncClient.objectToObject(HEADER, PATH, QUERY, null).get())
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("body parameter must not be null");
+                .hasMessage("cannot serialize null value");
     }
 
     @Test
