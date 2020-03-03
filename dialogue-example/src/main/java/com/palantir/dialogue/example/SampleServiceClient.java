@@ -16,9 +16,7 @@
 
 package com.palantir.dialogue.example;
 
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
@@ -26,9 +24,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.PlainSerDe;
-import com.palantir.dialogue.RemoteExceptions;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
@@ -138,25 +134,14 @@ public final class SampleServiceClient {
                         .putAllQueryParams("queryKey", plainSerDe.serializeRidList(query))
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
-
-                ListenableFuture<Response> call = channel.execute(STRING_TO_STRING, request);
-                ListenableFuture<SampleObject> response = Futures.transform(
-                        call,
-                        r -> sampleObjectToSampleObjectDeserializer.deserialize(r),
-                        MoreExecutors.directExecutor());
-
-                return RemoteExceptions.getUnchecked(response);
+                return runtime.clients()
+                        .blocking(channel, STRING_TO_STRING, request, sampleObjectToSampleObjectDeserializer);
             }
 
             @Override
             public void voidToVoid() {
                 Request request = Request.builder().build();
-
-                ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
-                ListenableFuture<Void> response = Futures.transform(
-                        call, r -> voidToVoidDeserializer.deserialize(r), MoreExecutors.directExecutor());
-
-                RemoteExceptions.getUnchecked(response);
+                runtime.clients().blocking(channel, VOID_TO_VOID, request, voidToVoidDeserializer);
             }
         };
     }
@@ -188,21 +173,14 @@ public final class SampleServiceClient {
                         .putAllQueryParams("queryKey", plainSerDe.serializeRidList(query))
                         .body(sampleObjectToSampleObjectSerializer.serialize(body))
                         .build();
-
-                ListenableFuture<Response> call = channel.execute(STRING_TO_STRING, request);
-                return Futures.transform(
-                        call,
-                        response -> sampleObjectToSampleObjectDeserializer.deserialize(response),
-                        MoreExecutors.directExecutor());
+                return runtime.clients()
+                        .call(channel, STRING_TO_STRING, request, sampleObjectToSampleObjectDeserializer);
             }
 
             @Override
             public ListenableFuture<Void> voidToVoid() {
                 Request request = Request.builder().build();
-
-                ListenableFuture<Response> call = channel.execute(VOID_TO_VOID, request);
-                return Futures.transform(
-                        call, response -> voidToVoidDeserializer.deserialize(response), MoreExecutors.directExecutor());
+                return runtime.clients().call(channel, VOID_TO_VOID, request, voidToVoidDeserializer);
             }
         };
     }
