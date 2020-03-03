@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
@@ -50,7 +49,7 @@ public final class DefaultClientsTest {
     private Deserializer<String> deserializer;
 
     @Test
-    public void testAsync() throws ExecutionException, InterruptedException {
+    public void testCall() throws ExecutionException, InterruptedException {
         Request request = Request.builder().build();
         when(deserializer.deserialize(eq(response))).thenReturn("value");
         SettableFuture<Response> responseFuture = SettableFuture.create();
@@ -60,14 +59,5 @@ public final class DefaultClientsTest {
         responseFuture.set(response);
         assertThat(result).isDone();
         assertThat(result.get()).isEqualTo("value");
-    }
-
-    @Test
-    public void testBlocking() {
-        Request request = Request.builder().build();
-        when(deserializer.deserialize(eq(response))).thenReturn("value");
-        when(channel.execute(eq(endpoint), eq(request))).thenReturn(Futures.immediateFuture(response));
-        assertThat(DefaultClients.INSTANCE.blocking(channel, endpoint, request, deserializer))
-                .isEqualTo("value");
     }
 }

@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import java.util.concurrent.Future;
 
 /**
  * Provides functionality for generated code to make both blocking and asynchronous calls without
@@ -30,10 +31,8 @@ public interface Clients {
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
     /**
-     * Semantics match {@link #call(Channel, Endpoint, Request, Deserializer)} but also blocks until
-     * the {@link ListenableFuture} has completed for blocking clients.
-     * This approach is used instead of using a separate method to block on a single future to simplify
-     * otherwise redundant generated code.
+     * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
+     * for conjure exceptions and cancellation on interruption.
      */
-    <T> T blocking(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
+    <T> T blocking(ListenableFuture<T> future);
 }

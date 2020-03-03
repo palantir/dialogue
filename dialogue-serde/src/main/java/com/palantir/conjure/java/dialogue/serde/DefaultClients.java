@@ -38,8 +38,8 @@ enum DefaultClients implements Clients {
     }
 
     @Override
-    public <T> T blocking(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
-        ListenableFuture<T> call = call(channel, endpoint, request, deserializer);
-        return RemoteExceptions.getUnchecked(call);
+    public <T> T blocking(ListenableFuture<T> future) {
+        // TODO(ckozak): remove RemoteExceptions from the codegen target module.
+        return RemoteExceptions.getUnchecked(future);
     }
 }
