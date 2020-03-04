@@ -37,8 +37,6 @@ import javax.annotation.Nullable;
 
 public final class Channels {
 
-    private static final int MAX_REQUESTS_PER_CHANNEL = 256;
-
     private Channels() {}
 
     public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
@@ -104,7 +102,6 @@ public final class Channels {
                     .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
                     .map(ChannelToLimitedChannelAdapter::new)
                     .map(channel -> concurrencyLimiter(conf, channel, clientMetrics, clock))
-                    .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
                     .collect(ImmutableList.toImmutableList());
 
             LimitedChannel nodeSelectionStrategy = nodeSelectionStrategy(conf, limitedChannels, taggedMetrics, random);
