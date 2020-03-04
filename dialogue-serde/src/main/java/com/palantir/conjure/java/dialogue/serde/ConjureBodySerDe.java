@@ -34,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
@@ -74,13 +75,8 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
-    @SuppressWarnings("NullAway") // empty body is a special case
     public Deserializer<Void> emptyBodyDeserializer() {
-        return input -> {
-            // We should not fail if a server that previously returned nothing starts returning a response
-            input.close();
-            return null;
-        };
+        return EmptyBodyDeserializer.INSTANCE;
     }
 
     @Override
@@ -154,12 +150,16 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
+        private final Optional<String> acceptValue;
 
         EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
+            // Encodings are applied to the accept header in the order of preference based on the provided list.
+            this.acceptValue =
+                    Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
         }
 
         @Override
@@ -175,6 +175,11 @@ final class ConjureBodySerDe implements BodySerDe {
             } finally {
                 response.close();
             }
+        }
+
+        @Override
+        public Optional<String> accepts() {
+            return acceptValue;
         }
 
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
@@ -202,6 +207,23 @@ final class ConjureBodySerDe implements BodySerDe {
         EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
             this.encoding = encoding;
             this.deserializer = encoding.deserializer(token);
+        }
+    }
+
+    private enum EmptyBodyDeserializer implements Deserializer<Void> {
+        INSTANCE;
+
+        @Override
+        @SuppressWarnings("NullAway") // empty body is a special case
+        public Void deserialize(Response response) {
+            // We should not fail if a server that previously returned nothing starts returning a response
+            response.close();
+            return null;
+        }
+
+        @Override
+        public Optional<String> accepts() {
+            return Optional.empty();
         }
     }
 }

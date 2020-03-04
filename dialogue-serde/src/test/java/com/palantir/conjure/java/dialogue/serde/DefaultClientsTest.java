@@ -17,9 +17,13 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.net.HttpHeaders;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
@@ -27,9 +31,12 @@ import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
@@ -48,6 +55,9 @@ public final class DefaultClientsTest {
     @Mock
     private Deserializer<String> deserializer;
 
+    @Captor
+    private ArgumentCaptor<Request> requestCaptor;
+
     @Test
     public void testCall() throws ExecutionException, InterruptedException {
         Request request = Request.builder().build();
@@ -59,5 +69,20 @@ public final class DefaultClientsTest {
         responseFuture.set(response);
         assertThat(result).isDone();
         assertThat(result.get()).isEqualTo("value");
+    }
+
+    @Test
+    public void testAddsAcceptHeader() throws ExecutionException, InterruptedException {
+        Request request = Request.builder().build();
+        when(deserializer.deserialize(eq(response))).thenReturn("value");
+        String expectedAccept = "application/json";
+        when(deserializer.accepts()).thenReturn(Optional.of(expectedAccept));
+        when(channel.execute(eq(endpoint), any())).thenReturn(Futures.immediateFuture(response));
+        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+        assertThat(result).isDone();
+        assertThat(result.get()).isEqualTo("value");
+        verify(channel).execute(eq(endpoint), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().headerParams().get(HttpHeaders.ACCEPT))
+                .containsExactly(expectedAccept);
     }
 }
