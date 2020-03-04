@@ -113,6 +113,23 @@ public final class Encodings {
         };
     }
 
+    /** Returns a serializer for the Conjure Smile wire format. */
+    public static Encoding smile() {
+        return new AbstractJacksonEncoding(configure(ObjectMappers.newSmileClientObjectMapper())) {
+            private static final String CONTENT_TYPE = "application/x-jackson-smile";
+
+            @Override
+            public String getContentType() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public boolean supportsContentType(String contentType) {
+                return matchesContentType(CONTENT_TYPE, contentType);
+            }
+        };
+    }
+
     static boolean matchesContentType(String contentType, @Nullable String typeToCheck) {
         // TODO(ckozak): support wildcards? See javax.ws.rs.core.MediaType.isCompatible
         return typeToCheck != null

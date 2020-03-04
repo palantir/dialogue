@@ -36,7 +36,9 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 // TODO(rfink): The default thing here is a little odd
-                builder.encodings.isEmpty() ? ImmutableList.of(Encodings.json(), Encodings.cbor()) : builder.encodings);
+                builder.encodings.isEmpty()
+                        ? ImmutableList.of(Encodings.json(), Encodings.smile(), Encodings.cbor())
+                        : builder.encodings);
     }
 
     public static Builder builder() {
