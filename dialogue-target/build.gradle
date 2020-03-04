@@ -9,7 +9,7 @@ dependencies {
     compile 'com.palantir.tokens:auth-tokens'
     compile 'org.slf4j:slf4j-api'
 
-    testCompile 'javax.ws.rs:javax.ws.rs-api'
+    testCompile 'jakarta.ws.rs:jakarta.ws.rs-api'
     testCompile 'junit:junit'
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.immutables:value::annotations'
