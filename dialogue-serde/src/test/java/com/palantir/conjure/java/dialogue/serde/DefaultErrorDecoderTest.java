@@ -136,6 +136,18 @@ public final class DefaultErrorDecoderTest {
         }
     }
 
+    @Test
+    public void handlesJsonWithEncoding() {
+        int code = 500;
+        RemoteException exception =
+                decoder.decode(response(code, "application/json; charset=utf-8", SERIALIZED_EXCEPTION));
+        assertThat(exception.getCause()).isNull();
+        assertThat(exception.getStatus()).isEqualTo(code);
+        assertThat(exception.getError().errorCode())
+                .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
+        assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
+    }
+
     private static RemoteException encodeAndDecode(Exception exception) {
         Preconditions.checkArgument(!(exception instanceof ServiceException), "Use SerializableError#forException");
         Object error = SerializableError.builder()
