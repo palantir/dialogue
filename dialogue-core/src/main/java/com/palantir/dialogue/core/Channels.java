@@ -97,6 +97,7 @@ public final class Channels {
             List<LimitedChannel> limitedChannels = channels.stream()
                     // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
                     .map(channel -> new InstrumentedChannel(channel, clientMetrics))
+                    .map(channel -> new ActiveRequestInstrumentationChannel(channel, "running", clientMetrics))
                     // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
                     .map(TracedRequestChannel::new)
                     .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
@@ -113,6 +114,7 @@ public final class Channels {
             channel = new ContentDecodingChannel(channel);
             channel = new NeverThrowChannel(channel);
             channel = new TracedChannel(channel, "Dialogue-request");
+            channel = new ActiveRequestInstrumentationChannel(channel, "processing", clientMetrics);
 
             return channel;
         }
