@@ -22,7 +22,6 @@ import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.ErrorDecoder;
-import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -48,7 +47,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     /**
      * Selects the first (based on input order) of the provided encodings that
-     * {@link Encoding#supportsContentType supports} the serialization format {@link Headers#ACCEPT accepted}
+     * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
      * by a given request, or the first serializer if no such serializer can be found.
      */
     ConjureBodySerDe(List<Encoding> encodings) {

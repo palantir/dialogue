@@ -15,8 +15,8 @@
  */
 package com.palantir.dialogue.hc4;
 
+import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -143,7 +143,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         RequestBodyEntity(RequestBody requestBody) {
             this.requestBody = requestBody;
-            this.contentType = new BasicHeader(Headers.CONTENT_TYPE, requestBody.contentType());
+            this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
         }
 
         @Override

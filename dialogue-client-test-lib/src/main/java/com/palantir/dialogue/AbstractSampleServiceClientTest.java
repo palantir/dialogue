@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.example.SampleObject;
@@ -110,7 +111,8 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testBlocking_objectToObject_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(
+                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
 
         assertThat(blockingClient.objectToObject(HEADER, PATH, QUERY, BODY)).isEqualTo(RESPONSE);
         RecordedRequest request = server.takeRequest();
@@ -129,13 +131,14 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testAsync_objectToObject_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(
+                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
         assertThat(asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get()).isEqualTo(RESPONSE);
     }
 
     @Test
     public void testBlocking_objectToObject_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to deserialize response stream. Syntax error?");
@@ -155,7 +158,7 @@ public abstract class AbstractSampleServiceClientTest {
 
     @Test
     public void testAsync_objectToObject_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
+        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() ->
                         asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get())
                 .hasMessageContaining("Failed to deserialize response");
@@ -196,7 +199,7 @@ public abstract class AbstractSampleServiceClientTest {
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
-                .addHeader(Headers.CONTENT_TYPE, "application/json")
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
                 .setBodyDelay(10, TimeUnit.SECONDS));
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class);
