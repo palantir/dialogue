@@ -16,9 +16,9 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
 
 public final class OkHttpResponse implements Response {
 
@@ -45,8 +45,12 @@ public final class OkHttpResponse implements Response {
     }
 
     @Override
-    public Map<String, List<String>> headers() {
-        return delegate.headers().toMultimap();
+    public ListMultimap<String, String> headers() {
+        ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                .arrayListValues()
+                .build();
+        delegate.headers().toMultimap().forEach(headers::putAll);
+        return headers;
     }
 
     @Override

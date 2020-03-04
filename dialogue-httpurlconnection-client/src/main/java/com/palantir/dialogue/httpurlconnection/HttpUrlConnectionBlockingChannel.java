@@ -15,6 +15,9 @@
  */
 package com.palantir.dialogue.httpurlconnection;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
@@ -31,8 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.util.List;
-import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import javax.net.ssl.HttpsURLConnection;
 import org.slf4j.Logger;
@@ -125,8 +127,16 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
-            return connection.getHeaderFields();
+        public ListMultimap<String, String> headers() {
+            ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                    .arrayListValues()
+                    .build();
+            connection.getHeaderFields().forEach((headerName, headerValues) -> {
+                if (headerName != null) {
+                    headers.putAll(headerName, Iterables.filter(headerValues, Objects::nonNull));
+                }
+            });
+            return headers;
         }
 
         @Override

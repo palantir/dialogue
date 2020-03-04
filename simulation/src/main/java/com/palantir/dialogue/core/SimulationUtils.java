@@ -16,8 +16,9 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
@@ -26,7 +27,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,11 +47,15 @@ final class SimulationUtils {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
+            public ListMultimap<String, String> headers() {
                 if (version == null) {
-                    return ImmutableMap.of();
+                    return ImmutableListMultimap.of();
                 }
-                return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
+                ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+                headers.put("server", "foundry-catalog/" + version);
+                return headers;
             }
 
             @Override
@@ -74,7 +78,7 @@ final class SimulationUtils {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
+            public ListMultimap<String, String> headers() {
                 return delegate.headers();
             }
 
