@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -34,15 +34,16 @@ import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
-public class RemoteExceptionsTest {
+public class DefaultClientsBlockingTest {
 
     @Test
     public void testSuccess() {
         ListenableFuture<String> future = Futures.immediateFuture("success");
 
-        assertThat(RemoteExceptions.getUnchecked(future)).isEqualTo("success");
+        Assertions.assertThat(DefaultClients.INSTANCE.block(future)).isEqualTo("success");
     }
 
     @Test
@@ -50,7 +51,7 @@ public class RemoteExceptionsTest {
         RemoteException remoteException = remoteException(new ServiceException(ErrorType.INVALID_ARGUMENT));
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(RemoteException.class)
                 .hasFieldOrPropertyWithValue("status", ErrorType.INVALID_ARGUMENT.httpErrorCode());
     }
@@ -60,7 +61,7 @@ public class RemoteExceptionsTest {
         UnknownRemoteException remoteException = new UnknownRemoteException(502, "Nginx broke");
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(remoteException);
 
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(UnknownRemoteException.class)
                 .hasMessage("Error 502. (Failed to parse response body as SerializableError.)")
                 .satisfies(exception -> {
@@ -73,7 +74,7 @@ public class RemoteExceptionsTest {
         RuntimeException runtimeException = new RuntimeException();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(runtimeException);
 
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(UncheckedExecutionException.class)
                 .hasCauseInstanceOf(RuntimeException.class);
     }
@@ -83,7 +84,7 @@ public class RemoteExceptionsTest {
         Exception exception = new Exception();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(exception);
 
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(UncheckedExecutionException.class)
                 .hasCauseInstanceOf(Exception.class);
     }
@@ -93,7 +94,7 @@ public class RemoteExceptionsTest {
         Error error = new Error();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(error);
 
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(failedFuture))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(ExecutionError.class)
                 .hasCauseInstanceOf(Error.class);
     }
@@ -102,7 +103,7 @@ public class RemoteExceptionsTest {
     public void testInterruption() {
         ListenableFuture<Object> future = SettableFuture.create();
         Thread.currentThread().interrupt();
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(future))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("Interrupted waiting for future");
         // Clear interrupted state as well as test.
@@ -118,7 +119,7 @@ public class RemoteExceptionsTest {
         InputStream responseBody = mock(InputStream.class);
         future.set(responseBody);
         Thread.currentThread().interrupt();
-        assertThatThrownBy(() -> RemoteExceptions.getUnchecked(future))
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("Interrupted waiting for future");
         // Clear interrupted state as well as test.
