@@ -73,12 +73,15 @@ public final class DefaultClientsTest {
 
     @Test
     public void testAddsAcceptHeader() throws ExecutionException, InterruptedException {
-        Request request = Request.builder().build();
-        when(deserializer.deserialize(eq(response))).thenReturn("value");
         String expectedAccept = "application/json";
+        Request request = Request.builder().build();
+
+        when(deserializer.deserialize(eq(response))).thenReturn("value");
         when(deserializer.accepts()).thenReturn(Optional.of(expectedAccept));
         when(channel.execute(eq(endpoint), any())).thenReturn(Futures.immediateFuture(response));
+
         ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+
         assertThat(result).isDone();
         assertThat(result.get()).isEqualTo("value");
         verify(channel).execute(eq(endpoint), requestCaptor.capture());
