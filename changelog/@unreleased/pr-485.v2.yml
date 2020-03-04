@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Produce metrics about requests that are going to be retried
+  links:
+  - https://github.com/palantir/dialogue/pull/485
