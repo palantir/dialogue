@@ -26,9 +26,7 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.FilterOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
 
 // TODO(rfink): Consider async Jackson, see
 //              https://github.com/spring-projects/spring-framework/commit/31e0e537500c0763a36d3af2570d5c253a374690
@@ -46,7 +44,7 @@ public final class Encodings {
         }
 
         @Override
-        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+        public final <T> Serializer<T> serializer(TypeMarker<T> type) {
             ObjectWriter writer = mapper.writerFor(mapper.constructType(type.getType()));
             return (value, output) -> {
                 Preconditions.checkNotNull(value, "cannot serialize null value");
@@ -59,7 +57,7 @@ public final class Encodings {
         }
 
         @Override
-        public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+        public final <T> Deserializer<T> deserializer(TypeMarker<T> type) {
             ObjectReader reader = mapper.readerFor(mapper.constructType(type.getType()));
             return input -> {
                 try {
@@ -114,12 +112,6 @@ public final class Encodings {
             public boolean supportsContentType(String contentType) {
                 return contentType != null && contentType.startsWith(CONTENT_TYPE);
             }
-
-            @Override
-            public <T> Serializer<T> serializer(TypeMarker<T> type) {
-                Serializer<T> delegate = super.serializer(type);
-                return (value, output) -> delegate.serialize(value, new ShieldingOutputStream(output));
-            }
         };
     }
 
@@ -128,25 +120,5 @@ public final class Encodings {
         return mapper.disable(JsonGenerator.Feature.AUTO_CLOSE_TARGET)
                 // Avoid flushing, allowing us to set content-length if the length is below the buffer size.
                 .disable(JsonGenerator.Feature.FLUSH_PASSED_TO_STREAM);
-    }
-
-    /**
-     * Work around a CBORGenerator bug.
-     * For more information: https://github.com/FasterXML/jackson-dataformats-binary/issues/155
-     */
-    private static final class ShieldingOutputStream extends FilterOutputStream {
-        ShieldingOutputStream(OutputStream out) {
-            super(out);
-        }
-
-        @Override
-        public void flush() {
-            // nop
-        }
-
-        @Override
-        public void close() {
-            // nop
-        }
     }
 }
