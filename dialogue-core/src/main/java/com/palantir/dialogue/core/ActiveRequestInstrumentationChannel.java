@@ -29,22 +29,26 @@ final class ActiveRequestInstrumentationChannel implements Channel {
 
     private final String stage;
     private final Channel delegate;
-    private final Counter counter;
-    private final Runnable completionListener;
+    private final DialogueClientMetrics metrics;
 
     ActiveRequestInstrumentationChannel(
             Channel delegate, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
-        this.stage = stage;
+        // The delegate must never be allowed to throw, otherwise the counter may be incremented without
+        // being decremented.
         this.delegate = new NeverThrowChannel(delegate);
-        this.counter = metrics.requestsActive(stage);
-        this.completionListener = counter::dec;
+        this.stage = stage;
+        this.metrics = metrics;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        Counter counter = metrics.requestActive()
+                .serviceName(endpoint.serviceName())
+                .stage(stage)
+                .build();
         counter.inc();
         ListenableFuture<Response> result = delegate.execute(endpoint, request);
-        result.addListener(completionListener, MoreExecutors.directExecutor());
+        result.addListener(counter::dec, MoreExecutors.directExecutor());
         return result;
     }
 
