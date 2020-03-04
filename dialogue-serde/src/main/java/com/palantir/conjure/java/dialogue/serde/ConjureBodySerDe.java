@@ -39,11 +39,11 @@ import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
-    private static final String BINARY_CONTENT_TYPE = "application/octet-stream";
 
     private final List<Encoding> encodings;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
+    private final Deserializer<InputStream> binaryInputStreamDeserializer;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -62,6 +62,8 @@ final class ConjureBodySerDe implements BodySerDe {
         this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0);
+        this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.MARKER);
     }
 
     @Override
@@ -80,6 +82,11 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    public Deserializer<InputStream> inputStreamDeserializer() {
+        return binaryInputStreamDeserializer;
+    }
+
+    @Override
     public RequestBody serialize(BinaryRequestBody value) {
         Preconditions.checkNotNull(value, "A BinaryRequestBody value is required");
         return new RequestBody() {
@@ -91,21 +98,9 @@ final class ConjureBodySerDe implements BodySerDe {
 
             @Override
             public String contentType() {
-                return BINARY_CONTENT_TYPE;
+                return BinaryEncoding.CONTENT_TYPE;
             }
         };
-    }
-
-    @Override
-    public InputStream deserializeInputStream(Response exchange) {
-        Optional<String> contentType = exchange.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (!contentType.isPresent()) {
-            throw new SafeIllegalArgumentException("Response is missing Content-Type header");
-        }
-        if (!contentType.get().startsWith(BINARY_CONTENT_TYPE)) {
-            throw new SafeIllegalArgumentException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
-        }
-        return exchange.body();
     }
 
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {

@@ -29,5 +29,9 @@ public interface Deserializer<T> {
      * Values are structured for the <pre>Accept</pre> header based
      * on <a href="https://tools.ietf.org/html/rfc7231#section-5.3.2">rfc 7231 section 5.3.2</a>.
      */
-    Optional<String> accepts();
+    default Optional<String> accepts() {
+        // TODO(ckozak): This should not be a functional interface. This method is default
+        // only to allow the generator to be updated to avoid deserializer method references.
+        return Optional.empty();
+    }
 }
