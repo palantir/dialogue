@@ -32,6 +32,14 @@ public interface BodySerDe {
      */
     Deserializer<Void> emptyBodyDeserializer();
 
+    /**
+     * Returns a {@link Deserializer} that reads an {@link InputStream} from the {@link Response} body.
+     * <p>
+     * This method is named <pre>inputStreamDeserializer</pre> not <pre>binaryDeserializer</pre>
+     * to support future streaming binary bindings without conflicting method signatures.
+     */
+    Deserializer<InputStream> inputStreamDeserializer();
+
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
 
@@ -40,6 +48,11 @@ public interface BodySerDe {
      * <p>
      * This method is named <pre>deserializeInputStream</pre> not <pre>deserializeBinary</pre>
      * to support future streaming binary bindings without conflicting method signatures.
+     *
+     * @deprecated Prefer {@link #inputStreamDeserializer()}
      */
-    InputStream deserializeInputStream(Response response);
+    @Deprecated
+    default InputStream deserializeInputStream(Response response) {
+        return inputStreamDeserializer().deserialize(response);
+    }
 }

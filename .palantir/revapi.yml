@@ -159,3 +159,10 @@ acceptedBreaks:
       old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalUuid(java.util.Optional<java.util.UUID>)"
       new: null
       justification: "unused methods"
+  "0.13.0":
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      old: null
+      new: "method com.palantir.dialogue.Deserializer<java.io.InputStream> com.palantir.dialogue.BodySerDe::inputStreamDeserializer()"
+      justification: "fixin' apis"

@@ -16,6 +16,7 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -29,10 +30,13 @@ import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
@@ -47,8 +51,10 @@ enum DefaultClients implements Clients {
     @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
+        Optional<String> accepts = deserializer.accepts();
+        Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         return Futures.transform(
-                channel.execute(endpoint, request), deserializer::deserialize, MoreExecutors.directExecutor());
+                channel.execute(endpoint, outgoingRequest), deserializer::deserialize, MoreExecutors.directExecutor());
     }
 
     @Override
@@ -119,5 +125,21 @@ enum DefaultClients implements Clients {
         public void onFailure(Throwable throwable) {
             log.info("Canceled call failed", throwable);
         }
+    }
+
+    private static Request accepting(Request original, String acceptValue) {
+        Preconditions.checkNotNull(acceptValue, "Accept value is required");
+        Preconditions.checkState(!acceptValue.isEmpty(), "Accept value must not be empty");
+        if (original.headerParams().containsKey(HttpHeaders.ACCEPT)) {
+            log.warn(
+                    "Request {} already contains an Accept header value {}",
+                    UnsafeArg.of("request", original),
+                    SafeArg.of("existingAcceptValue", original.headerParams().get(HttpHeaders.ACCEPT)));
+            return original;
+        }
+        return Request.builder()
+                .from(original)
+                .putHeaderParams(HttpHeaders.ACCEPT, acceptValue)
+                .build();
     }
 }
