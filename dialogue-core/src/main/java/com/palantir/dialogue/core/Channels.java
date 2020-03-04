@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
@@ -32,6 +31,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
@@ -53,7 +53,7 @@ public final class Channels {
         private final List<Channel> channels = new ArrayList<>();
         private Ticker clock = Ticker.systemTicker();
         private Random random = SafeThreadLocalRandom.get();
-        private Supplier<ListeningScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
+        private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
 
         @Nullable
         private ClientConfiguration config;
@@ -82,7 +82,7 @@ public final class Channels {
         }
 
         @VisibleForTesting
-        Builder scheduler(ListeningScheduledExecutorService value) {
+        Builder scheduler(ScheduledExecutorService value) {
             this.scheduler = () -> value;
             return this;
         }
@@ -132,16 +132,14 @@ public final class Channels {
     }
 
     private static Channel retryingChannel(
-            ClientConfiguration conf,
-            Channel channel,
-            Supplier<ListeningScheduledExecutorService> scheduler,
-            Random random) {
+            ClientConfiguration conf, Channel channel, Supplier<ScheduledExecutorService> scheduler, Random random) {
         if (conf.maxNumRetries() == 0) {
             return channel;
         }
 
         return new RetryingChannel(
                 channel,
+                conf.taggedMetricRegistry(),
                 conf.maxNumRetries(),
                 conf.backoffSlotSize(),
                 conf.serverQoS(),
