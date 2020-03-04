@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -75,6 +76,7 @@ final class RetryingChannel implements Channel {
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
 
+    @VisibleForTesting
     RetryingChannel(
             Channel delegate,
             int maxRetries,
