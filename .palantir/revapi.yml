@@ -26,3 +26,120 @@ acceptedBreaks:
       old: "class com.palantir.dialogue.RemoteExceptions"
       new: null
       justification: "alpha"
+  "0.12.3":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core: []
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client: []
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeBearerTokenList(java.util.List<com.palantir.tokens.auth.BearerToken>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeBearerTokenSet(java.util.Set<com.palantir.tokens.auth.BearerToken>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeBooleanList(java.util.List<java.lang.Boolean>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeBooleanSet(java.util.Set<java.lang.Boolean>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeDateTimeList(java.util.List<java.time.OffsetDateTime>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeDateTimeSet(java.util.Set<java.time.OffsetDateTime>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeDoubleList(java.util.List<java.lang.Double>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeDoubleSet(java.util.Set<java.lang.Double>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeIntegerList(java.util.List<java.lang.Integer>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeIntegerSet(java.util.Set<java.lang.Integer>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeRidList(java.util.List<com.palantir.ri.ResourceIdentifier>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeRidSet(java.util.Set<com.palantir.ri.ResourceIdentifier>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeSafeLongList(java.util.List<com.palantir.conjure.java.lib.SafeLong>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeSafeLongSet(java.util.Set<com.palantir.conjure.java.lib.SafeLong>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeStringList(java.util.List<java.lang.String>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeStringSet(java.util.Set<java.lang.String>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeUuidList(java.util.List<java.util.UUID>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.List<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeUuidSet(java.util.Set<java.util.UUID>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalBearerToken(java.util.Optional<com.palantir.tokens.auth.BearerToken>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalBoolean(java.util.Optional<java.lang.Boolean>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalDateTime(java.util.Optional<java.time.OffsetDateTime>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalDouble(java.util.OptionalDouble)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalInteger(java.util.OptionalInt)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalRid(java.util.Optional<com.palantir.ri.ResourceIdentifier>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalSafeLong(java.util.Optional<com.palantir.conjure.java.lib.SafeLong>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalString(java.util.Optional<java.lang.String>)"
+      new: null
+      justification: "unused methods"
+    - code: "java.method.removed"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.PlainSerDe::serializeOptionalUuid(java.util.Optional<java.util.UUID>)"
+      new: null
+      justification: "unused methods"
