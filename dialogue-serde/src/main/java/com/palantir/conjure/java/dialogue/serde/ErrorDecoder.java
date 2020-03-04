@@ -22,7 +22,6 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
-import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,13 +31,22 @@ import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
 
-public enum DefaultErrorDecoder implements ErrorDecoder {
+/**
+ * Extracts and returns a {@link RemoteException} from an {@link Response}.
+ * The extracted {@link RemoteException} is returned rather than thrown. Decoders may throw exceptions (other than
+ * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
+ * Response} does not adhere to an expected format.
+ */
+enum ErrorDecoder {
     INSTANCE;
 
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
-    @Override
-    public RemoteException decode(Response response) {
+    boolean isError(Response response) {
+        return 300 <= response.code() && response.code() <= 599;
+    }
+
+    RemoteException decode(Response response) {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 

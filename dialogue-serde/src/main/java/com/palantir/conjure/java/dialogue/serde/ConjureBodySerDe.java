@@ -21,7 +21,6 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -52,7 +51,7 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     ConjureBodySerDe(List<Encoding> encodings) {
         // TODO(jellis): consider supporting cbor encoded errors
-        this(encodings, DefaultErrorDecoder.INSTANCE);
+        this(encodings, ErrorDecoder.INSTANCE);
     }
 
     @VisibleForTesting
