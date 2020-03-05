@@ -31,6 +31,7 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
  * safely without replacing existing values. This is important when clients are refreshed, or dialogue clients
  * are built outside of standard frameworks.
  */
+@SuppressWarnings("UnnecessaryLambda")
 final class ApacheClientGauges {
 
     private static final List<WeakReference<PoolingHttpClientConnectionManager>> pools = new CopyOnWriteArrayList<>();
