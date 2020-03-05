@@ -187,3 +187,24 @@ acceptedBreaks:
       new: "method com.google.common.collect.ListMultimap<java.lang.String, java.lang.String>\
         \ com.palantir.dialogue.Response::headers()"
       justification: "break for consistent header api"
+  "0.14.1":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core: []
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client: []
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.noLongerDefault"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.Deserializer<T>::accepts()"
+      new: "method java.util.Optional<java.lang.String> com.palantir.dialogue.Deserializer<T>::accepts()"
+      justification: "alpha: removing stopgaps from circular dependency upgrade"
+    - code: "java.method.nowAbstract"
+      old: "method java.util.Optional<java.lang.String> com.palantir.dialogue.Deserializer<T>::accepts()"
+      new: "method java.util.Optional<java.lang.String> com.palantir.dialogue.Deserializer<T>::accepts()"
+      justification: "alpha: removing stopgaps from circular dependency upgrade"
+    - code: "java.method.removed"
+      old: "method java.io.InputStream com.palantir.dialogue.BodySerDe::deserializeInputStream(com.palantir.dialogue.Response)"
+      new: null
+      justification: "alpha: removing stopgaps from circular dependency upgrade"
