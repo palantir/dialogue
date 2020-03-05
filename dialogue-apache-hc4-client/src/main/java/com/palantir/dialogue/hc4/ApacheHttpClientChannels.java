@@ -112,8 +112,8 @@ public final class ApacheHttpClientChannels {
                         : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
                 new DefaultHostnameVerifier());
 
-        PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
-                RegistryBuilder.<ConnectionSocketFactory>create()
+        PoolingHttpClientConnectionManager connectionManager =
+                new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
                         .register("http", PlainConnectionSocketFactory.getSocketFactory())
                         .register("https", sslSocketFactory)
                         .build());

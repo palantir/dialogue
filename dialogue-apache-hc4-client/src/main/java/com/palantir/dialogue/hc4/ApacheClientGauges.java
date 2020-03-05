@@ -34,9 +34,12 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 final class ApacheClientGauges {
 
     private static final List<WeakReference<PoolingHttpClientConnectionManager>> pools = new CopyOnWriteArrayList<>();
-    private static final Gauge<Long> idle = () -> collect(pool -> (long) pool.getTotalStats().getAvailable(), Long::sum, 0L);
-    private static final Gauge<Long> leased = () -> collect(pool -> (long) pool.getTotalStats().getLeased(), Long::sum, 0L);
-    private static final Gauge<Long> pending = () -> collect(pool -> (long) pool.getTotalStats().getPending(), Long::sum, 0L);
+    private static final Gauge<Long> idle =
+            () -> collect(pool -> (long) pool.getTotalStats().getAvailable(), Long::sum, 0L);
+    private static final Gauge<Long> leased =
+            () -> collect(pool -> (long) pool.getTotalStats().getLeased(), Long::sum, 0L);
+    private static final Gauge<Long> pending =
+            () -> collect(pool -> (long) pool.getTotalStats().getPending(), Long::sum, 0L);
 
     static void register(PoolingHttpClientConnectionManager connectionPool) {
         pools.add(new WeakReference<>(connectionPool));
@@ -51,9 +54,7 @@ final class ApacheClientGauges {
     }
 
     static <T> T collect(
-            Function<PoolingHttpClientConnectionManager, T> extractor,
-            BiFunction<T, T, T> combiner,
-            T initial) {
+            Function<PoolingHttpClientConnectionManager, T> extractor, BiFunction<T, T, T> combiner, T initial) {
         T current = initial;
         Iterator<WeakReference<PoolingHttpClientConnectionManager>> iterator = pools.iterator();
         while (iterator.hasNext()) {
