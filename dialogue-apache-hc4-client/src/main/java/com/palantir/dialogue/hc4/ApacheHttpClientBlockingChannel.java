@@ -15,8 +15,10 @@
  */
 package com.palantir.dialogue.hc4;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
+import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -29,13 +31,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.http.Header;
+import org.apache.http.HeaderIterator;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.RequestBuilder;
@@ -79,7 +78,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         private final CloseableHttpResponse response;
 
         @Nullable
-        private Map<String, List<String>> headers;
+        private ListMultimap<String, String> headers;
 
         HttpClientResponse(CloseableHttpResponse response) {
             this.response = response;
@@ -100,15 +99,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
+        public ListMultimap<String, String> headers() {
             if (headers == null) {
-                Map<String, List<String>> tmpHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-                for (Header header : response.getAllHeaders()) {
+                ListMultimap<String, String> tmpHeaders = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+                HeaderIterator headerIterator = response.headerIterator();
+                while (headerIterator.hasNext()) {
+                    Header header = headerIterator.nextHeader();
                     String value = header.getValue();
                     if (value != null) {
-                        tmpHeaders
-                                .computeIfAbsent(header.getName(), _name -> new ArrayList<>(1))
-                                .add(header.getValue());
+                        tmpHeaders.put(header.getName(), value);
                     }
                 }
                 headers = tmpHeaders;
@@ -143,7 +144,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         RequestBodyEntity(RequestBody requestBody) {
             this.requestBody = requestBody;
-            this.contentType = new BasicHeader(Headers.CONTENT_TYPE, requestBody.contentType());
+            this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
         }
 
         @Override

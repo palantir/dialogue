@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Update encodings based on CRJ
+  links:
+  - https://github.com/palantir/dialogue/pull/487

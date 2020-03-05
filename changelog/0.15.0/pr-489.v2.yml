@@ -1,0 +1,6 @@
+type: break
+break:
+  description: Remove legacy deserializer apis left over to allow upgrading both the
+    generator and target.
+  links:
+  - https://github.com/palantir/dialogue/pull/489

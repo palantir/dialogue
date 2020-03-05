@@ -22,13 +22,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.BodySerDe;
-import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
@@ -38,8 +38,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -178,7 +176,7 @@ public class ConjureBodySerDeTest {
 
         private InputStream body = new ByteArrayInputStream(new byte[] {});
         private int code = 0;
-        private Map<String, List<String>> headers = ImmutableMap.of();
+        private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
         @Override
         public InputStream body() {
@@ -191,7 +189,7 @@ public class ConjureBodySerDeTest {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
+        public ListMultimap<String, String> headers() {
             return headers;
         }
 
@@ -199,7 +197,7 @@ public class ConjureBodySerDeTest {
         public void close() {}
 
         public void contentType(String contentType) {
-            this.headers = ImmutableMap.of(HttpHeaders.CONTENT_TYPE, ImmutableList.of(contentType));
+            this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
         }
     }
 }

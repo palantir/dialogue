@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.logsafe.Preconditions;
@@ -35,7 +36,9 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 // TODO(rfink): The default thing here is a little odd
-                builder.encodings.isEmpty() ? ImmutableList.of(Encodings.json(), Encodings.cbor()) : builder.encodings);
+                builder.encodings.isEmpty()
+                        ? ImmutableList.of(Encodings.json(), Encodings.smile(), Encodings.cbor())
+                        : builder.encodings);
     }
 
     public static Builder builder() {
@@ -50,6 +53,11 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     @Override
     public PlainSerDe plainSerDe() {
         return ConjurePlainSerDe.INSTANCE;
+    }
+
+    @Override
+    public Clients clients() {
+        return DefaultClients.INSTANCE;
     }
 
     public static final class Builder {

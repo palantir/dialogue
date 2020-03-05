@@ -16,33 +16,27 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
+import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
-import java.util.Optional;
 import java.util.Random;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
     CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
-    CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN(Strategy::concurrencyLimiterBlacklistRoundRobin),
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::roundRobin);
+    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
-    private static final Logger log = LoggerFactory.getLogger(Strategy.class);
     private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
 
     Strategy(BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel) {
@@ -54,114 +48,69 @@ public enum Strategy {
     }
 
     private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        Random pseudo = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited1);
-        });
-    }
-
-    private static Channel concurrencyLimiterBlacklistRoundRobin(
-            Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), sim.clock()))
-                    .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited1);
+            return Channels.builder()
+                    .channels(channels)
+                    .clientConfiguration(ClientConfiguration.builder()
+                            .from(stubConfig())
+                            .taggedMetricRegistry(sim.taggedMetrics())
+                            .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                            .failedUrlCooldown(Duration.ofMillis(200))
+                            .build())
+                    .clock(sim.clock())
+                    .random(pseudo)
+                    .scheduler(sim.scheduler())
+                    .build();
         });
     }
 
     private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        Random psuedoRandom = new Random(3218974678L);
+        Random psuedo = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(sim.taggedMetrics());
-            LimitedChannel limited = new PinUntilErrorChannel(
-                    new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock(), metrics),
-                    metrics);
-            return retryingChannel(sim, limited);
+            return Channels.builder()
+                    .channels(channels)
+                    .clientConfiguration(ClientConfiguration.builder()
+                            .from(stubConfig())
+                            .taggedMetricRegistry(sim.taggedMetrics())
+                            .nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR)
+                            .build())
+                    .clock(sim.clock())
+                    .random(psuedo)
+                    .scheduler(sim.scheduler())
+                    .build();
         });
     }
 
-    private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+    private static Channel unlimitedRoundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+        Random random = new Random(3218974678L);
         return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(Strategy::noOpLimitedChannel)
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            return retryingChannel(sim, limited);
+            return Channels.builder()
+                    .channels(channels)
+                    .clientConfiguration(ClientConfiguration.builder()
+                            .from(stubConfig())
+                            .taggedMetricRegistry(sim.taggedMetrics())
+                            .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                            .failedUrlCooldown(Duration.ofMillis(200))
+                            .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
+                            .build())
+                    .clock(sim.clock())
+                    .random(random)
+                    .scheduler(sim.scheduler())
+                    .build();
         });
     }
 
-    private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
-        return channel -> new ConcurrencyLimitedChannel(
-                new ChannelToLimitedChannelAdapter(channel),
-                ConcurrencyLimitedChannel.createLimiter(sim.clock()),
-                DialogueClientMetrics.of(sim.taggedMetrics()));
-    }
-
-    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
-        return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
-    }
-
-    private static Channel retryingChannel(Simulation sim, LimitedChannel limited) {
-        LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        return new RetryingChannel(
-                new LimitedChannelToChannelAdapter(limited1),
-                4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
-                Duration.ofMillis(250) /* ClientConfigurations.DEFAULT_BACKOFF_SLOT_SIZE */,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED,
-                sim.scheduler(),
-                new Random(8 /* Guaranteed lucky */)::nextDouble);
-    }
-
-    private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
-        Meter starts = metrics.meter("test_client.starts");
-        Counter metric = metrics.counter("test_client.refusals");
-        return new LimitedChannel() {
-
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                log.debug(
-                        "starting request={}",
-                        request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
-                starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
-                if (!response.isPresent()) {
-                    metric.inc();
-                }
-                return response;
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
+    private static ClientConfiguration stubConfig() {
+        return ClientConfiguration.builder()
+                .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                        .uris(Collections.emptyList()) // nothing reads this!
+                        .security(SslConfiguration.of(
+                                Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),
+                                Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
+                                "keystore"))
+                        .build()))
+                .userAgent(UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")))
+                .build();
     }
 }

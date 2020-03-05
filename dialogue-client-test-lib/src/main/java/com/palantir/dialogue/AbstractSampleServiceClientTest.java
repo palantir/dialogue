@@ -22,11 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.net.HttpHeaders;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
-import com.palantir.dialogue.example.AsyncSampleService;
 import com.palantir.dialogue.example.SampleObject;
-import com.palantir.dialogue.example.SampleService;
+import com.palantir.dialogue.example.SampleServiceAsync;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.ri.ResourceIdentifier;
 import java.net.ConnectException;
 import java.net.URL;
@@ -47,17 +48,17 @@ import org.junit.Test;
 
 public abstract class AbstractSampleServiceClientTest {
 
-    abstract SampleService createBlockingClient(URL baseUrl, Duration timeout);
+    abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
 
-    abstract AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout);
+    abstract SampleServiceAsync createAsyncClient(URL baseUrl, Duration timeout);
 
     private static final String PATH = "myPath";
     private static final OffsetDateTime HEADER = OffsetDateTime.parse("2018-07-19T08:11:21+00:00");
     private static final ImmutableList<ResourceIdentifier> QUERY =
             ImmutableList.of(ResourceIdentifier.of("ri.a.b.c.d"), ResourceIdentifier.of("ri.a.b.c.e"));
-    private static final SampleObject BODY = new SampleObject(42);
+    private static final SampleObject BODY = SampleObject.of(42);
     private static final String BODY_STRING = "{\"intProperty\":42}";
-    private static final SampleObject RESPONSE = new SampleObject(84);
+    private static final SampleObject RESPONSE = SampleObject.of(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
 
     static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
@@ -66,8 +67,8 @@ public abstract class AbstractSampleServiceClientTest {
     @Rule
     public final MockWebServer server = new MockWebServer();
 
-    private SampleService blockingClient;
-    private AsyncSampleService asyncClient;
+    private SampleServiceBlocking blockingClient;
+    private SampleServiceAsync asyncClient;
 
     static final ImmutableList<String> FAST_CIPHER_SUITES = ImmutableList.of(
             "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
@@ -109,10 +110,11 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testBlocking_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
+    public void testBlocking_objectToObject_expectedCase() throws Exception {
+        server.enqueue(
+                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
 
-        assertThat(blockingClient.objectToObject(PATH, HEADER, QUERY, BODY)).isEqualTo(RESPONSE);
+        assertThat(blockingClient.objectToObject(HEADER, PATH, QUERY, BODY)).isEqualTo(RESPONSE);
         RecordedRequest request = server.takeRequest();
         assertThat(request.getPath())
                 .isEqualTo("/objectToObject/objects/myPath?queryKey=ri.a.b.c.d&queryKey=ri.a.b.c.e");
@@ -121,22 +123,23 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testBlocking_stringToString_nullRequestBody() {
-        assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, null))
+    public void testBlocking_objectToObject_nullRequestBody() {
+        assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, null))
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("body parameter must not be null");
+                .hasMessage("cannot serialize null value");
     }
 
     @Test
-    public void testAsync_stringToString_expectedCase() throws Exception {
-        server.enqueue(new MockResponse().setBody(RESPONSE_STRING).addHeader(Headers.CONTENT_TYPE, "application/json"));
-        assertThat(asyncClient.stringToString(PATH, HEADER, QUERY, BODY).get()).isEqualTo(RESPONSE);
+    public void testAsync_objectToObject_expectedCase() throws Exception {
+        server.enqueue(
+                new MockResponse().setBody(RESPONSE_STRING).addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        assertThat(asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get()).isEqualTo(RESPONSE);
     }
 
     @Test
-    public void testBlocking_stringToString_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
-        assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
+    public void testBlocking_objectToObject_throwsWhenResponseBodyIsEmpty() {
+        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
+        assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("Failed to deserialize response stream. Syntax error?");
     }
@@ -154,19 +157,19 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test
-    public void testAsync_stringToString_throwsWhenResponseBodyIsEmpty() {
-        server.enqueue(new MockResponse().addHeader(Headers.CONTENT_TYPE, "application/json"));
+    public void testAsync_objectToObject_throwsWhenResponseBodyIsEmpty() {
+        server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() ->
-                        asyncClient.stringToString(PATH, HEADER, QUERY, BODY).get())
+                        asyncClient.objectToObject(HEADER, PATH, QUERY, BODY).get())
                 .hasMessageContaining("Failed to deserialize response");
     }
 
     @Test
-    public void testAsync_stringToString_nullRequestBody() {
+    public void testAsync_objectToObject_nullRequestBody() {
         assertThatThrownBy(() ->
-                        asyncClient.stringToString(PATH, HEADER, QUERY, null).get())
+                        asyncClient.objectToObject(HEADER, PATH, QUERY, null).get())
                 .isInstanceOf(NullPointerException.class)
-                .hasMessage("body parameter must not be null");
+                .hasMessage("cannot serialize null value");
     }
 
     @Test
@@ -186,7 +189,7 @@ public abstract class AbstractSampleServiceClientTest {
     @Test(timeout = 2_000)
     public void testBlocking_throwsOnConnectError() throws Exception {
         server.shutdown();
-        assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
+        assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
                 .hasCauseInstanceOf(ConnectException.class)
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
@@ -196,9 +199,9 @@ public abstract class AbstractSampleServiceClientTest {
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
-                .addHeader(Headers.CONTENT_TYPE, "application/json")
+                .addHeader(HttpHeaders.CONTENT_TYPE, "application/json")
                 .setBodyDelay(10, TimeUnit.SECONDS));
-        assertThatThrownBy(() -> blockingClient.objectToObject(PATH, HEADER, QUERY, BODY))
+        assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class);
     }
 

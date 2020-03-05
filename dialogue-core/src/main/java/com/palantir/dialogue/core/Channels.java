@@ -16,91 +16,167 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.random.SafeThreadLocalRandom;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
+import java.util.Random;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 public final class Channels {
-
-    private static final int MAX_REQUESTS_PER_CHANNEL = 256;
 
     private Channels() {}
 
     public static Channel create(Collection<? extends Channel> channels, ClientConfiguration config) {
-        Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
-        Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
-        Preconditions.checkArgument(
-                config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
-                "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
+        return builder().channels(channels).clientConfiguration(config).build();
+    }
 
-        VersionedTaggedMetricRegistry taggedMetrics = new VersionedTaggedMetricRegistry(config.taggedMetricRegistry());
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(taggedMetrics);
+    public static Builder builder() {
+        return new Builder();
+    }
 
-        List<LimitedChannel> limitedChannels = channels.stream()
-                // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
-                .map(channel -> new InstrumentedChannel(channel, clientMetrics))
-                // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-                .map(TracedRequestChannel::new)
-                .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
-                .map(ChannelToLimitedChannelAdapter::new)
-                .map(concurrencyLimiter(config, clientMetrics))
-                .map(channel -> new FixedLimitedChannel(channel, MAX_REQUESTS_PER_CHANNEL, clientMetrics))
-                .collect(ImmutableList.toImmutableList());
+    public static final class Builder {
+        private final List<Channel> channels = new ArrayList<>();
+        private Ticker clock = Ticker.systemTicker();
+        private Random random = SafeThreadLocalRandom.get();
+        private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
 
-        LimitedChannel limited = nodeSelectionStrategy(config, limitedChannels, taggedMetrics);
-        Channel channel = new LimitedChannelToChannelAdapter(limited);
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        if (config.maxNumRetries() > 0) {
-            channel = new RetryingChannel(
-                    channel,
-                    config.maxNumRetries(),
-                    config.backoffSlotSize(),
-                    config.serverQoS(),
-                    config.retryOnTimeout());
+        @Nullable
+        private ClientConfiguration config;
+
+        public Builder channels(Collection<? extends Channel> values) {
+            channels.clear();
+            channels.addAll(values);
+            return this;
         }
-        channel = new UserAgentChannel(channel, config.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, clientMetrics);
-        channel = new ContentDecodingChannel(channel);
-        channel = new NeverThrowChannel(channel);
-        channel = new TracedChannel(channel, "Dialogue-request");
 
-        return channel;
+        public Builder clientConfiguration(ClientConfiguration value) {
+            this.config = value;
+            return this;
+        }
+
+        @VisibleForTesting
+        Builder clock(Ticker value) {
+            this.clock = value;
+            return this;
+        }
+
+        @VisibleForTesting
+        Builder random(Random value) {
+            this.random = value;
+            return this;
+        }
+
+        @VisibleForTesting
+        Builder scheduler(ScheduledExecutorService value) {
+            this.scheduler = () -> value;
+            return this;
+        }
+
+        @CheckReturnValue
+        public Channel build() {
+            ClientConfiguration conf = Preconditions.checkNotNull(config, "ClientConfiguration is required");
+            preconditions(channels, conf);
+
+            VersionedTaggedMetricRegistry taggedMetrics =
+                    new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry());
+            DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(taggedMetrics);
+
+            List<LimitedChannel> limitedChannels = channels.stream()
+                    // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+                    .map(channel -> new InstrumentedChannel(channel, clientMetrics))
+                    .map(channel -> new ActiveRequestInstrumentationChannel(channel, "running", clientMetrics))
+                    // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+                    .map(TracedRequestChannel::new)
+                    .map(channel -> new TracedChannel(channel, "Dialogue-http-request"))
+                    .map(ChannelToLimitedChannelAdapter::new)
+                    .map(channel -> concurrencyLimiter(conf, channel, clientMetrics, clock))
+                    .collect(ImmutableList.toImmutableList());
+
+            LimitedChannel nodeSelectionStrategy = nodeSelectionStrategy(conf, limitedChannels, taggedMetrics, random);
+            Channel channel = new LimitedChannelToChannelAdapter(nodeSelectionStrategy);
+            channel = new TracedChannel(channel, "Dialogue-request-attempt");
+            channel = retryingChannel(conf, channel, scheduler, random);
+            channel = new UserAgentChannel(channel, conf.userAgent().get());
+            channel = new DeprecationWarningChannel(channel, clientMetrics);
+            channel = new ContentDecodingChannel(channel);
+            channel = new NeverThrowChannel(channel);
+            channel = new TracedChannel(channel, "Dialogue-request");
+            channel = new ActiveRequestInstrumentationChannel(channel, "processing", clientMetrics);
+
+            return channel;
+        }
+
+        private static void preconditions(Collection<? extends Channel> channels, ClientConfiguration config) {
+            Preconditions.checkNotNull(channels, "Channels is required");
+
+            Preconditions.checkArgument(!channels.isEmpty(), "channels must not be empty");
+            Preconditions.checkArgument(config.userAgent().isPresent(), "config.userAgent() must be specified");
+            Preconditions.checkArgument(
+                    config.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
+                    "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
+        }
+    }
+
+    private static Channel retryingChannel(
+            ClientConfiguration conf, Channel channel, Supplier<ScheduledExecutorService> scheduler, Random random) {
+        if (conf.maxNumRetries() == 0) {
+            return channel;
+        }
+
+        return new RetryingChannel(
+                channel,
+                conf.taggedMetricRegistry(),
+                conf.maxNumRetries(),
+                conf.backoffSlotSize(),
+                conf.serverQoS(),
+                conf.retryOnTimeout(),
+                scheduler.get(),
+                random::nextDouble);
     }
 
     private static LimitedChannel nodeSelectionStrategy(
-            ClientConfiguration config, List<LimitedChannel> channels, VersionedTaggedMetricRegistry metrics) {
+            ClientConfiguration config,
+            List<LimitedChannel> channels,
+            VersionedTaggedMetricRegistry metrics,
+            Random random) {
+
         if (channels.size() == 1) {
             return channels.get(0); // no fancy node selection heuristic can save us if our one node goes down
         }
 
         switch (config.nodeSelectionStrategy()) {
             case PIN_UNTIL_ERROR:
-                return PinUntilErrorChannel.pinUntilError(channels, DialoguePinuntilerrorMetrics.of(metrics));
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                return PinUntilErrorChannel.of(
+                        config.nodeSelectionStrategy(), channels, DialoguePinuntilerrorMetrics.of(metrics), random);
             case ROUND_ROBIN:
                 return new RoundRobinChannel(channels);
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                return PinUntilErrorChannel.pinUntilErrorWithoutReshuffle(
-                        channels, DialoguePinuntilerrorMetrics.of(metrics));
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
     }
 
-    private static Function<LimitedChannel, LimitedChannel> concurrencyLimiter(
-            ClientConfiguration config, DialogueClientMetrics metrics) {
+    private static LimitedChannel concurrencyLimiter(
+            ClientConfiguration config, LimitedChannel channel, DialogueClientMetrics metrics, Ticker clock) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
-                return channel -> ConcurrencyLimitedChannel.create(channel, metrics);
+                return new ConcurrencyLimitedChannel(channel, ConcurrencyLimitedChannel.createLimiter(clock), metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return Function.identity();
+                return channel;
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));

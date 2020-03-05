@@ -16,7 +16,8 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.Maps;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -29,8 +30,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 import javax.annotation.Nonnull;
@@ -93,12 +92,12 @@ final class ContentDecodingChannel implements Channel {
     private static final class ContentDecodingResponse implements Response {
 
         private final Response delegate;
-        private final Map<String, List<String>> headers;
+        private final ListMultimap<String, String> headers;
         private final InputStream body;
 
         ContentDecodingResponse(Response delegate) {
             this.delegate = delegate;
-            this.headers = Maps.filterKeys(delegate.headers(), ContentDecodingResponse::allowHeader);
+            this.headers = Multimaps.filterKeys(delegate.headers(), ContentDecodingResponse::allowHeader);
             this.body = new DeferredGzipInputStream(delegate.body());
         }
 
@@ -113,7 +112,7 @@ final class ContentDecodingChannel implements Channel {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
+        public ListMultimap<String, String> headers() {
             return headers;
         }
 

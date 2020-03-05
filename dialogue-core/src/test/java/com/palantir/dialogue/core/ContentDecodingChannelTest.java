@@ -20,8 +20,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.guava.api.Assertions.assertThat;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.DialogueImmutablesStyle;
@@ -34,7 +34,6 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 import java.util.zip.GZIPOutputStream;
 import org.assertj.core.data.MapEntry;
@@ -55,12 +54,12 @@ public final class ContentDecodingChannelTest {
         Response response = new ContentDecodingChannel(
                         (endpoint, request) -> Futures.immediateFuture(StubResponse.builder()
                                 .body(new ByteArrayInputStream(out.toByteArray()))
-                                .putHeaders("content-encoding", ImmutableList.of("gzip"))
-                                .putHeaders("content-length", ImmutableList.of(Integer.toString(out.size())))
+                                .putHeaders("content-encoding", "gzip")
+                                .putHeaders("content-length", Integer.toString(out.size()))
                                 .build()))
                 .execute(TestEndpoint.INSTANCE, Request.builder().build())
                 .get();
-        assertThat(response.headers()).doesNotContainKey("content-encoding");
+        assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThat(ByteStreams.toByteArray(response.body())).containsExactly(expected);
     }
 
@@ -70,11 +69,11 @@ public final class ContentDecodingChannelTest {
                         (endpoint, request) -> Futures.immediateFuture(StubResponse.builder()
                                 // Will fail because it's not valid gzip content
                                 .body(new ByteArrayInputStream(new byte[] {1, 2, 3, 4}))
-                                .putHeaders("content-encoding", ImmutableList.of("gzip"))
+                                .putHeaders("content-encoding", "gzip")
                                 .build()))
                 .execute(TestEndpoint.INSTANCE, Request.builder().build())
                 .get();
-        assertThat(response.headers()).doesNotContainKey("content-encoding");
+        assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThatThrownBy(response.body()::read).isInstanceOf(IOException.class);
     }
 
@@ -84,11 +83,11 @@ public final class ContentDecodingChannelTest {
         Response response = new ContentDecodingChannel(
                         (endpoint, request) -> Futures.immediateFuture(StubResponse.builder()
                                 .body(new ByteArrayInputStream(content))
-                                .putHeaders("content-encoding", ImmutableList.of("unknown"))
+                                .putHeaders("content-encoding", "unknown")
                                 .build()))
                 .execute(TestEndpoint.INSTANCE, Request.builder().build())
                 .get();
-        assertThat(response.headers()).containsEntry("content-encoding", ImmutableList.of("unknown"));
+        assertThat(response.headers()).containsAllEntriesOf(ImmutableListMultimap.of("content-encoding", "unknown"));
         assertThat(ByteStreams.toByteArray(response.body())).isEqualTo(content);
     }
 
@@ -179,8 +178,8 @@ public final class ContentDecodingChannelTest {
 
         @Override
         @Value.Default
-        default Map<String, List<String>> headers() {
-            return ImmutableMap.of();
+        default ListMultimap<String, String> headers() {
+            return ImmutableListMultimap.of();
         }
 
         @Override

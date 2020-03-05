@@ -24,7 +24,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -39,7 +40,6 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -307,8 +307,8 @@ public class RetryingChannelTest {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
-            return ImmutableMap.of();
+        public ListMultimap<String, String> headers() {
+            return ImmutableListMultimap.of();
         }
 
         @Override

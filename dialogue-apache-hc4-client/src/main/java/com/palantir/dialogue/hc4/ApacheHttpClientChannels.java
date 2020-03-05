@@ -97,6 +97,8 @@ public final class ApacheHttpClientChannels {
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
+        ApacheClientGauges.install(conf.taggedMetricRegistry());
+
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
@@ -115,6 +117,8 @@ public final class ApacheHttpClientChannels {
                         .register("http", PlainConnectionSocketFactory.getSocketFactory())
                         .register("https", sslSocketFactory)
                         .build());
+
+        ApacheClientGauges.register(connectionManager);
 
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);

@@ -9,6 +9,13 @@ namespaces:
         type: timer
         tags: [service-name]
         docs: Request time, note that this does not include time spent reading the response body.
+      request.active:
+        type: counter
+        tags: [service-name, stage]
+        docs:
+          Number of requests that are actively running. The `stage` may refer to `running` requests actively
+          executing over the wire or `processing` which may be awaiting a client or backing off for a retry.
+          Note that running requests are also counted as processing.
       deprecations:
         type: meter
         tags: [service-name]
