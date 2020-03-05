@@ -82,6 +82,15 @@ final class PinUntilErrorChannel implements LimitedChannel {
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random) {
+        return from(channels.get(0), strategy, channels, metrics, random);
+    }
+
+    static PinUntilErrorChannel from(
+            LimitedChannel initialChannel,
+            NodeSelectionStrategy strategy,
+            List<LimitedChannel> channels,
+            DialoguePinuntilerrorMetrics metrics,
+            Random random) {
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
          * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
@@ -89,18 +98,23 @@ final class PinUntilErrorChannel implements LimitedChannel {
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
+        int initialHost = initialShuffle.indexOf(initialChannel);
 
         switch (strategy) {
             case PIN_UNTIL_ERROR:
                 NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics);
-                return new PinUntilErrorChannel(shuffling, 0, metrics);
+                return new PinUntilErrorChannel(shuffling, initialHost, metrics);
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorChannel(constant, 0, metrics);
+                return new PinUntilErrorChannel(constant, initialHost, metrics);
             case ROUND_ROBIN:
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
+    }
+
+    LimitedChannel getCurrentChannel() {
+        return nodeList.get(currentHost.get());
     }
 
     @Override
