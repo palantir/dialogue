@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: The first retry does not incur a backoff penalty
+  links:
+  - https://github.com/palantir/dialogue/pull/490

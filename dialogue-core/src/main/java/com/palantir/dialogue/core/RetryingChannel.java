@@ -55,6 +55,11 @@ final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
+    /*
+     * Both the first request attempt (not a retry) and the first retry should be attempted
+     * without backoff.
+     */
+    private static final int RETRY_BACKOFF_OFFSET = 1;
 
     /*
      * Shared single thread executor is reused between all retrying channels. If it becomes oversaturated
@@ -159,10 +164,13 @@ final class RetryingChannel implements Channel {
         }
 
         private long getBackoffNanoseconds() {
-            if (failures == 0) {
+            if (failures <= RETRY_BACKOFF_OFFSET) {
+                // The first attempt (failures == 0) is never delayed, nor are
+                // the subsequent RETRY_BACKOFF_OFFSET attempts.
                 return 0L;
             }
-            int upperBound = (int) Math.pow(2, failures - 1);
+            int exponent = failures - RETRY_BACKOFF_OFFSET - 1;
+            int upperBound = (int) Math.pow(2, exponent);
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
