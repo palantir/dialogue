@@ -42,17 +42,4 @@ public interface BodySerDe {
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
-
-    /**
-     * Reads an {@link InputStream} from the {@link Response} request body.
-     * <p>
-     * This method is named <pre>deserializeInputStream</pre> not <pre>deserializeBinary</pre>
-     * to support future streaming binary bindings without conflicting method signatures.
-     *
-     * @deprecated Prefer {@link #inputStreamDeserializer()}
-     */
-    @Deprecated
-    default InputStream deserializeInputStream(Response response) {
-        return inputStreamDeserializer().deserialize(response);
-    }
 }
