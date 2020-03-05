@@ -37,7 +37,10 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         this.bodySerDe = new ConjureBodySerDe(
                 // TODO(rfink): The default thing here is a little odd
                 builder.encodings.isEmpty()
-                        ? ImmutableList.of(Encodings.json(), Encodings.smile(), Encodings.cbor())
+                        ? ImmutableList.of(
+                                WeightedEncoding.of(Encodings.json(), 1),
+                                WeightedEncoding.of(Encodings.smile(), .9),
+                                WeightedEncoding.of(Encodings.cbor(), .7))
                         : builder.encodings);
     }
 
@@ -62,13 +65,23 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
     public static final class Builder {
 
-        private final List<Encoding> encodings = new ArrayList<>();
+        private final List<WeightedEncoding> encodings = new ArrayList<>();
 
         private Builder() {}
 
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value) {
-            encodings.add(Preconditions.checkNotNull(value, "Value is required"));
+            encodings.add(WeightedEncoding.of(Preconditions.checkNotNull(value, "Value is required")));
+            return this;
+        }
+
+        /**
+         * Register an {@link Encoding} with a weight value between zero and one (inclusive). The weight is used to
+         * determine preference in content-type negotiation.
+         */
+        @CanIgnoreReturnValue
+        public Builder encodings(Encoding value, double weight) {
+            encodings.add(WeightedEncoding.of(Preconditions.checkNotNull(value, "Value is required"), weight));
             return this;
         }
 
