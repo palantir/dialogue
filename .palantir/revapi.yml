@@ -208,3 +208,16 @@ acceptedBreaks:
       old: "method java.io.InputStream com.palantir.dialogue.BodySerDe::deserializeInputStream(com.palantir.dialogue.Response)"
       new: null
       justification: "alpha: removing stopgaps from circular dependency upgrade"
+  "0.15.0":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.core.Channels"
+      new: null
+      justification: "alpha"
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client: []
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target: []
