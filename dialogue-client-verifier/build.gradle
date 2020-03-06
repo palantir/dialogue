@@ -1,0 +1,63 @@
+apply plugin: 'com.palantir.conjure-java-local'
+
+versionsLock {
+    testProject()
+}
+
+configurations {
+    testCases
+    verifier
+}
+
+conjure {
+    java {
+        addFlag 'objects'
+        addFlag 'dialogue'
+        addFlag 'strictObjects'
+        addFlag 'nonNullCollections'
+        addFlag 'requireNotNullAuthAndBodyParams'
+    }
+}
+
+import static org.apache.tools.ant.taskdefs.condition.Os.*
+def osClassifier = isFamily(FAMILY_MAC) ? "osx" : "linux"
+
+dependencies {
+    testCases 'com.palantir.conjure.verification:verification-server-test-cases'
+    conjure 'com.palantir.conjure.verification:verification-server-api'
+    verifier "com.palantir.conjure.verification:verification-server::${osClassifier}@tgz"
+
+    testImplementation project('verification-server-api')
+    testImplementation project(':dialogue-apache-hc4-client')
+    testImplementation project(':dialogue-serde')
+    testImplementation 'junit:junit'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+    testImplementation 'org.apache.commons:commons-lang3'
+    testCompile 'com.palantir.conjure.java.runtime:keystores'
+
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
+}
+
+subprojects {
+    dependencies {
+        implementation project(':dialogue-target')
+    }
+}
+
+task unpackVerifier(type: Sync) {
+    from { tarTree(configurations.verifier.singleFile) }
+    into "${buildDir}/verification"
+    rename { "verifier" }
+}
+
+task copyTestCases(type: Sync) {
+    from configurations.testCases, {
+        rename { "test-cases.json" }
+    }
+    into "$buildDir/test-cases"
+}
+
+tasks.idea.dependsOn unpackVerifier, copyTestCases
+test.dependsOn unpackVerifier, copyTestCases
