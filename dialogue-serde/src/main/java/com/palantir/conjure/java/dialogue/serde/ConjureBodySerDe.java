@@ -154,6 +154,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
+        private final TypeMarker<T> token;
+        private final boolean isOptionalType;
         private final Optional<String> acceptValue;
 
         EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
@@ -161,6 +163,8 @@ final class ConjureBodySerDe implements BodySerDe {
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
+            this.token = token;
+            this.isOptionalType = TypeMarkers.isOptional(token);
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue =
                     Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
@@ -171,6 +175,8 @@ final class ConjureBodySerDe implements BodySerDe {
             try {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
+                } else if (isOptionalType && response.code() == 204) {
+                    return TypeMarkers.getEmptyOptional(token);
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);

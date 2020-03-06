@@ -38,6 +38,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -48,6 +49,7 @@ import org.mockito.junit.MockitoJUnitRunner;
 public class ConjureBodySerDeTest {
 
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
+    private static final TypeMarker<Optional<String>> OPTIONAL_TYPE = new TypeMarker<Optional<String>>() {};
 
     @Mock
     private ErrorDecoder errorDecoder;
@@ -63,6 +65,16 @@ public class ConjureBodySerDeTest {
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
         String value = serializers.deserializer(TYPE).deserialize(response);
         assertThat(value).isEqualTo(plain.getContentType());
+    }
+
+    @Test
+    public void testRequestOptionalEmpty() {
+        TestResponse response = new TestResponse();
+        response.code = 204;
+        BodySerDe serializers =
+                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
+        assertThat(value).isEmpty();
     }
 
     @Test
