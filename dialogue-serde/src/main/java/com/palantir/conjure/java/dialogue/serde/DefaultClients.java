@@ -118,6 +118,11 @@ enum DefaultClients implements Clients {
                             UnsafeArg.of("result", result),
                             e);
                 }
+            } else if (result instanceof Optional) {
+                Optional<?> resultOptional = (Optional<?>) result;
+                if (resultOptional.isPresent()) {
+                    onSuccess(resultOptional.get());
+                }
             }
         }
 

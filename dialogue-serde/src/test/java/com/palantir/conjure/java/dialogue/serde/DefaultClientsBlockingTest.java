@@ -34,6 +34,7 @@ import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 import org.assertj.core.api.Assertions;
 import org.junit.Test;
 
@@ -118,6 +119,22 @@ public class DefaultClientsBlockingTest {
         SettableFuture<Object> future = SettableFuture.create();
         InputStream responseBody = mock(InputStream.class);
         future.set(responseBody);
+        Thread.currentThread().interrupt();
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("Interrupted waiting for future");
+        // Clear interrupted state as well as test.
+        assertThat(Thread.interrupted())
+                .as("getUnchecked should not clear interrupted state")
+                .isTrue();
+        verify(responseBody).close();
+    }
+
+    @Test
+    public void testInterruption_optional_resultIsClosed() throws IOException {
+        SettableFuture<Object> future = SettableFuture.create();
+        InputStream responseBody = mock(InputStream.class);
+        future.set(Optional.of(responseBody));
         Thread.currentThread().interrupt();
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
                 .isInstanceOf(SafeRuntimeException.class)
