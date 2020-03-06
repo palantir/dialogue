@@ -22,7 +22,6 @@ import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.PlainSerDe;
-import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -71,7 +70,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value) {
-            encodings.add(WeightedEncoding.of(Preconditions.checkNotNull(value, "Value is required")));
+            encodings.add(WeightedEncoding.of(value));
             return this;
         }
 
@@ -81,7 +80,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
          */
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value, double weight) {
-            encodings.add(WeightedEncoding.of(Preconditions.checkNotNull(value, "Value is required"), weight));
+            encodings.add(WeightedEncoding.of(value, weight));
             return this;
         }
 
