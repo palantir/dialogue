@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,6 +59,8 @@ import org.apache.http.client.config.AuthSchemes;
 import org.apache.http.client.config.RequestConfig;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.config.SocketConfig;
+import org.apache.http.conn.socket.ConnectionSocketFactory;
+import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.auth.BasicSchemeFactory;
@@ -65,6 +68,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
 import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
@@ -92,9 +96,37 @@ public final class ApacheHttpClientChannels {
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
+        ApacheClientGauges.install(conf.taggedMetricRegistry());
+
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
+
+        SocketConfig socketConfig = SocketConfig.custom().setSoKeepAlive(true).build();
+        SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
+                conf.sslSocketFactory(),
+                new String[] {"TLSv1.2"},
+                conf.enableGcmCipherSuites()
+                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
+                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
+                new DefaultHostnameVerifier());
+
+        PoolingHttpClientConnectionManager connectionManager =
+                new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
+                        .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                        .register("https", sslSocketFactory)
+                        .build());
+
+        ApacheClientGauges.register(connectionManager);
+
+        connectionManager.setDefaultSocketConfig(socketConfig);
+        connectionManager.setMaxTotal(Integer.MAX_VALUE);
+        connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
+        // Increased from two seconds to twenty-five seconds because we have strong support for retries
+        // and can optimistically avoid expensive connection checks.
+        connectionManager.setValidateAfterInactivity(
+                Ints.checkedCast(Duration.ofSeconds(25).toMillis()));
+
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
                         .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
@@ -105,12 +137,10 @@ public final class ApacheHttpClientChannels {
                         .setRedirectsEnabled(false)
                         .setRelativeRedirectsAllowed(false)
                         .build())
-                .setDefaultSocketConfig(
-                        SocketConfig.custom().setSoKeepAlive(true).build())
+                .setDefaultSocketConfig(socketConfig)
                 .evictIdleConnections(55, TimeUnit.SECONDS)
-                .setMaxConnPerRoute(Integer.MAX_VALUE)
-                .setMaxConnTotal(Integer.MAX_VALUE)
-                // TODO(ckozak): proxy credentials
+                .setConnectionManagerShared(false) // will be closed when the client is closed
+                .setConnectionManager(connectionManager)
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                 .disableAutomaticRetries()
                 // Must be disabled otherwise connections are not reused when client certificates are provided
@@ -119,13 +149,7 @@ public final class ApacheHttpClientChannels {
                 .disableCookieManagement()
                 // Dialogue handles content-compression with ContentDecodingChannel
                 .disableContentCompression()
-                .setSSLSocketFactory(new SSLConnectionSocketFactory(
-                        conf.sslSocketFactory(),
-                        new String[] {"TLSv1.2"},
-                        conf.enableGcmCipherSuites()
-                                ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
-                                : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
-                        new DefaultHostnameVerifier()))
+                .setSSLSocketFactory(sslSocketFactory)
                 .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                 .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                 .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
