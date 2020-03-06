@@ -1,3 +1,7 @@
+versionsLock {
+    testProject()
+}
+
 dependencies {
     compile project(':dialogue-target')
     compile project(':dialogue-example:dialogue-example-dialogue')
