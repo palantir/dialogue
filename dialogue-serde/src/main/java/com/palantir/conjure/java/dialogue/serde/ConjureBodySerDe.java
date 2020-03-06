@@ -18,6 +18,7 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -32,6 +33,8 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -40,7 +43,7 @@ import javax.ws.rs.core.HttpHeaders;
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
 
-    private final List<Encoding> encodings;
+    private final List<Encoding> encodingsSortedByWeight;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
@@ -50,20 +53,26 @@ final class ConjureBodySerDe implements BodySerDe {
      * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
      * by a given request, or the first serializer if no such serializer can be found.
      */
-    ConjureBodySerDe(List<Encoding> encodings) {
-        // TODO(jellis): consider supporting cbor encoded errors
+    ConjureBodySerDe(List<WeightedEncoding> encodings) {
         this(encodings, ErrorDecoder.INSTANCE);
     }
 
     @VisibleForTesting
-    ConjureBodySerDe(List<Encoding> encodings, ErrorDecoder errorDecoder) {
-        // Defensive copy
-        this.encodings = ImmutableList.copyOf(encodings);
+    ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder) {
+        this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
-        this.defaultEncoding = encodings.get(0);
+        this.defaultEncoding = encodings.get(0).encoding();
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.MARKER);
+    }
+
+    private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
+        // Use list.sort which guarantees a stable sort, so the original order is preserved
+        // when weights are equal.
+        List<WeightedEncoding> mutableEncodings = new ArrayList<>(encodings);
+        mutableEncodings.sort(Comparator.comparing(WeightedEncoding::weight).reversed());
+        return ImmutableList.copyOf(Lists.transform(mutableEncodings, WeightedEncoding::encoding));
     }
 
     @Override
@@ -73,7 +82,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(encodings, errorDecoder, token);
+        return new EncodingDeserializerRegistry<>(encodingsSortedByWeight, errorDecoder, token);
     }
 
     @Override
