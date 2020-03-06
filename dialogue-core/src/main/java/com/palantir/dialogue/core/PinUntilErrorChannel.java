@@ -75,6 +75,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
                         + " Use an always throwing channel or just pick the only channel in the list.");
+        Preconditions.checkArgument(
+                0 <= initialHost && initialHost < nodeList.size(),
+                "initialHost must be a valid index into nodeList",
+                SafeArg.of("initialHost", initialHost));
     }
 
     static PinUntilErrorChannel of(
@@ -100,6 +104,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
         // We only rely on reference equality since we expect LimitedChannels to be reused across updates
         int initialHost = initialShuffle.indexOf(initialChannel);
+        initialHost = initialHost == -1 ? 0 : initialHost;
 
         switch (strategy) {
             case PIN_UNTIL_ERROR:

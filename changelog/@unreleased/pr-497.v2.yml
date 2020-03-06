@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: handle uri removal in pin until error update
+  links:
+  - https://github.com/palantir/dialogue/pull/497
