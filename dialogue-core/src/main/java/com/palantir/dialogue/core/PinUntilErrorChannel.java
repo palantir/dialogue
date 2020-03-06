@@ -98,6 +98,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
+        // We only rely on reference equality since we expect LimitedChannels to be reused across updates
         int initialHost = initialShuffle.indexOf(initialChannel);
 
         switch (strategy) {
