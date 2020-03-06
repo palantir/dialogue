@@ -33,6 +33,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -99,7 +100,7 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
-    private Supplier<List<SimulationServer>> servers;
+    private Supplier<Map<String, SimulationServer>> servers;
     private Benchmark.BenchmarkResult result;
 
     @Test
@@ -433,18 +434,19 @@ public class SimulationTest {
         };
     }
 
-    private Supplier<List<SimulationServer>> servers(SimulationServer... values) {
-        return Suppliers.memoize(() -> Arrays.asList(values));
+    private Supplier<Map<String, SimulationServer>> servers(SimulationServer... values) {
+        return Suppliers.memoize(
+                () -> Arrays.stream(values).collect(Collectors.toMap(SimulationServer::toString, Function.identity())));
     }
 
     /** Use the {@link #beginAt} method to simulate live-reloads. */
-    private Supplier<List<SimulationServer>> liveReloadingServers(
+    private Supplier<Map<String, SimulationServer>> liveReloadingServers(
             Supplier<Optional<SimulationServer>>... serverSuppliers) {
         return () -> Arrays.stream(serverSuppliers)
                 .map(Supplier::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(SimulationServer::toString, Function.identity()));
     }
 
     private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {

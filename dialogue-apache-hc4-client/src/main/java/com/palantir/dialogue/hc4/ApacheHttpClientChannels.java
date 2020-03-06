@@ -22,7 +22,7 @@ import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
-import com.palantir.dialogue.core.Channels;
+import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -40,7 +40,6 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -82,10 +81,10 @@ public final class ApacheHttpClientChannels {
 
     public static Channel create(ClientConfiguration conf) {
         CloseableClient client = createCloseableHttpClient(conf);
-        List<Channel> channels =
-                conf.uris().stream().map(uri -> createSingleUri(uri, client)).collect(Collectors.toList());
-
-        return Channels.create(channels, conf);
+        return DialogueChannel.builder()
+                .clientConfiguration(conf)
+                .channelFactory(uri -> createSingleUri(uri, client))
+                .build();
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {

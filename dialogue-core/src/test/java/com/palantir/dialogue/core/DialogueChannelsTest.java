@@ -23,7 +23,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -48,7 +47,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public final class ChannelsTest {
+public final class DialogueChannelsTest {
 
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
@@ -97,7 +96,10 @@ public final class ChannelsTest {
 
     @BeforeEach
     public void before() {
-        channel = Channels.create(ImmutableList.of(delegate), stubConfig);
+        channel = DialogueChannel.builder()
+                .clientConfiguration(stubConfig)
+                .channelFactory(_uri -> delegate)
+                .build();
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
         lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
@@ -117,7 +119,10 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
+        channel = DialogueChannel.builder()
+                .clientConfiguration(stubConfig)
+                .channelFactory(uri -> badUserImplementation)
+                .build();
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);
@@ -135,7 +140,10 @@ public final class ChannelsTest {
             }
         };
 
-        channel = Channels.create(ImmutableList.of(badUserImplementation), stubConfig);
+        channel = DialogueChannel.builder()
+                .clientConfiguration(stubConfig)
+                .channelFactory(uri -> badUserImplementation)
+                .build();
 
         // this should never throw
         ListenableFuture<Response> future = channel.execute(endpoint, request);

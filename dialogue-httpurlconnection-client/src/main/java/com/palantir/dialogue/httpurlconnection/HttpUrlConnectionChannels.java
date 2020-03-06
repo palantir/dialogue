@@ -15,11 +15,10 @@
  */
 package com.palantir.dialogue.httpurlconnection;
 
-import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
-import com.palantir.dialogue.core.Channels;
+import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.MalformedURLException;
 import java.net.URL;
@@ -30,11 +29,10 @@ public final class HttpUrlConnectionChannels {
     private HttpUrlConnectionChannels() {}
 
     public static Channel create(ClientConfiguration conf) {
-        ImmutableList<Channel> channels = conf.uris().stream()
-                .map(uri -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(uri))))
-                .collect(ImmutableList.toImmutableList());
-
-        return Channels.create(channels, conf);
+        return DialogueChannel.builder()
+                .clientConfiguration(conf)
+                .channelFactory(uri -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(uri))))
+                .build();
     }
 
     private static URL url(String uri) {

@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -26,10 +27,11 @@ import com.palantir.dialogue.Channel;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
@@ -37,68 +39,60 @@ public enum Strategy {
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
     UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
-    private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
+    private final BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel;
 
-    Strategy(BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel) {
+    Strategy(BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel) {
         this.getChannel = getChannel;
     }
 
-    public Channel getChannel(Simulation simulation, Supplier<List<SimulationServer>> servers) {
+    public Channel getChannel(Simulation simulation, Supplier<Map<String, SimulationServer>> servers) {
         return getChannel.apply(simulation, servers);
     }
 
-    private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
+    private static Channel concurrencyLimiter(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .failedUrlCooldown(Duration.ofMillis(200)));
+    }
+
+    private static Channel pinUntilError(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(
+                sim,
+                channelSupplier,
+                configBuilder -> configBuilder.nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR));
+    }
+
+    private static Channel unlimitedRoundRobin(
+            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .failedUrlCooldown(Duration.ofMillis(200))
+                .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS));
+    }
+
+    private static Channel withDefaults(
+            Simulation sim,
+            Supplier<Map<String, SimulationServer>> channelSupplier,
+            UnaryOperator<ClientConfiguration.Builder> applyConfig) {
         Random pseudo = new Random(3218974678L);
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            return Channels.builder()
-                    .channels(channels)
-                    .clientConfiguration(ClientConfiguration.builder()
-                            .from(stubConfig())
-                            .taggedMetricRegistry(sim.taggedMetrics())
-                            .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                            .failedUrlCooldown(Duration.ofMillis(200))
-                            .build())
-                    .clock(sim.clock())
-                    .random(pseudo)
-                    .scheduler(sim.scheduler())
-                    .build();
-        });
-    }
+        DialogueChannel channel = DialogueChannel.builder()
+                .clientConfiguration(applyConfig
+                        .apply(ClientConfiguration.builder()
+                                .uris(ImmutableList.copyOf(channelSupplier.get().keySet()))
+                                .from(stubConfig())
+                                .taggedMetricRegistry(sim.taggedMetrics()))
+                        .build())
+                .channelFactory(uri -> channelSupplier.get().get(uri))
+                .clock(sim.clock())
+                .random(pseudo)
+                .scheduler(sim.scheduler())
+                .build();
 
-    private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        Random psuedo = new Random(3218974678L);
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            return Channels.builder()
-                    .channels(channels)
-                    .clientConfiguration(ClientConfiguration.builder()
-                            .from(stubConfig())
-                            .taggedMetricRegistry(sim.taggedMetrics())
-                            .nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR)
-                            .build())
-                    .clock(sim.clock())
-                    .random(psuedo)
-                    .scheduler(sim.scheduler())
-                    .build();
-        });
-    }
-
-    private static Channel unlimitedRoundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        Random random = new Random(3218974678L);
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            return Channels.builder()
-                    .channels(channels)
-                    .clientConfiguration(ClientConfiguration.builder()
-                            .from(stubConfig())
-                            .taggedMetricRegistry(sim.taggedMetrics())
-                            .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                            .failedUrlCooldown(Duration.ofMillis(200))
-                            .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
-                            .build())
-                    .clock(sim.clock())
-                    .random(random)
-                    .scheduler(sim.scheduler())
-                    .build();
-        });
+        return RefreshingChannelFactory.RefreshingChannel.create(
+                () -> channelSupplier.get().keySet(), uris -> {
+                    channel.updateUris(uris);
+                    return channel;
+                });
     }
 
     private static ClientConfiguration stubConfig() {
