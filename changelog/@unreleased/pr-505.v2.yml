@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Dialogue closes optional closeables on interruption
+  links:
+  - https://github.com/palantir/dialogue/pull/505
