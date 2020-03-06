@@ -17,9 +17,10 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.InputStream;
+import java.util.Optional;
 
 /**
  * Package-private internal api.
@@ -32,6 +33,7 @@ enum BinaryEncoding implements Encoding {
 
     static final String CONTENT_TYPE = "application/octet-stream";
     static final TypeMarker<InputStream> MARKER = new TypeMarker<InputStream>() {};
+    static final TypeMarker<Optional<InputStream>> OPTIONAL_MARKER = new TypeMarker<Optional<InputStream>>() {};
 
     @Override
     public <T> Serializer<T> serializer(TypeMarker<T> _type) {
@@ -41,11 +43,13 @@ enum BinaryEncoding implements Encoding {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
-        Preconditions.checkArgument(
-                InputStream.class.equals(type.getType()),
-                "BinaryEncoding only supports InputStream",
-                SafeArg.of("requested", type));
-        return input -> (T) input;
+        if (MARKER.equals(type)) {
+            return input -> (T) input;
+        } else if (OPTIONAL_MARKER.equals(type)) {
+            return input -> (T) Optional.of(input);
+        }
+        throw new SafeIllegalStateException(
+                "BinaryEncoding only supports InputStream and Optional<InputStream>", SafeArg.of("requested", type));
     }
 
     @Override
