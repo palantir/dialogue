@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
@@ -167,6 +168,12 @@ public class PinUntilErrorChannelTest {
         when(channel1.maybeExecute(any(), any())).thenReturn(Optional.empty());
         setResponse(channel2, 204);
         assertThat(pinUntilError.maybeExecute(null, null)).isPresent();
+    }
+
+    @Test
+    void handles_reconstruction_from_stale_state() {
+        PinUntilErrorChannel.from(
+                null, NodeSelectionStrategy.PIN_UNTIL_ERROR, ImmutableList.of(channel1, channel2), metrics, pseudo);
     }
 
     private static int getCode(PinUntilErrorChannel channel) {
