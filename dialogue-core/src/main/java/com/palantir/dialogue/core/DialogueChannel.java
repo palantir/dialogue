@@ -32,6 +32,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -77,7 +78,7 @@ public final class DialogueChannel implements Channel {
         return delegate.execute(endpoint, request);
     }
 
-    public void updateUris(List<String> uris) {
+    public void updateUris(Collection<String> uris) {
         Set<String> uniqueUris = new HashSet<>(uris);
         // Uris didn't really change so nothing to do
         if (limitedChannelByUri.keySet().equals(uniqueUris)) {
@@ -240,7 +241,7 @@ public final class DialogueChannel implements Channel {
         }
 
         @CheckReturnValue
-        public Channel build() {
+        public DialogueChannel build() {
             ClientConfiguration conf = Preconditions.checkNotNull(config, "ClientConfiguration is required");
             ChannelFactory factory = Preconditions.checkNotNull(channelFactory, "ChannelFactory is required");
             preconditions(conf);
