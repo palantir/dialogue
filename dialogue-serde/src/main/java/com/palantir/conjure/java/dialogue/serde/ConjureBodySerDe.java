@@ -176,10 +176,10 @@ final class ConjureBodySerDe implements BodySerDe {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 } else if (response.code() == 204) {
-                    Preconditions.checkState(
-                            isOptionalType,
-                            "Unable to deserialize non-optional response type from 204",
-                            SafeArg.of("type", token));
+                    if (!isOptionalType) {
+                        throw new SafeRuntimeException(
+                                "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
+                    }
                     return TypeMarkers.getEmptyOptional(token);
                 }
 
