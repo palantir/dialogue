@@ -84,7 +84,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
                 assertThat(poolGaugeValue(metrics, "idle"))
                         .describedAs("available")
-                        .isEqualTo(0);
+                        .isZero();
                 assertThat(poolGaugeValue(metrics, "leased"))
                         .describedAs("leased")
                         .isEqualTo(1);
@@ -92,10 +92,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             assertThat(poolGaugeValue(metrics, "idle"))
                     .describedAs("available after response closed")
-                    .isEqualTo(0);
+                    .isZero();
             assertThat(poolGaugeValue(metrics, "leased"))
                     .describedAs("leased after response closed")
-                    .isEqualTo(0);
+                    .isZero();
         }
     }
 
