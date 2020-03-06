@@ -165,6 +165,37 @@ public class ConjureBodySerDeTest {
                 .isThrownBy(() -> serializers.deserializer(TYPE).deserialize(response));
     }
 
+    @Test
+    public void testBinary() {
+        TestResponse response = new TestResponse();
+        response.code = 200;
+        response.contentType("application/octet-stream");
+        BodySerDe serializers =
+                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        assertThat(serializers.inputStreamDeserializer().deserialize(response)).hasContent("");
+    }
+
+    @Test
+    public void testBinary_optional_present() {
+        TestResponse response = new TestResponse();
+        response.code = 200;
+        response.contentType("application/octet-stream");
+        BodySerDe serializers =
+                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
+                .hasValueSatisfying(stream -> assertThat(stream).hasContent(""));
+    }
+
+    @Test
+    public void testBinary_optional_empty() {
+        TestResponse response = new TestResponse();
+        response.code = 204;
+        BodySerDe serializers =
+                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
+                .isEmpty();
+    }
+
     /** Deserializes requests as the configured content type. */
     public static final class StubEncoding implements Encoding {
 

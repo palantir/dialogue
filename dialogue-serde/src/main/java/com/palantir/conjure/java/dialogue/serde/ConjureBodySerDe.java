@@ -47,6 +47,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
+    private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -65,6 +66,8 @@ final class ConjureBodySerDe implements BodySerDe {
         this.defaultEncoding = encodings.get(0).encoding();
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.MARKER);
+        this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.OPTIONAL_MARKER);
     }
 
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
@@ -93,6 +96,11 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     public Deserializer<InputStream> inputStreamDeserializer() {
         return binaryInputStreamDeserializer;
+    }
+
+    @Override
+    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
+        return optionalBinaryInputStreamDeserializer;
     }
 
     @Override
