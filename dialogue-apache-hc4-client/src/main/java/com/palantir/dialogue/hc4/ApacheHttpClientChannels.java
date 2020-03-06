@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,7 +70,6 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
-import org.apache.http.pool.PoolStats;
 import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -122,6 +122,10 @@ public final class ApacheHttpClientChannels {
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);
         connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
+        // Increased from two seconds to twenty-five seconds because we have strong support for retries
+        // and can optimistically avoid expensive connection checks.
+        connectionManager.setValidateAfterInactivity(
+                Ints.checkedCast(Duration.ofSeconds(25).toMillis()));
 
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
@@ -137,7 +141,6 @@ public final class ApacheHttpClientChannels {
                 .evictIdleConnections(55, TimeUnit.SECONDS)
                 .setConnectionManagerShared(false) // will be closed when the client is closed
                 .setConnectionManager(connectionManager)
-                // TODO(ckozak): proxy credentials
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                 .disableAutomaticRetries()
                 // Must be disabled otherwise connections are not reused when client certificates are provided
@@ -160,17 +163,15 @@ public final class ApacheHttpClientChannels {
                             .build());
         });
 
-        return new CloseableClient(builder.build(), connectionManager);
+        return new CloseableClient(builder.build());
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
         private final CloseableHttpClient client;
-        private final PoolingHttpClientConnectionManager connectionManager;
 
-        CloseableClient(CloseableHttpClient client, PoolingHttpClientConnectionManager connectionManager) {
+        CloseableClient(CloseableHttpClient client) {
             this.client = client;
-            this.connectionManager = connectionManager;
         }
 
         @Override
@@ -181,14 +182,6 @@ public final class ApacheHttpClientChannels {
         @Override
         public String toString() {
             return "CloseableClient{client=" + client + '}';
-        }
-
-        public PoolStats getPoolStats() {
-            return connectionManager.getTotalStats();
-        }
-
-        public int getNumRoutes() {
-            return connectionManager.getRoutes().size();
         }
     }
 

@@ -21,6 +21,7 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.nio.file.Paths;
 
 public final class TestConfigurations {
@@ -39,6 +40,7 @@ public final class TestConfigurations {
                         SslSocketFactories.createX509TrustManager(SSL_CONFIG)))
                 .maxNumRetries(0)
                 .userAgent(AGENT)
+                .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
                 .build();
     }
 

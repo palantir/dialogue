@@ -17,6 +17,7 @@
 package com.palantir.dialogue.hc4;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
@@ -64,10 +65,17 @@ final class ApacheClientGauges {
                 T poolValue = extractor.apply(pool);
                 current = combiner.apply(current, poolValue);
             } else {
+                // The connection pool has been garbage collected
                 iterator.remove();
             }
         }
         return current;
+    }
+
+    /** Clears all known connection pools. Exists <i>only</i> for testing, this should never be used otherwise. */
+    @VisibleForTesting
+    static void resetForTesting() {
+        pools.clear();
     }
 
     private ApacheClientGauges() {}
