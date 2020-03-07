@@ -31,7 +31,7 @@ org.apache.commons:commons-lang3 = 3.9
 org.awaitility:awaitility = 4.0.2
 org.jmock:jmock = 2.12.0
 org.knowm.xchart:xchart = 3.6.1
-com.palantir.conjure.verification:* = 0.18.2
+com.palantir.conjure.verification:* = 0.18.3
 
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
