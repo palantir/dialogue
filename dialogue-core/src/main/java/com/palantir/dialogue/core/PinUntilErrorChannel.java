@@ -125,21 +125,22 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return executeInternal(endpoint, request, 1);
+        return executeInternal(endpoint, request, currentHost.get(), 1);
     }
 
-    private Optional<ListenableFuture<Response>> executeInternal(Endpoint endpoint, Request request, int depth) {
-        int currentIndex = currentHost.get();
+    private Optional<ListenableFuture<Response>> executeInternal(
+            Endpoint endpoint, Request request, int currentIndex, int depth) {
         LimitedChannel channel = nodeList.get(currentIndex);
 
         Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
+        // Simply reroute the request to the fist available channel rather than waiting for the pinned channel to
+        // become available. We attempt to route the request at most nodeList.size() times, but due to reshuffling we
+        // are not guaranteed to attempt every distinct channel.
         if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementHostIfNecessary(currentIndex);
+            int next = currentIndex + 1;
             instrumentation.currentChannelRejected(currentIndex, channel, next);
-            // Try enough times to rotate through all nodes (assuming no concurrent clients) before returning
-            // a completely rejected request.
             if (depth < nodeList.size()) {
-                return executeInternal(endpoint, request, depth + 1);
+                return executeInternal(endpoint, request, currentIndex, depth + 1);
             }
             return Optional.empty();
         }
@@ -308,23 +309,14 @@ final class PinUntilErrorChannel implements LimitedChannel {
             }
         }
 
-        private void currentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
-            if (next.isPresent()) {
-                nextNodeBecauseLimited.mark();
-            }
+        private void currentChannelRejected(int currentIndex, LimitedChannel channel, int next) {
+            nextNodeBecauseLimited.mark();
             if (log.isDebugEnabled()) {
-                if (next.isPresent()) {
-                    log.debug(
-                            "Current channel rejected request, switching to next channel",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
-                            SafeArg.of("nextIndex", next.getAsInt()));
-                } else {
-                    log.debug(
-                            "Current channel rejected request, but we've already switched",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel));
-                }
+                log.debug(
+                        "Current channel rejected request, rerouting to next channel",
+                        SafeArg.of("currentIndex", currentIndex),
+                        UnsafeArg.of("current", channel),
+                        SafeArg.of("nextIndex", next));
             }
         }
 
