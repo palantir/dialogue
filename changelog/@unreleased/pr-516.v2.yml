@@ -1,0 +1,8 @@
+type: feature
+feature:
+  description: The QueuedChannel is back with the removal of BlacklistingChannel,
+    which could previously invalidate the queue. This means we cannot limit based
+    on endpoints, but must only take the channel into consideration, and queued requests
+    are scheduled when requests are queued and complete.
+  links:
+  - https://github.com/palantir/dialogue/pull/516
