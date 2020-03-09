@@ -26,7 +26,7 @@ final class RandomSelectionChannelIndexTest {
     @Test
     void testToIndex() {
         BitSet bitSet = new BitSet();
-        assertThat(RandomSelectionChannel.toIndex(bitSet, 0)).isEqualTo(0);
+        assertThat(RandomSelectionChannel.toIndex(bitSet, 0)).isZero();
         bitSet.set(0);
         assertThat(RandomSelectionChannel.toIndex(bitSet, 0)).isEqualTo(1);
     }
