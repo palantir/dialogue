@@ -142,7 +142,7 @@ public final class DialogueChannel implements Channel {
                 return PinUntilErrorChannel.of(config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
-                return new RoundRobinChannel(channels);
+                return new RandomSelectionChannel(channels, random);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
@@ -184,7 +184,7 @@ public final class DialogueChannel implements Channel {
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(delegate);
+        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate));
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(conf, channel, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
