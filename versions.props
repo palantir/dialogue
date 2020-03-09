@@ -17,6 +17,7 @@ com.uber.nullaway:nullaway = 0.7.9
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.immutables:* = 2.8.3
 org.slf4j:* = 1.7.30
+org.apache.httpcomponents:httpclient = 4.5.12
 
 # test deps
 junit:junit = 4.12
@@ -36,6 +37,4 @@ com.palantir.conjure.verification:* = 0.18.3
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
 com.squareup.okhttp3:* = 3.13.1
-# Avoid issues caused by https://issues.apache.org/jira/browse/HTTPCLIENT-2047
-org.apache.httpcomponents:httpclient = 4.5.10
 # dependency-upgrader:ON
