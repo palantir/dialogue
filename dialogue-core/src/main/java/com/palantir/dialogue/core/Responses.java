@@ -20,7 +20,7 @@ import com.palantir.dialogue.Response;
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
 
-    static boolean isTooManyRequests(Response response) {
+    private static boolean isTooManyRequests(Response response) {
         return response.code() == 429;
     }
 
