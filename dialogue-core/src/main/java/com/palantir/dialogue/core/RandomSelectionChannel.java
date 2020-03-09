@@ -22,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Optional;
@@ -39,15 +40,14 @@ final class RandomSelectionChannel implements LimitedChannel {
     RandomSelectionChannel(List<LimitedChannel> delegates, Random random) {
         this.delegates = ImmutableList.copyOf(delegates);
         this.random = random;
+        Preconditions.checkArgument(!this.delegates.isEmpty(), "Delegates must not be empty");
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (delegates.isEmpty()) {
-            return Optional.empty();
-        }
-
         int elements = delegates.size();
+        // Defer collection creation in the hot path, there's no need to create objects for tracking
+        // if the first randomly selected host is successful.
         BitSet visitedChannels = null;
         while (elements > 0) {
             int host = random.nextInt(elements);
@@ -59,6 +59,7 @@ final class RandomSelectionChannel implements LimitedChannel {
             if (visitedChannels == null) {
                 visitedChannels = new BitSet(elements);
             }
+            // Mark 'host' index visited, reduce the available channels, and try again.
             visitedChannels.set(host);
             --elements;
         }
@@ -74,16 +75,18 @@ final class RandomSelectionChannel implements LimitedChannel {
         return nthFalse(visited, index);
     }
 
+    /**
+     * Finds the Nth false in the provided bitset, for example <code>nthFalse([false], 0)</code> returns zero, while
+     * <code>nthFalse([true, false], 0)</code> returns one.
+     */
     private static int nthFalse(BitSet bitSet, int num) {
-        int currentIndex = 0;
         int remaining = num;
-        while (true) {
+        for (int currentIndex = 0; true; currentIndex++) {
             if (!bitSet.get(currentIndex)) {
                 if (--remaining < 0) {
                     return currentIndex;
                 }
             }
-            currentIndex++;
         }
     }
 }
