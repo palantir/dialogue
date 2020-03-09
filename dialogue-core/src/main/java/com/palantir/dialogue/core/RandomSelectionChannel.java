@@ -66,7 +66,11 @@ final class RandomSelectionChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    /** Transforms an index in remaining channels into an actual index in the delegates list. */
+    /**
+     * Finds the Nth unused channel index a bit-set representing channel indexes that have been attempted and resulted
+     * in limited results. The resulting index can be used to look up a channel in the master list which includes
+     * channels that have already been attempted.
+     */
     @VisibleForTesting
     static int toIndex(@Nullable BitSet visited, int index) {
         if (visited == null || visited.isEmpty()) {
