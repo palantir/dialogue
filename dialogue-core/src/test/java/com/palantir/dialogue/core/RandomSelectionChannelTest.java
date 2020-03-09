@@ -17,6 +17,8 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -26,15 +28,19 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.util.Optional;
+import java.util.Random;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
-public class RoundRobinChannelTest {
+public class RandomSelectionChannelTest {
 
     private static final Optional<ListenableFuture<Response>> CHANNEL_A_RESPONSE = Optional.of(SettableFuture.create());
     private static final Optional<ListenableFuture<Response>> CHANNEL_B_RESPONSE = Optional.of(SettableFuture.create());
@@ -52,11 +58,19 @@ public class RoundRobinChannelTest {
     @Mock
     private Request request;
 
-    private RoundRobinChannel loadBalancer;
+    @Mock
+    private Random random;
+
+    private RandomSelectionChannel loadBalancer;
 
     @BeforeEach
     public void before() {
-        loadBalancer = new RoundRobinChannel(ImmutableList.of(channelA, channelB));
+        AtomicInteger index = new AtomicInteger();
+        lenient().when(random.nextInt(anyInt())).thenAnswer((Answer<Integer>) invocation -> {
+            int input = invocation.getArgument(0);
+            return index.getAndIncrement() % input;
+        });
+        loadBalancer = new RandomSelectionChannel(ImmutableList.of(channelA, channelB), random);
 
         lenient().when(channelA.maybeExecute(endpoint, request)).thenReturn(CHANNEL_A_RESPONSE);
         lenient().when(channelB.maybeExecute(endpoint, request)).thenReturn(CHANNEL_B_RESPONSE);
@@ -87,8 +101,7 @@ public class RoundRobinChannelTest {
 
     @Test
     public void testNoChannelsConfigured() {
-        loadBalancer = new RoundRobinChannel(ImmutableList.of());
-
-        assertThat(loadBalancer.maybeExecute(endpoint, request)).isEmpty();
+        assertThatThrownBy(() -> new RandomSelectionChannel(ImmutableList.of(), random))
+                .isInstanceOf(SafeIllegalArgumentException.class);
     }
 }
