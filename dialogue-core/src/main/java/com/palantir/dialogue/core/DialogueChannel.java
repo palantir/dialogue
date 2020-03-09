@@ -32,6 +32,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +47,8 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel {
+    private static final Duration REQUEST_TIMEOUT = Duration.ofMinutes(10);
+
     private Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
 
@@ -169,12 +172,11 @@ public final class DialogueChannel implements Channel {
 
         return new RetryingChannel(
                 channel,
-                conf.taggedMetricRegistry(),
                 conf.maxNumRetries(),
                 conf.backoffSlotSize(),
                 conf.serverQoS(),
                 conf.retryOnTimeout(),
-                scheduler.get(),
+                Schedulers.instrument(conf.taggedMetricRegistry(), scheduler.get(), "RetryingChannel"),
                 random::nextDouble);
     }
 
@@ -193,6 +195,10 @@ public final class DialogueChannel implements Channel {
         channel = new NeverThrowChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-request");
         channel = new ActiveRequestInstrumentationChannel(channel, "processing", clientMetrics);
+        channel = new TimeoutChannel(
+                channel,
+                REQUEST_TIMEOUT,
+                Schedulers.instrument(conf.taggedMetricRegistry(), scheduler.get(), "TimeoutChannel"));
 
         return channel;
     }
@@ -204,7 +210,7 @@ public final class DialogueChannel implements Channel {
     public static final class Builder {
         private Ticker clock = Ticker.systemTicker();
         private Random random = SafeThreadLocalRandom.get();
-        private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
+        private Supplier<ScheduledExecutorService> scheduler = Schedulers.sharedScheduler;
 
         @Nullable
         private ClientConfiguration config;
