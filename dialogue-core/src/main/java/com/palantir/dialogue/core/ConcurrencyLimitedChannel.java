@@ -111,7 +111,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
         @Override
         public void onSuccess(Response result) {
-            if (Responses.isTooManyRequests(result)) {
+            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
                 listener.onDropped();
             } else {
                 listener.onSuccess();
