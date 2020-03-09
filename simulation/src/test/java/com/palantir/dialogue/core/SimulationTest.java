@@ -170,12 +170,26 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .serverName("fast")
+                        .serverName("fast0")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .serverName("slow_failures_then_revert")
+                        .serverName("slow_failures_then_revert0")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "slow 503s")
+                        .handler(h -> h.response(503).linearResponseTime(Duration.ofSeconds(1), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("slow_failures_then_revert1")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 503s")
@@ -198,12 +212,26 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .serverName("fast")
+                        .serverName("fast0")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .serverName("fast_500s_then_revert")
+                        .serverName("fast_500s_then_revert0")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "fast 500s")
+                        .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast_500s_then_revert1")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "fast 500s")
@@ -226,12 +254,26 @@ public class SimulationTest {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
-                        .serverName("fast")
+                        .serverName("fast0")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build(),
                 SimulationServer.builder()
-                        .serverName("fast_then_slow_then_fast")
+                        .serverName("fast_then_slow_then_fast0")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .until(Duration.ofSeconds(3), "slow 200s")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofSeconds(10), capacity))
+                        .until(Duration.ofSeconds(10), "revert")
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast_then_slow_then_fast1")
                         .simulation(simulation)
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .until(Duration.ofSeconds(3), "slow 200s")
@@ -265,6 +307,13 @@ public class SimulationTest {
                         .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(10), "revert badness")
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node3")
+                        .simulation(simulation)
+                        .handler(h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(10), "revert badness")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
         result = Benchmark.builder()
@@ -285,7 +334,19 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build(),
                 SimulationServer.builder()
-                        .serverName("node2_black_hole")
+                        .serverName("node2_black_hole1")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "black hole")
+                        .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2_black_hole2")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .until(Duration.ofSeconds(3), "black hole")
@@ -318,6 +379,15 @@ public class SimulationTest {
                         .build(),
                 SimulationServer.builder()
                         .serverName("server_where_e2_breaks")
+                        .simulation(simulation)
+                        .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .until(Duration.ofSeconds(3), "e2 breaks")
+                        .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
+                        .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("server_where_e3_breaks")
                         .simulation(simulation)
                         .handler(endpoint1, h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .handler(endpoint2, h -> h.response(200).responseTime(Duration.ofMillis(600)))
@@ -384,6 +454,11 @@ public class SimulationTest {
                         .serverName("fast1")
                         .simulation(simulation)
                         .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast2")
+                        .simulation(simulation)
+                        .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build());
 
         result = Benchmark.builder()
@@ -411,6 +486,11 @@ public class SimulationTest {
                         .build(),
                 SimulationServer.builder()
                         .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node3")
                         .simulation(simulation)
                         .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
                         .build());
