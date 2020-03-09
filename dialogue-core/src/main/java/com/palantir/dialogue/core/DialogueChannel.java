@@ -197,10 +197,14 @@ public final class DialogueChannel implements Channel {
         channel = new ActiveRequestInstrumentationChannel(channel, "processing", clientMetrics);
         channel = new TimeoutChannel(
                 channel,
-                REQUEST_TIMEOUT,
+                max(REQUEST_TIMEOUT, conf.readTimeout().plus(conf.writeTimeout())),
                 Schedulers.instrument(conf.taggedMetricRegistry(), scheduler.get(), "TimeoutChannel"));
 
         return channel;
+    }
+
+    private static Duration max(Duration one, Duration two) {
+        return one.toNanos() > two.toNanos() ? one : two;
     }
 
     public static Builder builder() {

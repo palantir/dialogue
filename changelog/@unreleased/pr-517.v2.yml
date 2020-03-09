@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: Implement a non-configurable ten minute timeout
+  description: Implement a full call timeout using the maximum of ten minutes or the sum of the read and write timeouts.
   links:
   - https://github.com/palantir/dialogue/pull/517
