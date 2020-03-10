@@ -16,14 +16,25 @@
 
 package com.palantir.dialogue;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public interface RequestBody {
+public interface RequestBody extends Closeable {
 
     /** The content of this request body, possibly empty. */
     void writeTo(OutputStream output) throws IOException;
 
     /** A HTTP/Conjure content type (e.g., "application/json") indicating the type of content. */
     String contentType();
+
+    /** Returns <pre>true</pre> if {@link #writeTo(OutputStream)} may be invoked multiple times. */
+    boolean repeatable();
+
+    /**
+     * Closes this {@link RequestBody} and releases all resources. Calling {@link #close()} should never throw,
+     * preferring to catch and log.
+     */
+    @Override
+    void close();
 }

@@ -28,6 +28,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -39,6 +40,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -114,7 +116,15 @@ final class RetryingChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return new RetryingCallback(endpoint, request).execute();
+        if (isRetryable(request)) {
+            return new RetryingCallback(endpoint, request).execute();
+        }
+        return delegate.execute(endpoint, request);
+    }
+
+    private boolean isRetryable(Request request) {
+        Optional<RequestBody> maybeBody = request.body();
+        return !maybeBody.isPresent() || maybeBody.get().repeatable();
     }
 
     private final class RetryingCallback {

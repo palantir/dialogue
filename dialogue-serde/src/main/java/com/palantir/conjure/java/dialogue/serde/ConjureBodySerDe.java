@@ -28,6 +28,7 @@ import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
@@ -39,10 +40,13 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
 
+    private static final Logger log = LoggerFactory.getLogger(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
@@ -117,6 +121,22 @@ final class ConjureBodySerDe implements BodySerDe {
             public String contentType() {
                 return BinaryEncoding.CONTENT_TYPE;
             }
+
+            @Override
+            public boolean repeatable() {
+                // BinaryRequestBody values are not currently repeatable. If a need arises we may
+                // consider adding a 'boolean repeatable()' default method.
+                return false;
+            }
+
+            @Override
+            public void close() {
+                try {
+                    value.close();
+                } catch (IOException | RuntimeException e) {
+                    log.warn("Failed to close BinaryRequestBody {}", UnsafeArg.of("body", value), e);
+                }
+            }
         };
     }
 
@@ -142,6 +162,16 @@ final class ConjureBodySerDe implements BodySerDe {
                 @Override
                 public String contentType() {
                     return encoding.encoding.getContentType();
+                }
+
+                @Override
+                public boolean repeatable() {
+                    return true;
+                }
+
+                @Override
+                public void close() {
+                    // nop
                 }
             };
         }

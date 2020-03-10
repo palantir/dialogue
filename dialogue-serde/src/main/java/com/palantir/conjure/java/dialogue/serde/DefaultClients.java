@@ -30,6 +30,8 @@ import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -53,8 +55,18 @@ enum DefaultClients implements Clients {
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
         Optional<String> accepts = deserializer.accepts();
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
-        return Futures.transform(
-                channel.execute(endpoint, outgoingRequest), deserializer::deserialize, MoreExecutors.directExecutor());
+        ListenableFuture<Response> response =
+                closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
+        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+    }
+
+    private static ListenableFuture<Response> closeRequestBodyOnCompletion(
+            ListenableFuture<Response> responseFuture, Request request) {
+        Optional<RequestBody> requestBody = request.body();
+        if (requestBody.isPresent()) {
+            responseFuture.addListener(requestBody.get()::close, MoreExecutors.directExecutor());
+        }
+        return responseFuture;
     }
 
     @Override

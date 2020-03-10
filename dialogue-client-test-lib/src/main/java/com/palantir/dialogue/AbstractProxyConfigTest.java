@@ -50,6 +50,14 @@ public abstract class AbstractProxyConfigTest {
                 public String contentType() {
                     return "text/plain";
                 }
+
+                @Override
+                public boolean repeatable() {
+                    return true;
+                }
+
+                @Override
+                public void close() {}
             })
             .build();
 
