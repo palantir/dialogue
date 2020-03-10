@@ -170,7 +170,7 @@ public final class Benchmark {
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, clientMetrics))
+                .map(c -> new InstrumentedChannel(c, "test service", clientMetrics))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};

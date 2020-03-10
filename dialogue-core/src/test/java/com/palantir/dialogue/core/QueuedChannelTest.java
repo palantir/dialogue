@@ -30,6 +30,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,8 @@ public class QueuedChannelTest {
 
     @BeforeEach
     public void before() {
-        queuedChannel = new QueuedChannel(delegate);
+        queuedChannel =
+                new QueuedChannel(delegate, "my-service", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()));
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 
@@ -170,7 +172,8 @@ public class QueuedChannelTest {
     @Test
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueueFullReturnsLimited() {
-        queuedChannel = new QueuedChannel(delegate, 1);
+        queuedChannel = new QueuedChannel(
+                delegate, "my-service", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 1);
 
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);

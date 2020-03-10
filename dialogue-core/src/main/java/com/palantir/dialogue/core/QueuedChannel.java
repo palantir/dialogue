@@ -18,9 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -33,7 +31,6 @@ import com.palantir.tracing.DetachedSpan;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -59,25 +56,27 @@ import org.slf4j.LoggerFactory;
  */
 final class QueuedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
-    private static final Executor DIRECT = MoreExecutors.directExecutor();
 
     private final Deque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
+    private final String serviceName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
 
-    QueuedChannel(LimitedChannel channel) {
-        this(channel, 1_000);
+    QueuedChannel(LimitedChannel channel, String serviceName, DialogueClientMetrics metrics) {
+        this(channel, serviceName, metrics, 1_000);
     }
 
     @VisibleForTesting
-    QueuedChannel(LimitedChannel delegate, int maxQueueSize) {
+    QueuedChannel(LimitedChannel delegate, String serviceName, DialogueClientMetrics metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.serviceName = serviceName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
+        metrics.requestsQueued().serviceName(serviceName).build(queueSizeEstimate::get);
     }
 
     /**
@@ -92,7 +91,7 @@ final class QueuedChannel implements LimitedChannel {
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 numRunningRequests.incrementAndGet();
-                result.addListener(this::onCompletion, DIRECT);
+                DialogueFutures.addDirectListener(result, this::onCompletion);
                 return maybeResult;
             }
         }
@@ -167,40 +166,38 @@ final class QueuedChannel implements LimitedChannel {
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete();
                 numRunningRequests.incrementAndGet();
-                response.addListener(numRunningRequests::decrementAndGet, DIRECT);
-                Futures.addCallback(response, new ForwardAndSchedule(queuedResponse), DIRECT);
-                queuedResponse.addListener(
-                        () -> {
-                            if (queuedResponse.isCancelled()) {
-                                // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
-                                // here.
-                                // Currently cancel(false) will be converted to cancel(true)
-                                if (!response.cancel(true) && log.isDebugEnabled()) {
-                                    log.debug(
-                                            "Failed to cancel delegate response, it should be reported by"
-                                                    + " ForwardAndSchedule logging",
-                                            SafeArg.of("service", endpoint.serviceName()),
-                                            SafeArg.of("endpoint", endpoint.endpointName()));
-                                }
-                            }
-                        },
-                        DIRECT);
+                DialogueFutures.addDirectListener(response, numRunningRequests::decrementAndGet);
+                DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
+                DialogueFutures.addDirectListener(response, () -> {
+                    if (queuedResponse.isCancelled()) {
+                        // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                        // here.
+                        // Currently cancel(false) will be converted to cancel(true)
+                        if (!response.cancel(true) && log.isDebugEnabled()) {
+                            log.debug(
+                                    "Failed to cancel delegate response, it should be reported by ForwardAndSchedule "
+                                            + "logging",
+                                    SafeArg.of("service", serviceName),
+                                    SafeArg.of("endpoint", endpoint.endpointName()));
+                        }
+                    }
+                });
                 return true;
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
                     log.error(
                             "Failed to add an attempted call back to the deque",
-                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("service", serviceName),
                             SafeArg.of("endpoint", endpoint.endpointName()));
                     queueSizeEstimate.decrementAndGet();
                     if (!queuedResponse.setException(new SafeRuntimeException(
                             "Failed to req-queue request",
-                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("service", serviceName),
                             SafeArg.of("endpoint", endpoint.endpointName())))) {
                         log.debug(
                                 "Queued response has already been completed",
-                                SafeArg.of("service", endpoint.serviceName()),
+                                SafeArg.of("service", serviceName),
                                 SafeArg.of("endpoint", endpoint.endpointName()));
                     }
                 }

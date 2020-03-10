@@ -49,6 +49,7 @@ public final class DialogueChannel implements Channel {
     private Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
 
+    private final String serviceName;
     private final ClientConfiguration clientConfiguration;
     private final ChannelFactory channelFactory;
     private final Channel delegate;
@@ -58,11 +59,13 @@ public final class DialogueChannel implements Channel {
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
     private DialogueChannel(
+            String serviceName,
             ClientConfiguration clientConfiguration,
             ChannelFactory channelFactory,
             Ticker clock,
             Random random,
             Supplier<ScheduledExecutorService> scheduler) {
+        this.serviceName = serviceName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
@@ -70,7 +73,12 @@ public final class DialogueChannel implements Channel {
         this.random = random;
         updateUris(clientConfiguration.uris());
         this.delegate = wrap(
-                new SupplierChannel(nodeSelectionStrategy::get), clientConfiguration, scheduler, random, clientMetrics);
+                serviceName,
+                new SupplierChannel(nodeSelectionStrategy::get),
+                clientConfiguration,
+                scheduler,
+                random,
+                clientMetrics);
     }
 
     @Override
@@ -89,29 +97,23 @@ public final class DialogueChannel implements Channel {
         Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
 
         staleUris.forEach(limitedChannelByUri::remove);
-        newUris.forEach(uri -> limitedChannelByUri.put(
-                uri, createLimitedChannel(uri, channelFactory, clientConfiguration, clientMetrics, clock)));
+        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri)));
 
         nodeSelectionStrategy.getAndUpdate(previous -> getUpdatedNodeSelectionStrategy(
                 previous, clientConfiguration, ImmutableList.copyOf(limitedChannelByUri.values()), random));
     }
 
-    private static LimitedChannel createLimitedChannel(
-            String uri,
-            ChannelFactory channelFactory,
-            ClientConfiguration conf,
-            DialogueClientMetrics clientMetrics,
-            Ticker clock) {
+    private LimitedChannel createLimitedChannel(String uri) {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
-        channel = new InstrumentedChannel(channel, clientMetrics);
-        channel = new ActiveRequestInstrumentationChannel(channel, "running", clientMetrics);
+        channel = new InstrumentedChannel(channel, serviceName, clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, serviceName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TracedRequestChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-http-request");
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return concurrencyLimiter(conf, limitedChannel, clientMetrics, clock);
+        return concurrencyLimiter(clientConfiguration, limitedChannel, clientMetrics, clock);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -162,13 +164,18 @@ public final class DialogueChannel implements Channel {
     }
 
     private static Channel retryingChannel(
-            ClientConfiguration conf, Channel channel, Supplier<ScheduledExecutorService> scheduler, Random random) {
+            Channel channel,
+            String serviceName,
+            ClientConfiguration conf,
+            Supplier<ScheduledExecutorService> scheduler,
+            Random random) {
         if (conf.maxNumRetries() == 0) {
             return channel;
         }
 
         return new RetryingChannel(
                 channel,
+                serviceName,
                 conf.taggedMetricRegistry(),
                 conf.maxNumRetries(),
                 conf.backoffSlotSize(),
@@ -179,20 +186,21 @@ public final class DialogueChannel implements Channel {
     }
 
     private static Channel wrap(
+            String serviceName,
             LimitedChannel delegate,
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate));
+        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate, serviceName, clientMetrics));
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        channel = retryingChannel(conf, channel, scheduler, random);
+        channel = retryingChannel(channel, serviceName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, clientMetrics);
+        channel = new DeprecationWarningChannel(channel, serviceName, clientMetrics);
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-request");
-        channel = new ActiveRequestInstrumentationChannel(channel, "processing", clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, serviceName, "processing", clientMetrics);
 
         return channel;
     }
@@ -207,10 +215,18 @@ public final class DialogueChannel implements Channel {
         private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
 
         @Nullable
+        private String serviceName;
+
+        @Nullable
         private ClientConfiguration config;
 
         @Nullable
         private ChannelFactory channelFactory;
+
+        public Builder serviceName(String value) {
+            this.serviceName = value;
+            return this;
+        }
 
         public Builder clientConfiguration(ClientConfiguration value) {
             this.config = value;
@@ -242,14 +258,15 @@ public final class DialogueChannel implements Channel {
 
         @CheckReturnValue
         public DialogueChannel build() {
-            ClientConfiguration conf = Preconditions.checkNotNull(config, "ClientConfiguration is required");
-            ChannelFactory factory = Preconditions.checkNotNull(channelFactory, "ChannelFactory is required");
+            ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
+            ChannelFactory factory = Preconditions.checkNotNull(channelFactory, "channelFactory is required");
+            String name = Preconditions.checkNotNull(serviceName, "serviceName is required.");
             preconditions(conf);
             ClientConfiguration cleanedConf = ClientConfiguration.builder()
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(cleanedConf, factory, clock, random, scheduler);
+            return new DialogueChannel(name, cleanedConf, factory, clock, random, scheduler);
         }
 
         private void preconditions(ClientConfiguration conf) {

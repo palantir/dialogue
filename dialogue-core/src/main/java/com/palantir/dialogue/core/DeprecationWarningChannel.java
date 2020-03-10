@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -41,13 +42,13 @@ final class DeprecationWarningChannel implements Channel {
     private static final Object SENTINEL = new Object();
 
     private final Channel delegate;
-    private final DialogueClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
+    private final Meter deprecations;
 
-    DeprecationWarningChannel(Channel delegate, DialogueClientMetrics metrics) {
+    DeprecationWarningChannel(Channel delegate, String serviceName, DialogueClientMetrics metrics) {
         this.delegate = delegate;
-        this.metrics = metrics;
+        deprecations = metrics.deprecations(serviceName);
     }
 
     @Override
@@ -56,7 +57,7 @@ final class DeprecationWarningChannel implements Channel {
                 delegate.execute(endpoint, request), DialogueFutures.onSuccess(response -> {
                     if (response != null) {
                         response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                            metrics.deprecations(endpoint.serviceName()).mark();
+                            deprecations.mark();
                             if (tryAcquire(endpoint.serviceName())) {
                                 log.warn(
                                         "Using a deprecated endpoint when connecting to service",

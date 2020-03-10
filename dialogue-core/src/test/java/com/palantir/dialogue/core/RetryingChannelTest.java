@@ -66,6 +66,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -81,6 +82,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -100,6 +102,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -116,6 +119,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -133,6 +137,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -153,6 +158,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -173,6 +179,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -191,6 +198,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -214,6 +222,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -231,6 +240,7 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any())).thenReturn(delegateResult);
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -248,6 +258,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -264,6 +275,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -281,6 +293,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-service",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
