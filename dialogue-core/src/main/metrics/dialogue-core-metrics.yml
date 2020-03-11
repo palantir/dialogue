@@ -24,6 +24,10 @@ namespaces:
         type: meter
         tags: [reason]
         docs: Rate that client-side requests are deferred to be retried later.
+      retry:
+        type: histogram
+        tags: [service-name]
+        docs: Histogram which reports the number of retries used by individual requests tagged by service.
 
   dialogue.pinuntilerror:
     docs: Instrumentation for the PIN_UNTIL_ERROR node selection strategy.

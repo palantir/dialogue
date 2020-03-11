@@ -24,6 +24,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Histogram;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
@@ -36,6 +37,8 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.SocketTimeoutException;
@@ -66,6 +69,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -81,6 +85,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -100,6 +105,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -116,6 +122,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -130,9 +137,11 @@ public class RetryingChannelTest {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
 
         Channel retryer = new RetryingChannel(
                 channel,
+                metrics,
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -143,6 +152,11 @@ public class RetryingChannelTest {
                 .as("After retries are exhausted the 429 response should be returned")
                 .isSameAs(mockResponse);
         verify(channel, times(4)).execute(ENDPOINT, REQUEST);
+        Histogram retryHistogram = DialogueClientMetrics.of(metrics).retry(ENDPOINT.serviceName());
+        assertThat(retryHistogram.getCount()).isOne();
+        assertThat(retryHistogram.getSnapshot().getMax())
+                .isEqualTo(retryHistogram.getSnapshot().getMin())
+                .isEqualTo(3);
     }
 
     @Test
@@ -153,6 +167,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -173,6 +188,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -191,6 +207,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -214,6 +231,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -231,6 +249,7 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any())).thenReturn(delegateResult);
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -245,15 +264,22 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
                 .thenReturn(SUCCESS);
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
 
         Channel retryer = new RetryingChannel(
                 channel,
+                metrics,
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(SocketTimeoutException.class);
+        Histogram retryHistogram = DialogueClientMetrics.of(metrics).retry(ENDPOINT.serviceName());
+        assertThat(retryHistogram.getCount()).isOne();
+        assertThat(retryHistogram.getSnapshot().getMax())
+                .isEqualTo(retryHistogram.getSnapshot().getMin())
+                .isZero();
     }
 
     @Test
@@ -264,6 +290,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -281,6 +308,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                new DefaultTaggedMetricRegistry(),
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,

@@ -35,7 +35,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -75,17 +74,19 @@ final class RetryingChannel implements Channel {
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
+    private final DialogueClientMetrics metrics;
 
     @VisibleForTesting
     RetryingChannel(
             Channel delegate,
+            TaggedMetricRegistry metrics,
             int maxRetries,
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
         this(
                 delegate,
-                new DefaultTaggedMetricRegistry(),
+                metrics,
                 maxRetries,
                 backoffSlotSize,
                 serverQoS,
@@ -110,6 +111,7 @@ final class RetryingChannel implements Channel {
         this.retryOnTimeout = retryOnTimeout;
         this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
+        this.metrics = DialogueClientMetrics.of(metrics);
     }
 
     @Override
@@ -182,11 +184,13 @@ final class RetryingChannel implements Channel {
                             SafeArg.of("retries", maxRetries),
                             SafeArg.of("status", response.code()));
                 }
+                reportRetries();
                 return Futures.immediateFuture(response);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
 
+            reportRetries();
             return Futures.immediateFuture(response);
         }
 
@@ -202,7 +206,12 @@ final class RetryingChannel implements Channel {
                             throwable);
                 }
             }
+            reportRetries();
             return Futures.immediateFailedFuture(throwable);
+        }
+
+        private void reportRetries() {
+            metrics.retry(endpoint.serviceName()).update(Math.max(0, failures - 1));
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
