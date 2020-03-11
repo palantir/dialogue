@@ -62,7 +62,6 @@ final class QueuedChannel implements LimitedChannel {
     private final LimitedChannel delegate;
     private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
-    private final AtomicInteger numRunningRequests = new AtomicInteger(0);
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
     private Counter queueSizeCounter;
@@ -92,7 +91,6 @@ final class QueuedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
-                numRunningRequests.incrementAndGet();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
                 return maybeResult;
             }
@@ -123,7 +121,6 @@ final class QueuedChannel implements LimitedChannel {
     }
 
     private void onCompletion() {
-        numRunningRequests.decrementAndGet();
         schedule();
     }
 
@@ -177,8 +174,6 @@ final class QueuedChannel implements LimitedChannel {
                 decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete();
-                numRunningRequests.incrementAndGet();
-                DialogueFutures.addDirectListener(response, numRunningRequests::decrementAndGet);
                 DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
                 DialogueFutures.addDirectListener(queuedResponse, () -> {
                     if (queuedResponse.isCancelled()) {
