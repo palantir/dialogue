@@ -235,3 +235,20 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.Deserializer<java.util.Optional<java.io.InputStream>>\
         \ com.palantir.dialogue.BodySerDe::optionalInputStreamDeserializer()"
       justification: "ConjureBodySerDe is not meant for extension"
+  "0.19.7":
+    com.palantir.dialogue:dialogue-apache-hc4-client: []
+    com.palantir.dialogue:dialogue-blocking-channels: []
+    com.palantir.dialogue:dialogue-core: []
+    com.palantir.dialogue:dialogue-httpurlconnection-client: []
+    com.palantir.dialogue:dialogue-java-client: []
+    com.palantir.dialogue:dialogue-okhttp-client: []
+    com.palantir.dialogue:dialogue-serde: []
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      old: null
+      new: "method boolean com.palantir.dialogue.RequestBody::repeatable()"
+      justification: "internal interface not for extension"
+    - code: "java.method.addedToInterface"
+      old: null
+      new: "method void com.palantir.dialogue.RequestBody::close()"
+      justification: "internal interface not for extension"

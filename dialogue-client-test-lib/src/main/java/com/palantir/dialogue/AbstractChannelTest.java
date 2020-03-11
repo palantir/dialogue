@@ -80,6 +80,14 @@ public abstract class AbstractChannelTest {
         public String contentType() {
             return "application/text";
         }
+
+        @Override
+        public boolean repeatable() {
+            return true;
+        }
+
+        @Override
+        public void close() {}
     };
 
     @Mock
