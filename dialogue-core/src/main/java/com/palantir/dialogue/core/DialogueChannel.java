@@ -49,7 +49,7 @@ public final class DialogueChannel implements Channel {
     private Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
 
-    private final String serviceName;
+    private final String channelName;
     private final ClientConfiguration clientConfiguration;
     private final ChannelFactory channelFactory;
     private final Channel delegate;
@@ -59,13 +59,13 @@ public final class DialogueChannel implements Channel {
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
     private DialogueChannel(
-            String serviceName,
+            String channelName,
             ClientConfiguration clientConfiguration,
             ChannelFactory channelFactory,
             Ticker clock,
             Random random,
             Supplier<ScheduledExecutorService> scheduler) {
-        this.serviceName = serviceName;
+        this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
@@ -73,7 +73,7 @@ public final class DialogueChannel implements Channel {
         this.random = random;
         updateUris(clientConfiguration.uris());
         this.delegate = wrap(
-                serviceName,
+                channelName,
                 new SupplierChannel(nodeSelectionStrategy::get),
                 clientConfiguration,
                 scheduler,
@@ -106,8 +106,8 @@ public final class DialogueChannel implements Channel {
     private LimitedChannel createLimitedChannel(String uri) {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
-        channel = new InstrumentedChannel(channel, serviceName, clientMetrics);
-        channel = new ActiveRequestInstrumentationChannel(channel, serviceName, "running", clientMetrics);
+        channel = new InstrumentedChannel(channel, channelName, clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TracedRequestChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-http-request");
@@ -215,7 +215,7 @@ public final class DialogueChannel implements Channel {
         private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
 
         @Nullable
-        private String serviceName;
+        private String channelName;
 
         @Nullable
         private ClientConfiguration config;
@@ -224,7 +224,7 @@ public final class DialogueChannel implements Channel {
         private ChannelFactory channelFactory;
 
         public Builder serviceName(String value) {
-            this.serviceName = value;
+            this.channelName = value;
             return this;
         }
 
@@ -260,7 +260,7 @@ public final class DialogueChannel implements Channel {
         public DialogueChannel build() {
             ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
             ChannelFactory factory = Preconditions.checkNotNull(channelFactory, "channelFactory is required");
-            String name = Preconditions.checkNotNull(serviceName, "serviceName is required.");
+            String name = Preconditions.checkNotNull(channelName, "channelName is required.");
             preconditions(conf);
             ClientConfiguration cleanedConf = ClientConfiguration.builder()
                     .from(conf)

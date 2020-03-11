@@ -295,7 +295,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
-                "my-service",
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -311,6 +311,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,

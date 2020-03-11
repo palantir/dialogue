@@ -44,6 +44,7 @@ final class ActiveRequestInstrumentationChannelTest {
                 instrumented.execute(StubEndpoint.INSTANCE, Request.builder().build());
         assertThat(result).isNotDone();
         Counter counter = metrics.requestActive()
+                .channelName("my-channel")
                 .serviceName("StubService")
                 .stage("stage")
                 .build();

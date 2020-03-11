@@ -26,24 +26,30 @@ import com.palantir.dialogue.Response;
 
 final class ActiveRequestInstrumentationChannel implements Channel {
 
+    private final String channelName;
     private final String stage;
+    private final DialogueClientMetrics metrics;
     private final Channel delegate;
-    private final Counter active;
 
     ActiveRequestInstrumentationChannel(
-            Channel delegate, String serviceName, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
+            Channel delegate, String channelName, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
         // The delegate must never be allowed to throw, otherwise the counter may be incremented without
         // being decremented.
         this.delegate = new NeverThrowChannel(delegate);
+        this.channelName = channelName;
         this.stage = stage;
-        this.active =
-                metrics.requestActive().serviceName(serviceName).stage(stage).build();
+        this.metrics = metrics;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        active.inc();
-        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), active::dec);
+        Counter counter = metrics.requestActive()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .stage(stage)
+                .build();
+        counter.inc();
+        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
     @Override

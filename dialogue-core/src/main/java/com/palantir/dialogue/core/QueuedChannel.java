@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -62,21 +63,21 @@ final class QueuedChannel implements LimitedChannel {
     private final String serviceName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger numRunningRequests = new AtomicInteger(0);
-    private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
+    private Counter queueSizeCounter;
 
     QueuedChannel(LimitedChannel channel, String serviceName, DialogueClientMetrics metrics) {
         this(channel, serviceName, metrics, 1_000);
     }
 
     @VisibleForTesting
-    QueuedChannel(LimitedChannel delegate, String serviceName, DialogueClientMetrics metrics, int maxQueueSize) {
+    QueuedChannel(LimitedChannel delegate, String channelName, DialogueClientMetrics metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.serviceName = serviceName;
+        this.serviceName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
-        metrics.requestsQueued().serviceName(serviceName).build(queueSizeEstimate::get);
+        this.queueSizeCounter = metrics.requestsQueued(channelName);
     }
 
     /**
@@ -86,7 +87,7 @@ final class QueuedChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
-        if (queueSizeEstimate.get() <= 0) {
+        if (queueSizeCounter.getCount() <= 0) {
             Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
@@ -98,7 +99,7 @@ final class QueuedChannel implements LimitedChannel {
 
         // Important to read the queue size here as well as prior to the optimistic maybeExecute because
         // maybeExecute may take sufficiently long that other requests could be queued.
-        if (queueSizeEstimate.get() >= maxQueueSize) {
+        if (queueSizeCounter.getCount() >= maxQueueSize) {
             return Optional.empty();
         }
 
@@ -113,7 +114,7 @@ final class QueuedChannel implements LimitedChannel {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
             return Optional.empty();
         }
-        queueSizeEstimate.incrementAndGet();
+        queueSizeCounter.inc();
 
         schedule();
 
@@ -154,7 +155,7 @@ final class QueuedChannel implements LimitedChannel {
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
         if (queuedResponse.isDone()) {
-            queueSizeEstimate.decrementAndGet();
+            queueSizeCounter.dec();
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
@@ -162,7 +163,7 @@ final class QueuedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
 
             if (maybeResponse.isPresent()) {
-                queueSizeEstimate.decrementAndGet();
+                queueSizeCounter.dec();
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete();
                 numRunningRequests.incrementAndGet();
@@ -190,7 +191,7 @@ final class QueuedChannel implements LimitedChannel {
                             "Failed to add an attempted call back to the deque",
                             SafeArg.of("service", serviceName),
                             SafeArg.of("endpoint", endpoint.endpointName()));
-                    queueSizeEstimate.decrementAndGet();
+                    queueSizeCounter.dec();
                     if (!queuedResponse.setException(new SafeRuntimeException(
                             "Failed to req-queue request",
                             SafeArg.of("service", serviceName),
