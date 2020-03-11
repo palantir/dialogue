@@ -82,6 +82,7 @@ public final class ApacheHttpClientChannels {
     public static Channel create(ClientConfiguration conf) {
         CloseableClient client = createCloseableHttpClient(conf);
         return DialogueChannel.builder()
+                .channelName("apache-channel")
                 .clientConfiguration(conf)
                 .channelFactory(uri -> createSingleUri(uri, client))
                 .build();
