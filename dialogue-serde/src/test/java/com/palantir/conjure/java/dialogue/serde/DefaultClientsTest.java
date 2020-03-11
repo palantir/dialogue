@@ -19,6 +19,8 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,6 +32,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -87,5 +90,40 @@ public final class DefaultClientsTest {
         verify(channel).execute(eq(endpoint), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get(HttpHeaders.ACCEPT))
                 .containsExactly(expectedAccept);
+    }
+
+    @Test
+    public void testCallClosesRequestOnCompletion_success() {
+        RequestBody body = mock(RequestBody.class);
+        Request request = Request.builder().body(body).build();
+        when(deserializer.deserialize(eq(response))).thenReturn("value");
+        SettableFuture<Response> responseFuture = SettableFuture.create();
+        when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
+        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+
+        // The request has been sent, but not yet completed
+        verify(body, never()).close();
+
+        // Upon completion the request should be closed
+        responseFuture.set(response);
+        assertThat(result).isDone();
+        verify(body).close();
+    }
+
+    @Test
+    public void testCallClosesRequestOnCompletion_failure() {
+        RequestBody body = mock(RequestBody.class);
+        Request request = Request.builder().body(body).build();
+        SettableFuture<Response> responseFuture = SettableFuture.create();
+        when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
+        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+
+        // The request has been sent, but not yet completed
+        verify(body, never()).close();
+
+        // Upon completion the request should be closed
+        responseFuture.setException(new IllegalStateException());
+        assertThat(result).isDone();
+        verify(body).close();
     }
 }
