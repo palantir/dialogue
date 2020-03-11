@@ -165,7 +165,7 @@ public final class DialogueChannel implements Channel {
 
     private static Channel retryingChannel(
             Channel channel,
-            String serviceName,
+            String channelName,
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random) {
@@ -175,7 +175,7 @@ public final class DialogueChannel implements Channel {
 
         return new RetryingChannel(
                 channel,
-                serviceName,
+                channelName,
                 conf.taggedMetricRegistry(),
                 conf.maxNumRetries(),
                 conf.backoffSlotSize(),
@@ -186,21 +186,21 @@ public final class DialogueChannel implements Channel {
     }
 
     private static Channel wrap(
-            String serviceName,
+            String channelName,
             LimitedChannel delegate,
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate, serviceName, clientMetrics));
+        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate, channelName, clientMetrics));
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        channel = retryingChannel(channel, serviceName, conf, scheduler, random);
+        channel = retryingChannel(channel, channelName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, serviceName, clientMetrics);
+        channel = new DeprecationWarningChannel(channel, clientMetrics);
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-request");
-        channel = new ActiveRequestInstrumentationChannel(channel, serviceName, "processing", clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", clientMetrics);
 
         return channel;
     }
