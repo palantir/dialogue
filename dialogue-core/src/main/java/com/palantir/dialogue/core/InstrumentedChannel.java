@@ -31,9 +31,9 @@ final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final Timer responseTimer;
 
-    InstrumentedChannel(Channel delegate, String serviceName, DialogueClientMetrics metrics) {
+    InstrumentedChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
         this.delegate = delegate;
-        this.responseTimer = metrics.response(serviceName);
+        this.responseTimer = metrics.response(channelName);
     }
 
     @Override

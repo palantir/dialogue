@@ -65,7 +65,7 @@ public class QueuedChannelTest {
     @BeforeEach
     public void before() {
         queuedChannel =
-                new QueuedChannel(delegate, "my-service", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()));
+                new QueuedChannel(delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()));
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 
@@ -173,7 +173,7 @@ public class QueuedChannelTest {
     @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueueFullReturnsLimited() {
         queuedChannel = new QueuedChannel(
-                delegate, "my-service", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 1);
+                delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 1);
 
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);

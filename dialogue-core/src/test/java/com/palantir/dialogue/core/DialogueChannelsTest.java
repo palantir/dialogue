@@ -97,6 +97,7 @@ public final class DialogueChannelsTest {
     @BeforeEach
     public void before() {
         channel = DialogueChannel.builder()
+                .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .channelFactory(_uri -> delegate)
                 .build();
@@ -120,6 +121,7 @@ public final class DialogueChannelsTest {
         };
 
         channel = DialogueChannel.builder()
+                .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .channelFactory(uri -> badUserImplementation)
                 .build();
@@ -141,6 +143,7 @@ public final class DialogueChannelsTest {
         };
 
         channel = DialogueChannel.builder()
+                .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .channelFactory(uri -> badUserImplementation)
                 .build();

@@ -223,7 +223,7 @@ public final class DialogueChannel implements Channel {
         @Nullable
         private ChannelFactory channelFactory;
 
-        public Builder serviceName(String value) {
+        public Builder channelName(String value) {
             this.channelName = value;
             return this;
         }

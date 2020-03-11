@@ -7,7 +7,7 @@ namespaces:
     metrics:
       response:
         type: timer
-        tags: [service-name]
+        tags: [channel-name]
         docs: Request time, note that this does not include time spent reading the response body.
       request.active:
         type: counter
