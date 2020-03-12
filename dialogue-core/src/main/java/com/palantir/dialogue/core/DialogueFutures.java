@@ -33,6 +33,12 @@ final class DialogueFutures {
         return future;
     }
 
+    @CanIgnoreReturnValue
+    static <T> ListenableFuture<T> addDirectListener(ListenableFuture<T> future, Runnable listener) {
+        future.addListener(listener, MoreExecutors.directExecutor());
+        return future;
+    }
+
     static <T> FutureCallback<T> onSuccess(Consumer<T> onSuccess) {
         return new FutureCallback<T>() {
             @Override

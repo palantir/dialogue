@@ -39,11 +39,12 @@ final class ActiveRequestInstrumentationChannelTest {
         Channel stub = (_endpoint, _request) -> future;
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         ActiveRequestInstrumentationChannel instrumented =
-                new ActiveRequestInstrumentationChannel(stub, "stage", metrics);
+                new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", metrics);
         ListenableFuture<Response> result =
                 instrumented.execute(StubEndpoint.INSTANCE, Request.builder().build());
         assertThat(result).isNotDone();
         Counter counter = metrics.requestActive()
+                .channelName("my-channel")
                 .serviceName("StubService")
                 .stage("stage")
                 .build();

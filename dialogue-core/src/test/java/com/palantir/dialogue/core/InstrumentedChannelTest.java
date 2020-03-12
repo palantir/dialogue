@@ -49,16 +49,14 @@ public final class InstrumentedChannelTest {
     @BeforeEach
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
-        channel = new InstrumentedChannel(delegate, DialogueClientMetrics.of(registry));
+        channel = new InstrumentedChannel(delegate, "my-channel", DialogueClientMetrics.of(registry));
     }
 
     @Test
     public void addsMetricsForSuccessfulAndUnsuccessfulExecution() {
-        when(endpoint.serviceName()).thenReturn("my-service");
-
         MetricName name = MetricName.builder()
                 .safeName("dialogue.client.response")
-                .putSafeTags("service-name", endpoint.serviceName())
+                .putSafeTags("channel-name", "my-channel")
                 .build();
         Timer timer = registry.timer(name);
 

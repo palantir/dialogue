@@ -72,6 +72,7 @@ final class RetryingChannel implements Channel {
 
     private final ListeningScheduledExecutorService scheduler;
     private final Channel delegate;
+    private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
@@ -81,12 +82,14 @@ final class RetryingChannel implements Channel {
     @VisibleForTesting
     RetryingChannel(
             Channel delegate,
+            String channelName,
             int maxRetries,
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
         this(
                 delegate,
+                channelName,
                 new DefaultTaggedMetricRegistry(),
                 maxRetries,
                 backoffSlotSize,
@@ -98,6 +101,7 @@ final class RetryingChannel implements Channel {
 
     RetryingChannel(
             Channel delegate,
+            String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,
             Duration backoffSlotSize,
@@ -106,6 +110,7 @@ final class RetryingChannel implements Channel {
             ScheduledExecutorService scheduler,
             DoubleSupplier jitter) {
         this.delegate = delegate;
+        this.channelName = channelName;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
         this.serverQoS = serverQoS;
@@ -207,6 +212,7 @@ final class RetryingChannel implements Channel {
                 } else if (log.isDebugEnabled()) {
                     log.debug(
                             "Not attempting to retry failure",
+                            SafeArg.of("channelName", channelName),
                             SafeArg.of("serviceName", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
                             throwable);
@@ -235,6 +241,7 @@ final class RetryingChannel implements Channel {
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
                         SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
+                        SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);

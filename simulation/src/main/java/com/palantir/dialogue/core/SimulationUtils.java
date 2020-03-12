@@ -97,6 +97,7 @@ final class SimulationUtils {
         };
     }
 
+    static final String CHANNEL_NAME = "test-channel";
     static final String SERVICE_NAME = "svc";
 
     public static Endpoint endpoint(String name) {

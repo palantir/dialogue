@@ -170,7 +170,7 @@ public final class Benchmark {
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, clientMetrics))
+                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, clientMetrics))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
@@ -240,7 +240,7 @@ public final class Benchmark {
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
                             .clientHistogram(clientMetrics
-                                    .response(SimulationUtils.SERVICE_NAME)
+                                    .response(SimulationUtils.CHANNEL_NAME)
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)

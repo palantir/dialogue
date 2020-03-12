@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -27,15 +26,17 @@ import com.palantir.dialogue.Response;
 
 final class ActiveRequestInstrumentationChannel implements Channel {
 
+    private final String channelName;
     private final String stage;
-    private final Channel delegate;
     private final DialogueClientMetrics metrics;
+    private final Channel delegate;
 
     ActiveRequestInstrumentationChannel(
-            Channel delegate, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
+            Channel delegate, String channelName, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
         // The delegate must never be allowed to throw, otherwise the counter may be incremented without
         // being decremented.
         this.delegate = new NeverThrowChannel(delegate);
+        this.channelName = channelName;
         this.stage = stage;
         this.metrics = metrics;
     }
@@ -43,13 +44,12 @@ final class ActiveRequestInstrumentationChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Counter counter = metrics.requestActive()
+                .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .stage(stage)
                 .build();
         counter.inc();
-        ListenableFuture<Response> result = delegate.execute(endpoint, request);
-        result.addListener(counter::dec, MoreExecutors.directExecutor());
-        return result;
+        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
     @Override

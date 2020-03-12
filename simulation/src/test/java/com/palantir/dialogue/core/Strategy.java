@@ -76,6 +76,7 @@ public enum Strategy {
             UnaryOperator<ClientConfiguration.Builder> applyConfig) {
         Random pseudo = new Random(3218974678L);
         DialogueChannel channel = DialogueChannel.builder()
+                .channelName(SimulationUtils.CHANNEL_NAME)
                 .clientConfiguration(applyConfig
                         .apply(ClientConfiguration.builder()
                                 .uris(ImmutableList.copyOf(channelSupplier.get().keySet()))
