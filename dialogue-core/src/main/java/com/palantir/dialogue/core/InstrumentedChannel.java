@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -29,16 +30,25 @@ import com.palantir.dialogue.Response;
  */
 final class InstrumentedChannel implements Channel {
     private final Channel delegate;
-    private final Timer responseTimer;
+    private final String channelName;
+    private final DialogueClientMetrics metrics;
 
     InstrumentedChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
         this.delegate = delegate;
-        this.responseTimer = metrics.response(channelName);
+        this.channelName = channelName;
+        this.metrics = metrics;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), responseTimer.time()::stop);
+        Timer.Context context = metrics.response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .build()
+                .time();
+        ListenableFuture<Response> response = delegate.execute(endpoint, request);
+        response.addListener(context::stop, MoreExecutors.directExecutor());
+        return response;
     }
 
     @Override
