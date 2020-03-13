@@ -240,7 +240,10 @@ public final class Benchmark {
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
                             .clientHistogram(clientMetrics
-                                    .response(SimulationUtils.CHANNEL_NAME)
+                                    .response()
+                                    .channelName(SimulationUtils.CHANNEL_NAME)
+                                    .serviceName(SimulationUtils.SERVICE_NAME)
+                                    .build()
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
