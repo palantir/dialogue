@@ -54,9 +54,12 @@ public final class InstrumentedChannelTest {
 
     @Test
     public void addsMetricsForSuccessfulAndUnsuccessfulExecution() {
+        when(endpoint.serviceName()).thenReturn("my-service");
+
         MetricName name = MetricName.builder()
                 .safeName("dialogue.client.response")
                 .putSafeTags("channel-name", "my-channel")
+                .putSafeTags("service-name", endpoint.serviceName())
                 .build();
         Timer timer = registry.timer(name);
 
