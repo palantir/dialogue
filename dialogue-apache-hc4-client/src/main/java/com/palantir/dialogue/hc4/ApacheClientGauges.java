@@ -16,13 +16,21 @@
 
 package com.palantir.dialogue.hc4;
 
-import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableMap;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricSet;
 import java.lang.ref.WeakReference;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
@@ -35,28 +43,60 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 @SuppressWarnings("UnnecessaryLambda")
 final class ApacheClientGauges {
 
-    private static final List<WeakReference<PoolingHttpClientConnectionManager>> pools = new CopyOnWriteArrayList<>();
-    private static final Gauge<Long> idle =
-            () -> collect(pool -> (long) pool.getTotalStats().getAvailable(), Long::sum, 0L);
-    private static final Gauge<Long> leased =
-            () -> collect(pool -> (long) pool.getTotalStats().getLeased(), Long::sum, 0L);
-    private static final Gauge<Long> pending =
-            () -> collect(pool -> (long) pool.getTotalStats().getPending(), Long::sum, 0L);
+    private static final ConcurrentMap<String, List<WeakReference<PoolingHttpClientConnectionManager>>> poolsByName =
+            new ConcurrentHashMap<>();
+    private static final TaggedMetricSet metricSet = new TaggedMetricSet() {
+        @Override
+        public Map<MetricName, Metric> getMetrics() {
+            ImmutableMap.Builder<MetricName, Metric> results = ImmutableMap.builder();
+            forEachMetric(results::put);
+            return results.build();
+        }
 
-    static void register(PoolingHttpClientConnectionManager connectionPool) {
+        @Override
+        public void forEachMetric(BiConsumer<MetricName, Metric> consumer) {
+            TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+            DialogueClientPoolMetrics poolMetrics = DialogueClientPoolMetrics.of(registry);
+            poolsByName.forEach((channelName, pools) -> {
+                poolMetrics
+                        .size()
+                        .channelName(channelName)
+                        .state("idle")
+                        .build(() -> collect(
+                                pools, pool -> (long) pool.getTotalStats().getAvailable(), Long::sum, 0L));
+                poolMetrics
+                        .size()
+                        .channelName(channelName)
+                        .state("leased")
+                        .build(() -> collect(
+                                pools, pool -> (long) pool.getTotalStats().getLeased(), Long::sum, 0L));
+                poolMetrics
+                        .size()
+                        .channelName(channelName)
+                        .state("pending")
+                        .build(() -> collect(
+                                pools, pool -> (long) pool.getTotalStats().getPending(), Long::sum, 0L));
+            });
+            registry.forEachMetric(consumer);
+        }
+    };
+
+    static void register(String channelName, PoolingHttpClientConnectionManager connectionPool) {
+        List<WeakReference<PoolingHttpClientConnectionManager>> pools =
+                poolsByName.computeIfAbsent(channelName, ignored -> new CopyOnWriteArrayList<>());
         pools.add(new WeakReference<>(connectionPool));
         pools.removeIf(item -> item.get() == null);
     }
 
     static void install(TaggedMetricRegistry registry) {
-        DialogueClientPoolMetrics poolMetrics = DialogueClientPoolMetrics.of(registry);
-        poolMetrics.size().state("idle").build(idle);
-        poolMetrics.size().state("leased").build(leased);
-        poolMetrics.size().state("pending").build(pending);
+        registry.addMetrics("set", "apacheClientGauges", metricSet);
     }
 
     static <T> T collect(
-            Function<PoolingHttpClientConnectionManager, T> extractor, BiFunction<T, T, T> combiner, T initial) {
+            List<WeakReference<PoolingHttpClientConnectionManager>> pools,
+            Function<PoolingHttpClientConnectionManager, T> extractor,
+            BiFunction<T, T, T> combiner,
+            T initial) {
         T current = initial;
         Iterator<WeakReference<PoolingHttpClientConnectionManager>> iterator = pools.iterator();
         while (iterator.hasNext()) {
@@ -75,7 +115,7 @@ final class ApacheClientGauges {
     /** Clears all known connection pools. Exists <i>only</i> for testing, this should never be used otherwise. */
     @VisibleForTesting
     static void resetForTesting() {
-        pools.clear();
+        poolsByName.clear();
     }
 
     private ApacheClientGauges() {}

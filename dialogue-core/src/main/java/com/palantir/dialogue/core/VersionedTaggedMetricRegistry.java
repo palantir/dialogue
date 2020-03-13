@@ -114,9 +114,9 @@ final class VersionedTaggedMetricRegistry implements TaggedMetricRegistry {
     }
 
     @Override
-    public void addMetrics(String _safeTagName, String _safeTagValue, TaggedMetricSet _metrics) {
-        throw new UnsupportedOperationException(
-                "Operations involving transforming metricsets are not implemented as we don't need them in dialogue");
+    public void addMetrics(String safeTagName, String safeTagValue, TaggedMetricSet metrics) {
+        // Passed through without adding version tags
+        delegate.addMetrics(safeTagName, safeTagValue, metrics);
     }
 
     @Override

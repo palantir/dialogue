@@ -80,9 +80,10 @@ public final class ApacheHttpClientChannels {
     private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf) {
-        CloseableClient client = createCloseableHttpClient(conf);
+        String channelName = "apache-channel";
+        CloseableClient client = createCloseableHttpClient(conf, channelName);
         return DialogueChannel.builder()
-                .channelName("apache-channel")
+                .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> createSingleUri(uri, client))
                 .build();
@@ -92,7 +93,17 @@ public final class ApacheHttpClientChannels {
         return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client.client, url(uri)));
     }
 
+    /**
+     * Prefer {@link #createCloseableHttpClient(ClientConfiguration, String)}.
+     *
+     * @deprecated Use the overload with a channel name.
+     */
+    @Deprecated
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
+        return createCloseableHttpClient(conf, "apache-channel");
+    }
+
+    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String channelName) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -118,7 +129,7 @@ public final class ApacheHttpClientChannels {
                         .register("https", sslSocketFactory)
                         .build());
 
-        ApacheClientGauges.register(connectionManager);
+        ApacheClientGauges.register(channelName, connectionManager);
 
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);
