@@ -22,12 +22,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,35 +62,65 @@ final class PinUntilErrorChannel implements LimitedChannel {
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
 
     // TODO(dfox): could we make this endpoint-specific?
-    private final AtomicInteger currentHost = new AtomicInteger(0); // always positive
+    private final AtomicInteger currentHost;
     private final NodeList nodeList;
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList, DialoguePinuntilerrorMetrics metrics) {
+    PinUntilErrorChannel(NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics) {
         this.nodeList = nodeList;
+        this.currentHost = new AtomicInteger(initialHost);
         this.instrumentation = new Instrumentation(nodeList.size(), metrics);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
                         + " Use an always throwing channel or just pick the only channel in the list.");
+        Preconditions.checkArgument(
+                0 <= initialHost && initialHost < nodeList.size(),
+                "initialHost must be a valid index into nodeList",
+                SafeArg.of("initialHost", initialHost));
     }
 
-    static LimitedChannel pinUntilError(List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
-        ReshufflingNodeList shufflingNodeList =
-                new ReshufflingNodeList(channels, SafeThreadLocalRandom.get(), System::nanoTime, metrics);
-        return new PinUntilErrorChannel(shufflingNodeList, metrics);
+    static PinUntilErrorChannel of(
+            NodeSelectionStrategy strategy,
+            List<LimitedChannel> channels,
+            DialoguePinuntilerrorMetrics metrics,
+            Random random) {
+        return from(channels.get(0), strategy, channels, metrics, random);
     }
 
-    /**
-     * This strategy results in unbalanced server utilization, especially after an upstream restarts.
-     * @deprecated prefer {@link #pinUntilError}
-     */
-    @Deprecated
-    static LimitedChannel pinUntilErrorWithoutReshuffle(
-            List<LimitedChannel> channels, DialoguePinuntilerrorMetrics metrics) {
-        ConstantNodeList constantNodeList = new ConstantNodeList(channels, SafeThreadLocalRandom.get());
-        return new PinUntilErrorChannel(constantNodeList, metrics);
+    static PinUntilErrorChannel from(
+            LimitedChannel initialChannel,
+            NodeSelectionStrategy strategy,
+            List<LimitedChannel> channels,
+            DialoguePinuntilerrorMetrics metrics,
+            Random random) {
+        /**
+         * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
+         * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
+         * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
+         * situation where there might be many nodes but all clients have decided to hammer one of them.
+         */
+        ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
+        // We only rely on reference equality since we expect LimitedChannels to be reused across updates
+        int initialHost = initialShuffle.indexOf(initialChannel);
+        initialHost = initialHost == -1 ? 0 : initialHost;
+
+        switch (strategy) {
+            case PIN_UNTIL_ERROR:
+                NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics);
+                return new PinUntilErrorChannel(shuffling, initialHost, metrics);
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                NodeList constant = new ConstantNodeList(initialShuffle);
+                return new PinUntilErrorChannel(constant, initialHost, metrics);
+            case ROUND_ROBIN:
+        }
+
+        throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
+    }
+
+    LimitedChannel getCurrentChannel() {
+        return nodeList.get(currentHost.get());
     }
 
     @Override
@@ -96,32 +128,26 @@ final class PinUntilErrorChannel implements LimitedChannel {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
 
-        Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
-        if (!maybeFuture.isPresent()) {
-            OptionalInt next = incrementHostIfNecessary(currentIndex);
-            instrumentation.currentChannelRejected(currentIndex, channel, next);
-            return Optional.empty(); // if the caller retries immediately, we'll get the next host
-        }
+        return channel.maybeExecute(endpoint, request)
+                .map(future -> DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                            OptionalInt next = incrementHostIfNecessary(currentIndex);
+                            instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
+                            // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel
+                            // mapping
+                        } else {
+                            instrumentation.successfulResponse(currentIndex);
+                        }
+                    }
 
-        ListenableFuture<Response> future = maybeFuture.get();
-        return Optional.of(DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
-            @Override
-            public void onSuccess(Response response) {
-                if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                    OptionalInt next = incrementHostIfNecessary(currentIndex);
-                    instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
-                    // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
-                } else {
-                    instrumentation.successfulResponse(currentIndex);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable throwable) {
-                OptionalInt next = incrementHostIfNecessary(currentIndex);
-                instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
-            }
-        }));
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        OptionalInt next = incrementHostIfNecessary(currentIndex);
+                        instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
+                    }
+                }));
     }
 
     /**
@@ -145,14 +171,8 @@ final class PinUntilErrorChannel implements LimitedChannel {
     static final class ConstantNodeList implements NodeList {
         private final List<LimitedChannel> channels;
 
-        ConstantNodeList(List<LimitedChannel> channels, Random random) {
-            /**
-             * Shuffle the initial list to ensure that clients across the fleet don't all traverse the list in the
-             * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
-             * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
-             * situation where there might be many nodes but all clients have decided to hammer one of them.
-             */
-            this.channels = shuffleImmutableList(channels, random);
+        ConstantNodeList(List<LimitedChannel> channels) {
+            this.channels = channels;
         }
 
         @Override
@@ -177,15 +197,30 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
 
-        ReshufflingNodeList(
-                List<LimitedChannel> channels, Random random, Ticker clock, DialoguePinuntilerrorMetrics metrics) {
-            this.channels = shuffleImmutableList(channels, random);
-            this.channelsSize = channels.size();
-            this.random = random;
-            this.intervalWithJitter = RESHUFFLE_EVERY
+        static ReshufflingNodeList of(
+                ImmutableList<LimitedChannel> channels,
+                Random random,
+                Ticker clock,
+                DialoguePinuntilerrorMetrics metrics) {
+            long intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
-            this.nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
+            AtomicLong nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
+            return new ReshufflingNodeList(channels, random, clock, metrics, intervalWithJitter, nextReshuffle);
+        }
+
+        private ReshufflingNodeList(
+                ImmutableList<LimitedChannel> channels,
+                Random random,
+                Ticker clock,
+                DialoguePinuntilerrorMetrics metrics,
+                long intervalWithJitter,
+                AtomicLong nextReshuffle) {
+            this.channels = channels;
+            this.channelsSize = channels.size();
+            this.nextReshuffle = nextReshuffle;
+            this.intervalWithJitter = intervalWithJitter;
+            this.random = random;
             this.clock = clock;
             this.instrumentation = new Instrumentation(channelsSize, metrics);
         }
@@ -228,13 +263,11 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Meter[] successesPerHost;
 
         private final Meter reshuffleMeter;
-        private final Meter nextNodeBecauseLimited;
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
 
         Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics) {
             this.reshuffleMeter = metrics.reshuffle();
-            this.nextNodeBecauseLimited = metrics.nextNode("limited");
             this.nextNodeBecauseResponseCode = metrics.nextNode("responseCode");
             this.nextNodeBecauseThrowable = metrics.nextNode("throwable");
 
@@ -255,26 +288,6 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         "Reshuffled channels {} {}",
                         SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
                         UnsafeArg.of("newList", newList));
-            }
-        }
-
-        private void currentChannelRejected(int currentIndex, LimitedChannel channel, OptionalInt next) {
-            if (next.isPresent()) {
-                nextNodeBecauseLimited.mark();
-            }
-            if (log.isDebugEnabled()) {
-                if (next.isPresent()) {
-                    log.debug(
-                            "Current channel rejected request, switching to next channel",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
-                            SafeArg.of("nextIndex", next.getAsInt()));
-                } else {
-                    log.debug(
-                            "Current channel rejected request, but we've already switched",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel));
-                }
             }
         }
 

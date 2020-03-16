@@ -11,6 +11,8 @@ dependencies {
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.palantir.tracing:tracing'
     compile 'io.dropwizard.metrics:metrics-core'
+    compile 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.palantir.tritium:tritium-metrics'
 
     testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
@@ -19,7 +21,8 @@ dependencies {
     testImplementation 'org.assertj:assertj-guava'
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.mockito:mockito-junit-jupiter'
-    testRuntimeOnly 'org.slf4j:slf4j-simple'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
 
     annotationProcessor 'org.immutables:value'
     testAnnotationProcessor 'org.immutables:value'

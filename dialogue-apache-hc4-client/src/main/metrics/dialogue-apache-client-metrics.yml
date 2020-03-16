@@ -1,0 +1,11 @@
+options:
+  javaPackage: com.palantir.dialogue.hc4
+  javaVisibility: packagePrivate
+namespaces:
+  dialogue.client.pool:
+    docs: Connection pool metrics from the dialogue Apache client.
+    metrics:
+      size:
+        type: gauge
+        tags: [state]
+        docs: Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.

@@ -15,8 +15,10 @@
  */
 package com.palantir.dialogue.hc4;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -28,8 +30,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
+import java.util.Optional;
 import org.junit.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -43,6 +48,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     public void close_works() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
 
+        ApacheClientGauges.resetForTesting();
         Channel channel;
         try (ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
@@ -56,6 +62,52 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         ListenableFuture<Response> again =
                 channel.execute(new TestEndpoint(), Request.builder().build());
         assertThatThrownBy(() -> again.get()).hasMessageContaining("Connection pool shut down");
+    }
+
+    @Test
+    public void metrics() throws Exception {
+        // Clear existing state from other client instances
+        ApacheClientGauges.resetForTesting();
+
+        ClientConfiguration conf = TestConfigurations.create("http://unused");
+
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
+
+            Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
+            ListenableFuture<Response> future =
+                    channel.execute(new TestEndpoint(), Request.builder().build());
+
+            TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
+            try (Response response = Futures.getUnchecked(future)) {
+                assertThat(response.code()).isEqualTo(200);
+
+                assertThat(poolGaugeValue(metrics, "idle"))
+                        .describedAs("available")
+                        .isZero();
+                assertThat(poolGaugeValue(metrics, "leased"))
+                        .describedAs("leased")
+                        .isEqualTo(1);
+            }
+
+            assertThat(poolGaugeValue(metrics, "idle"))
+                    .describedAs("available after response closed")
+                    .isZero();
+            assertThat(poolGaugeValue(metrics, "leased"))
+                    .describedAs("leased after response closed")
+                    .isZero();
+        }
+    }
+
+    private long poolGaugeValue(TaggedMetricRegistry metrics, String state) {
+        Optional<Gauge<Object>> maybeGauge = metrics.gauge(MetricName.builder()
+                .safeName("dialogue.client.pool.size")
+                .putSafeTags("state", state)
+                .build());
+        assertThat(maybeGauge).as("Unable to find gauge for state %s", state).isPresent();
+        Object value = maybeGauge.get().getValue();
+        assertThat(value).isInstanceOf(Long.class);
+        return (long) value;
     }
 
     private static final class TestEndpoint implements Endpoint {

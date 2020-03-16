@@ -1,0 +1,5 @@
+type: break
+break:
+  description: Remove RemoteExceptions utility in favor of runtime.clients().blocking(ListenableFuture)
+  links:
+  - https://github.com/palantir/dialogue/pull/477

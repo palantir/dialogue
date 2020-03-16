@@ -16,19 +16,23 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class SimulationUtils {
+    private static final Logger log = LoggerFactory.getLogger(SimulationUtils.class);
 
     public static Response response(int status, String version) {
         return new Response() {
@@ -43,11 +47,15 @@ final class SimulationUtils {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
+            public ListMultimap<String, String> headers() {
                 if (version == null) {
-                    return ImmutableMap.of();
+                    return ImmutableListMultimap.of();
                 }
-                return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
+                ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+                headers.put("server", "foundry-catalog/" + version);
+                return headers;
             }
 
             @Override
@@ -57,6 +65,8 @@ final class SimulationUtils {
 
     public static Response wrapWithCloseInstrumentation(Response delegate, TaggedMetricRegistry registry) {
         return new Response() {
+            private int timesClosed = 0;
+
             @Override
             public InputStream body() {
                 return delegate.body();
@@ -68,17 +78,26 @@ final class SimulationUtils {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
+            public ListMultimap<String, String> headers() {
                 return delegate.headers();
             }
 
             @Override
             public void close() {
-                MetricNames.responseClose(registry).inc();
+                if (timesClosed == 0) {
+                    MetricNames.responseClose(registry).inc();
+                    timesClosed += 1;
+                } else {
+                    log.warn(
+                            "Duplicate close, already called {} time(s)",
+                            timesClosed,
+                            new SafeRuntimeException("for stacktrace"));
+                }
             }
         };
     }
 
+    static final String CHANNEL_NAME = "test-channel";
     static final String SERVICE_NAME = "svc";
 
     public static Endpoint endpoint(String name) {

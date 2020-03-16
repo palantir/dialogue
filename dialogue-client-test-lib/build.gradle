@@ -1,6 +1,10 @@
+versionsLock {
+    testProject()
+}
+
 dependencies {
     compile project(':dialogue-target')
-    compile project(':dialogue-example')
+    compile project(':dialogue-example:dialogue-example-dialogue')
 
     compile 'com.google.guava:guava'
     compile 'com.palantir.conjure.java.runtime:client-config'
@@ -8,6 +12,7 @@ dependencies {
     compile 'com.squareup.okhttp3:mockwebserver'
     compile 'junit:junit'
     compile 'org.assertj:assertj-core'
+    compile 'org.assertj:assertj-guava'
     compile 'org.mockito:mockito-core'
 }
 

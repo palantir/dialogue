@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Pin until error strategy only switches the pinned channel in response
+    to 429's and 5xx's
+  links:
+  - https://github.com/palantir/dialogue/pull/515

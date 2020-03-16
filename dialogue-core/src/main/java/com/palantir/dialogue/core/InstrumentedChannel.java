@@ -30,18 +30,29 @@ import com.palantir.dialogue.Response;
  */
 final class InstrumentedChannel implements Channel {
     private final Channel delegate;
+    private final String channelName;
     private final DialogueClientMetrics metrics;
 
-    InstrumentedChannel(Channel delegate, DialogueClientMetrics metrics) {
+    InstrumentedChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
         this.delegate = delegate;
+        this.channelName = channelName;
         this.metrics = metrics;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Timer.Context context = metrics.response(endpoint.serviceName()).time();
+        Timer.Context context = metrics.response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .build()
+                .time();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
         response.addListener(context::stop, MoreExecutors.directExecutor());
         return response;
+    }
+
+    @Override
+    public String toString() {
+        return "InstrumentedChannel{" + delegate + '}';
     }
 }

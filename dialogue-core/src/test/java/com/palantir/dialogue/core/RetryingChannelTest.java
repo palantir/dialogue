@@ -24,7 +24,8 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -33,13 +34,14 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -66,6 +68,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -81,6 +84,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -100,6 +104,7 @@ public class RetryingChannelTest {
         // One retry allows an initial request (not a retry) and a single retry.
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -116,6 +121,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -133,6 +139,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -153,6 +160,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -173,6 +181,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -191,6 +200,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -214,6 +224,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -231,6 +242,7 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any())).thenReturn(delegateResult);
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -248,6 +260,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -264,6 +277,7 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -281,12 +295,53 @@ public class RetryingChannelTest {
 
         Channel retryer = new RetryingChannel(
                 channel,
+                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Test
+    public void nonRetryableRequestBodyIsNotRetried() throws ExecutionException, InterruptedException {
+        when(channel.execute(any(), any())).thenReturn(FAILED).thenReturn(SUCCESS);
+
+        // One retry allows an initial request (not a retry) and a single retry.
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(
+                ENDPOINT,
+                Request.builder()
+                        .body(new RequestBody() {
+                            @Override
+                            public void writeTo(OutputStream _output) {}
+
+                            @Override
+                            public String contentType() {
+                                return "application/octet-stream";
+                            }
+
+                            @Override
+                            public boolean repeatable() {
+                                return false;
+                            }
+
+                            @Override
+                            public void close() {}
+                        })
+                        .build());
+        assertThat(response).isDone();
+        assertThat(response)
+                .as("non-repeatable request bodies should not be retried")
+                .isEqualTo(FAILED);
+        verify(channel, times(1)).execute(any(), any());
     }
 
     private static Response mockResponse(int status) {
@@ -307,8 +362,8 @@ public class RetryingChannelTest {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
-            return ImmutableMap.of();
+        public ListMultimap<String, String> headers() {
+            return ImmutableListMultimap.of();
         }
 
         @Override

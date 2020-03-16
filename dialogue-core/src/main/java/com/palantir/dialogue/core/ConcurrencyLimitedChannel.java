@@ -80,10 +80,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)
                 .minLimit(1)
-                .maxLimit(200)
                 .backoffRatio(0.9)
                 // Don't count slow calls as a sign of the server being overloaded
                 .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
+                // Don't limit the maximum concurrency to a fixed value. This allows the client and server
+                // to negotiate a reasonable capacity based on traffic.
+                .maxLimit(Integer.MAX_VALUE)
                 .build();
         return SimpleLimiter.newBuilder()
                 .clock(nanoTimeClock::read)
@@ -109,6 +111,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ConcurrencyLimitedChannel{" + delegate + '}';
+    }
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
@@ -122,7 +128,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
         @Override
         public void onSuccess(Response result) {
-            if (Responses.isTooManyRequests(result)) {
+            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
                 listener.onDropped();
             } else {
                 listener.onSuccess();

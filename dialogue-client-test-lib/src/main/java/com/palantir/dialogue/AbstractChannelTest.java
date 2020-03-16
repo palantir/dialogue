@@ -23,9 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import java.io.IOException;
@@ -80,6 +80,14 @@ public abstract class AbstractChannelTest {
         public String contentType() {
             return "application/text";
         }
+
+        @Override
+        public boolean repeatable() {
+            return true;
+        }
+
+        @Override
+        public void close() {}
     };
 
     @Mock
@@ -289,7 +297,7 @@ public abstract class AbstractChannelTest {
         ListenableFuture<Response> call = channel.execute(endpoint, request);
         assertThat(call.get().body()).hasContent("");
         assertThat(call.get().code()).isEqualTo(200);
-        assertThat(call.get().headers()).containsEntry("Content-Length", ImmutableList.of("0"));
+        assertThat(call.get().headers().get(HttpHeaders.CONTENT_LENGTH)).containsExactly("0");
     }
 
     @Test

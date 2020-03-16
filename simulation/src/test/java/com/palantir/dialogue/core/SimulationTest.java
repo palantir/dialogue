@@ -27,11 +27,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -98,7 +100,7 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
-    private Supplier<List<SimulationServer>> servers;
+    private Supplier<Map<String, SimulationServer>> servers;
     private Benchmark.BenchmarkResult result;
 
     @Test
@@ -393,6 +395,35 @@ public class SimulationTest {
                 .run();
     }
 
+    /**
+     * This simulates an alta client, which might load up some keys and then lookup each key in order to build a big
+     * response for the user. The goal is 100% client-perceived success here, because building up half the response
+     * is no good.
+     */
+    @Test
+    public void one_big_spike() {
+        int capacity = 100;
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("node1")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build());
+
+        result = Benchmark.builder()
+                .requestsPerSecond(30_000) // fire off a ton of requests very quickly
+                .numRequests(1000)
+                .client(strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
         Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
         return _server -> {
@@ -403,18 +434,19 @@ public class SimulationTest {
         };
     }
 
-    private Supplier<List<SimulationServer>> servers(SimulationServer... values) {
-        return Suppliers.memoize(() -> Arrays.asList(values));
+    private Supplier<Map<String, SimulationServer>> servers(SimulationServer... values) {
+        return Suppliers.memoize(
+                () -> Arrays.stream(values).collect(Collectors.toMap(SimulationServer::toString, Function.identity())));
     }
 
     /** Use the {@link #beginAt} method to simulate live-reloads. */
-    private Supplier<List<SimulationServer>> liveReloadingServers(
+    private Supplier<Map<String, SimulationServer>> liveReloadingServers(
             Supplier<Optional<SimulationServer>>... serverSuppliers) {
         return () -> Arrays.stream(serverSuppliers)
                 .map(Supplier::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(SimulationServer::toString, Function.identity()));
     }
 
     private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {
@@ -464,7 +496,11 @@ public class SimulationTest {
         } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
-            Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
+            Files.write(
+                    txt,
+                    longSummary.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
 
             XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
             activeRequests.setTitle(String.format(

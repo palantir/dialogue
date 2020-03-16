@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -27,15 +28,21 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
+import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
@@ -49,6 +56,7 @@ import org.slf4j.LoggerFactory;
 final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
+    private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
 
     /*
      * Shared single thread executor is reused between all retrying channels. If it becomes oversaturated
@@ -56,52 +64,72 @@ final class RetryingChannel implements Channel {
      * edge case where services are already operating in a degraded state and we should not
      * spam servers.
      */
-    private static final Supplier<ListeningScheduledExecutorService> sharedScheduler = Suppliers.memoize(
-            () -> MoreExecutors.listeningDecorator(Tracers.wrap(
-                    "dialogue-RetryingChannel-scheduler",
-                    Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
-                            .setNameFormat("dialogue-RetryingChannel-scheduler-%d")
-                            .setDaemon(false)
-                            .build()))));
+    static final Supplier<ScheduledExecutorService> sharedScheduler =
+            Suppliers.memoize(() -> Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
+                    .setNameFormat(SCHEDULER_NAME + "-%d")
+                    .setDaemon(false)
+                    .build()));
 
     private final ListeningScheduledExecutorService scheduler;
     private final Channel delegate;
+    private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
 
+    @VisibleForTesting
     RetryingChannel(
             Channel delegate,
+            String channelName,
             int maxRetries,
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
-        this(delegate, maxRetries, backoffSlotSize, serverQoS, retryOnTimeout, sharedScheduler.get(), () ->
-                ThreadLocalRandom.current().nextDouble());
+        this(
+                delegate,
+                channelName,
+                new DefaultTaggedMetricRegistry(),
+                maxRetries,
+                backoffSlotSize,
+                serverQoS,
+                retryOnTimeout,
+                sharedScheduler.get(),
+                () -> ThreadLocalRandom.current().nextDouble());
     }
 
     RetryingChannel(
             Channel delegate,
+            String channelName,
+            TaggedMetricRegistry metrics,
             int maxRetries,
             Duration backoffSlotSize,
             ClientConfiguration.ServerQoS serverQoS,
             ClientConfiguration.RetryOnTimeout retryOnTimeout,
-            ListeningScheduledExecutorService scheduler,
+            ScheduledExecutorService scheduler,
             DoubleSupplier jitter) {
         this.delegate = delegate;
+        this.channelName = channelName;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
         this.serverQoS = serverQoS;
         this.retryOnTimeout = retryOnTimeout;
-        this.scheduler = scheduler;
+        this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return new RetryingCallback(endpoint, request).execute();
+        if (isRetryable(request)) {
+            return new RetryingCallback(endpoint, request).execute();
+        }
+        return delegate.execute(endpoint, request);
+    }
+
+    private boolean isRetryable(Request request) {
+        Optional<RequestBody> maybeBody = request.body();
+        return !maybeBody.isPresent() || maybeBody.get().repeatable();
     }
 
     private final class RetryingCallback {
@@ -184,6 +212,7 @@ final class RetryingChannel implements Channel {
                 } else if (log.isDebugEnabled()) {
                     log.debug(
                             "Not attempting to retry failure",
+                            SafeArg.of("channelName", channelName),
                             SafeArg.of("serviceName", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
                             throwable);
@@ -212,6 +241,7 @@ final class RetryingChannel implements Channel {
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
                         SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
+                        SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);
@@ -238,5 +268,11 @@ final class RetryingChannel implements Channel {
 
         throw new SafeIllegalStateException(
                 "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
+    }
+
+    private static ListeningScheduledExecutorService instrument(
+            ScheduledExecutorService delegate, TaggedMetricRegistry metrics) {
+        return MoreExecutors.listeningDecorator(
+                Tracers.wrap(SCHEDULER_NAME, MetricRegistries.instrument(metrics, delegate, SCHEDULER_NAME)));
     }
 }

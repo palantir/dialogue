@@ -26,7 +26,6 @@ import com.palantir.tracing.api.TraceHttpHeaders;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TracedRequestChannel implements Channel {
-
     private final Channel delegate;
 
     TracedRequestChannel(Channel delegate) {
@@ -60,5 +59,10 @@ final class TracedRequestChannel implements Channel {
                 .orElse(request);
 
         return delegate.execute(endpoint, newRequest);
+    }
+
+    @Override
+    public String toString() {
+        return "TracedRequestChannel{" + delegate + '}';
     }
 }

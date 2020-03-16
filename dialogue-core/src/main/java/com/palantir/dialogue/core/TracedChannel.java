@@ -36,4 +36,9 @@ final class TracedChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
     }
+
+    @Override
+    public String toString() {
+        return "TracedChannel{delegate=" + delegate + ", operationName='" + operationName + "\'}";
+    }
 }

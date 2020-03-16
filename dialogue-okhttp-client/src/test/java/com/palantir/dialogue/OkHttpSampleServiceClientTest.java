@@ -19,9 +19,8 @@ package com.palantir.dialogue;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.dialogue.example.AsyncSampleService;
-import com.palantir.dialogue.example.SampleService;
-import com.palantir.dialogue.example.SampleServiceClient;
+import com.palantir.dialogue.example.SampleServiceAsync;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import java.net.URL;
 import java.time.Duration;
 import java.util.concurrent.Executors;
@@ -38,15 +37,15 @@ public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceCl
             DefaultConjureRuntime.builder().build();
 
     @Override
-    SampleService createBlockingClient(URL baseUrl, Duration timeout) {
+    SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout) {
         Channel channel = createChannel(baseUrl, timeout);
-        return SampleServiceClient.blocking(channel, runtime);
+        return SampleServiceBlocking.of(channel, runtime);
     }
 
     @Override
-    AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout) {
+    SampleServiceAsync createAsyncClient(URL baseUrl, Duration timeout) {
         Channel channel = createChannel(baseUrl, timeout);
-        return SampleServiceClient.async(channel, runtime);
+        return SampleServiceAsync.of(channel, runtime);
     }
 
     private OkHttpChannel createChannel(URL url, Duration timeout) {

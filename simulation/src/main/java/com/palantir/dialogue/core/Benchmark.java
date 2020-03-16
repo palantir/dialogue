@@ -170,7 +170,7 @@ public final class Benchmark {
         DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, clientMetrics))
+                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, clientMetrics))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
@@ -203,20 +203,25 @@ public final class Benchmark {
                                         req.number(),
                                         req);
                                 Channel channel = channels[clientIndexChooser.getAsInt()];
-                                ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
-                                requestsStarted[0] += 1;
+                                try {
+                                    ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                    requestsStarted[0] += 1;
 
-                                Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                                future.addListener(
-                                        () -> {
-                                            responsesReceived[0] += 1;
-                                            benchmarkFinished.update(
-                                                    Duration.ofNanos(
-                                                            simulation.clock().read()),
-                                                    requestsStarted[0],
-                                                    responsesReceived[0]);
-                                        },
-                                        MoreExecutors.directExecutor());
+                                    Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                    future.addListener(
+                                            () -> {
+                                                responsesReceived[0] += 1;
+                                                benchmarkFinished.update(
+                                                        Duration.ofNanos(simulation
+                                                                .clock()
+                                                                .read()),
+                                                        requestsStarted[0],
+                                                        responsesReceived[0]);
+                                            },
+                                            MoreExecutors.directExecutor());
+                                } catch (RuntimeException e) {
+                                    log.error("Channels shouldn't throw", e);
+                                }
                             },
                             req.sendTime().toNanos(),
                             TimeUnit.NANOSECONDS);
@@ -235,7 +240,10 @@ public final class Benchmark {
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
                             .clientHistogram(clientMetrics
-                                    .response(SimulationUtils.SERVICE_NAME)
+                                    .response()
+                                    .channelName(SimulationUtils.CHANNEL_NAME)
+                                    .serviceName(SimulationUtils.SERVICE_NAME)
+                                    .build()
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)

@@ -1,0 +1,5 @@
+type: break
+break:
+  description: Persist all channel state across updates to uris
+  links:
+  - https://github.com/palantir/dialogue/pull/492

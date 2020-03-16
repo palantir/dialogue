@@ -21,7 +21,6 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import org.jmock.lib.concurrent.DeterministicScheduler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,7 +28,8 @@ import org.slf4j.LoggerFactory;
 final class Simulation {
     private static final Logger log = LoggerFactory.getLogger(Simulation.class);
 
-    private final DeterministicScheduler deterministicExecutor = new DeterministicScheduler();
+    private final NanosecondPrecisionDeterministicScheduler deterministicExecutor =
+            new NanosecondPrecisionDeterministicScheduler();
     private final ListeningScheduledExecutorService listenableExecutor;
 
     private final TestCaffeineTicker ticker = new TestCaffeineTicker();
