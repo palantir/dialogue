@@ -81,7 +81,7 @@ final class QueuedChannel implements LimitedChannel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueSizeCounter = metrics.requestsQueued(channelName);
-        this.queuedTime = metrics.requestsQueuedTime(channelName);
+        this.queuedTime = metrics.requestQueuedTime(channelName);
     }
 
     /**

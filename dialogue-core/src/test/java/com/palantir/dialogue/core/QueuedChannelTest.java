@@ -210,7 +210,7 @@ public class QueuedChannelTest {
         queuedChannel.schedule();
         futureResponse.set(mockResponse);
 
-        Timer timer = metrics.requestsQueuedTime(channelName);
+        Timer timer = metrics.requestQueuedTime(channelName);
         assertThat(timer.getCount()).isOne();
         assertThat(timer.getSnapshot().getMax()).isPositive();
     }
@@ -229,7 +229,7 @@ public class QueuedChannelTest {
         result.get().cancel(true);
         queuedChannel.schedule();
 
-        Timer timer = metrics.requestsQueuedTime(channelName);
+        Timer timer = metrics.requestQueuedTime(channelName);
         assertThat(timer.getCount()).isOne();
         assertThat(timer.getSnapshot().getMax()).isPositive();
     }
