@@ -22,6 +22,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -31,6 +32,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -99,7 +101,6 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedOnNextSubmission() {
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);
@@ -137,7 +138,6 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedRequestExecutedWhenRunningRequestCompletes() {
         mockHasCapacity();
         queuedChannel.maybeExecute(endpoint, request);
@@ -170,7 +170,6 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueueFullReturnsLimited() {
         queuedChannel = new QueuedChannel(
                 delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 1);
@@ -182,7 +181,60 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
+    public void testQueueSizeMetric() {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        String channelName = "my-channel";
+
+        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+
+        mockNoCapacity();
+        queuedChannel.maybeExecute(endpoint, request);
+
+        assertThat(queuedChannel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(metrics.requestsQueued(channelName).getCount()).isOne();
+    }
+
+    @Test
+    public void testQueueTimeMetric_success() {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        String channelName = "my-channel";
+
+        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+
+        mockNoCapacity();
+        assertThat(queuedChannel.maybeExecute(endpoint, request))
+                .hasValueSatisfying(future -> assertThat(future).isNotDone());
+        mockHasCapacity();
+        queuedChannel.schedule();
+        futureResponse.set(mockResponse);
+
+        Timer timer = metrics.requestsQueuedTime(channelName);
+        assertThat(timer.getCount()).isOne();
+        assertThat(timer.getSnapshot().getMax()).isPositive();
+    }
+
+    @Test
+    public void testQueueTimeMetric_cancel() {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        String channelName = "my-channel";
+
+        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+
+        mockNoCapacity();
+        Optional<ListenableFuture<Response>> result = queuedChannel.maybeExecute(endpoint, request);
+        assertThat(result).hasValueSatisfying(future -> assertThat(future).isNotDone());
+        result.get().cancel(true);
+        queuedChannel.schedule();
+
+        Timer timer = metrics.requestsQueuedTime(channelName);
+        assertThat(timer.getCount()).isOne();
+        assertThat(timer.getSnapshot().getMax()).isPositive();
+    }
+
+    @Test
     public void testQueuedResponseClosedOnCancel() {
         Request queuedRequest =
                 Request.builder().pathParams(ImmutableMap.of("foo", "bar")).build();
@@ -207,7 +259,6 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponsePropagatesCancel() {
         Request queued = Request.builder().putHeaderParams("key", "val").build();
         when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
@@ -226,7 +277,6 @@ public class QueuedChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
     public void testQueuedResponseAvoidsExecutingCancelled() {
         Request queued = Request.builder().putHeaderParams("key", "val").build();
         when(delegate.maybeExecute(endpoint, queued)).thenReturn(Optional.empty());
