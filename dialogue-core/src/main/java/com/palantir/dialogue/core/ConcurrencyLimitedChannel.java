@@ -51,7 +51,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.instrumentation = instrumentation;
         this.limiter = limiter;
-        instrumentation.registerMaxGauge(this::getMax);
+        instrumentation.registerMaxGauge(limiter::getLimit);
         instrumentation.registerUtilizationGauge(this::getUtilization);
     }
 
@@ -137,10 +137,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         double inflight = limiter.getInflight();
         double limit = limiter.getLimit();
         return inflight / limit; // minLimit is 1 so we should never get NaN from this
-    }
-
-    private int getMax() {
-        return limiter.getLimit();
     }
 
     static Instrumentation perHostInstrumentation(TaggedMetricRegistry registry, String uri) {
