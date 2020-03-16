@@ -157,12 +157,14 @@ public final class DialogueChannel implements Channel {
             LimitedChannel channel,
             TaggedMetricRegistry metrics,
             Ticker clock,
-            String uriForMetrics) {
+            String uri) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(clock), uriForMetrics, metrics);
+                        channel,
+                        ConcurrencyLimitedChannel.createLimiter(clock),
+                        ConcurrencyLimitedChannel.perHostInstrumentation(metrics, uri));
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }

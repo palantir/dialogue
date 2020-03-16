@@ -30,6 +30,8 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.DoubleSupplier;
+import java.util.function.IntSupplier;
 import javax.annotation.Nullable;
 
 /**
@@ -41,23 +43,27 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Nullable
     private static final Void NO_CONTEXT = null;
 
-    private final Meter limitedMeter;
     private final LimitedChannel delegate;
     private final SimpleLimiter<Void> limiter;
+    private final Instrumentation instrumentation;
 
-    ConcurrencyLimitedChannel(
-            LimitedChannel delegate,
-            SimpleLimiter<Void> limiter,
-            String uriForMetrics,
-            TaggedMetricRegistry taggedMetrics) {
+    ConcurrencyLimitedChannel(LimitedChannel delegate, SimpleLimiter<Void> limiter, Instrumentation instrumentation) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter =
-                DialogueClientMetrics.of(taggedMetrics).limited(getClass().getSimpleName());
+        this.instrumentation = instrumentation;
         this.limiter = limiter;
+        instrumentation.registerMaxGauge(this::getMax);
+        instrumentation.registerUtilizationGauge(this::getUtilization);
+    }
 
-        DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
-        metrics.utilization().host(uriForMetrics).build(this::getUtilization);
-        metrics.max().host(uriForMetrics).build(this::getMax);
+    interface Instrumentation {
+        /** Called every time this channel is unable to process a request due to concurrency limits. */
+        void markLimited();
+
+        /** Called exactly once to register a gauge. */
+        void registerUtilizationGauge(DoubleSupplier gauge);
+
+        /** Called exactly once to register a gauge. */
+        void registerMaxGauge(IntSupplier gauge);
     }
 
     static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
@@ -91,7 +97,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             }
             return result;
         } else {
-            limitedMeter.mark();
+            instrumentation.markLimited();
             return Optional.empty();
         }
     }
@@ -100,6 +106,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     public String toString() {
         return "ConcurrencyLimitedChannel{" + delegate + '}';
     }
+
     /**
      * Signals back to the {@link Limiter} whether or not the request was successfully handled.
      */
@@ -134,5 +141,28 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private int getMax() {
         return limiter.getLimit();
+    }
+
+    static Instrumentation perHostInstrumentation(TaggedMetricRegistry registry, String uri) {
+        Meter limited = DialogueClientMetrics.of(registry).limited(ConcurrencyLimitedChannel.class.getSimpleName());
+        return new Instrumentation() {
+            @Override
+            public void markLimited() {
+                limited.mark();
+            }
+
+            @Override
+            public void registerUtilizationGauge(DoubleSupplier gauge) {
+                DialogueConcurrencylimiterMetrics.of(registry)
+                        .utilization()
+                        .host(uri)
+                        .build(gauge::getAsDouble);
+            }
+
+            @Override
+            public void registerMaxGauge(IntSupplier gauge) {
+                DialogueConcurrencylimiterMetrics.of(registry).max().host(uri).build(gauge::getAsInt);
+            }
+        };
     }
 }
