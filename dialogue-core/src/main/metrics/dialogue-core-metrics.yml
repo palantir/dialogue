@@ -20,6 +20,10 @@ namespaces:
         type: counter
         tags: [channel-name]
         docs: Number of queued requests waiting to execute.
+      request.queued.time:
+        type: timer
+        tags: [channel-name]
+        docs: Time spent waiting in the queue before execution.
       deprecations:
         type: meter
         tags: [service-name]
