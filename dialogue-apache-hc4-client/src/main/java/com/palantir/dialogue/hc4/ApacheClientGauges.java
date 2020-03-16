@@ -92,7 +92,7 @@ final class ApacheClientGauges {
         registry.addMetrics("set", "apacheClientGauges", metricSet);
     }
 
-    static <T> T collect(
+    private static <T> T collect(
             List<WeakReference<PoolingHttpClientConnectionManager>> pools,
             Function<PoolingHttpClientConnectionManager, T> extractor,
             BiFunction<T, T, T> combiner,
