@@ -70,7 +70,7 @@ public class ConcurrencyLimitedChannelTest {
         channel = new ConcurrencyLimitedChannel(
                 new ChannelToLimitedChannelAdapter(delegate),
                 mockLimiter,
-                ConcurrencyLimitedChannel.perHostInstrumentation(metrics, "uriForMetrics"));
+                ConcurrencyLimitedChannel.perHostInstrumentation(metrics, 0));
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -116,7 +116,7 @@ public class ConcurrencyLimitedChannelTest {
         channel = new ConcurrencyLimitedChannel(
                 new ChannelToLimitedChannelAdapter(delegate),
                 ConcurrencyLimitedChannel.createLimiter(System::nanoTime),
-                ConcurrencyLimitedChannel.perHostInstrumentation(metrics, "uriForMetrics"));
+                ConcurrencyLimitedChannel.perHostInstrumentation(metrics, 0));
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
@@ -146,19 +146,19 @@ public class ConcurrencyLimitedChannelTest {
     private Number getUtilization() {
         Gauge<Object> gauge = metrics.gauge(MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.utilization")
-                        .putSafeTags("host", "uriForMetrics")
+                        .putSafeTags("hostIndex", "0")
                         .build())
                 .get();
         return (Number) gauge.getValue();
     }
 
     private Number getMax() {
-        System.out.println(metrics.getMetrics().keySet());
-        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
-                        .safeName("dialogue.concurrencylimiter.max")
-                        .putSafeTags("host", "uriForMetrics")
-                        .build())
-                .get();
+        MetricName metricName = MetricName.builder()
+                .safeName("dialogue.concurrencylimiter.max")
+                .putSafeTags("hostIndex", "0")
+                .build();
+        assertThat(metrics.getMetrics().keySet()).contains(metricName);
+        Gauge<Object> gauge = metrics.gauge(metricName).get();
         return (Number) gauge.getValue();
     }
 }

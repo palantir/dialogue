@@ -139,8 +139,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         return inflight / limit; // minLimit is 1 so we should never get NaN from this
     }
 
-    static Instrumentation perHostInstrumentation(TaggedMetricRegistry registry, String uri) {
+    static Instrumentation perHostInstrumentation(TaggedMetricRegistry registry, int uriIndex) {
         Meter limited = DialogueClientMetrics.of(registry).limited(ConcurrencyLimitedChannel.class.getSimpleName());
+        // client uris might include front-door proxy names which aren't always safe when requests span enclaves
         return new Instrumentation() {
             @Override
             public void markLimited() {
@@ -151,13 +152,16 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             public void registerUtilizationGauge(DoubleSupplier gauge) {
                 DialogueConcurrencylimiterMetrics.of(registry)
                         .utilization()
-                        .host(uri)
+                        .hostIndex(Integer.toString(uriIndex))
                         .build(gauge::getAsDouble);
             }
 
             @Override
             public void registerMaxGauge(IntSupplier gauge) {
-                DialogueConcurrencylimiterMetrics.of(registry).max().host(uri).build(gauge::getAsInt);
+                DialogueConcurrencylimiterMetrics.of(registry)
+                        .max()
+                        .hostIndex(Integer.toString(uriIndex))
+                        .build(gauge::getAsInt);
             }
         };
     }

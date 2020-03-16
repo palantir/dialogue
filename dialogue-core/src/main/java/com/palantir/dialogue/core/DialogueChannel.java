@@ -47,7 +47,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel {
-    private Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
+    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
 
     private final String channelName;
@@ -98,13 +98,17 @@ public final class DialogueChannel implements Channel {
         Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
 
         staleUris.forEach(limitedChannelByUri::remove);
-        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri)));
+        ImmutableList<String> allUris = ImmutableList.<String>builder()
+                .addAll(limitedChannelByUri.keySet())
+                .addAll(newUris)
+                .build();
+        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri, allUris.indexOf(uri))));
 
         nodeSelectionStrategy.getAndUpdate(previous -> getUpdatedNodeSelectionStrategy(
                 previous, clientConfiguration, ImmutableList.copyOf(limitedChannelByUri.values()), random));
     }
 
-    private LimitedChannel createLimitedChannel(String uri) {
+    private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(channel, channelName, clientMetrics);
@@ -115,7 +119,7 @@ public final class DialogueChannel implements Channel {
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock, uri);
+                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock, uriIndex);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -157,14 +161,14 @@ public final class DialogueChannel implements Channel {
             LimitedChannel channel,
             TaggedMetricRegistry metrics,
             Ticker clock,
-            String uri) {
+            int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
                         channel,
                         ConcurrencyLimitedChannel.createLimiter(clock),
-                        ConcurrencyLimitedChannel.perHostInstrumentation(metrics, uri));
+                        ConcurrencyLimitedChannel.perHostInstrumentation(metrics, uriIndex));
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }
