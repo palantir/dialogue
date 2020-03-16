@@ -22,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.SettableFuture;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
@@ -30,6 +31,8 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,8 +42,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class ConcurrencyLimitedChannelTest {
-
-    private final DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
 
     @Mock
     private Endpoint endpoint;
@@ -52,7 +53,7 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private SimpleLimiter<Void> limiter;
+    private SimpleLimiter<Void> mockLimiter;
 
     @Mock
     private Limiter.Listener listener;
@@ -60,12 +61,13 @@ public class ConcurrencyLimitedChannelTest {
     @Mock
     private Response response;
 
+    private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new ChannelToLimitedChannelAdapter(delegate), limiter, metrics);
+        channel = new ConcurrencyLimitedChannel(new ChannelToLimitedChannelAdapter(delegate), mockLimiter, 0, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -108,9 +110,22 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new ChannelToLimitedChannelAdapter(delegate), metrics);
+        channel = new ConcurrencyLimitedChannel(
+                new ChannelToLimitedChannelAdapter(delegate),
+                ConcurrencyLimitedChannel.createLimiter(System::nanoTime),
+                0,
+                metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+    }
+
+    @Test
+    void testGauges() {
+        when(mockLimiter.getInflight()).thenReturn(5);
+        when(mockLimiter.getLimit()).thenReturn(20);
+
+        assertThat(getMax()).isEqualTo(20);
+        assertThat(getUtilization()).isEqualTo(0.25d);
     }
 
     private void mockResponseCode(int code) {
@@ -119,10 +134,29 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockLimitAvailable() {
-        when(limiter.acquire(null)).thenReturn(Optional.of(listener));
+        when(mockLimiter.acquire(null)).thenReturn(Optional.of(listener));
     }
 
     private void mockLimitUnavailable() {
-        when(limiter.acquire(null)).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(null)).thenReturn(Optional.empty());
+    }
+
+    private Number getUtilization() {
+        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.utilization")
+                        .putSafeTags("hostIndex", "0")
+                        .build())
+                .get();
+        return (Number) gauge.getValue();
+    }
+
+    private Number getMax() {
+        MetricName metricName = MetricName.builder()
+                .safeName("dialogue.concurrencylimiter.max")
+                .putSafeTags("hostIndex", "0")
+                .build();
+        assertThat(metrics.getMetrics().keySet()).contains(metricName);
+        Gauge<Object> gauge = metrics.gauge(metricName).get();
+        return (Number) gauge.getValue();
     }
 }

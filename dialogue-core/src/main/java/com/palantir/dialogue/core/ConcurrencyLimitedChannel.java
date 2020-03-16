@@ -16,9 +16,9 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
@@ -28,8 +28,12 @@ import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import javax.annotation.Nullable;
 
 /**
@@ -41,26 +45,36 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Nullable
     private static final Void NO_CONTEXT = null;
 
-    private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
-
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final Limiter<Void> limiter;
+    private final SimpleLimiter<Void> limiter;
 
-    @VisibleForTesting
-    ConcurrencyLimitedChannel(LimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
+    ConcurrencyLimitedChannel(
+            LimitedChannel delegate, SimpleLimiter<Void> limiter, int uriIndex, TaggedMetricRegistry taggedMetrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter = metrics.limited(getClass().getSimpleName());
+        this.limitedMeter =
+                DialogueClientMetrics.of(taggedMetrics).limited(getClass().getSimpleName());
         this.limiter = limiter;
+
+        weakGauge(
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.utilization")
+                        .putSafeTags("hostIndex", Integer.toString(uriIndex))
+                        .build(),
+                this,
+                ConcurrencyLimitedChannel::getUtilization);
+        weakGauge(
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.max")
+                        .putSafeTags("hostIndex", Integer.toString(uriIndex))
+                        .build(),
+                this,
+                ConcurrencyLimitedChannel::getMax);
     }
 
-    static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
-        return new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
-    }
-
-    @VisibleForTesting
-    static Limiter<Void> createLimiter(Ticker nanoTimeClock) {
+    static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
                 .initialLimit(20)
@@ -124,5 +138,38 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         public void onFailure(Throwable _throwable) {
             listener.onIgnore();
         }
+    }
+
+    private double getUtilization() {
+        double inflight = limiter.getInflight();
+        double limit = limiter.getLimit();
+        return inflight / limit; // minLimit is 1 so we should never get NaN from this
+    }
+
+    private int getMax() {
+        return limiter.getLimit();
+    }
+
+    /**
+     * Creates a gauge that removes itself when the {@code instance} has been garbage-collected.
+     * We need this to ensure that ConcurrencyLimitedChannels can be GC'd when urls live-reload, otherwise metric
+     * registries could keep around dangling references.
+     */
+    private static <T> void weakGauge(
+            TaggedMetricRegistry registry, MetricName metricName, T instance, Function<T, Number> gaugeFunction) {
+        registry.registerWithReplacement(metricName, new Gauge<Number>() {
+            private final WeakReference<T> weakReference = new WeakReference<>(instance);
+
+            @Override
+            public Number getValue() {
+                T value = weakReference.get();
+                if (value != null) {
+                    return gaugeFunction.apply(value);
+                } else {
+                    registry.remove(metricName); // registry must be tolerant to concurrent modification
+                    return 0;
+                }
+            }
+        });
     }
 }
