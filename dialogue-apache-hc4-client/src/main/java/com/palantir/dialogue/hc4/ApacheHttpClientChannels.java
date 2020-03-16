@@ -27,6 +27,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -108,8 +110,6 @@ public final class ApacheHttpClientChannels {
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
-        ApacheClientGauges.install(conf.taggedMetricRegistry());
-
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
@@ -129,7 +129,7 @@ public final class ApacheHttpClientChannels {
                         .register("https", sslSocketFactory)
                         .build());
 
-        ApacheClientGauges.register(channelName, connectionManager);
+        setupConnectionPoolMetrics(conf.taggedMetricRegistry(), channelName, connectionManager);
 
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);
@@ -176,6 +176,39 @@ public final class ApacheHttpClientChannels {
         });
 
         return new CloseableClient(builder.build());
+    }
+
+    private static void setupConnectionPoolMetrics(
+            TaggedMetricRegistry taggedMetrics,
+            String channelName,
+            PoolingHttpClientConnectionManager connectionManager) {
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getAvailable(),
+                connectionManager,
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.client.pool.size")
+                        .putSafeTags("channel-name", channelName)
+                        .putSafeTags("state", "idle")
+                        .build());
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getLeased(),
+                connectionManager,
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.client.pool.size")
+                        .putSafeTags("channel-name", channelName)
+                        .putSafeTags("state", "leased")
+                        .build());
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getPending(),
+                connectionManager,
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.client.pool.size")
+                        .putSafeTags("channel-name", channelName)
+                        .putSafeTags("state", "pending")
+                        .build());
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */

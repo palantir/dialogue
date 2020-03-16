@@ -48,7 +48,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     public void close_works() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
 
-        ApacheClientGauges.resetForTesting();
         Channel channel;
         try (ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, "channel")) {
@@ -66,9 +65,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
     @Test
     public void metrics() throws Exception {
-        // Clear existing state from other client instances
-        ApacheClientGauges.resetForTesting();
-
         ClientConfiguration conf = TestConfigurations.create("http://unused");
 
         try (ApacheHttpClientChannels.CloseableClient client =
@@ -99,7 +95,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         }
     }
 
-    private long poolGaugeValue(TaggedMetricRegistry metrics, String channelName, String state) {
+    private int poolGaugeValue(TaggedMetricRegistry metrics, String channelName, String state) {
         Metric gauge = metrics.getMetrics().entrySet().stream()
                 .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))
                 .filter(entry -> channelName.equals(entry.getKey().safeTags().get("channel-name")))
@@ -108,8 +104,8 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 .collect(MoreCollectors.onlyElement());
         assertThat(gauge).isInstanceOf(Gauge.class);
         Object value = ((Gauge<?>) gauge).getValue();
-        assertThat(value).isInstanceOf(Long.class);
-        return (long) value;
+        assertThat(value).isInstanceOf(Integer.class);
+        return (int) value;
     }
 
     private static final class TestEndpoint implements Endpoint {
