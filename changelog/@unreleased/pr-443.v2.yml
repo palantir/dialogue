@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Two new gauges, `dialogue.concurrencylimiter.max` and `dialogue.concurrencylimiter.utilization`,
+    describe the state of each host's concurrency limiter.
+  links:
+  - https://github.com/palantir/dialogue/pull/443
