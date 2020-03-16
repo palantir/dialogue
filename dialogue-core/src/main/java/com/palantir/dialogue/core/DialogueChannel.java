@@ -166,9 +166,7 @@ public final class DialogueChannel implements Channel {
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
-                        channel,
-                        ConcurrencyLimitedChannel.createLimiter(clock),
-                        ConcurrencyLimitedChannel.perHostInstrumentation(metrics, uriIndex));
+                        channel, ConcurrencyLimitedChannel.createLimiter(clock), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }
