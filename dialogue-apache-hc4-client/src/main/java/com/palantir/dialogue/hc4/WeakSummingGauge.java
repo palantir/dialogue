@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.ToIntFunction;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
@@ -33,19 +34,21 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 final class WeakSummingGauge<T> implements Gauge<Integer> {
     private final ToIntFunction<T> gaugeFunction;
-    private final Set<T> weakSet = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>(2)));
+
+    @GuardedBy("this")
+    private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
 
     WeakSummingGauge(ToIntFunction<T> gaugeFunction) {
         this.gaugeFunction = gaugeFunction;
     }
 
     /** Register a new source element which will be used to compute the future summary integer. */
-    public void add(T sourceElement) {
+    public synchronized void add(T sourceElement) {
         weakSet.add(sourceElement);
     }
 
     @Override
-    public Integer getValue() {
+    public synchronized Integer getValue() {
         return weakSet.stream().mapToInt(gaugeFunction).sum();
     }
 
