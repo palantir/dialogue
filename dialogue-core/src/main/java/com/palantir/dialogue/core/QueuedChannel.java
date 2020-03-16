@@ -66,8 +66,8 @@ final class QueuedChannel implements LimitedChannel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
-    private Counter queueSizeCounter;
-    private Timer queuedTime;
+    private final Counter queueSizeCounter;
+    private final Timer queuedTime;
 
     QueuedChannel(LimitedChannel channel, String channelName, DialogueClientMetrics metrics) {
         this(channel, channelName, metrics, 1_000);
