@@ -34,7 +34,6 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -63,14 +62,13 @@ public class ConcurrencyLimitedChannelTest {
     private Response response;
 
     private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-    private final OptionalInt hostIndex = OptionalInt.of(3);
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
 
     @BeforeEach
     public void before() {
         channel = new ConcurrencyLimitedChannel(
-                new ChannelToLimitedChannelAdapter(delegate), mockLimiter, hostIndex, metrics);
+                new ChannelToLimitedChannelAdapter(delegate), mockLimiter, "uriForMetrics", metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -113,7 +111,11 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = ConcurrencyLimitedChannel.create(new ChannelToLimitedChannelAdapter(delegate), hostIndex, metrics);
+        channel = new ConcurrencyLimitedChannel(
+                new ChannelToLimitedChannelAdapter(delegate),
+                ConcurrencyLimitedChannel.createLimiter(System::nanoTime),
+                "uriForMetrics",
+                metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
@@ -143,16 +145,17 @@ public class ConcurrencyLimitedChannelTest {
     private Number getUtilization() {
         Gauge<Object> gauge = metrics.gauge(MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.utilization")
-                        .putSafeTags("hostIndex", Integer.toString(hostIndex.getAsInt()))
+                        .putSafeTags("host", "uriForMetrics")
                         .build())
                 .get();
         return (Number) gauge.getValue();
     }
 
     private Number getMax() {
+        System.out.println(metrics.getMetrics().keySet());
         Gauge<Object> gauge = metrics.gauge(MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.max")
-                        .putSafeTags("hostIndex", Integer.toString(hostIndex.getAsInt()))
+                        .putSafeTags("host", "uriForMetrics")
                         .build())
                 .get();
         return (Number) gauge.getValue();

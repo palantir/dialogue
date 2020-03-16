@@ -34,11 +34,11 @@ namespaces:
     metrics:
       utilization:
         type: gauge
-        tags: [hostIndex]
+        tags: [host]
         docs: The proportion of the available concurrency which is currently being used, i.e. if there are 20 permits and only one inflight call, this will be 0.05.
       max:
         type: gauge
-        tags: [hostIndex]
+        tags: [host]
         docs: The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
 
   dialogue.pinuntilerror:

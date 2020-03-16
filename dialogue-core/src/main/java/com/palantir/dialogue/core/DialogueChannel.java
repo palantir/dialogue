@@ -38,7 +38,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -116,7 +115,7 @@ public final class DialogueChannel implements Channel {
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock);
+                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock, uri);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -154,12 +153,16 @@ public final class DialogueChannel implements Channel {
     }
 
     private static LimitedChannel concurrencyLimiter(
-            ClientConfiguration config, LimitedChannel channel, TaggedMetricRegistry metrics, Ticker clock) {
+            ClientConfiguration config,
+            LimitedChannel channel,
+            TaggedMetricRegistry metrics,
+            Ticker clock,
+            String uriForMetrics) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(clock), OptionalInt.empty(), metrics);
+                        channel, ConcurrencyLimitedChannel.createLimiter(clock), uriForMetrics, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }

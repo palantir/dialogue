@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
@@ -30,7 +29,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
@@ -43,38 +41,25 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Nullable
     private static final Void NO_CONTEXT = null;
 
-    private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
-
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
     private final SimpleLimiter<Void> limiter;
 
-    @VisibleForTesting
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
             SimpleLimiter<Void> limiter,
-            OptionalInt hostIndex,
+            String uriForMetrics,
             TaggedMetricRegistry taggedMetrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.limitedMeter =
                 DialogueClientMetrics.of(taggedMetrics).limited(getClass().getSimpleName());
         this.limiter = limiter;
 
-        hostIndex.ifPresent(index -> {
-            DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
-            // TODO(dfox): hook up the service-name somehow? also when nodes reshuffle these metrics will look odd.
-            metrics.utilization().hostIndex(Integer.toString(index)).build(this::getUtilization);
-            metrics.max().hostIndex(Integer.toString(index)).build(this::getMax);
-        });
+        DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
+        metrics.utilization().host(uriForMetrics).build(this::getUtilization);
+        metrics.max().host(uriForMetrics).build(this::getMax);
     }
 
-    static ConcurrencyLimitedChannel create(
-            LimitedChannel delegate, OptionalInt hostIndex, TaggedMetricRegistry taggedMetrics) {
-        return new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), hostIndex, taggedMetrics);
-    }
-
-    @VisibleForTesting
     static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
