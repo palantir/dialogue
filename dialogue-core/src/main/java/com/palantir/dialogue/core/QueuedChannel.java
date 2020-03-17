@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,6 +33,7 @@ import com.palantir.tracing.DetachedSpan;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -52,8 +54,6 @@ import org.slf4j.LoggerFactory;
  *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
  *     doing work, much of which will be wasted</li>
  * </ul>
- *
- * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
 final class QueuedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
@@ -64,7 +64,8 @@ final class QueuedChannel implements LimitedChannel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
-    private Counter queueSizeCounter;
+    private final Counter queueSizeCounter;
+    private final Timer queuedTime;
 
     QueuedChannel(LimitedChannel channel, String channelName, DialogueClientMetrics metrics) {
         this(channel, channelName, metrics, 1_000);
@@ -78,6 +79,7 @@ final class QueuedChannel implements LimitedChannel {
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
         this.queueSizeCounter = metrics.requestsQueued(channelName);
+        this.queuedTime = metrics.requestQueuedTime(channelName);
     }
 
     /**
@@ -92,6 +94,8 @@ final class QueuedChannel implements LimitedChannel {
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
+                // While the queue was avoid, this is equivalent to spending zero time on the queue.
+                queuedTime.update(0, TimeUnit.NANOSECONDS);
                 return maybeResult;
             }
         }
@@ -107,6 +111,7 @@ final class QueuedChannel implements LimitedChannel {
                 .request(request)
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
+                .timer(queuedTime.time())
                 .build();
 
         if (!queuedCalls.offer(components)) {
@@ -164,6 +169,8 @@ final class QueuedChannel implements LimitedChannel {
         // request will be quickly cancelled in that case.
         if (queuedResponse.isDone()) {
             decrementQueueSize();
+            queueHead.span().complete();
+            queueHead.timer().stop();
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
@@ -174,6 +181,7 @@ final class QueuedChannel implements LimitedChannel {
                 decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete();
+                queueHead.timer().stop();
                 DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
                 DialogueFutures.addDirectListener(queuedResponse, () -> {
                     if (queuedResponse.isCancelled()) {
@@ -200,6 +208,7 @@ final class QueuedChannel implements LimitedChannel {
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()));
                     decrementQueueSize();
+                    queueHead.timer().stop();
                     if (!queuedResponse.setException(new SafeRuntimeException(
                             "Failed to req-queue request",
                             SafeArg.of("channel", channelName),
@@ -254,6 +263,8 @@ final class QueuedChannel implements LimitedChannel {
         SettableFuture<Response> response();
 
         DetachedSpan span();
+
+        Timer.Context timer();
 
         class Builder extends ImmutableDeferredCall.Builder {}
 

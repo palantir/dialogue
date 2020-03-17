@@ -32,6 +32,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -46,7 +47,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel {
-    private Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
+    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
 
     private final String channelName;
@@ -97,13 +98,17 @@ public final class DialogueChannel implements Channel {
         Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
 
         staleUris.forEach(limitedChannelByUri::remove);
-        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri)));
+        ImmutableList<String> allUris = ImmutableList.<String>builder()
+                .addAll(limitedChannelByUri.keySet())
+                .addAll(newUris)
+                .build();
+        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri, allUris.indexOf(uri))));
 
         nodeSelectionStrategy.getAndUpdate(previous -> getUpdatedNodeSelectionStrategy(
                 previous, clientConfiguration, ImmutableList.copyOf(limitedChannelByUri.values()), random));
     }
 
-    private LimitedChannel createLimitedChannel(String uri) {
+    private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(channel, channelName, clientMetrics);
@@ -113,7 +118,8 @@ public final class DialogueChannel implements Channel {
         channel = new TracedChannel(channel, "Dialogue-http-request");
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return concurrencyLimiter(clientConfiguration, limitedChannel, clientMetrics, clock);
+        return concurrencyLimiter(
+                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock, uriIndex);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -151,11 +157,16 @@ public final class DialogueChannel implements Channel {
     }
 
     private static LimitedChannel concurrencyLimiter(
-            ClientConfiguration config, LimitedChannel channel, DialogueClientMetrics metrics, Ticker clock) {
+            ClientConfiguration config,
+            LimitedChannel channel,
+            TaggedMetricRegistry metrics,
+            Ticker clock,
+            int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
-                return new ConcurrencyLimitedChannel(channel, ConcurrencyLimitedChannel.createLimiter(clock), metrics);
+                return new ConcurrencyLimitedChannel(
+                        channel, ConcurrencyLimitedChannel.createLimiter(clock), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }

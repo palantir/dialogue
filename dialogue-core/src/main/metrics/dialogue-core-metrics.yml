@@ -20,6 +20,10 @@ namespaces:
         type: counter
         tags: [channel-name]
         docs: Number of queued requests waiting to execute.
+      request.queued.time:
+        type: timer
+        tags: [channel-name]
+        docs: Time spent waiting in the queue before execution.
       deprecations:
         type: meter
         tags: [service-name]
@@ -28,6 +32,18 @@ namespaces:
         type: meter
         tags: [reason]
         docs: Rate that client-side requests are deferred to be retried later.
+
+  dialogue.concurrencylimiter:
+    docs: Instrumentation for the ConcurrencyLimitedChannel
+    metrics:
+      utilization:
+        type: gauge
+        tags: [hostIndex]
+        docs: The proportion of the available concurrency which is currently being used, i.e. if there are 20 permits and only one inflight call, this will be 0.05.
+      max:
+        type: gauge
+        tags: [hostIndex]
+        docs: The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
 
   dialogue.pinuntilerror:
     docs: Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
