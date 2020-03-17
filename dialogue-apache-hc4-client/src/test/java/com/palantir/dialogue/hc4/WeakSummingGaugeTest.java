@@ -24,7 +24,7 @@ public class WeakSummingGaugeTest {
     @Test
     public void empty_initially() {
         WeakSummingGauge<String> gauge = new WeakSummingGauge<>(String::length);
-        assertThat(gauge.getValue()).isEqualTo(0);
+        assertThat(gauge.getValue()).isZero();
     }
 
     @Test
