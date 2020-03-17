@@ -19,6 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
+import com.google.common.collect.MoreCollectors;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -30,11 +32,9 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.UrlBuilder;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
-import java.util.Optional;
 import org.junit.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -48,10 +48,9 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     public void close_works() throws Exception {
         ClientConfiguration conf = TestConfigurations.create("http://foo");
 
-        ApacheClientGauges.resetForTesting();
         Channel channel;
         try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "client")) {
 
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
@@ -61,18 +60,15 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
         ListenableFuture<Response> again =
                 channel.execute(new TestEndpoint(), Request.builder().build());
-        assertThatThrownBy(() -> again.get()).hasMessageContaining("Connection pool shut down");
+        assertThatThrownBy(again::get).hasMessageContaining("Connection pool shut down");
     }
 
     @Test
     public void metrics() throws Exception {
-        // Clear existing state from other client instances
-        ApacheClientGauges.resetForTesting();
-
         ClientConfiguration conf = TestConfigurations.create("http://unused");
 
         try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
 
             Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
             ListenableFuture<Response> future =
@@ -82,32 +78,34 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             try (Response response = Futures.getUnchecked(future)) {
                 assertThat(response.code()).isEqualTo(200);
 
-                assertThat(poolGaugeValue(metrics, "idle"))
+                assertThat(poolGaugeValue(metrics, "testClient", "idle"))
                         .describedAs("available")
                         .isZero();
-                assertThat(poolGaugeValue(metrics, "leased"))
+                assertThat(poolGaugeValue(metrics, "testClient", "leased"))
                         .describedAs("leased")
                         .isEqualTo(1);
             }
 
-            assertThat(poolGaugeValue(metrics, "idle"))
+            assertThat(poolGaugeValue(metrics, "testClient", "idle"))
                     .describedAs("available after response closed")
                     .isZero();
-            assertThat(poolGaugeValue(metrics, "leased"))
+            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
                     .describedAs("leased after response closed")
                     .isZero();
         }
     }
 
-    private long poolGaugeValue(TaggedMetricRegistry metrics, String state) {
-        Optional<Gauge<Object>> maybeGauge = metrics.gauge(MetricName.builder()
-                .safeName("dialogue.client.pool.size")
-                .putSafeTags("state", state)
-                .build());
-        assertThat(maybeGauge).as("Unable to find gauge for state %s", state).isPresent();
-        Object value = maybeGauge.get().getValue();
-        assertThat(value).isInstanceOf(Long.class);
-        return (long) value;
+    private int poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
+        Metric gauge = metrics.getMetrics().entrySet().stream()
+                .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))
+                .filter(entry -> clientName.equals(entry.getKey().safeTags().get("client-name")))
+                .filter(entry -> state.equals(entry.getKey().safeTags().get("state")))
+                .map(Map.Entry::getValue)
+                .collect(MoreCollectors.onlyElement());
+        assertThat(gauge).isInstanceOf(Gauge.class);
+        Object value = ((Gauge<?>) gauge).getValue();
+        assertThat(value).isInstanceOf(Integer.class);
+        return (int) value;
     }
 
     private static final class TestEndpoint implements Endpoint {

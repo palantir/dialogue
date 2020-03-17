@@ -27,6 +27,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -80,9 +82,10 @@ public final class ApacheHttpClientChannels {
     private ApacheHttpClientChannels() {}
 
     public static Channel create(ClientConfiguration conf) {
-        CloseableClient client = createCloseableHttpClient(conf);
+        String channelName = "apache-channel";
+        CloseableClient client = createCloseableHttpClient(conf, channelName);
         return DialogueChannel.builder()
-                .channelName("apache-channel")
+                .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> createSingleUri(uri, client))
                 .build();
@@ -92,12 +95,21 @@ public final class ApacheHttpClientChannels {
         return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client.client, url(uri)));
     }
 
+    /**
+     * Prefer {@link #createCloseableHttpClient(ClientConfiguration, String)}.
+     *
+     * @deprecated Use the overload with a client name.
+     */
+    @Deprecated
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
+        return createCloseableHttpClient(conf, "apache-channel");
+    }
+
+    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
-
-        ApacheClientGauges.install(conf.taggedMetricRegistry());
+        Preconditions.checkNotNull(clientName, "Client name is required");
 
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
@@ -118,7 +130,7 @@ public final class ApacheHttpClientChannels {
                         .register("https", sslSocketFactory)
                         .build());
 
-        ApacheClientGauges.register(connectionManager);
+        setupConnectionPoolMetrics(conf.taggedMetricRegistry(), clientName, connectionManager);
 
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);
@@ -165,6 +177,35 @@ public final class ApacheHttpClientChannels {
         });
 
         return new CloseableClient(builder.build());
+    }
+
+    private static void setupConnectionPoolMetrics(
+            TaggedMetricRegistry taggedMetrics,
+            String clientName,
+            PoolingHttpClientConnectionManager connectionManager) {
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getAvailable(),
+                connectionManager,
+                taggedMetrics,
+                clientPoolSizeMetricName(clientName, "idle"));
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getLeased(),
+                connectionManager,
+                taggedMetrics,
+                clientPoolSizeMetricName(clientName, "leased"));
+        WeakSummingGauge.getOrCreate(
+                pool -> pool.getTotalStats().getPending(),
+                connectionManager,
+                taggedMetrics,
+                clientPoolSizeMetricName(clientName, "pending"));
+    }
+
+    private static MetricName clientPoolSizeMetricName(String clientName, String state) {
+        return MetricName.builder()
+                .safeName("dialogue.client.pool.size")
+                .putSafeTags("client-name", clientName)
+                .putSafeTags("state", state)
+                .build();
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
