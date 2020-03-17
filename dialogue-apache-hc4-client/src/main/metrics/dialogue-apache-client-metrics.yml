@@ -7,5 +7,5 @@ namespaces:
     metrics:
       size:
         type: gauge
-        tags: [channel-name, state]
+        tags: [client-name, state]
         docs: Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.

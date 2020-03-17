@@ -98,17 +98,18 @@ public final class ApacheHttpClientChannels {
     /**
      * Prefer {@link #createCloseableHttpClient(ClientConfiguration, String)}.
      *
-     * @deprecated Use the overload with a channel name.
+     * @deprecated Use the overload with a client name.
      */
     @Deprecated
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
         return createCloseableHttpClient(conf, "apache-channel");
     }
 
-    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String channelName) {
+    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
         Preconditions.checkArgument(
                 !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+        Preconditions.checkNotNull(clientName, "Client name is required");
 
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
@@ -129,7 +130,7 @@ public final class ApacheHttpClientChannels {
                         .register("https", sslSocketFactory)
                         .build());
 
-        setupConnectionPoolMetrics(conf.taggedMetricRegistry(), channelName, connectionManager);
+        setupConnectionPoolMetrics(conf.taggedMetricRegistry(), clientName, connectionManager);
 
         connectionManager.setDefaultSocketConfig(socketConfig);
         connectionManager.setMaxTotal(Integer.MAX_VALUE);
@@ -180,35 +181,31 @@ public final class ApacheHttpClientChannels {
 
     private static void setupConnectionPoolMetrics(
             TaggedMetricRegistry taggedMetrics,
-            String channelName,
+            String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
         WeakSummingGauge.getOrCreate(
                 pool -> pool.getTotalStats().getAvailable(),
                 connectionManager,
                 taggedMetrics,
-                MetricName.builder()
-                        .safeName("dialogue.client.pool.size")
-                        .putSafeTags("channel-name", channelName)
-                        .putSafeTags("state", "idle")
-                        .build());
+                clientPoolSizeMetricName(clientName, "idle"));
         WeakSummingGauge.getOrCreate(
                 pool -> pool.getTotalStats().getLeased(),
                 connectionManager,
                 taggedMetrics,
-                MetricName.builder()
-                        .safeName("dialogue.client.pool.size")
-                        .putSafeTags("channel-name", channelName)
-                        .putSafeTags("state", "leased")
-                        .build());
+                clientPoolSizeMetricName(clientName, "leased"));
         WeakSummingGauge.getOrCreate(
                 pool -> pool.getTotalStats().getPending(),
                 connectionManager,
                 taggedMetrics,
-                MetricName.builder()
-                        .safeName("dialogue.client.pool.size")
-                        .putSafeTags("channel-name", channelName)
-                        .putSafeTags("state", "pending")
-                        .build());
+                clientPoolSizeMetricName(clientName, "pending"));
+    }
+
+    private static MetricName clientPoolSizeMetricName(String clientName, String state) {
+        return MetricName.builder()
+                .safeName("dialogue.client.pool.size")
+                .putSafeTags("client-name", clientName)
+                .putSafeTags("state", state)
+                .build();
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
