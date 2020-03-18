@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue avoids wrapping all runtime exceptions for cleaner results
+  links:
+  - https://github.com/palantir/dialogue/pull/538
