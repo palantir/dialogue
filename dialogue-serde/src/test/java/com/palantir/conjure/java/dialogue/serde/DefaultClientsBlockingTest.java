@@ -76,8 +76,11 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(runtimeException);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isInstanceOf(UncheckedExecutionException.class)
-                .hasCauseInstanceOf(RuntimeException.class);
+                .isSameAs(runtimeException)
+                .satisfies(exception -> assertThat(exception.getSuppressed()).hasSize(1))
+                .satisfies(exception -> assertThat(exception.getSuppressed()[0])
+                        .isInstanceOf(SafeRuntimeException.class)
+                        .hasMessage("Rethrown by dialogue"));
     }
 
     @Test

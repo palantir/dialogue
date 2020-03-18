@@ -94,12 +94,18 @@ enum DefaultClients implements Clients {
                 throw newUnknownRemoteException((UnknownRemoteException) cause);
             }
 
+            // In this case we provide a suppressed exception to mark the site where the failure was rethrown
+            // to avoid losing data while retaining the original failure information.
+            if (cause instanceof RuntimeException) {
+                cause.addSuppressed(new SafeRuntimeException("Rethrown by dialogue"));
+                throw (RuntimeException) cause;
+            }
+
             // This matches the behavior in Futures.getUnchecked(Future)
             if (cause instanceof Error) {
-                throw new ExecutionError(message, (Error) cause);
-            } else {
-                throw new UncheckedExecutionException(message, cause);
+                throw new ExecutionError(cause.getMessage(), (Error) cause);
             }
+            throw new UncheckedExecutionException(message, cause);
         }
     }
 
