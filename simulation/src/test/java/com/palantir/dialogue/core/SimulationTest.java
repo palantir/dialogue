@@ -502,7 +502,7 @@ public class SimulationTest {
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
 
-            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
+            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests\\.count$"));
             activeRequests.setTitle(String.format(
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
@@ -516,7 +516,7 @@ public class SimulationTest {
             }
 
             SimulationMetricsReporter.png(
-                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
+                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request\\.count$"))
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
