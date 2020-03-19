@@ -30,7 +30,7 @@ namespaces:
         docs: Rate of deprecated endpoints being invoked.
       limited:
         type: meter
-        tags: [reason]
+        tags: [channel-name, reason]
         docs: Rate that client-side requests are deferred to be retried later.
 
   dialogue.concurrencylimiter:
@@ -38,11 +38,11 @@ namespaces:
     metrics:
       utilization:
         type: gauge
-        tags: [hostIndex]
+        tags: [channel-name, hostIndex]
         docs: The proportion of the available concurrency which is currently being used, i.e. if there are 20 permits and only one inflight call, this will be 0.05.
       max:
         type: gauge
-        tags: [hostIndex]
+        tags: [channel-name, hostIndex]
         docs: The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
 
   dialogue.pinuntilerror:

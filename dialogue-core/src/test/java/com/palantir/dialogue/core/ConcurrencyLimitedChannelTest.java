@@ -67,7 +67,8 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(new ChannelToLimitedChannelAdapter(delegate), mockLimiter, 0, metrics);
+        channel = new ConcurrencyLimitedChannel(
+                new ChannelToLimitedChannelAdapter(delegate), mockLimiter, "channel", 0, metrics);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -113,6 +114,7 @@ public class ConcurrencyLimitedChannelTest {
         channel = new ConcurrencyLimitedChannel(
                 new ChannelToLimitedChannelAdapter(delegate),
                 ConcurrencyLimitedChannel.createLimiter(System::nanoTime),
+                "channel",
                 0,
                 metrics);
 
@@ -144,6 +146,7 @@ public class ConcurrencyLimitedChannelTest {
     private Number getUtilization() {
         Gauge<Object> gauge = metrics.gauge(MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.utilization")
+                        .putSafeTags("channel-name", "channel")
                         .putSafeTags("hostIndex", "0")
                         .build())
                 .get();
@@ -153,6 +156,7 @@ public class ConcurrencyLimitedChannelTest {
     private Number getMax() {
         MetricName metricName = MetricName.builder()
                 .safeName("dialogue.concurrencylimiter.max")
+                .putSafeTags("channel-name", "channel")
                 .putSafeTags("hostIndex", "0")
                 .build();
         assertThat(metrics.getMetrics().keySet()).contains(metricName);
