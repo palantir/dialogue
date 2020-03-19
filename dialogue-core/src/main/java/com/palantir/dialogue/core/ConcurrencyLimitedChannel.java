@@ -50,16 +50,24 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final SimpleLimiter<Void> limiter;
 
     ConcurrencyLimitedChannel(
-            LimitedChannel delegate, SimpleLimiter<Void> limiter, int uriIndex, TaggedMetricRegistry taggedMetrics) {
+            LimitedChannel delegate,
+            SimpleLimiter<Void> limiter,
+            String channelName,
+            int uriIndex,
+            TaggedMetricRegistry taggedMetrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter =
-                DialogueClientMetrics.of(taggedMetrics).limited(getClass().getSimpleName());
+        this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
+                .limited()
+                .channelName(channelName)
+                .reason(getClass().getSimpleName())
+                .build();
         this.limiter = limiter;
 
         weakGauge(
                 taggedMetrics,
                 MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.utilization")
+                        .putSafeTags("channel-name", channelName)
                         .putSafeTags("hostIndex", Integer.toString(uriIndex))
                         .build(),
                 this,
@@ -68,6 +76,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 taggedMetrics,
                 MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.max")
+                        .putSafeTags("channel-name", channelName)
                         .putSafeTags("hostIndex", Integer.toString(uriIndex))
                         .build(),
                 this,

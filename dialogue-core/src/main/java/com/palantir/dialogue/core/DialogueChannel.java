@@ -119,7 +119,12 @@ public final class DialogueChannel implements Channel {
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), clock, uriIndex);
+                clientConfiguration,
+                limitedChannel,
+                clientConfiguration.taggedMetricRegistry(),
+                clock,
+                channelName,
+                uriIndex);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -161,12 +166,13 @@ public final class DialogueChannel implements Channel {
             LimitedChannel channel,
             TaggedMetricRegistry metrics,
             Ticker clock,
+            String channelName,
             int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(clock), uriIndex, metrics);
+                        channel, ConcurrencyLimitedChannel.createLimiter(clock), channelName, uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }
