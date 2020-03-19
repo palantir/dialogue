@@ -27,6 +27,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
@@ -117,7 +118,7 @@ public final class ApacheHttpClientChannels {
 
         SocketConfig socketConfig = SocketConfig.custom().setSoKeepAlive(true).build();
         SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                conf.sslSocketFactory(),
+                MetricRegistries.instrument(conf.taggedMetricRegistry(), conf.sslSocketFactory(), clientName),
                 new String[] {"TLSv1.2"},
                 conf.enableGcmCipherSuites()
                         ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())

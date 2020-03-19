@@ -9,6 +9,7 @@ dependencies {
     api 'org.apache.httpcomponents:httpclient'
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.tritium:tritium-metrics'
 
     testCompile project(':dialogue-client-test-lib')
     testCompile project(':dialogue-serde')
