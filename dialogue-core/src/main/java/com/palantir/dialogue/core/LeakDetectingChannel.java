@@ -50,7 +50,7 @@ final class LeakDetectingChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return Futures.transform(
                 delegate.execute(endpoint, request),
-                response -> new LeakDetectingResponse(response, endpoint),
+                response -> new LeakDetectingResponse(response, new LeakDetector(response, endpoint)),
                 MoreExecutors.directExecutor());
     }
 
@@ -98,7 +98,7 @@ final class LeakDetectingChannel implements Channel {
         }
     }
 
-    private final class LeakDetectingInputStream extends FilterInputStream {
+    private static final class LeakDetectingInputStream extends FilterInputStream {
 
         private final LeakDetector leakDetector;
 
@@ -119,15 +119,15 @@ final class LeakDetectingChannel implements Channel {
         }
     }
 
-    private final class LeakDetectingResponse implements Response {
+    private static final class LeakDetectingResponse implements Response {
 
         private final Response delegate;
         private final LeakDetector leakDetector;
         private InputStream leakDetectingStream;
 
-        LeakDetectingResponse(Response delegate, Endpoint endpoint) {
+        LeakDetectingResponse(Response delegate, LeakDetector leakDetector) {
             this.delegate = delegate;
-            leakDetector = new LeakDetector(delegate, endpoint);
+            this.leakDetector = leakDetector;
         }
 
         @Override
