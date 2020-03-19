@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Instrument client TLS handshakes
+  links:
+  - https://github.com/palantir/dialogue/pull/542
