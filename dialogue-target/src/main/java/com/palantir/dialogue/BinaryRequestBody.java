@@ -23,15 +23,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * Streamed binary response data with Content-Type <code>application/octet-stream</code>.
- */
+/** Streamed binary response data with Content-Type <code>application/octet-stream</code>. */
 public interface BinaryRequestBody extends Closeable {
 
-    /**
-     * Invoked to write data to the response stream. Called exactly once.
-     */
-    void write(OutputStream responseBody) throws IOException;
+    /** Invoked to write data to the request stream. Called exactly once. */
+    void write(OutputStream requestBody) throws IOException;
 
     /** This method may be overridden to return resources. */
     @Override
@@ -45,10 +41,10 @@ public interface BinaryRequestBody extends Closeable {
             private boolean invoked;
 
             @Override
-            public void write(OutputStream responseBody) throws IOException {
+            public void write(OutputStream requestBody) throws IOException {
                 Preconditions.checkState(!invoked, "Write has already been called");
                 invoked = true;
-                ByteStreams.copy(inputStream, responseBody);
+                ByteStreams.copy(inputStream, requestBody);
             }
 
             @Override
