@@ -30,6 +30,7 @@ import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,7 +64,10 @@ final class LeakDetectingChannel implements Channel {
 
         private final Endpoint endpoint;
         private final Response response;
+
+        @Nullable
         private final Throwable creationTrace;
+
         private boolean armed = true;
 
         LeakDetector(Response response, Endpoint endpoint) {
