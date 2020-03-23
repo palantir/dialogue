@@ -26,7 +26,7 @@ import java.io.OutputStream;
 /** Streamed binary response data with Content-Type <code>application/octet-stream</code>. */
 public interface BinaryRequestBody extends Closeable {
 
-    /** Invoked to write data to the request stream. Called exactly once. */
+    /** Invoked to write data to the request stream. */
     void write(OutputStream requestBody) throws IOException;
 
     /** This method may be overridden to return resources. */
