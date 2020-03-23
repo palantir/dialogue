@@ -81,6 +81,7 @@ final class LeakDetectingChannel implements Channel {
         }
 
         @Override
+        @SuppressWarnings("NoFinalizer")
         protected void finalize() throws Throwable {
             if (armed) {
                 metrics.responseLeak()
@@ -140,6 +141,7 @@ final class LeakDetectingChannel implements Channel {
 
         private final Response delegate;
         private final LeakDetector leakDetector;
+
         @Nullable
         private InputStream leakDetectingStream;
 
