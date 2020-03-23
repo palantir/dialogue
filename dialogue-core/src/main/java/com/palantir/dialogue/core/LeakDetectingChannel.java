@@ -140,6 +140,7 @@ final class LeakDetectingChannel implements Channel {
 
         private final Response delegate;
         private final LeakDetector leakDetector;
+        @Nullable
         private InputStream leakDetectingStream;
 
         LeakDetectingResponse(Response delegate, LeakDetector leakDetector) {
