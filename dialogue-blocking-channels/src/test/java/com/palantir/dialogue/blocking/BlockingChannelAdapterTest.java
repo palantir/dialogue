@@ -26,12 +26,14 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import org.awaitility.Awaitility;
@@ -57,6 +59,11 @@ public class BlockingChannelAdapterTest {
 
         @Override
         public void close() {}
+
+        @Override
+        public <T> Optional<T> getTag(TagKey<T> tagKey) {
+            return Optional.empty();
+        }
     };
 
     private static final Endpoint stubEndpoint = new Endpoint() {

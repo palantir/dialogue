@@ -36,6 +36,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.UrlBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -43,6 +44,7 @@ import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -368,6 +370,11 @@ public class RetryingChannelTest {
 
         @Override
         public void close() {}
+
+        @Override
+        public <T> Optional<T> getTag(TagKey<T> tagKey) {
+            return Optional.empty();
+        }
     }
 
     private static final class TestEndpoint implements Endpoint {

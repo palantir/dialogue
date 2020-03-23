@@ -35,12 +35,14 @@ public final class Request {
     private final ImmutableListMultimap<String, String> queryParams;
     private final ImmutableMap<String, String> pathParams;
     private final Optional<RequestBody> body;
+    private final Map<TagKey<?>, Object> tags;
 
     private Request(Builder builder) {
         body = builder.body;
         headerParams = Multimaps.unmodifiableListMultimap(builder.headerParams);
         queryParams = builder.queryParams.build();
         pathParams = builder.pathParams.build();
+        tags = builder.tags.build();
     }
 
     /**
@@ -74,6 +76,10 @@ public final class Request {
         return body;
     }
 
+    public <T> Optional<T> getTag(TagKey<T> tagKey) {
+        return Optional.ofNullable(tags.get(tagKey)).map(tagKey::cast);
+    }
+
     @Override
     public String toString() {
         return "Request{"
@@ -86,6 +92,8 @@ public final class Request {
                 + pathParams
                 + ", body="
                 + body
+                + ", tags="
+                + tags
                 + '}';
     }
 
@@ -119,6 +127,7 @@ public final class Request {
                 .build();
         private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
+        private ImmutableMap.Builder<TagKey<?>, Object> tags = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
 
         private Builder() {}
@@ -217,6 +226,22 @@ public final class Request {
         @SuppressWarnings("unchecked")
         public Request.Builder body(Optional<? extends RequestBody> value) {
             body = (Optional<RequestBody>) value;
+            return this;
+        }
+
+        public <T> Request.Builder putTags(TagKey<T> tagKey, T tagValue) {
+            tags.put(tagKey, tagValue);
+            return this;
+        }
+
+        public Request.Builder tags(Map<TagKey<?>, Object> entries) {
+            tags = ImmutableMap.builder();
+            tags.putAll(entries);
+            return this;
+        }
+
+        public Request.Builder putAllTags(Map<TagKey<?>, Object> entries) {
+            tags.putAll(entries);
             return this;
         }
 

@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import java.io.InputStream;
+import java.util.Optional;
 
 public final class OkHttpResponse implements Response {
 
@@ -56,5 +57,10 @@ public final class OkHttpResponse implements Response {
     @Override
     public void close() {
         delegate.close();
+    }
+
+    @Override
+    public <T> Optional<T> getTag(TagKey<T> tagKey) {
+        return Optional.empty();
     }
 }

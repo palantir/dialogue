@@ -31,6 +31,7 @@ import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -260,6 +261,11 @@ public class ConjureBodySerDeTest {
 
         @Override
         public void close() {}
+
+        @Override
+        public <T> Optional<T> getTag(TagKey<T> tagKey) {
+            return Optional.empty();
+        }
 
         public void contentType(String contentType) {
             this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);

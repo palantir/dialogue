@@ -33,11 +33,13 @@ import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 import javax.annotation.CheckForNull;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
@@ -190,6 +192,11 @@ public final class ErrorDecoderTest {
 
             @Override
             public void close() {}
+
+            @Override
+            public <T> Optional<T> getTag(TagKey<T> tagKey) {
+                return Optional.empty();
+            }
         };
     }
 }

@@ -22,12 +22,14 @@ import com.google.common.collect.MultimapBuilder;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,6 +62,11 @@ final class SimulationUtils {
 
             @Override
             public void close() {}
+
+            @Override
+            public <T> Optional<T> getTag(TagKey<T> tagKey) {
+                return Optional.empty();
+            }
         };
     }
 
@@ -93,6 +100,11 @@ final class SimulationUtils {
                             timesClosed,
                             new SafeRuntimeException("for stacktrace"));
                 }
+            }
+
+            @Override
+            public <T> Optional<T> getTag(TagKey<T> tagKey) {
+                return Optional.empty();
             }
         };
     }

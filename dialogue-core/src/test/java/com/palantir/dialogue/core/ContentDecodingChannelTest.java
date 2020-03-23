@@ -29,12 +29,14 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.UrlBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import org.assertj.core.data.MapEntry;
 import org.immutables.value.Value;
@@ -184,6 +186,13 @@ public final class ContentDecodingChannelTest {
 
         @Override
         default void close() {}
+
+        Map<TagKey<?>, Object> tags();
+
+        @Override
+        default <T> Optional<T> getTag(TagKey<T> tag) {
+            return Optional.ofNullable(tag.cast(tags().get(tag)));
+        }
 
         class Builder extends ImmutableStubResponse.Builder {}
 

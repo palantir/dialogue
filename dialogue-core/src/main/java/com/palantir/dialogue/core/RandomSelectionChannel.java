@@ -54,8 +54,8 @@ final class RandomSelectionChannel implements LimitedChannel {
             LimitedChannel channel = delegates.get(toIndex(visitedChannels, host));
             Optional<ListenableFuture<Response>> maybeCall = channel.maybeExecute(endpoint, request);
             if (maybeCall.isPresent()) {
-                return maybeCall;
-            }
+                return maybeCall.map(future -> StickySessioning.addExecutedOnTag(future, channel));
+        }
             if (visitedChannels == null) {
                 visitedChannels = new BitSet(elements);
             }

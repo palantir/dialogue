@@ -147,7 +147,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         OptionalInt next = incrementHostIfNecessary(currentIndex);
                         instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
                     }
-                }));
+                })).map(future -> StickySessioning.addExecutedOnTag(future, channel));
     }
 
     /**

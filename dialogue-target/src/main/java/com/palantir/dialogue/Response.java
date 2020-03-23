@@ -46,4 +46,6 @@ public interface Response extends Closeable {
      */
     @Override
     void close();
+
+    <T> Optional<T> getTag(TagKey<T> tagKey);
 }

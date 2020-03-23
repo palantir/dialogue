@@ -23,6 +23,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
@@ -129,6 +130,11 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             } catch (IOException | RuntimeException e) {
                 log.warn("Failed to close response", e);
             }
+        }
+
+        @Override
+        public <T> Optional<T> getTag(TagKey<T> tagKey) {
+            return Optional.empty();
         }
 
         @Override

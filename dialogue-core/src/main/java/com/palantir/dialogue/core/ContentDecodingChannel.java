@@ -25,6 +25,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TagKey;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.BufferedInputStream;
@@ -138,6 +139,11 @@ final class ContentDecodingChannel implements Channel {
             } finally {
                 delegate.close();
             }
+        }
+
+        @Override
+        public <T> Optional<T> getTag(TagKey<T> tagKey) {
+            return delegate.getTag(tagKey);
         }
     }
 

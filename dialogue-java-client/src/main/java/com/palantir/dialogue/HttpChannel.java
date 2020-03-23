@@ -31,6 +31,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -117,6 +118,11 @@ public final class HttpChannel implements Channel {
                 } catch (IOException e) {
                     log.warn("Failed to close response", e);
                 }
+            }
+
+            @Override
+            public <T> Optional<T> getTag(TagKey<T> tagKey) {
+                return Optional.empty();
             }
         };
     }
