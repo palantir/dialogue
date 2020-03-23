@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -62,11 +63,13 @@ final class LeakDetectingChannel implements Channel {
 
         private final Endpoint endpoint;
         private final Response response;
+        private final Throwable creationTrace;
         private boolean armed = true;
 
         LeakDetector(Response response, Endpoint endpoint) {
             this.response = response;
             this.endpoint = endpoint;
+            this.creationTrace = log.isTraceEnabled() ? new SafeRuntimeException("created here") : null;
         }
 
         void disarm() {
@@ -82,11 +85,21 @@ final class LeakDetectingChannel implements Channel {
                         .endpoint(endpoint.endpointName())
                         .build()
                         .mark();
-                log.warn(
-                        "Detected a leaked response from service {} endpoint {} on channel {}",
-                        SafeArg.of("service", endpoint.serviceName()),
-                        SafeArg.of("endpoint", endpoint.endpointName()),
-                        SafeArg.of("channel", channelName));
+                if (creationTrace == null) {
+                    log.warn(
+                            "Detected a leaked response from service {} endpoint {} on channel {}. Enable trace "
+                                    + "logging to record stack traces.",
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()),
+                            SafeArg.of("channel", channelName));
+                } else {
+                    log.warn(
+                            "Detected a leaked response from service {} endpoint {} on channel {}",
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()),
+                            SafeArg.of("channel", channelName),
+                            creationTrace);
+                }
                 response.close();
             }
             super.finalize();
