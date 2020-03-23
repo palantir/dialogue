@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-/** Streamed binary response data with Content-Type <code>application/octet-stream</code>. */
+/** Streamed binary request data with Content-Type <code>application/octet-stream</code>. */
 public interface BinaryRequestBody extends Closeable {
 
     /** Invoked to write data to the request stream. */
