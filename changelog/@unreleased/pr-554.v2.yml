@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Response leak detection samples 1% of requests (down from 100%)
+  links:
+  - https://github.com/palantir/dialogue/pull/554
