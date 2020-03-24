@@ -8,7 +8,8 @@ _Dialogue is a client-side library for HTTP-based RPC, designed to work well wit
 - **Client-side node selection**: by making load balancing decisions in the client, Dialogue avoids the necessity for an L7 proxy (and its associated latency penalty).
 - **Queue**: in the case where all nodes are limited (e.g. during a spike in traffic), requests are added to a FIFO queue and processed as soon as the one of the ConcurrencyLimiters has capacity;
 - **Retries**: requests are retried a constant number of times.
-- **Live reloading**: uris can be added or removed without losing the state of the ConcurrencyLimiters or node selection.
+- **Live reloading**: uris can be added or removed without losing ConcurrencyLimiter or node selection states.
+- **Streaming**: requests and responses are streamed without buffering the entire body into memory.
 
 ## Observability
 
@@ -105,9 +106,14 @@ For example, the [UserAgentChannel](https://github.com/palantir/dialogue/blob/de
 
 _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
 
+
 ## Alternative HTTP clients
 
 Dialogue is not coupled to a single HTTP client library - this repo contains implementations based on [OkHttp](https://square.github.io/okhttp/), Java's [HttpURLConnection](https://docs.oracle.com/javase/8/docs/api/java/net/HttpURLConnection.html), the new Java11 [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html) as well as the aforementioned [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/).  We endorse the Apache client because as it performed best in our benchmarks and affords granular control over connection pools.
+
+## History
+
+Dialogue is the product of years of learning from operating thousands of Java servers across hundreds of deployments. [Previous incarnations](https://github.com/palantir/conjure-java-runtime) relied on Feign, Retrofit2 and OkHttp.
 
 ## Contributing
 
