@@ -26,6 +26,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -63,7 +64,8 @@ class LeakDetectingChannelTest {
     @SuppressWarnings("FutureReturnValueIgnored") // intentional leak
     void testLeakMetric() throws Exception {
         Channel delegate = (endpoint, request) -> Futures.immediateFuture(response);
-        LeakDetectingChannel detector = new LeakDetectingChannel(delegate, CHANNEL, metrics);
+        LeakDetectingChannel detector =
+                new LeakDetectingChannel(delegate, CHANNEL, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
         detector.execute(mockEndpoint, Request.builder().build());
         Meter leaks = metrics.responseLeak()
@@ -81,7 +83,8 @@ class LeakDetectingChannelTest {
     @Test
     void testNotLeaked_streamReferenceHeld() throws Exception {
         Channel delegate = (endpoint, request) -> Futures.immediateFuture(response);
-        LeakDetectingChannel detector = new LeakDetectingChannel(delegate, CHANNEL, metrics);
+        LeakDetectingChannel detector =
+                new LeakDetectingChannel(delegate, CHANNEL, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
         try (InputStream ignored =
                 detector.execute(mockEndpoint, Request.builder().build()).get().body()) {

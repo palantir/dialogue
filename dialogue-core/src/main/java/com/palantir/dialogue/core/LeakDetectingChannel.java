@@ -24,12 +24,14 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
+import java.util.Random;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,19 +43,46 @@ final class LeakDetectingChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
     private final DialogueClientMetrics metrics;
+    private final Random random;
+    private final float leakDetectionProbability;
 
-    LeakDetectingChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
+    LeakDetectingChannel(
+            Channel delegate,
+            String channelName,
+            DialogueClientMetrics metrics,
+            Random random,
+            float leakDetectionProbability) {
         this.delegate = delegate;
         this.channelName = channelName;
         this.metrics = metrics;
+        this.random = random;
+        this.leakDetectionProbability = leakDetectionProbability;
+        Preconditions.checkArgument(
+                leakDetectionProbability >= 0, "Leak detection probability must be positive or zero");
+        Preconditions.checkArgument(leakDetectionProbability <= 1, "Leak detection probability must not exceed one");
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        ListenableFuture<Response> result = delegate.execute(endpoint, request);
+        return shouldApplyLeakDetection() ? wrap(result, endpoint) : result;
+    }
+
+    private ListenableFuture<Response> wrap(ListenableFuture<Response> result, Endpoint endpoint) {
         return Futures.transform(
-                delegate.execute(endpoint, request),
+                result,
                 response -> new LeakDetectingResponse(response, new LeakDetector(response, endpoint)),
                 MoreExecutors.directExecutor());
+    }
+
+    private boolean shouldApplyLeakDetection() {
+        if (leakDetectionProbability >= 1) {
+            return true;
+        }
+        if (leakDetectionProbability <= 0) {
+            return false;
+        }
+        return random.nextFloat() <= leakDetectionProbability;
     }
 
     /**
