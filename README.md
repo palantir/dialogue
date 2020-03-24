@@ -2,6 +2,56 @@
 
 _Dialogue is a client-side library for HTTP-based RPC, designed to work well with [Conjure](https://palantir.github.io/conjure)-defined APIs._
 
+## Usage
+
+Dialogue works best with Conjure-generated client bindings, i.e. for a given Conjure-defined `FooService`, the [conjure-java](https://github.com/palantir/conjure-java) code generator produces two java interfaces: `FooServiceBlocking` and `FooServiceAsync`. See the [conjure-java generated client bindings][] section below for more details.
+
+**Production usage**: your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
+
+```groovy
+FooServiceBlocking fooService = witchcraft.conjureClients().client(FooServiceBlocking.class, "foo-service").get();
+
+// network call:
+List<Item> items = fooService.getItems();
+```
+
+The non-blocking instance can be constructed similarly:
+
+```groovy
+FooServiceAsync fooService = witchcraft.conjureClients().client(FooServiceAsync.class, "foo-service").get();
+
+ListenableFuture<List<Item>> items = fooService.getItems();
+```
+
+**Under the hood**
+
+If the Witchcraft method above is not available, you must construct a `DialogueChannel` directly using the builder.
+
+```java
+ApacheHttpClientChannels.CloseableClient apache = ApacheHttpClientChannels.createCloseableHttpClient(conf); // should be closed when no longer needed
+
+Channel channel = DialogueChannel.builder()
+      .channelName("foo-service")
+      .clientConfiguration(conf)
+      .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apache))
+      .build();
+
+FooServiceBlocking fooService = FooServiceBlocking.of(channel, DefaultConjureRuntime.builder().build());
+```
+
+This sets up all of the smart functionality in Dialogue, and gives you the flexibility to choose what channel to use for a request to a single uri. As in the example above, we recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) as a reliable and performant HTTP client. (See alternatives below.)
+
+_In this example, `DefaultConjureRuntime` is provided by `com.palantir.dialogue:dialogue-serde` and `ApacheHttpClientChannels` is provided by `com.palantir.dialogue:dialogue-apache-hc4-client`._
+
+Note: a single DialogueChannel instance should be used for all interactions with a conceptual service (where this service may be comprised of multiple physical servers). For example, if a server provides multiple different Conjure services, `FooService`, `BarService` and `BazService`, the same DialogueChannel should be used to call each of these.
+
+If you don't care about re-using a connection pool and live-reloading uris isn't important (e.g. in tests), you can use the shorthand method:
+
+```groovy
+Channel channel = ApacheHttpClientChannels.create(clientConf);
+```
+
+[conjure-java generated client bindings]: #conjure-java-generated-client-bindings
 ## conjure-java generated client bindings
 
 Dialogue works best with generated client bindings, i.e. for a given Conjure-defined `FooService`, the [conjure-java](https://github.com/palantir/conjure-java) code generator can produce two java interfaces: `FooServiceBlocking` and `FooServiceAsync`. Generating these at compile-time means that making a request involves zero reflection - all serializers and deserializers are already set up in advance, so that zero efficiency compromises are made. A sample `getThing` endpoint with some path params, query params and a request body looks like this:
@@ -20,50 +70,6 @@ public ListenableFuture<Thing> getThing(
     return runtime.clients()
             .call(channel, DialogueSampleEndpoints.getThing, _request.build(), thingDeserializer);
 }
-```
-
-
-### Building a client
-
-**Production usage**: your server framework should provide an abstraction to create clients to ensure that connection pools are reused wherever possible. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
-
-```groovy
-FooServiceBlocking fooService = witchcraft.conjureClients().client(FooServiceBlocking.class, "foo-service").get();
-
-// then you can make network calls by just calling the java method
-List<Item> items = fooService.getItems();
-```
-
-**Under the hood**
-
-For granular control, you might want to interact with the `DialogueChannel` builder directly.
-
-```java
-Channel channel = DialogueChannel.builder()
-      .channelName("my-channel")
-      .clientConfiguration(conf)
-      .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apache))
-      .build();
-```
-
-This sets up all of the smart functionality in Dialogue, and gives you the flexibility to choose what channel to use for a request to a single uri. We recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) - in the example above, the `ApacheHttpClientChannels` class is provided by `com.palantir.dialogue:dialogue-apache-hc4-client`.
-
-You'd manually construct a client using the static `of` method:
-
-```groovy
-FooServiceBlocking fooService = FooServiceBlocking.of(channel, DefaultConjureRuntime.builder().build());
-```
-
-_In this example, DefaultConjureRuntime is provided by `com.palantir.dialogue:dialogue-serde`._
-
-
-In tests, you might use:
-
-```groovy
-Channel channel = ApacheHttpClientChannels.create(ClientConfiguration.builder()
-        .from(ClientConfigurations.of(serviceConfiguration))
-        .userAgent(userAgent)
-        .build());
 ```
 
 ## Blocking or async?
