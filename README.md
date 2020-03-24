@@ -25,18 +25,55 @@ public ListenableFuture<Thing> getThing(
 
 ### Building a client
 
-**Short-answer**: setting up clients should probably be encapsulated by your server framework to ensure connection pools are reused properly. For example in Witchcraft:
+**Production usage**: your server framework should provide an abstraction to create clients to ensure that connection pools are reused wherever possible. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
 
 ```groovy
 FooServiceBlocking fooService = witchcraft.conjureClients().client(FooServiceBlocking.class, "foo-service").get();
 
-// then you can make network calls by just calling a method
+// then you can make network calls by just calling the java method
 List<Item> items = fooService.getItems();
 ```
 
-**Long answer**
+**Under the hood**
 
-Dialogue is built around the `Channel` abstraction, with many different implementations that often add a little bit of behaviour and then delegate to another inner Channel.
+For granular control, you might want to interact with the `DialogueChannel` builder directly.
+
+```java
+Channel channel = DialogueChannel.builder()
+      .channelName("my-channel")
+      .clientConfiguration(conf)
+      .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apache))
+      .build();
+```
+
+This sets up all of the smart functionality in Dialogue, and gives you the flexibility to choose what channel to use for a request to a single uri. We recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) - in the example above, the `ApacheHttpClientChannels` class is provided by `com.palantir.dialogue:dialogue-apache-hc4-client`.
+
+You'd manually construct a client using the static `of` method:
+
+```groovy
+FooServiceBlocking fooService = FooServiceBlocking.of(channel, DefaultConjureRuntime.builder().build());
+```
+
+_In this example, DefaultConjureRuntime is provided by `com.palantir.dialogue:dialogue-serde`._
+
+
+In tests, you might use:
+
+```groovy
+Channel channel = ApacheHttpClientChannels.create(ClientConfiguration.builder()
+        .from(ClientConfigurations.of(serviceConfiguration))
+        .userAgent(userAgent)
+        .build());
+```
+
+## Blocking or async?
+
+Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 80% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
+
+
+## Design and motivation
+
+Dialogue is built around the `Channel` abstraction, with many different internal implementations that often add a little bit of behaviour and then delegate to another inner Channel.
 
 ```java
 public interface Channel {
@@ -46,15 +83,7 @@ public interface Channel {
 
 For example, the [UserAgentChannel](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/java/com/palantir/dialogue/core/UserAgentChannel.java) just augments the request with a `user-agent` header and then calls a delegate.
 
-
-## Blocking or async?
-
-Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 80% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
-
-
-## Design and motivation
-
-The API is influenced by gRPC's Java library.
+_This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
 
 ## Contributing
 
