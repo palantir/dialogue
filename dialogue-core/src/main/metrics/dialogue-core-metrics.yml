@@ -9,6 +9,10 @@ namespaces:
         type: timer
         tags: [channel-name, service-name]
         docs: Request time, note that this does not include time spent reading the response body.
+      response.leak:
+        type: meter
+        tags: [channel-name, service-name, endpoint]
+        docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
       request.active:
         type: counter
         tags: [channel-name, service-name, stage]

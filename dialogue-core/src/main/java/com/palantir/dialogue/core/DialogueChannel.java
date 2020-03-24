@@ -110,7 +110,8 @@ public final class DialogueChannel implements Channel {
 
     private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
         Channel channel = channelFactory.create(uri);
-        // Instrument inner-most channel with metrics so that we measure only the over-the-wire-time
+        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
+        channel = new LeakDetectingChannel(channel, channelName, clientMetrics);
         channel = new InstrumentedChannel(channel, channelName, clientMetrics);
         channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
