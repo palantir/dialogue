@@ -26,7 +26,6 @@ import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -34,7 +33,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -45,7 +43,6 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
-import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
 import org.apache.http.HttpHost;
@@ -117,12 +114,13 @@ public final class ApacheHttpClientChannels {
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
 
         SocketConfig socketConfig = SocketConfig.custom().setSoKeepAlive(true).build();
+        SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
         SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                MetricRegistries.instrument(conf.taggedMetricRegistry(), conf.sslSocketFactory(), clientName),
+                MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, clientName),
                 new String[] {"TLSv1.2"},
                 conf.enableGcmCipherSuites()
-                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites())
-                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites()),
+                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory)
+                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites(), rawSocketFactory),
                 new DefaultHostnameVerifier());
 
         PoolingHttpClientConnectionManager connectionManager =
@@ -233,8 +231,8 @@ public final class ApacheHttpClientChannels {
      * Otherwise {@code SSLSocketImpl#setEnabledCipherSuites} throws and IllegalArgumentException complaining about an
      * "Unsupported ciphersuite" at client construction time!
      */
-    private static String[] jvmSupportedCipherSuites(String[] cipherSuites) {
-        Set<String> jvmSupported = jvmSupportedCipherSuites();
+    private static String[] jvmSupportedCipherSuites(String[] cipherSuites, SSLSocketFactory socketFactory) {
+        Set<String> jvmSupported = supportedCipherSuites(socketFactory);
         List<String> enabled = new ArrayList<>();
         List<String> unsupported = new ArrayList<>();
 
@@ -260,13 +258,8 @@ public final class ApacheHttpClientChannels {
         return enabled.toArray(new String[0]);
     }
 
-    private static ImmutableSet<String> jvmSupportedCipherSuites() {
-        try {
-            SSLSocketFactory socketFactory = SSLContext.getDefault().getSocketFactory();
-            return ImmutableSet.copyOf(socketFactory.getSupportedCipherSuites());
-        } catch (NoSuchAlgorithmException e) {
-            throw new SafeRuntimeException("Unable to determine JVM supported cipher suites", e);
-        }
+    private static ImmutableSet<String> supportedCipherSuites(SSLSocketFactory socketFactory) {
+        return ImmutableSet.copyOf(socketFactory.getSupportedCipherSuites());
     }
 
     private static URL url(String uri) {
