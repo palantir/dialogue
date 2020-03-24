@@ -2,6 +2,20 @@
 
 _Dialogue is a client-side library for HTTP-based RPC, designed to work well with [Conjure](https://palantir.github.io/conjure)-defined APIs._
 
+## Features
+
+- **ConcurrencyLimiters**: additive increase multiplicative decrease (AIMD) concurrency limiters ensure bursty traffic doesn't overload upstream servers.
+- **Client-side node selection**: by making load balancing decisions in the client, Dialogue avoids the necessity for an L7 proxy (and its associated latency penalty).
+- **Queue**: in the case where all nodes are limited (e.g. during a spike in traffic), requests are added to a FIFO queue and processed as soon as the one of the ConcurrencyLimiters has capacity;
+- **Retries**: requests are retried a constant number of times.
+- **Live reloading**: uris can be added or removed without losing the state of the ConcurrencyLimiters or node selection.
+
+## Observability
+
+- **Structured logging**: SLF4J logs are designed to be rendered as JSON, with every parameter declaratively named.
+- **Metrics**: Timers, meters and gauges are defined using [metric-schema](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/metrics/dialogue-core-metrics.yml) and stored in a [Tritium TaggedMetricRegistry](https://github.com/palantir/tritium).
+- **Zipkin-style tracing**: internal operations are instrumented using Zipkin-style [tracing-java spans](https://github.com/palantir/tracing-java), and `X-B3-TraceId` headers are propagated
+
 ## Usage
 
 Dialogue works best with Conjure-generated client bindings, i.e. for a given Conjure-defined `FooService`, the [conjure-java](https://github.com/palantir/conjure-java) code generator produces two java interfaces: `FooServiceBlocking` and `FooServiceAsync`. See the [conjure-java generated client bindings][] section below for more details.
@@ -72,7 +86,7 @@ public ListenableFuture<Thing> getThing(
 }
 ```
 
-## Blocking or async?
+## Blocking or async
 
 Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 80% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
 
@@ -90,6 +104,10 @@ public interface Channel {
 For example, the [UserAgentChannel](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/java/com/palantir/dialogue/core/UserAgentChannel.java) just augments the request with a `user-agent` header and then calls a delegate.
 
 _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
+
+## Alternative HTTP clients
+
+Dialogue is not coupled to a single HTTP client library - this repo contains implementations based on [OkHttp](https://square.github.io/okhttp/), Java's [HttpURLConnection](https://docs.oracle.com/javase/8/docs/api/java/net/HttpURLConnection.html), the new Java11 [HttpClient](https://openjdk.java.net/groups/net/httpclient/intro.html) as well as the aforementioned [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/).  We endorse the Apache client because as it performed best in our benchmarks and affords granular control over connection pools.
 
 ## Contributing
 
