@@ -119,8 +119,8 @@ public final class ApacheHttpClientChannels {
                 MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, clientName),
                 new String[] {"TLSv1.2"},
                 conf.enableGcmCipherSuites()
-                        ? jvmSupportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory)
-                        : jvmSupportedCipherSuites(CipherSuites.fastCipherSuites(), rawSocketFactory),
+                        ? supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory)
+                        : supportedCipherSuites(CipherSuites.fastCipherSuites(), rawSocketFactory),
                 new DefaultHostnameVerifier());
 
         PoolingHttpClientConnectionManager connectionManager =
@@ -231,7 +231,7 @@ public final class ApacheHttpClientChannels {
      * Otherwise {@code SSLSocketImpl#setEnabledCipherSuites} throws and IllegalArgumentException complaining about an
      * "Unsupported ciphersuite" at client construction time!
      */
-    private static String[] jvmSupportedCipherSuites(String[] cipherSuites, SSLSocketFactory socketFactory) {
+    private static String[] supportedCipherSuites(String[] cipherSuites, SSLSocketFactory socketFactory) {
         Set<String> jvmSupported = supportedCipherSuites(socketFactory);
         List<String> enabled = new ArrayList<>();
         List<String> unsupported = new ArrayList<>();
