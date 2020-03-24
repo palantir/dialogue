@@ -57,6 +57,7 @@ public final class DialogueChannel implements Channel {
     private final DialogueClientMetrics clientMetrics;
     private final Ticker clock;
     private final Random random;
+    private final float leakDetectionProbability;
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
     private DialogueChannel(
@@ -65,13 +66,15 @@ public final class DialogueChannel implements Channel {
             ChannelFactory channelFactory,
             Ticker clock,
             Random random,
-            Supplier<ScheduledExecutorService> scheduler) {
+            Supplier<ScheduledExecutorService> scheduler,
+            float leakDetectionProbability) {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.clock = clock;
         this.random = random;
+        this.leakDetectionProbability = leakDetectionProbability;
         updateUris(clientConfiguration.uris());
         this.delegate = wrap(
                 channelName,
@@ -111,7 +114,7 @@ public final class DialogueChannel implements Channel {
     private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
-        channel = new LeakDetectingChannel(channel, channelName, clientMetrics, random, .01f);
+        channel = new LeakDetectingChannel(channel, channelName, clientMetrics, random, leakDetectionProbability);
         channel = new InstrumentedChannel(channel, channelName, clientMetrics);
         channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
@@ -231,6 +234,7 @@ public final class DialogueChannel implements Channel {
         private Ticker clock = Ticker.systemTicker();
         private Random random = SafeThreadLocalRandom.get();
         private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
+        private float leakDetectionProbability = .01f;
 
         @Nullable
         private String channelName;
@@ -274,6 +278,14 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
+        @VisibleForTesting
+        Builder leakDetectionProbability(float value) {
+            Preconditions.checkArgument(value >= 0, "Leak detection probability must be positive or zero");
+            Preconditions.checkArgument(value <= 1, "Leak detection probability must not exceed one");
+            this.leakDetectionProbability = value;
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
@@ -284,7 +296,7 @@ public final class DialogueChannel implements Channel {
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(name, cleanedConf, factory, clock, random, scheduler);
+            return new DialogueChannel(name, cleanedConf, factory, clock, random, scheduler, leakDetectionProbability);
         }
 
         private void preconditions(ClientConfiguration conf) {

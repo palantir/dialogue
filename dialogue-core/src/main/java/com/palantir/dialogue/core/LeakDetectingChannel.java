@@ -24,7 +24,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.FilterInputStream;
@@ -57,9 +56,6 @@ final class LeakDetectingChannel implements Channel {
         this.metrics = metrics;
         this.random = random;
         this.leakDetectionProbability = leakDetectionProbability;
-        Preconditions.checkArgument(
-                leakDetectionProbability >= 0, "Leak detection probability must be positive or zero");
-        Preconditions.checkArgument(leakDetectionProbability <= 1, "Leak detection probability must not exceed one");
     }
 
     @Override
