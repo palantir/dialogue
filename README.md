@@ -1,4 +1,8 @@
-# Dialogue
+<p align="right">
+<a href="https://autorelease.general.dmz.palantir.tech/palantir/dialogue"><img src="https://img.shields.io/badge/Perform%20an-Autorelease-success.svg" alt="Autorelease"></a>
+</p>
+
+# Dialogue ![Bintray](https://img.shields.io/bintray/v/palantir/releases/dialogue.svg) [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](https://opensource.org/licenses/Apache-2.0)
 
 _Dialogue is a client-side library for HTTP-based RPC, designed to work well with [Conjure](https://palantir.github.io/conjure)-defined APIs._
 
@@ -6,16 +10,17 @@ _Dialogue is a client-side library for HTTP-based RPC, designed to work well wit
 
 - **ConcurrencyLimiters**: additive increase multiplicative decrease (AIMD) concurrency limiters ensure bursty traffic doesn't overload upstream servers.
 - **Client-side node selection**: by making load balancing decisions in the client, Dialogue avoids the necessity for an L7 proxy (and its associated latency penalty).
-- **Queue**: in the case where all nodes are limited (e.g. during a spike in traffic), requests are added to a FIFO queue and processed as soon as the one of the ConcurrencyLimiters has capacity;
-- **Retries**: requests are retried a constant number of times.
+- **Queue**: in the case where all nodes are limited (e.g. during a spike in traffic), requests are added to a FIFO queue and processed as soon as the one of the ConcurrencyLimiters has capacity.
+- **Retries**: requests are retried a constant number of times, unless they were streamed.
 - **Live reloading**: uris can be added or removed without losing ConcurrencyLimiter or node selection states.
+- **Content decoding**: JSON, [SMILE](https://github.com/FasterXML/jackson-dataformats-binary/tree/master/smile) and [CBOR](https://github.com/FasterXML/jackson-dataformats-binary/tree/master/cbor) are supported by default, with user-defined encodings also supported.
 - **Streaming**: requests and responses are streamed without buffering the entire body into memory.
 
 ## Observability
 
-- **Structured logging**: SLF4J logs are designed to be rendered as JSON, with every parameter declaratively named.
-- **Metrics**: Timers, meters and gauges are defined using [metric-schema](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/metrics/dialogue-core-metrics.yml) and stored in a [Tritium TaggedMetricRegistry](https://github.com/palantir/tritium).
 - **Zipkin-style tracing**: internal operations are instrumented using Zipkin-style [tracing-java spans](https://github.com/palantir/tracing-java), and `X-B3-TraceId` headers are propagated
+- **Metrics**: Timers, meters and gauges are defined using [metric-schema](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/metrics/dialogue-core-metrics.yml) and stored in a [Tritium TaggedMetricRegistry](https://github.com/palantir/tritium).
+- **Structured logging**: SLF4J logs are designed to be rendered as JSON, with every parameter declaratively named.
 
 ## Usage
 
@@ -54,7 +59,7 @@ Channel channel = DialogueChannel.builder()
 FooServiceBlocking fooService = FooServiceBlocking.of(channel, DefaultConjureRuntime.builder().build());
 ```
 
-This sets up all of the smart functionality in Dialogue, and gives you the flexibility to choose what channel to use for a request to a single uri. As in the example above, we recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) as a reliable and performant HTTP client. (See alternatives below.)
+This sets up all of the smart functionality in Dialogue, and gives you the flexibility to use your preferred HTTP Client for raw requests. As in the example above, we recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) as a reliable and performant HTTP client. (See alternatives below.)
 
 _In this example, `DefaultConjureRuntime` is provided by `com.palantir.dialogue:dialogue-serde` and `ApacheHttpClientChannels` is provided by `com.palantir.dialogue:dialogue-apache-hc4-client`._
 
@@ -92,7 +97,7 @@ public ListenableFuture<Thing> getThing(
 Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 80% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
 
 
-## Design and motivation
+## Design
 
 Dialogue is built around the `Channel` abstraction, with many different internal implementations that often add a little bit of behaviour and then delegate to another inner Channel.
 
