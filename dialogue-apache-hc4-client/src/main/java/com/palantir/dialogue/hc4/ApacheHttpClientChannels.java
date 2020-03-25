@@ -118,9 +118,10 @@ public final class ApacheHttpClientChannels {
         SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                 MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, clientName),
                 new String[] {"TLSv1.2"},
-                conf.enableGcmCipherSuites()
-                        ? supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory)
-                        : supportedCipherSuites(CipherSuites.fastCipherSuites(), rawSocketFactory),
+                supportedCipherSuites(
+                        conf.enableGcmCipherSuites() ? CipherSuites.allCipherSuites() : CipherSuites.fastCipherSuites(),
+                        rawSocketFactory,
+                        clientName),
                 new DefaultHostnameVerifier());
 
         PoolingHttpClientConnectionManager connectionManager =
@@ -231,7 +232,8 @@ public final class ApacheHttpClientChannels {
      * Otherwise {@code SSLSocketImpl#setEnabledCipherSuites} throws and IllegalArgumentException complaining about an
      * "Unsupported ciphersuite" at client construction time!
      */
-    private static String[] supportedCipherSuites(String[] cipherSuites, SSLSocketFactory socketFactory) {
+    private static String[] supportedCipherSuites(
+            String[] cipherSuites, SSLSocketFactory socketFactory, String clientName) {
         Set<String> jvmSupported = supportedCipherSuites(socketFactory);
         List<String> enabled = new ArrayList<>();
         List<String> unsupported = new ArrayList<>();
@@ -247,6 +249,7 @@ public final class ApacheHttpClientChannels {
         if (!unsupported.isEmpty()) {
             log.info(
                     "Skipping unsupported cipher suites",
+                    SafeArg.of("client", clientName),
                     SafeArg.of("numEnabled", enabled.size()),
                     SafeArg.of("numUnsupported", unsupported.size()),
                     SafeArg.of("cipher", unsupported),
