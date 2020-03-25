@@ -11,7 +11,7 @@ _Dialogue is a client-side library for HTTP-based RPC, designed to work well wit
 - **ConcurrencyLimiters**: additive increase multiplicative decrease (AIMD) concurrency limiters ensure bursty traffic doesn't overload upstream servers.
 - **Client-side node selection**: by making load balancing decisions in the client, Dialogue avoids the necessity for an L7 proxy (and its associated latency penalty).
 - **Queue**: in the case where all nodes are limited (e.g. during a spike in traffic), requests are added to a FIFO queue and processed as soon as the one of the ConcurrencyLimiters has capacity.
-- **Retries**: requests are retried a constant number of times, unless they were streamed.
+- **Retries**: requests are retried a constant number of times, if possible.
 - **Live reloading**: uris can be added or removed without losing ConcurrencyLimiter or node selection states.
 - **Content decoding**: JSON, [SMILE](https://github.com/FasterXML/jackson-dataformats-binary/tree/master/smile) and [CBOR](https://github.com/FasterXML/jackson-dataformats-binary/tree/master/cbor) are supported by default, with user-defined encodings also supported.
 - **Streaming**: requests and responses are streamed without buffering the entire body into memory.
