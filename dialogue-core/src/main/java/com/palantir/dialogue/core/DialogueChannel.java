@@ -108,7 +108,11 @@ public final class DialogueChannel implements Channel {
         newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri, allUris.indexOf(uri))));
 
         nodeSelectionStrategy.getAndUpdate(previous -> getUpdatedNodeSelectionStrategy(
-                previous, clientConfiguration, ImmutableList.copyOf(limitedChannelByUri.values()), random));
+                previous,
+                clientConfiguration,
+                ImmutableList.copyOf(limitedChannelByUri.values()),
+                random,
+                channelName));
     }
 
     private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
@@ -135,7 +139,8 @@ public final class DialogueChannel implements Channel {
             @Nullable LimitedChannel previousNodeSelectionStrategy,
             ClientConfiguration config,
             List<LimitedChannel> channels,
-            Random random) {
+            Random random,
+            String channelName) {
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
             return channels.get(0);
@@ -154,9 +159,11 @@ public final class DialogueChannel implements Channel {
                             config.nodeSelectionStrategy(),
                             channels,
                             pinuntilerrorMetrics,
-                            random);
+                            random,
+                            channelName);
                 }
-                return PinUntilErrorChannel.of(config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random);
+                return PinUntilErrorChannel.of(
+                        config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random, channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
                 return new RandomSelectionChannel(channels, random);
