@@ -60,6 +60,7 @@ public class PinUntilErrorChannelTest {
     private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorChannel pinUntilError;
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
+    private String channelName = "channelName";
     private Random pseudo = new Random(12893712L);
 
     @BeforeEach
@@ -68,10 +69,10 @@ public class PinUntilErrorChannelTest {
 
         PinUntilErrorChannel.ConstantNodeList constantList = new PinUntilErrorChannel.ConstantNodeList(channels);
         PinUntilErrorChannel.ReshufflingNodeList shufflingList =
-                PinUntilErrorChannel.ReshufflingNodeList.of(channels, pseudo, clock, metrics);
+                PinUntilErrorChannel.ReshufflingNodeList.of(channels, pseudo, clock, metrics, channelName);
 
-        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, 1, metrics);
-        pinUntilError = new PinUntilErrorChannel(shufflingList, 1, metrics);
+        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, 1, metrics, channelName);
+        pinUntilError = new PinUntilErrorChannel(shufflingList, 1, metrics, channelName);
     }
 
     @Test
@@ -173,7 +174,12 @@ public class PinUntilErrorChannelTest {
     @Test
     void handles_reconstruction_from_stale_state() {
         PinUntilErrorChannel.from(
-                null, NodeSelectionStrategy.PIN_UNTIL_ERROR, ImmutableList.of(channel1, channel2), metrics, pseudo);
+                null,
+                NodeSelectionStrategy.PIN_UNTIL_ERROR,
+                ImmutableList.of(channel1, channel2),
+                metrics,
+                pseudo,
+                channelName);
     }
 
     private static int getCode(PinUntilErrorChannel channel) {

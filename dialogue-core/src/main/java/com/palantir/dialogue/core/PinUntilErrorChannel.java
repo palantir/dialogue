@@ -67,10 +67,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics) {
+    PinUntilErrorChannel(NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics, String channelName) {
         this.nodeList = nodeList;
         this.currentHost = new AtomicInteger(initialHost);
-        this.instrumentation = new Instrumentation(nodeList.size(), metrics);
+        this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
@@ -85,8 +85,9 @@ final class PinUntilErrorChannel implements LimitedChannel {
             NodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
-            Random random) {
-        return from(channels.get(0), strategy, channels, metrics, random);
+            Random random,
+            String channelName) {
+        return from(channels.get(0), strategy, channels, metrics, random, channelName);
     }
 
     static PinUntilErrorChannel from(
@@ -94,7 +95,8 @@ final class PinUntilErrorChannel implements LimitedChannel {
             NodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
-            Random random) {
+            Random random,
+            String channelName) {
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
          * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
@@ -108,11 +110,12 @@ final class PinUntilErrorChannel implements LimitedChannel {
 
         switch (strategy) {
             case PIN_UNTIL_ERROR:
-                NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics);
-                return new PinUntilErrorChannel(shuffling, initialHost, metrics);
+                NodeList shuffling =
+                        ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
+                return new PinUntilErrorChannel(shuffling, initialHost, metrics, channelName);
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorChannel(constant, initialHost, metrics);
+                return new PinUntilErrorChannel(constant, initialHost, metrics, channelName);
             case ROUND_ROBIN:
         }
 
@@ -201,12 +204,14 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 ImmutableList<LimitedChannel> channels,
                 Random random,
                 Ticker clock,
-                DialoguePinuntilerrorMetrics metrics) {
+                DialoguePinuntilerrorMetrics metrics,
+                String channelName) {
             long intervalWithJitter = RESHUFFLE_EVERY
                     .plus(Duration.ofSeconds(random.nextInt(60) - 30))
                     .toNanos();
             AtomicLong nextReshuffle = new AtomicLong(clock.read() + intervalWithJitter);
-            return new ReshufflingNodeList(channels, random, clock, metrics, intervalWithJitter, nextReshuffle);
+            return new ReshufflingNodeList(
+                    channels, random, clock, metrics, intervalWithJitter, nextReshuffle, channelName);
         }
 
         private ReshufflingNodeList(
@@ -215,14 +220,15 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 Ticker clock,
                 DialoguePinuntilerrorMetrics metrics,
                 long intervalWithJitter,
-                AtomicLong nextReshuffle) {
+                AtomicLong nextReshuffle,
+                String channelName) {
             this.channels = channels;
             this.channelsSize = channels.size();
             this.nextReshuffle = nextReshuffle;
             this.intervalWithJitter = intervalWithJitter;
             this.random = random;
             this.clock = clock;
-            this.instrumentation = new Instrumentation(channelsSize, metrics);
+            this.instrumentation = new Instrumentation(channelsSize, metrics, channelName);
         }
 
         @Override
@@ -266,15 +272,24 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
 
-        Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics) {
-            this.reshuffleMeter = metrics.reshuffle();
-            this.nextNodeBecauseResponseCode = metrics.nextNode("responseCode");
-            this.nextNodeBecauseThrowable = metrics.nextNode("throwable");
+        Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics, String channelName) {
+            this.reshuffleMeter = metrics.reshuffle(channelName);
+            this.nextNodeBecauseResponseCode = metrics.nextNode()
+                    .channelName(channelName)
+                    .reason("responseCode")
+                    .build();
+            this.nextNodeBecauseThrowable = metrics.nextNode()
+                    .channelName(channelName)
+                    .reason("throwable")
+                    .build();
 
             if (numChannels < 10) {
                 // hard limit ensures we don't create unbounded tags
                 this.successesPerHost = IntStream.range(0, numChannels)
-                        .mapToObj(index -> metrics.success(Integer.toString(index)))
+                        .mapToObj(index -> metrics.success()
+                                .channelName(channelName)
+                                .hostIndex(Integer.toString(index))
+                                .build())
                         .toArray(Meter[]::new);
             } else {
                 this.successesPerHost = null;
