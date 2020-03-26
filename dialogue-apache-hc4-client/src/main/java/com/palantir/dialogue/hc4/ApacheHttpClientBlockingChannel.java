@@ -48,10 +48,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final CloseableHttpClient client;
     private final BaseUrl baseUrl;
+    private final ResponseLeakDetector responseLeakDetector;
 
-    ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
+    ApacheHttpClientBlockingChannel(
+            CloseableHttpClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
+        this.responseLeakDetector = responseLeakDetector;
     }
 
     @Override
@@ -70,7 +73,20 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
-        return new HttpClientResponse(client.execute(builder.build()));
+        CloseableHttpResponse httpClientResponse = client.execute(builder.build());
+        // Defensively ensure that resources are closed if failures occur within this block,
+        // for example HttpClientResponse allocation may throw an OutOfMemoryError.
+        boolean close = true;
+        try {
+            Response dialogueResponse = new HttpClientResponse(httpClientResponse);
+            Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
+            close = false;
+            return leakDetectingResponse;
+        } finally {
+            if (close) {
+                httpClientResponse.close();
+            }
+        }
     }
 
     private static final class HttpClientResponse implements Response {

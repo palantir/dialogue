@@ -14,17 +14,15 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.hc4;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.codahale.metrics.Meter;
-import com.google.common.util.concurrent.Futures;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -32,28 +30,24 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.Before;
+import org.junit.Test;
 
-@ExtendWith(MockitoExtension.class)
-class LeakDetectingChannelTest {
-    private static final String CHANNEL = "channel";
+public class ResponseLeakDetectorTest {
+    private static final String CLIENT = "client";
     private static final String SERVICE = "service";
     private static final String ENDPOINT = "endpoint";
 
     private DialogueClientMetrics metrics;
 
-    @Mock
     private Endpoint mockEndpoint;
 
-    @Mock
     private Response response;
 
-    @BeforeEach
-    void beforeEach() {
+    @Before
+    public void before() {
+        mockEndpoint = mock(Endpoint.class);
+        response = mock(Response.class);
         metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         lenient().when(mockEndpoint.serviceName()).thenReturn(SERVICE);
         lenient().when(mockEndpoint.endpointName()).thenReturn(ENDPOINT);
@@ -61,15 +55,12 @@ class LeakDetectingChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored") // intentional leak
-    void testLeakMetric() throws Exception {
-        Channel delegate = (endpoint, request) -> Futures.immediateFuture(response);
-        LeakDetectingChannel detector =
-                new LeakDetectingChannel(delegate, CHANNEL, metrics, SafeThreadLocalRandom.get(), 1);
+    public void testLeakMetric() {
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
-        detector.execute(mockEndpoint, Request.builder().build());
+        detector.wrap(response, mockEndpoint);
         Meter leaks = metrics.responseLeak()
-                .channelName(CHANNEL)
+                .clientName(CLIENT)
                 .serviceName(SERVICE)
                 .endpoint(ENDPOINT)
                 .build();
@@ -81,15 +72,12 @@ class LeakDetectingChannelTest {
     }
 
     @Test
-    void testNotLeaked_streamReferenceHeld() throws Exception {
-        Channel delegate = (endpoint, request) -> Futures.immediateFuture(response);
-        LeakDetectingChannel detector =
-                new LeakDetectingChannel(delegate, CHANNEL, metrics, SafeThreadLocalRandom.get(), 1);
+    public void testNotLeaked_streamReferenceHeld() throws Exception {
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
-        try (InputStream ignored =
-                detector.execute(mockEndpoint, Request.builder().build()).get().body()) {
+        try (InputStream ignored = detector.wrap(response, mockEndpoint).body()) {
             Meter leaks = metrics.responseLeak()
-                    .channelName(CHANNEL)
+                    .clientName(CLIENT)
                     .serviceName(SERVICE)
                     .endpoint(ENDPOINT)
                     .build();

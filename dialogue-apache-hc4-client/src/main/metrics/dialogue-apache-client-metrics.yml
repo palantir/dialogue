@@ -9,3 +9,10 @@ namespaces:
         type: gauge
         tags: [client-name, state]
         docs: Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+  dialogue.client:
+    docs: Dialogue client response metrics provided by the Apache client channel.
+    metrics:
+      response.leak:
+        type: meter
+        tags: [client-name, service-name, endpoint]
+        docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.

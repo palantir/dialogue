@@ -13,4 +13,5 @@ dependencies {
 
     testCompile project(':dialogue-client-test-lib')
     testCompile project(':dialogue-serde')
+    testImplementation 'org.awaitility:awaitility'
 }

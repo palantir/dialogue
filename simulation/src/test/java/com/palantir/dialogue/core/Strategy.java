@@ -87,7 +87,6 @@ public enum Strategy {
                 .clock(sim.clock())
                 .random(pseudo)
                 .scheduler(sim.scheduler())
-                .leakDetectionProbability(1)
                 .build();
 
         return RefreshingChannelFactory.RefreshingChannel.create(
