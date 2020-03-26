@@ -17,15 +17,12 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.ListMultimap;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -35,40 +32,33 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class LeakDetectingChannel implements Channel {
+public final class ResponseLeakDetector {
 
-    private static final Logger log = LoggerFactory.getLogger(LeakDetectingChannel.class);
+    private static final Logger log = LoggerFactory.getLogger(ResponseLeakDetector.class);
 
-    private final Channel delegate;
-    private final String channelName;
+    private final String clientName;
     private final DialogueClientMetrics metrics;
     private final Random random;
     private final float leakDetectionProbability;
 
-    LeakDetectingChannel(
-            Channel delegate,
-            String channelName,
-            DialogueClientMetrics metrics,
-            Random random,
-            float leakDetectionProbability) {
-        this.delegate = delegate;
-        this.channelName = channelName;
+    public static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
+        return new ResponseLeakDetector(
+                clientName, DialogueClientMetrics.of(metrics), SafeThreadLocalRandom.get(), .01f);
+    }
+
+    ResponseLeakDetector(
+            String clientName, DialogueClientMetrics metrics, Random random, float leakDetectionProbability) {
+        this.clientName = clientName;
         this.metrics = metrics;
         this.random = random;
         this.leakDetectionProbability = leakDetectionProbability;
     }
 
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        ListenableFuture<Response> result = delegate.execute(endpoint, request);
-        return shouldApplyLeakDetection() ? wrap(result, endpoint) : result;
-    }
-
-    private ListenableFuture<Response> wrap(ListenableFuture<Response> result, Endpoint endpoint) {
-        return Futures.transform(
-                result,
-                response -> new LeakDetectingResponse(response, new LeakDetector(response, endpoint)),
-                MoreExecutors.directExecutor());
+    public Response wrap(Response input, Endpoint endpoint) {
+        if (shouldApplyLeakDetection()) {
+            return new LeakDetectingResponse(input, new LeakDetector(input, endpoint));
+        }
+        return input;
     }
 
     private boolean shouldApplyLeakDetection() {
@@ -110,7 +100,7 @@ final class LeakDetectingChannel implements Channel {
         protected void finalize() throws Throwable {
             if (armed) {
                 metrics.responseLeak()
-                        .channelName(channelName)
+                        .clientName(clientName)
                         .serviceName(endpoint.serviceName())
                         .endpoint(endpoint.endpointName())
                         .build()
@@ -121,13 +111,13 @@ final class LeakDetectingChannel implements Channel {
                                     + "logging to record stack traces.",
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
-                            SafeArg.of("channel", channelName));
+                            SafeArg.of("client", clientName));
                 } else {
                     log.warn(
                             "Detected a leaked response from service {} endpoint {} on channel {}",
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
-                            SafeArg.of("channel", channelName),
+                            SafeArg.of("client", clientName),
                             creationTrace);
                 }
                 response.close();

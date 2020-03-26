@@ -23,6 +23,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.ResponseLeakDetector;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -90,7 +91,8 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        return BlockingChannelAdapter.of(new ApacheHttpClientBlockingChannel(client.client, url(uri)));
+        return BlockingChannelAdapter.of(
+                new ApacheHttpClientBlockingChannel(client.client, url(uri), client.leakDetector));
     }
 
     /**
@@ -175,7 +177,7 @@ public final class ApacheHttpClientChannels {
                             .build());
         });
 
-        return new CloseableClient(builder.build());
+        return new CloseableClient(builder.build(), ResponseLeakDetector.of(clientName, conf.taggedMetricRegistry()));
     }
 
     private static void setupConnectionPoolMetrics(
@@ -210,9 +212,11 @@ public final class ApacheHttpClientChannels {
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
         private final CloseableHttpClient client;
+        private final ResponseLeakDetector leakDetector;
 
-        CloseableClient(CloseableHttpClient client) {
+        CloseableClient(CloseableHttpClient client, ResponseLeakDetector leakDetector) {
             this.client = client;
+            this.leakDetector = leakDetector;
         }
 
         @Override

@@ -25,6 +25,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
+import com.palantir.dialogue.core.ResponseLeakDetector;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
@@ -48,10 +49,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final CloseableHttpClient client;
     private final BaseUrl baseUrl;
+    private final ResponseLeakDetector responseLeakDetector;
 
-    ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
+    ApacheHttpClientBlockingChannel(
+            CloseableHttpClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
+        this.responseLeakDetector = responseLeakDetector;
     }
 
     @Override
@@ -70,7 +74,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
-        return new HttpClientResponse(client.execute(builder.build()));
+        return responseLeakDetector.wrap(new HttpClientResponse(client.execute(builder.build())), endpoint);
     }
 
     private static final class HttpClientResponse implements Response {
