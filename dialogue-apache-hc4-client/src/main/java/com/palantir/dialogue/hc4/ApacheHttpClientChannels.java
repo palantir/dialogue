@@ -247,7 +247,7 @@ public final class ApacheHttpClientChannels {
         }
 
         if (!unsupported.isEmpty()) {
-            log.info(
+            log.debug(
                     "Skipping unsupported cipher suites",
                     SafeArg.of("client", clientName),
                     SafeArg.of("numEnabled", enabled.size()),
