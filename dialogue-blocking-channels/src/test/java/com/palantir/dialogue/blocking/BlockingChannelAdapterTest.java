@@ -17,10 +17,13 @@ package com.palantir.dialogue.blocking;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
@@ -118,5 +121,26 @@ public class BlockingChannelAdapterTest {
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasRootCauseMessage("expected");
+    }
+
+    @Test
+    public void testCancel() throws InterruptedException {
+        CountDownLatch channelLatch = new CountDownLatch(1);
+        CountDownLatch returnLatch = new CountDownLatch(1);
+        Response response = mock(Response.class);
+        Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
+            channelLatch.countDown();
+            Uninterruptibles.awaitUninterruptibly(returnLatch);
+            return response;
+        });
+        ListenableFuture<Response> result =
+                channel.execute(stubEndpoint, Request.builder().build());
+        channelLatch.await();
+        assertThat(result.cancel(true)).isTrue();
+        assertThat(result).isCancelled();
+        // Allow the channel to complete
+        returnLatch.countDown();
+        Awaitility.waitAtMost(Duration.ofSeconds(3))
+                .untilAsserted(() -> verify(response).close());
     }
 }
