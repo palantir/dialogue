@@ -86,6 +86,9 @@ public final class OkHttpChannel implements Channel {
                 okRequest = okRequest.delete(
                         request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
                 break;
+            case PATCH:
+                okRequest = okRequest.patch(toOkHttpBody(request.body()));
+                break;
         }
 
         // Fill headers
