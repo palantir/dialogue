@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.hc4;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.codahale.metrics.Meter;
@@ -29,28 +30,24 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import org.awaitility.Awaitility;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.Before;
+import org.junit.Test;
 
-@ExtendWith(MockitoExtension.class)
-class ResponseLeakDetectorTest {
+public class ResponseLeakDetectorTest {
     private static final String CLIENT = "client";
     private static final String SERVICE = "service";
     private static final String ENDPOINT = "endpoint";
 
     private DialogueClientMetrics metrics;
 
-    @Mock
     private Endpoint mockEndpoint;
 
-    @Mock
     private Response response;
 
-    @BeforeEach
-    void beforeEach() {
+    @Before
+    public void before() {
+        mockEndpoint = mock(Endpoint.class);
+        response = mock(Response.class);
         metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         lenient().when(mockEndpoint.serviceName()).thenReturn(SERVICE);
         lenient().when(mockEndpoint.endpointName()).thenReturn(ENDPOINT);
@@ -58,7 +55,7 @@ class ResponseLeakDetectorTest {
     }
 
     @Test
-    void testLeakMetric() {
+    public void testLeakMetric() {
         ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
         detector.wrap(response, mockEndpoint);
@@ -75,7 +72,7 @@ class ResponseLeakDetectorTest {
     }
 
     @Test
-    void testNotLeaked_streamReferenceHeld() throws Exception {
+    public void testNotLeaked_streamReferenceHeld() throws Exception {
         ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
         // Result is intentionally ignored to cause a leak
         try (InputStream ignored = detector.wrap(response, mockEndpoint).body()) {

@@ -37,6 +37,7 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.awaitility.Awaitility;
 import org.junit.Test;
 
@@ -127,10 +128,12 @@ public class BlockingChannelAdapterTest {
     public void testCancel() throws InterruptedException {
         CountDownLatch channelLatch = new CountDownLatch(1);
         CountDownLatch returnLatch = new CountDownLatch(1);
+        AtomicBoolean invocationInterrupted = new AtomicBoolean();
         Response response = mock(Response.class);
         Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
             channelLatch.countDown();
             Uninterruptibles.awaitUninterruptibly(returnLatch);
+            invocationInterrupted.set(Thread.currentThread().isInterrupted());
             return response;
         });
         ListenableFuture<Response> result =
@@ -142,5 +145,6 @@ public class BlockingChannelAdapterTest {
         returnLatch.countDown();
         Awaitility.waitAtMost(Duration.ofSeconds(3))
                 .untilAsserted(() -> verify(response).close());
+        assertThat(invocationInterrupted).isTrue();
     }
 }

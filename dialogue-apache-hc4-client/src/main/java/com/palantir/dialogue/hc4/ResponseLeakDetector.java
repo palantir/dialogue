@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.hc4;
 
 import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.Endpoint;
@@ -32,7 +32,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class ResponseLeakDetector {
+public final class ResponseLeakDetector {
 
     private static final Logger log = LoggerFactory.getLogger(ResponseLeakDetector.class);
 
@@ -41,7 +41,7 @@ final class ResponseLeakDetector {
     private final Random random;
     private final float leakDetectionProbability;
 
-    static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
+    public static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
         return new ResponseLeakDetector(
                 clientName, DialogueClientMetrics.of(metrics), SafeThreadLocalRandom.get(), .01f);
     }
@@ -54,7 +54,7 @@ final class ResponseLeakDetector {
         this.leakDetectionProbability = leakDetectionProbability;
     }
 
-    Response wrap(Response input, Endpoint endpoint) {
+    public Response wrap(Response input, Endpoint endpoint) {
         if (shouldApplyLeakDetection()) {
             return new LeakDetectingResponse(input, new LeakDetector(input, endpoint));
         }

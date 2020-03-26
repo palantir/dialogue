@@ -16,6 +16,8 @@
 package com.palantir.dialogue.blocking;
 
 import com.google.common.base.Suppliers;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
@@ -26,6 +28,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tracing.Tracers;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -66,12 +69,26 @@ public final class BlockingChannelAdapter {
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            SettableFuture<Response> result = SettableFuture.create();
-            BlockingChannelAdapterTask runnable = new BlockingChannelAdapterTask(delegate, endpoint, request, result);
+            SettableFuture<Response> settableFuture = SettableFuture.create();
+            BlockingChannelAdapterTask runnable =
+                    new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             Future<?> future = executor.submit(runnable);
             // The executor task should be interrupted on termination
-            result.addListener(() -> future.cancel(true), MoreExecutors.directExecutor());
-            return result;
+            Futures.addCallback(
+                    settableFuture,
+                    new FutureCallback<Response>() {
+                        @Override
+                        public void onSuccess(Response _result) {}
+
+                        @Override
+                        public void onFailure(Throwable throwable) {
+                            if (throwable instanceof CancellationException) {
+                                future.cancel(true);
+                            }
+                        }
+                    },
+                    MoreExecutors.directExecutor());
+            return settableFuture;
         }
 
         @Override
@@ -96,6 +113,7 @@ public final class BlockingChannelAdapter {
 
             @Override
             public void run() {
+                // If a user cancels the SettableFuture we exposed, then there's no need to call the delegate.
                 if (result.isDone()) {
                     return;
                 }
