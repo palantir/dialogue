@@ -73,7 +73,20 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
-        return responseLeakDetector.wrap(new HttpClientResponse(client.execute(builder.build())), endpoint);
+        CloseableHttpResponse httpClientResponse = client.execute(builder.build());
+        // Defensively ensure that resources are closed if failures occur within this block,
+        // for example HttpClientResponse allocation may throw an OutOfMemoryError.
+        boolean close = true;
+        try {
+            Response dialogueResponse = new HttpClientResponse(httpClientResponse);
+            Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
+            close = false;
+            return leakDetectingResponse;
+        } finally {
+            if (close) {
+                httpClientResponse.close();
+            }
+        }
     }
 
     private static final class HttpClientResponse implements Response {
