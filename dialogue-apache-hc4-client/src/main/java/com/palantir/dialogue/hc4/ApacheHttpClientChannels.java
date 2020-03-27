@@ -161,8 +161,8 @@ public final class ApacheHttpClientChannels {
                 .disableConnectionState()
                 // Match okhttp behavior disabling cookies
                 .disableCookieManagement()
-                // // Dialogue handles content-compression with ContentDecodingChannel
-                // .disableContentCompression()
+                // Dialogue handles content-compression with ContentDecodingChannel
+                .disableContentCompression()
                 .setSSLSocketFactory(sslSocketFactory)
                 .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                 .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)

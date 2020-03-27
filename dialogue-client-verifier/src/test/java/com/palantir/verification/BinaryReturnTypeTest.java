@@ -41,6 +41,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.zip.GZIPOutputStream;
 import okhttp3.mockwebserver.MockResponse;
@@ -92,7 +93,7 @@ public class BinaryReturnTypeTest {
 
     /** I made two tests for the same thing because I wasn't 100% sure I'd set the server up right. */
     @Test
-    @Ignore // I don't know why this is hanging...
+    @Ignore // don't know what's going on here
     public void mockwebserver() throws IOException {
         try (MockWebServer server = new MockWebServer()) {
 
@@ -103,8 +104,7 @@ public class BinaryReturnTypeTest {
                     .setResponseCode(200)
                     .setHeader("Content-Type", "application/octet-stream")
                     .setHeader("Content-Encoding", "gzip")
-                    .setBody(okioBuffer(gzipCompress("Hello, world")))
-                    .removeHeader("Content-Length"));
+                    .setBody(okioBuffer(gzipCompress("Hello, world"))));
 
             // ApacheHttpClientChannels.CloseableClient apache =
             //         ApacheHttpClientChannels.createCloseableHttpClient(clientConf(uri), "foo");
@@ -132,6 +132,9 @@ public class BinaryReturnTypeTest {
                 .from(ClientConfigurations.of(ServiceConfiguration.builder()
                         .addUris(uri)
                         .security(SSL_CONFIG)
+                        .readTimeout(Duration.ofSeconds(1))
+                        .writeTimeout(Duration.ofSeconds(1))
+                        .connectTimeout(Duration.ofSeconds(1))
                         .build()))
                 .userAgent(USER_AGENT)
                 .build();
