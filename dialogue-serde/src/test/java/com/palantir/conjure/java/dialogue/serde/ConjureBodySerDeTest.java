@@ -162,30 +162,6 @@ public class ConjureBodySerDeTest {
     }
 
     @Test
-    public void testBinary() throws IOException {
-        TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
-        assertThat(serializers.inputStreamDeserializer().deserialize(response).available())
-                .isEqualTo(0);
-        response.body().assertNotClosed();
-        assertThat(response.isClosed()).describedAs("TODO ???").isFalse();
-    }
-
-    @Test
-    public void testBinary_optional_present() throws IOException {
-        TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
-        Optional<InputStream> maybe =
-                serializers.optionalInputStreamDeserializer().deserialize(response);
-        assertThat(maybe).isPresent();
-        assertThat(maybe.get().available()).isEqualTo(0);
-        response.body().assertNotClosed();
-        assertThat(response.isClosed()).describedAs("TODO ???").isFalse();
-    }
-
-    @Test
     public void testBinary_optional_empty() {
         TestResponse response = new TestResponse().code(204);
         BodySerDe serializers =
