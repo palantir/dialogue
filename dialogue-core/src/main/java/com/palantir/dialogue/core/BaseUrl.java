@@ -221,6 +221,8 @@ public final class BaseUrl {
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
         private static final CharMatcher IS_P_CHAR = UNRESERVED.or(SUB_DELIMS);
         private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
+        // The RFC permits percent-encoding any character. We also percent encode '+' because otherwise most servers
+        // interpret it as an url encoded space.
         private static final CharMatcher IS_QUERY_CHAR =
                 IS_P_CHAR.or(CharMatcher.anyOf("/?")).and(CharMatcher.noneOf("=&+"));
 
