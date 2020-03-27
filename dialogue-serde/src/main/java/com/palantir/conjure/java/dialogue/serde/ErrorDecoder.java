@@ -30,8 +30,6 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Extracts and returns a {@link RemoteException} from an {@link Response}.
@@ -42,7 +40,6 @@ import org.slf4j.LoggerFactory;
 enum ErrorDecoder {
     INSTANCE;
 
-    private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
     boolean isError(Response response) {
@@ -53,40 +50,26 @@ enum ErrorDecoder {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
-        InputStream inputStream = response.body();
+        String body;
         try {
-            String body;
-            try {
-                body = toString(inputStream);
-            } catch (NullPointerException | IOException e) {
-                UnknownRemoteException exception = new UnknownRemoteException(response.code(), "<unparseable>");
-                exception.initCause(e);
-                throw exception;
-            }
+            body = toString(response.body());
+        } catch (NullPointerException | IOException e) {
+            UnknownRemoteException exception = new UnknownRemoteException(response.code(), "<unparseable>");
+            exception.initCause(e);
+            throw exception;
+        }
 
-            Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-            if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
-                try {
-                    SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
-                    return new RemoteException(serializableError, response.code());
-                } catch (Exception e) {
-                    throw new UnknownRemoteException(response.code(), body);
-                }
-            }
-
-            throw new UnknownRemoteException(response.code(), body);
-        } finally {
+        Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+        if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
             try {
-                inputStream.close();
-            } catch (RuntimeException | IOException e) {
-                log.warn("Failed to close InputStream", e);
-            }
-            try {
-                response.close();
-            } catch (RuntimeException e) {
-                log.warn("Failed to close Response", e);
+                SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
+                return new RemoteException(serializableError, response.code());
+            } catch (Exception e) {
+                throw new UnknownRemoteException(response.code(), body);
             }
         }
+
+        throw new UnknownRemoteException(response.code(), body);
     }
 
     private static String toString(InputStream body) throws IOException {

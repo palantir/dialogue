@@ -198,7 +198,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
         EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
             this.encodings = encodings.stream()
-                    .map(encoding -> EncodingDeserializerContainer.of(encoding, token))
+                    .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
             this.token = token;
@@ -279,13 +279,9 @@ final class ConjureBodySerDe implements BodySerDe {
         private final Encoding encoding;
         private final Encoding.Deserializer<T> deserializer;
 
-        EncodingDeserializerContainer(Encoding encoding, Encoding.Deserializer<T> deserializer) {
+        EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
             this.encoding = encoding;
-            this.deserializer = deserializer;
-        }
-
-        static <T> EncodingDeserializerContainer<T> of(Encoding encoding, TypeMarker<T> token) {
-            return new EncodingDeserializerContainer<>(encoding, encoding.deserializer(token));
+            this.deserializer = encoding.deserializer(token);
         }
 
         @Override
