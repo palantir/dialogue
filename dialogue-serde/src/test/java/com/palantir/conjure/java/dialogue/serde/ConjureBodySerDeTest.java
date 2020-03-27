@@ -33,7 +33,6 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
@@ -193,7 +192,7 @@ public class ConjureBodySerDeTest {
         @Override
         @SuppressWarnings("unchecked")
         public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
-            return (InputStream input, Closeable response) -> {
+            return input -> {
                 Preconditions.checkArgument(TYPE.equals(type), "This stub encoding only supports String");
                 return (T) getContentType();
             };

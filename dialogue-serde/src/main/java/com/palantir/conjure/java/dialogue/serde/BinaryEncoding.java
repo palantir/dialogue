@@ -19,8 +19,6 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import java.io.Closeable;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 
@@ -73,9 +71,9 @@ enum BinaryEncoding implements Encoding {
         INSTANCE;
 
         @Override
-        public Optional<InputStream> deserialize(InputStream input, Closeable response) {
-            // intentionally not closing just yet, otherwise users wouldn't be able to get any data out of it!
-            return Optional.of(new ResponseClosingInputStream(input, response));
+        public Optional<InputStream> deserialize(InputStream input) {
+            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
+            return Optional.of(input);
         }
 
         @Override
@@ -88,36 +86,14 @@ enum BinaryEncoding implements Encoding {
         INSTANCE;
 
         @Override
-        public InputStream deserialize(InputStream input, Closeable response) {
-            // intentionally not closing just yet, otherwise users wouldn't be able to get any data out of it!
-            return new ResponseClosingInputStream(input, response);
+        public InputStream deserialize(InputStream input) {
+            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
+            return input;
         }
 
         @Override
         public String toString() {
             return "InputStreamDeserializer{}";
-        }
-    }
-
-    static class ResponseClosingInputStream extends ForwardingInputStream {
-        private final InputStream inputStream;
-        private final Closeable response;
-
-        ResponseClosingInputStream(InputStream inputStream, Closeable response) {
-            this.inputStream = inputStream;
-            this.response = response;
-        }
-
-        @Override
-        InputStream delegate() {
-            return inputStream;
-        }
-
-        @Override
-        public void close() throws IOException {
-            // TODO(dfox): try-catch?
-            inputStream.close();
-            response.close();
         }
     }
 }
