@@ -34,6 +34,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -170,6 +171,48 @@ public class ConjureBodySerDeTest {
                 .describedAs("inputstream should be closed")
                 .isTrue();
         assertThat(response.isClosed()).describedAs("response should be closed").isTrue();
+    }
+
+    @Test
+    public void if_deserialize_throws_response_is_still_closed() {
+        TestResponse response = new TestResponse().code(200).contentType("application/json");
+        BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)));
+        assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("brokenEncoding is broken");
+        assertThat(response.body().isClosed())
+                .describedAs("inputstream should be closed")
+                .isTrue();
+        assertThat(response.isClosed()).describedAs("response should be closed").isTrue();
+    }
+
+    enum BrokenEncoding implements Encoding {
+        INSTANCE;
+
+        @Override
+        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+            throw new UnsupportedOperationException("unimplemented");
+        }
+
+        @Override
+        public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+            return new Deserializer<T>() {
+                @Override
+                public T deserialize(InputStream _input) {
+                    throw new SafeRuntimeException("brokenEncoding is broken");
+                }
+            };
+        }
+
+        @Override
+        public String getContentType() {
+            return "application/json";
+        }
+
+        @Override
+        public boolean supportsContentType(String _contentType) {
+            return true;
+        }
     }
 
     /** Deserializes requests as the configured content type. */

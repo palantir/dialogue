@@ -230,9 +230,10 @@ final class ConjureBodySerDe implements BodySerDe {
                             SafeArg.of("received", response.headers().keySet()));
                 }
                 Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
-                // deserializer is responsible for closing the response
+                T deserialized = deserializer.deserialize(response.body());
+                // deserializer has taken on responsibility for closing the response body
                 closeResponse = false;
-                return deserializer.deserialize(response.body());
+                return deserialized;
             } finally {
                 if (closeResponse) {
                     response.close();
