@@ -306,14 +306,12 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         @SuppressWarnings("NullAway") // empty body is a special case
         public Void deserialize(Response response) {
-            try {
+            // We should not fail if a server that previously returned nothing starts returning a response
+            try (Response unused = response) {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 }
                 return null;
-            } finally {
-                // We should not fail if a server that previously returned nothing starts returning a response
-                response.close();
             }
         }
 
