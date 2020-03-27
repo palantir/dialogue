@@ -190,6 +190,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
+        private static final Logger log = LoggerFactory.getLogger(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
         private final TypeMarker<T> token;
@@ -264,7 +265,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     try {
                         input.close();
                     } catch (RuntimeException | IOException e) {
-                        // empty
+                        log.warn("Failed to close InputStream", e);
                     }
                     throw new SafeRuntimeException(
                             "Unsupported Content-Type",
