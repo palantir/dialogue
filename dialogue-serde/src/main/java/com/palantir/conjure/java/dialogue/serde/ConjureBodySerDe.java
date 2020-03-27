@@ -211,31 +211,34 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public T deserialize(Response response) {
-            if (errorDecoder.isError(response)) {
-                try {
+            boolean closeResponse = true;
+            try {
+                if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
-                } finally {
+                } else if (response.code() == 204) {
+                    if (!isOptionalType) {
+                        throw new SafeRuntimeException(
+                                "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
+                    } else {
+                        return TypeMarkers.getEmptyOptional(token);
+                    }
+                }
+
+                Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+                if (!contentType.isPresent()) {
+                    throw new SafeIllegalArgumentException(
+                            "Response is missing Content-Type header",
+                            SafeArg.of("received", response.headers().keySet()));
+                }
+                Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
+                // deserializer is responsible for closing the response
+                closeResponse = false;
+                return deserializer.deserialize(response.body(), response);
+            } finally {
+                if (closeResponse) {
                     response.close();
                 }
-            } else if (response.code() == 204) {
-                response.close();
-                if (!isOptionalType) {
-                    throw new SafeRuntimeException(
-                            "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
-                } else {
-                    return TypeMarkers.getEmptyOptional(token);
-                }
             }
-
-            Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-            if (!contentType.isPresent()) {
-                response.close();
-                throw new SafeIllegalArgumentException(
-                        "Response is missing Content-Type header",
-                        SafeArg.of("received", response.headers().keySet()));
-            }
-            Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
-            return deserializer.deserialize(response.body(), response);
         }
 
         @Override
