@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
@@ -37,7 +38,6 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
@@ -239,12 +239,13 @@ public class ConjureBodySerDeTest {
 
     private static final class TestResponse implements Response {
 
-        private InputStream body = new ByteArrayInputStream(new byte[] {});
+        private final CloseableInputStream body =
+                new CloseableInputStream(new ByteArrayInputStream(new byte[]{}));
         private int code = 0;
         private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
         @Override
-        public InputStream body() {
+        public CloseableInputStream body() {
             return body;
         }
 
@@ -259,9 +260,16 @@ public class ConjureBodySerDeTest {
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            try {
+                body.close();
+            } catch (IOException e) {
+                throw new SafeRuntimeException("Failed to close", e);
+            }
+        }
 
-        public void contentType(String contentType) {
+        @VisibleForTesting
+        void contentType(String contentType) {
             this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
         }
     }
