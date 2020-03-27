@@ -160,11 +160,16 @@ public final class UrlBuilderTest {
 
     @Test
     public void urlEncoder_encodeQuery_onlyEncodesNonReservedChars() {
-        String nonReserved = "aAzZ09!$'()*+,;?/";
+        String nonReserved = "aAzZ09!$'()*,;/?";
         assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue(nonReserved)).isEqualTo(nonReserved);
         assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("@[]{}ßçö"))
                 .isEqualTo("%40%5B%5D%7B%7D%C3%9F%C3%A7%C3%B6");
-        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("&=")).isEqualTo("%26%3D");
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("=&+")).isEqualTo("%3D%26%2B");
+    }
+
+    @Test
+    public void urlEncoder_encodeQuery_encodesPlusSign() {
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+")).isEqualTo("%2B");
     }
 
     @Test
