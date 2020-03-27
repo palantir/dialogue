@@ -6,6 +6,12 @@ types:
         fields:
           intProperty: integer
 
+      AliasOfOptional:
+        alias: optional<string>
+
+      AliasOfAliasOfOptional:
+        alias: AliasOfOptional
+
 services:
   SampleService:
     name: Sample Service
@@ -33,4 +39,12 @@ services:
       getOptionalBinary:
         http: GET /getOptionalBinary
         returns: optional<binary>
+
+      getMyAlias:
+        http: GET /getMyAlias
+        returns: AliasOfOptional
+
+      getMyAlias2:
+        http: GET /getMyAlias2
+        returns: AliasOfAliasOfOptional
 
