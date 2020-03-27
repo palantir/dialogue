@@ -51,7 +51,7 @@ final class TestResponse implements Response {
 
     @Override
     public void close() {
-        checkPrecondition();
+        checkNotClosed();
         try {
             closeCalled = Optional.of(new SafeRuntimeException("Close called here"));
             inputStream.close();
@@ -64,9 +64,9 @@ final class TestResponse implements Response {
         return closeCalled.isPresent();
     }
 
-    private void checkPrecondition() {
+    private void checkNotClosed() {
         if (closeCalled.isPresent()) {
-            throw new SafeRuntimeException("Please don't close twices", closeCalled.get());
+            throw new SafeRuntimeException("Please don't close twice", closeCalled.get());
         }
     }
 
