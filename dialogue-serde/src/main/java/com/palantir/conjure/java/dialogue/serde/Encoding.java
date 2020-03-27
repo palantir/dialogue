@@ -58,8 +58,10 @@ public interface Encoding {
 
         /**
          * Reads a serialized type-{@link T} object representation from the given input stream and returns the
-         * corresponding object. Implementations should read the entire input stream and must close it (unless they
-         * return the raw InputStream, e.g. for a binary response type).
+         * corresponding object.
+         *
+         * <p>Implementations must close the {@link InputStream} and the {@code Closeable response}, except in the
+         * case that an InputStream is returned to the user, e.g. for a binary response type.
          *
          * <p>Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs
          * must never be null.

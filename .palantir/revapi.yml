@@ -252,3 +252,10 @@ acceptedBreaks:
       old: null
       new: "method void com.palantir.dialogue.RequestBody::close()"
       justification: "internal interface not for extension"
+  "1.2.0":
+    com.palantir.dialogue:dialogue-serde:
+    - code: "java.method.numberOfParametersChanged"
+      old: "method T com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer<T>::deserialize(java.io.InputStream)"
+      new: "method T com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer<T>::deserialize(java.io.InputStream,\
+        \ java.io.Closeable)"
+      justification: "There are no known custom Deserializers in the wild yet"
