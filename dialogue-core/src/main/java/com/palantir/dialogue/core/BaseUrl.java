@@ -222,7 +222,7 @@ public final class BaseUrl {
         private static final CharMatcher IS_P_CHAR = UNRESERVED.or(SUB_DELIMS);
         private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
         private static final CharMatcher IS_QUERY_CHAR =
-                CharMatcher.anyOf("=&").negate().and(IS_P_CHAR.or(CharMatcher.anyOf("?/")));
+                IS_P_CHAR.or(CharMatcher.anyOf("/?")).and(CharMatcher.noneOf("=&+"));
 
         static boolean isHost(String maybeHost) {
             return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);
