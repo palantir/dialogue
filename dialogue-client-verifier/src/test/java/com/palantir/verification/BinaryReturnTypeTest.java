@@ -33,6 +33,7 @@ import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
+import com.palantir.logsafe.Preconditions;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -122,6 +123,10 @@ public class BinaryReturnTypeTest {
     private void setBinaryGzipResponse(String stringToCompress) {
         undertowHandler = exchange -> {
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
+            Preconditions.checkArgument(exchange.getRequestHeaders().contains(Headers.ACCEPT_ENCODING));
+            Preconditions.checkArgument(exchange.getRequestHeaders()
+                    .getFirst(Headers.ACCEPT_ENCODING)
+                    .contains("gzip"));
             exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
             exchange.getOutputStream().write(gzipCompress(stringToCompress));
         };

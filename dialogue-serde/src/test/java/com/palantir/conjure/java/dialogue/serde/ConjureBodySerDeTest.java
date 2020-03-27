@@ -190,12 +190,12 @@ public class ConjureBodySerDeTest {
         INSTANCE;
 
         @Override
-        public <T> Serializer<T> serializer(TypeMarker<T> type) {
+        public <T> Serializer<T> serializer(TypeMarker<T> _type) {
             throw new UnsupportedOperationException("unimplemented");
         }
 
         @Override
-        public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+        public <T> Deserializer<T> deserializer(TypeMarker<T> _type) {
             return new Deserializer<T>() {
                 @Override
                 public T deserialize(InputStream _input) {
