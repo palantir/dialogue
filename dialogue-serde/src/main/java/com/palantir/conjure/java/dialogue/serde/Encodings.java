@@ -27,6 +27,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
+import java.io.InputStream;
 import javax.annotation.Nullable;
 
 // TODO(rfink): Consider async Jackson, see
@@ -61,8 +62,8 @@ public final class Encodings {
         public final <T> Deserializer<T> deserializer(TypeMarker<T> type) {
             ObjectReader reader = mapper.readerFor(mapper.constructType(type.getType()));
             return input -> {
-                try {
-                    T value = reader.readValue(input);
+                try (InputStream inputStream = input) {
+                    T value = reader.readValue(inputStream);
                     // Bad input should result in a 4XX response status, throw IAE rather than NPE.
                     Preconditions.checkArgument(value != null, "cannot deserialize a JSON null value");
                     return value;

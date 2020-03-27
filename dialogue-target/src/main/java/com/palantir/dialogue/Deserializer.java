@@ -21,7 +21,10 @@ import java.util.Optional;
 /** Reads objects from a response. */
 public interface Deserializer<T> {
 
-    /** Deserializes the response body. */
+    /**
+     * Deserializes the response body into a useful type. Closes the {@link Response#body()} inputStream unless
+     * the return type requires an {@code InputStream} to be returned in a readable state.
+     */
     T deserialize(Response response);
 
     /**

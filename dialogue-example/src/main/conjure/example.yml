@@ -12,8 +12,10 @@ services:
     package: com.palantir.dialogue.example
     default-auth: none
     endpoints:
+
       voidToVoid:
         http: GET /voidToVoid
+
       objectToObject:
         http: POST /objectToObject/objects/{path}
         args:
@@ -27,4 +29,8 @@ services:
             param-type: query
           body: SampleObject
         returns: SampleObject
+
+      getOptionalBinary:
+        http: GET /getOptionalBinary
+        returns: optional<binary>
 

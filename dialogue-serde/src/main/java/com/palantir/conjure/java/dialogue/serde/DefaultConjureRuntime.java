@@ -30,17 +30,17 @@ import java.util.List;
  */
 public final class DefaultConjureRuntime implements ConjureRuntime {
 
+    static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
+            WeightedEncoding.of(Encodings.json(), 1),
+            WeightedEncoding.of(Encodings.smile(), .9),
+            WeightedEncoding.of(Encodings.cbor(), .7));
+
     private final BodySerDe bodySerDe;
 
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 // TODO(rfink): The default thing here is a little odd
-                builder.encodings.isEmpty()
-                        ? ImmutableList.of(
-                                WeightedEncoding.of(Encodings.json(), 1),
-                                WeightedEncoding.of(Encodings.smile(), .9),
-                                WeightedEncoding.of(Encodings.cbor(), .7))
-                        : builder.encodings);
+                builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings);
     }
 
     public static Builder builder() {

@@ -43,6 +43,9 @@ public interface Response extends Closeable {
      * Releases all resources associated with this response. If the {@link #body()} is still open, {@link #close()}
      * should {@link InputStream#close() close the stream}.
      * Implementations must not throw, preferring to catch and log internally.
+     *
+     * Note that in the case of binary and optional binary endpoints, this method may not be called as the user is
+     * expected to close the {@link #body()} themselves.
      */
     @Override
     void close();
