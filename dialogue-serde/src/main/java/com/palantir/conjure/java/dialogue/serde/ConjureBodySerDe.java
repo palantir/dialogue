@@ -52,6 +52,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Encoding defaultEncoding;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
+    private final Deserializer<Void> emptyBodyDeserializer;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -72,6 +73,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.MARKER);
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.OPTIONAL_MARKER);
+        emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
     }
 
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
@@ -94,7 +96,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public Deserializer<Void> emptyBodyDeserializer() {
-        return EmptyBodyDeserializer.INSTANCE;
+        return emptyBodyDeserializer;
     }
 
     @Override
@@ -272,15 +274,25 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private enum EmptyBodyDeserializer implements Deserializer<Void> {
-        INSTANCE;
+    private static class EmptyBodyDeserializer implements Deserializer<Void> {
+        private final ErrorDecoder errorDecoder;
+
+        public EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
+            this.errorDecoder = errorDecoder;
+        }
 
         @Override
         @SuppressWarnings("NullAway") // empty body is a special case
         public Void deserialize(Response response) {
-            // We should not fail if a server that previously returned nothing starts returning a response
-            response.close();
-            return null;
+            try {
+                if (errorDecoder.isError(response)) {
+                    throw errorDecoder.decode(response);
+                }
+                return null;
+            } finally {
+                // We should not fail if a server that previously returned nothing starts returning a response
+                response.close();
+            }
         }
 
         @Override
