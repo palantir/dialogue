@@ -28,6 +28,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.example.SampleServiceAsync;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
@@ -59,28 +60,49 @@ public class BinaryReturnTypeTest {
     @Before
     public void before() {
         undertow = Undertow.builder()
-                .addHttpListener(0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
+                .addHttpListener(
+                        0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
         undertow.start();
     }
 
     @Test
-    public void conjure_generated_interface_with_optional_binary_return_type_and_gzip() {
-        undertowHandler = exchange -> {
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
-            exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
-            exchange.getOutputStream().write(gzipCompress("Hello, world"));
-        };
-
-        SampleServiceAsync client = SampleServiceAsync.of(
-                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
-                DefaultConjureRuntime.builder().build());
+    public void conjure_generated_async_interface_with_optional_binary_return_type_and_gzip() {
+        setBinaryGzipResponse("Hello, world");
+        SampleServiceAsync client = sampleServiceAsync();
 
         ListenableFuture<Optional<InputStream>> future = client.getOptionalBinary();
         Optional<InputStream> maybeBinary = Futures.getUnchecked(future);
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    @Test
+    public void conjure_generated_blocking_interface_with_optional_binary_return_type_and_gzip() {
+        setBinaryGzipResponse("Hello, world");
+        SampleServiceBlocking client = SampleServiceBlocking.of(
+                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
+                DefaultConjureRuntime.builder().build());
+
+        Optional<InputStream> maybeBinary = client.getOptionalBinary();
+
+        assertThat(maybeBinary).isPresent();
+        assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    private void setBinaryGzipResponse(String stringToCompress) {
+        undertowHandler = exchange -> {
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
+            exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
+            exchange.getOutputStream().write(gzipCompress(stringToCompress));
+        };
+    }
+
+    private SampleServiceAsync sampleServiceAsync() {
+        return SampleServiceAsync.of(
+                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
+                DefaultConjureRuntime.builder().build());
     }
 
     @After
