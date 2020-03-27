@@ -28,12 +28,15 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.junit.Test;
@@ -53,19 +56,19 @@ public final class DefaultClientsTest {
     private Endpoint endpoint;
 
     @Mock
-    private Response response;
-
-    @Mock
     private Deserializer<String> deserializer;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
 
+    private Response response = new TestResponse();
+    private BodySerDe bodySerde = new ConjureBodySerDe(DefaultConjureRuntime.DEFAULT_ENCODINGS);
+    private final SettableFuture<Response> responseFuture = SettableFuture.create();
+
     @Test
     public void testCall() throws ExecutionException, InterruptedException {
         Request request = Request.builder().build();
         when(deserializer.deserialize(eq(response))).thenReturn("value");
-        SettableFuture<Response> responseFuture = SettableFuture.create();
         when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
         ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
         assertThat(result).isNotDone();
@@ -97,7 +100,6 @@ public final class DefaultClientsTest {
         RequestBody body = mock(RequestBody.class);
         Request request = Request.builder().body(body).build();
         when(deserializer.deserialize(eq(response))).thenReturn("value");
-        SettableFuture<Response> responseFuture = SettableFuture.create();
         when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
         ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
 
@@ -111,10 +113,62 @@ public final class DefaultClientsTest {
     }
 
     @Test
+    public void testBinaryResponse_inputStreamRemainsUnclosed() throws IOException {
+        when(channel.execute(eq(endpoint), any())).thenReturn(responseFuture);
+
+        ListenableFuture<InputStream> future = DefaultClients.INSTANCE.call(
+                channel, endpoint, Request.builder().build(), bodySerde.inputStreamDeserializer());
+
+        TestResponse testResponse = new TestResponse().contentType("application/octet-stream");
+        responseFuture.set(testResponse);
+
+        try (CloseRecordingInputStream inputStream = (CloseRecordingInputStream) Futures.getUnchecked(future)) {
+            assertThat(inputStream.available()).describedAs("Content should be empty").isEqualTo(0);
+            inputStream.assertUnClosed();
+            assertThat(testResponse.isClosed())
+                    .describedAs("TODO(dfox): what do we do with the actual response at this point??")
+                    .isFalse();
+        }
+
+        assertThat(testResponse.body().isClosed())
+                .describedAs("User has closed it now")
+                .isTrue();
+        assertThat(testResponse.isClosed())
+                .describedAs("TODO(dfox): I think this should magically be closed by now")
+                .isFalse();
+    }
+
+    @Test
+    public void testOptionalBinaryResponse_inputStreamRemainsUnclosed() throws IOException {
+        when(channel.execute(eq(endpoint), any())).thenReturn(responseFuture);
+
+        ListenableFuture<Optional<InputStream>> future = DefaultClients.INSTANCE.call(
+                channel, endpoint, Request.builder().build(), bodySerde.optionalInputStreamDeserializer());
+
+        TestResponse testResponse = new TestResponse().contentType("application/octet-stream");
+        responseFuture.set(testResponse);
+
+        Optional<InputStream> maybeInputStream = Futures.getUnchecked(future);
+        try (CloseRecordingInputStream inputStream = (CloseRecordingInputStream) maybeInputStream.get()) {
+            assertThat(inputStream.available()).describedAs("Content should be empty").isEqualTo(0);
+            inputStream.assertUnClosed();
+            assertThat(testResponse.isClosed())
+                    .describedAs("TODO(dfox): what do we do with the actual response at this point??")
+                    .isFalse();
+        }
+
+        assertThat(testResponse.body().isClosed())
+                .describedAs("User has closed it now")
+                .isTrue();
+        assertThat(testResponse.isClosed())
+                .describedAs("TODO(dfox): I think this should magically be closed by now")
+                .isFalse();
+    }
+
+    @Test
     public void testCallClosesRequestOnCompletion_failure() {
         RequestBody body = mock(RequestBody.class);
         Request request = Request.builder().body(body).build();
-        SettableFuture<Response> responseFuture = SettableFuture.create();
         when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
         ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
 
