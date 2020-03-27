@@ -168,6 +168,11 @@ public final class UrlBuilderTest {
     }
 
     @Test
+    public void urlEncoder_encodeQuery_encodesPlusSign() {
+        assertThat(BaseUrl.UrlEncoder.encodeQueryNameOrValue("+")).isEqualTo("%2B");
+    }
+
+    @Test
     public void newBuilderCopiesAllFields() throws Exception {
         BaseUrl.DefaultUrlBuilder original = BaseUrl.DefaultUrlBuilder.from(new URL("http://foo:42"))
                 .pathSegment("foo")
