@@ -146,6 +146,18 @@ public final class ErrorDecoderTest {
         assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
     }
 
+    @Test
+    public void closes_response_and_inputstream() {
+        TestResponse testResponse = new TestResponse().contentType("application/json");
+        assertThatThrownBy(() -> decoder.decode(testResponse)).isInstanceOf(UnknownRemoteException.class);
+        assertThat(testResponse.body().isClosed())
+                .describedAs("Expected inputstream to be closed")
+                .isTrue();
+        assertThat(testResponse.isClosed())
+                .describedAs("Body should probably be closed too")
+                .isTrue();
+    }
+
     private static RemoteException encodeAndDecode(Exception exception) {
         Preconditions.checkArgument(!(exception instanceof ServiceException), "Use SerializableError#forException");
         Object error = SerializableError.builder()
