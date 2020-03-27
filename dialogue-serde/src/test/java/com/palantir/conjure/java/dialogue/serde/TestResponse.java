@@ -44,6 +44,11 @@ final class TestResponse implements Response {
         return code;
     }
 
+    TestResponse code(int value) {
+        this.code = value;
+        return this;
+    }
+
     @Override
     public ListMultimap<String, String> headers() {
         return headers;
@@ -68,11 +73,6 @@ final class TestResponse implements Response {
         if (closeCalled.isPresent()) {
             throw new SafeRuntimeException("Please don't close twice", closeCalled.get());
         }
-    }
-
-    TestResponse code(int code) {
-        this.code = code;
-        return this;
     }
 
     TestResponse contentType(String contentType) {

@@ -123,7 +123,9 @@ public final class DefaultClientsTest {
         responseFuture.set(testResponse);
 
         try (CloseRecordingInputStream inputStream = (CloseRecordingInputStream) Futures.getUnchecked(future)) {
-            assertThat(inputStream.available()).describedAs("Content should be empty").isEqualTo(0);
+            assertThat(inputStream.available())
+                    .describedAs("Content should be empty")
+                    .isEqualTo(0);
             inputStream.assertNotClosed();
             assertThat(testResponse.isClosed())
                     .describedAs("TODO(dfox): what do we do with the actual response at this point??")
@@ -150,7 +152,9 @@ public final class DefaultClientsTest {
 
         Optional<InputStream> maybeInputStream = Futures.getUnchecked(future);
         try (CloseRecordingInputStream inputStream = (CloseRecordingInputStream) maybeInputStream.get()) {
-            assertThat(inputStream.available()).describedAs("Content should be empty").isEqualTo(0);
+            assertThat(inputStream.available())
+                    .describedAs("Content should be empty")
+                    .isEqualTo(0);
             inputStream.assertNotClosed();
             assertThat(testResponse.isClosed())
                     .describedAs("TODO(dfox): what do we do with the actual response at this point??")
