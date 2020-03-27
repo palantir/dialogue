@@ -221,7 +221,7 @@ public final class DialogueChannel implements Channel {
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
         channel = new DeprecationWarningChannel(channel, clientMetrics);
-        channel = new ContentDecodingChannel(channel);
+        // channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new TracedChannel(channel, "Dialogue-request");
         channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", clientMetrics);
