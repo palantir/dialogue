@@ -31,6 +31,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -234,7 +235,7 @@ final class ConjureBodySerDe implements BodySerDe {
                         SafeArg.of("received", response.headers().keySet()));
             }
             Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
-            return deserializer.deserialize(response.body());
+            return deserializer.deserialize(response.body(), response);
         }
 
         @Override
@@ -258,9 +259,14 @@ final class ConjureBodySerDe implements BodySerDe {
         private Encoding.Deserializer<T> throwingDeserializer(String contentType) {
             return new Encoding.Deserializer<T>() {
                 @Override
-                public T deserialize(InputStream input) {
+                public T deserialize(InputStream input, Closeable response) {
                     try {
                         input.close();
+                    } catch (RuntimeException | IOException e) {
+                        // empty
+                    }
+                    try {
+                        response.close();
                     } catch (RuntimeException | IOException e) {
                         // empty
                     }

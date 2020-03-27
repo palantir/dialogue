@@ -19,6 +19,8 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.io.Closeable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 
@@ -71,9 +73,9 @@ enum BinaryEncoding implements Encoding {
         INSTANCE;
 
         @Override
-        public Optional<InputStream> deserialize(InputStream input) {
-            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
-            return Optional.of(input);
+        public Optional<InputStream> deserialize(InputStream input, Closeable response) {
+            // intentionally not closing just yet, otherwise users wouldn't be able to get any data out of it!
+            return Optional.of(new ResponseClosingInputStream(input, response));
         }
 
         @Override
@@ -86,14 +88,36 @@ enum BinaryEncoding implements Encoding {
         INSTANCE;
 
         @Override
-        public InputStream deserialize(InputStream input) {
-            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
-            return input;
+        public InputStream deserialize(InputStream input, Closeable response) {
+            // intentionally not closing just yet, otherwise users wouldn't be able to get any data out of it!
+            return new ResponseClosingInputStream(input, response);
         }
 
         @Override
         public String toString() {
             return "InputStreamDeserializer{}";
+        }
+    }
+
+    static class ResponseClosingInputStream extends ForwardingInputStream {
+        private final InputStream delegate;
+        private final Closeable response;
+
+        ResponseClosingInputStream(InputStream delegate, Closeable response) {
+            this.delegate = delegate;
+            this.response = response;
+        }
+
+        @Override
+        InputStream delegate() {
+            return delegate;
+        }
+
+        @Override
+        public void close() throws IOException {
+            // TODO(dfox): try-catch?
+            super.close();
+            response.close();
         }
     }
 }

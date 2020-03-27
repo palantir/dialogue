@@ -79,6 +79,8 @@ public final class EncodingsTest {
     }
 
     private <T> T deserialize(InputStream stream, TypeMarker<T> token) throws IOException {
-        return json.deserializer(token).deserialize(stream);
+        return json.deserializer(token).deserialize(stream, () -> {
+            // empty
+        });
     }
 }

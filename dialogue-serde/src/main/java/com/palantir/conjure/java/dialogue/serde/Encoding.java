@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.dialogue.TypeMarker;
+import java.io.Closeable;
 import java.io.InputStream;
 import java.io.OutputStream;
 
@@ -63,7 +64,7 @@ public interface Encoding {
          * <p>Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs
          * must never be null.
          */
-        T deserialize(InputStream input);
+        T deserialize(InputStream input, Closeable response);
     }
 
     interface Serializer<T> {
