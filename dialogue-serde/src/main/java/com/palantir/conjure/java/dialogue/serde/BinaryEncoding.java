@@ -67,11 +67,12 @@ enum BinaryEncoding implements Encoding {
         return "BinaryEncoding{" + CONTENT_TYPE + '}';
     }
 
-    enum OptionalInputStreamDeserializer implements Deserializer<Object> {
+    enum OptionalInputStreamDeserializer implements Deserializer<Optional<InputStream>> {
         INSTANCE;
 
         @Override
-        public Object deserialize(InputStream input) {
+        public Optional<InputStream> deserialize(InputStream input) {
+            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
             return Optional.of(input);
         }
 
@@ -81,11 +82,12 @@ enum BinaryEncoding implements Encoding {
         }
     }
 
-    enum InputStreamDeserializer implements Deserializer<Object> {
+    enum InputStreamDeserializer implements Deserializer<InputStream> {
         INSTANCE;
 
         @Override
-        public Object deserialize(InputStream input) {
+        public InputStream deserialize(InputStream input) {
+            // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
             return input;
         }
 

@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Conjure endpoints returning `binary` or `optional<binary>` now correctly
+    return unclosed InputStreams. Users must be careful to close these InputStreams,
+    otherwise resources will be leaked.
+  links:
+  - https://github.com/palantir/dialogue/pull/570

@@ -192,6 +192,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
+        private static final Logger log = LoggerFactory.getLogger(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
         private final TypeMarker<T> token;
@@ -212,6 +213,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public T deserialize(Response response) {
+            boolean closeResponse = true;
             try {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
@@ -229,10 +231,15 @@ final class ConjureBodySerDe implements BodySerDe {
                             "Response is missing Content-Type header",
                             SafeArg.of("received", response.headers().keySet()));
                 }
-                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
-                return container.deserializer.deserialize(response.body());
+                Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
+                T deserialized = deserializer.deserialize(response.body());
+                // deserializer has taken on responsibility for closing the response body
+                closeResponse = false;
+                return deserialized;
             } finally {
-                response.close();
+                if (closeResponse) {
+                    response.close();
+                }
             }
         }
 
@@ -244,20 +251,35 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(String contentType) {
+        Encoding.Deserializer<T> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
                 EncodingDeserializerContainer<T> container = encodings.get(i);
                 if (container.encoding.supportsContentType(contentType)) {
-                    return container;
+                    return container.deserializer;
                 }
             }
-            throw new SafeRuntimeException(
-                    "Unsupported Content-Type",
-                    SafeArg.of("received", contentType),
-                    SafeArg.of("supportedEncodings", encodings));
+            return throwingDeserializer(contentType);
+        }
+
+        private Encoding.Deserializer<T> throwingDeserializer(String contentType) {
+            return new Encoding.Deserializer<T>() {
+                @Override
+                public T deserialize(InputStream input) {
+                    try {
+                        input.close();
+                    } catch (RuntimeException | IOException e) {
+                        log.warn("Failed to close InputStream", e);
+                    }
+                    throw new SafeRuntimeException(
+                            "Unsupported Content-Type",
+                            SafeArg.of("received", contentType),
+                            SafeArg.of("supportedEncodings", encodings));
+                }
+            };
         }
     }
 
+    /** Effectively just a pair. */
     private static final class EncodingDeserializerContainer<T> {
 
         private final Encoding encoding;
