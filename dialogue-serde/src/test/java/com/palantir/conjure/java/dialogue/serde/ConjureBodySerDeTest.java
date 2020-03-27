@@ -21,25 +21,19 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ListMultimap;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
-import javax.ws.rs.core.HttpHeaders;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -70,7 +64,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testRequestOptionalEmpty() {
         TestResponse response = new TestResponse();
-        response.code = 204;
+        response.code(204);
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
         Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
@@ -151,7 +145,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testErrorsDecoded() {
         TestResponse response = new TestResponse();
-        response.code = 400;
+        response.code(400);
 
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
@@ -168,7 +162,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testBinary() {
         TestResponse response = new TestResponse();
-        response.code = 200;
+        response.code(200);
         response.contentType("application/octet-stream");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
@@ -178,7 +172,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testBinary_optional_present() {
         TestResponse response = new TestResponse();
-        response.code = 200;
+        response.code(200);
         response.contentType("application/octet-stream");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
@@ -189,7 +183,7 @@ public class ConjureBodySerDeTest {
     @Test
     public void testBinary_optional_empty() {
         TestResponse response = new TestResponse();
-        response.code = 204;
+        response.code(204);
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
         assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
@@ -234,43 +228,6 @@ public class ConjureBodySerDeTest {
         @Override
         public String toString() {
             return "StubEncoding{" + contentType + '}';
-        }
-    }
-
-    private static final class TestResponse implements Response {
-
-        private final CloseRecordingInputStream inputStream =
-                new CloseRecordingInputStream(new ByteArrayInputStream(new byte[] {}));
-        private int code = 0;
-        private ListMultimap<String, String> headers = ImmutableListMultimap.of();
-
-        @Override
-        public CloseRecordingInputStream body() {
-            return inputStream;
-        }
-
-        @Override
-        public int code() {
-            return code;
-        }
-
-        @Override
-        public ListMultimap<String, String> headers() {
-            return headers;
-        }
-
-        @Override
-        public void close() {
-            try {
-                inputStream.close();
-            } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to close", e);
-            }
-        }
-
-        @VisibleForTesting
-        void contentType(String contentType) {
-            this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
         }
     }
 }
