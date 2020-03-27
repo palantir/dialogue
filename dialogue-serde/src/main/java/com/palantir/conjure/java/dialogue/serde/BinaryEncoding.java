@@ -100,23 +100,23 @@ enum BinaryEncoding implements Encoding {
     }
 
     static class ResponseClosingInputStream extends ForwardingInputStream {
-        private final InputStream delegate;
+        private final InputStream inputStream;
         private final Closeable response;
 
-        ResponseClosingInputStream(InputStream delegate, Closeable response) {
-            this.delegate = delegate;
+        ResponseClosingInputStream(InputStream inputStream, Closeable response) {
+            this.inputStream = inputStream;
             this.response = response;
         }
 
         @Override
         InputStream delegate() {
-            return delegate;
+            return inputStream;
         }
 
         @Override
         public void close() throws IOException {
             // TODO(dfox): try-catch?
-            super.close();
+            inputStream.close();
             response.close();
         }
     }
