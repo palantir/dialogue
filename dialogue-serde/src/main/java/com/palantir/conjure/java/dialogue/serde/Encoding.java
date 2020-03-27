@@ -42,7 +42,7 @@ public interface Encoding {
      */
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
-    /** Returns the value used in response <pre>Content-Type</pre> header. */
+    /** Returns the value used in request <pre>Content-Type</pre> headers. */
     String getContentType();
 
     /**

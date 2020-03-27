@@ -77,6 +77,11 @@ public final class Encodings {
                 }
             };
         }
+
+        @Override
+        public final String toString() {
+            return "AbstractJacksonEncoding{" + getContentType() + '}';
+        }
     }
 
     /** Returns a serializer for the Conjure JSON wire format. */
