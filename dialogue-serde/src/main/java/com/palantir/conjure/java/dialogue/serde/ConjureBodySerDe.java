@@ -274,10 +274,10 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private static class EmptyBodyDeserializer implements Deserializer<Void> {
+    private static final class EmptyBodyDeserializer implements Deserializer<Void> {
         private final ErrorDecoder errorDecoder;
 
-        public EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
+        EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
             this.errorDecoder = errorDecoder;
         }
 
