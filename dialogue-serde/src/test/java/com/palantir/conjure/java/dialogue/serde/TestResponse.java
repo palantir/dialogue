@@ -18,6 +18,7 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
+import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
@@ -44,6 +45,7 @@ final class TestResponse implements Response {
         return code;
     }
 
+    @CheckReturnValue
     TestResponse code(int value) {
         this.code = value;
         return this;
@@ -75,6 +77,7 @@ final class TestResponse implements Response {
         }
     }
 
+    @CheckReturnValue
     TestResponse contentType(String contentType) {
         this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
         return this;

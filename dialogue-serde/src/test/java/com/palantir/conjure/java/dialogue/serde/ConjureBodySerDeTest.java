@@ -33,6 +33,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -53,8 +54,7 @@ public class ConjureBodySerDeTest {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        TestResponse response = new TestResponse();
-        response.contentType("text/plain");
+        TestResponse response = new TestResponse().contentType("text/plain");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
         String value = serializers.deserializer(TYPE).deserialize(response);
@@ -63,8 +63,7 @@ public class ConjureBodySerDeTest {
 
     @Test
     public void testRequestOptionalEmpty() {
-        TestResponse response = new TestResponse();
-        response.code(204);
+        TestResponse response = new TestResponse().code(204);
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
         Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
@@ -83,8 +82,7 @@ public class ConjureBodySerDeTest {
 
     @Test
     public void testUnsupportedRequestContentType() {
-        TestResponse response = new TestResponse();
-        response.contentType("application/unknown");
+        TestResponse response = new TestResponse().contentType("application/unknown");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
@@ -130,12 +128,10 @@ public class ConjureBodySerDeTest {
     }
 
     @Test
-    public void testResponseUnknownContentType() throws IOException {
+    public void testRequestUnknownContentType() throws IOException {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        TestResponse response = new TestResponse();
-        response.contentType("application/unknown");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
         RequestBody body = serializers.serializer(TYPE).serialize("test");
@@ -144,8 +140,7 @@ public class ConjureBodySerDeTest {
 
     @Test
     public void testErrorsDecoded() {
-        TestResponse response = new TestResponse();
-        response.code(400);
+        TestResponse response = new TestResponse().code(400);
 
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
@@ -157,37 +152,48 @@ public class ConjureBodySerDeTest {
 
         assertThatExceptionOfType(RemoteException.class)
                 .isThrownBy(() -> serializers.deserializer(TYPE).deserialize(response));
+
+        assertThat(response.isClosed()).describedAs("response should be closed").isTrue();
+        assertThat(response.body().isClosed())
+                .describedAs("inputstream should be closed")
+                .isTrue();
     }
 
     @Test
-    public void testBinary() {
-        TestResponse response = new TestResponse();
-        response.code(200);
-        response.contentType("application/octet-stream");
+    public void testBinary() throws IOException {
+        TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
-        assertThat(serializers.inputStreamDeserializer().deserialize(response)).hasContent("");
+        assertThat(serializers.inputStreamDeserializer().deserialize(response).available())
+                .isEqualTo(0);
+        response.body().assertNotClosed();
+        assertThat(response.isClosed()).describedAs("TODO ???").isFalse();
     }
 
     @Test
-    public void testBinary_optional_present() {
-        TestResponse response = new TestResponse();
-        response.code(200);
-        response.contentType("application/octet-stream");
+    public void testBinary_optional_present() throws IOException {
+        TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
-        assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
-                .hasValueSatisfying(stream -> assertThat(stream).hasContent(""));
+        Optional<InputStream> maybe =
+                serializers.optionalInputStreamDeserializer().deserialize(response);
+        assertThat(maybe).isPresent();
+        assertThat(maybe.get().available()).isEqualTo(0);
+        response.body().assertNotClosed();
+        assertThat(response.isClosed()).describedAs("TODO ???").isFalse();
     }
 
     @Test
     public void testBinary_optional_empty() {
-        TestResponse response = new TestResponse();
-        response.code(204);
+        TestResponse response = new TestResponse().code(204);
         BodySerDe serializers =
                 new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
         assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
                 .isEmpty();
+        assertThat(response.body().isClosed())
+                .describedAs("inputstream should be closed")
+                .isTrue();
+        assertThat(response.isClosed()).describedAs("response should be closed").isTrue();
     }
 
     /** Deserializes requests as the configured content type. */

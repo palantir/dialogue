@@ -198,7 +198,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
         EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
             this.encodings = encodings.stream()
-                    .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
+                    .map(encoding -> EncodingDeserializerContainer.of(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
             this.token = token;
@@ -211,8 +211,13 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public T deserialize(Response response) {
             if (errorDecoder.isError(response)) {
-                throw errorDecoder.decode(response);
+                try {
+                    throw errorDecoder.decode(response);
+                } finally {
+                    response.close();
+                }
             } else if (response.code() == 204) {
+                response.close();
                 if (!isOptionalType) {
                     throw new SafeRuntimeException(
                             "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
@@ -228,8 +233,8 @@ final class ConjureBodySerDe implements BodySerDe {
                         "Response is missing Content-Type header",
                         SafeArg.of("received", response.headers().keySet()));
             }
-            EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
-            return container.deserializer.deserialize(response.body());
+            Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
+            return deserializer.deserialize(response.body());
         }
 
         @Override
@@ -240,28 +245,47 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(String contentType) {
+        Encoding.Deserializer<T> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
                 EncodingDeserializerContainer<T> container = encodings.get(i);
                 if (container.encoding.supportsContentType(contentType)) {
-                    return container;
+                    return container.deserializer;
                 }
             }
-            throw new SafeRuntimeException(
-                    "Unsupported Content-Type",
-                    SafeArg.of("received", contentType),
-                    SafeArg.of("supportedEncodings", encodings));
+            return throwingDeserializer(contentType);
+        }
+
+        private Encoding.Deserializer<T> throwingDeserializer(String contentType) {
+            return new Encoding.Deserializer<T>() {
+                @Override
+                public T deserialize(InputStream input) {
+                    try {
+                        input.close();
+                    } catch (RuntimeException | IOException e) {
+                        // empty
+                    }
+                    throw new SafeRuntimeException(
+                            "Unsupported Content-Type",
+                            SafeArg.of("received", contentType),
+                            SafeArg.of("supportedEncodings", encodings));
+                }
+            };
         }
     }
 
+    /** Effectively just a pair. */
     private static final class EncodingDeserializerContainer<T> {
 
         private final Encoding encoding;
         private final Encoding.Deserializer<T> deserializer;
 
-        EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
+        EncodingDeserializerContainer(Encoding encoding, Encoding.Deserializer<T> deserializer) {
             this.encoding = encoding;
-            this.deserializer = encoding.deserializer(token);
+            this.deserializer = deserializer;
+        }
+
+        static <T> EncodingDeserializerContainer<T> of(Encoding encoding, TypeMarker<T> token) {
+            return new EncodingDeserializerContainer<>(encoding, encoding.deserializer(token));
         }
 
         @Override
