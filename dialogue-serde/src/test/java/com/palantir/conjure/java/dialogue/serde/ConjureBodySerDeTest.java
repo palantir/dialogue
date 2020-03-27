@@ -215,6 +215,30 @@ public class ConjureBodySerDeTest {
         }
     }
 
+    @Test
+    public void testEmptyResponse_success() {
+        TestResponse response = new TestResponse().code(204);
+        BodySerDe serializers =
+                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        serializers.emptyBodyDeserializer().deserialize(response);
+    }
+
+    @Test
+    public void testEmptyResponse_failure() {
+        TestResponse response = new TestResponse().code(400);
+
+        ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
+        SerializableError serialized = SerializableError.forException(serviceException);
+        when(errorDecoder.isError(response)).thenReturn(true);
+        when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
+
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))), errorDecoder);
+
+        assertThatExceptionOfType(RemoteException.class)
+                .isThrownBy(() -> serializers.emptyBodyDeserializer().deserialize(response));
+    }
+
     /** Deserializes requests as the configured content type. */
     public static final class StubEncoding implements Encoding {
 

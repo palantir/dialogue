@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Properly handle errors on void methods
+  links:
+  - https://github.com/palantir/dialogue/pull/575
