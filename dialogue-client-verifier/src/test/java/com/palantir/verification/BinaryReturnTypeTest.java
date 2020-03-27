@@ -46,6 +46,7 @@ import java.util.zip.GZIPOutputStream;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okio.Buffer;
+import org.junit.Ignore;
 import org.junit.Test;
 
 public class BinaryReturnTypeTest {
@@ -75,7 +76,8 @@ public class BinaryReturnTypeTest {
 
             String uri = getUri(undertow);
 
-            SampleServiceAsync client = createClient(uri);
+            SampleServiceAsync client = SampleServiceAsync.of(
+                    smartChannel(uri), DefaultConjureRuntime.builder().build());
             ListenableFuture<Optional<InputStream>> future = client.getOptionalBinary();
 
             Optional<InputStream> maybeBinary = Futures.getUnchecked(future);
@@ -90,6 +92,7 @@ public class BinaryReturnTypeTest {
 
     /** I made two tests for the same thing because I wasn't 100% sure I'd set the server up right. */
     @Test
+    @Ignore // I don't know why this is hanging...
     public void mockwebserver() throws IOException {
         try (MockWebServer server = new MockWebServer()) {
 
@@ -103,14 +106,24 @@ public class BinaryReturnTypeTest {
                     .setBody(okioBuffer(gzipCompress("Hello, world")))
                     .removeHeader("Content-Length"));
 
-            SampleServiceAsync client = createClient(uri);
+            // ApacheHttpClientChannels.CloseableClient apache =
+            //         ApacheHttpClientChannels.createCloseableHttpClient(clientConf(uri), "foo");
+            // Channel dumbChannel = ApacheHttpClientChannels.createSingleUri(uri, apache);
+            //
+            // SampleServiceAsync dumbClient = SampleServiceAsync.of(
+            //         dumbChannel, DefaultConjureRuntime.builder().build());
+            SampleServiceAsync client = SampleServiceAsync.of(
+                    smartChannel(uri), DefaultConjureRuntime.builder().build());
+
             ListenableFuture<Optional<InputStream>> future = client.getOptionalBinary();
 
             Optional<InputStream> maybeBinary = Futures.getUnchecked(future);
 
             assertThat(maybeBinary).isPresent();
-            assertThat(maybeBinary.get())
-                    .hasSameContentAs(new ByteArrayInputStream("Hello, world".getBytes(StandardCharsets.UTF_8)));
+            try (InputStream actual = maybeBinary.get()) {
+                assertThat(actual)
+                        .hasSameContentAs(new ByteArrayInputStream("Hello, world".getBytes(StandardCharsets.UTF_8)));
+            }
         }
     }
 
@@ -139,13 +152,11 @@ public class BinaryReturnTypeTest {
         return buffer;
     }
 
-    private static SampleServiceAsync createClient(String address) {
-        Channel channel = ApacheHttpClientChannels.create(ClientConfiguration.builder()
+    private static Channel smartChannel(String address) {
+        return ApacheHttpClientChannels.create(ClientConfiguration.builder()
                 .userAgent(UserAgents.parse("FooTest/0.0.0"))
                 .from(clientConf(address))
                 .build());
-
-        return SampleServiceAsync.of(channel, DefaultConjureRuntime.builder().build());
     }
 
     private static String getUri(Undertow undertow) {

@@ -225,7 +225,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
                 return container.deserializer.deserialize(response.body());
             } finally {
-                response.close();
+                // response.close();
             }
         }
 
