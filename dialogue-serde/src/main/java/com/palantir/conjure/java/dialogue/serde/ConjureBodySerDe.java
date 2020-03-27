@@ -222,7 +222,12 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
+                if (!contentType.isPresent()) {
+                    throw new SafeIllegalArgumentException(
+                            "Response is missing Content-Type header",
+                            SafeArg.of("received", response.headers().keySet()));
+                }
+                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
                 return container.deserializer.deserialize(response.body());
             } finally {
                 response.close();
@@ -237,19 +242,16 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(Optional<String> contentType) {
-            if (!contentType.isPresent()) {
-                throw new SafeIllegalArgumentException("Response is missing Content-Type header");
-            }
+        EncodingDeserializerContainer<T> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
                 EncodingDeserializerContainer<T> container = encodings.get(i);
-                if (container.encoding.supportsContentType(contentType.get())) {
+                if (container.encoding.supportsContentType(contentType)) {
                     return container;
                 }
             }
             throw new SafeRuntimeException(
                     "Unsupported Content-Type",
-                    SafeArg.of("received", contentType.get()),
+                    SafeArg.of("received", contentType),
                     SafeArg.of("supportedEncodings", encodings));
         }
     }
