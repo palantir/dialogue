@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.conjure.java.dialogue.serde;
+package com.palantir.dialogue;
 
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
@@ -23,20 +23,20 @@ import java.util.Optional;
 import org.assertj.core.api.Assertions;
 
 /** A test-only inputstream which can only be closed once. */
-final class CloseRecordingInputStream extends InputStream {
+public final class CloseRecordingInputStream extends InputStream {
 
     private final InputStream delegate;
     private Optional<Throwable> closeCalled = Optional.empty();
 
-    CloseRecordingInputStream(InputStream delegate) {
+    public CloseRecordingInputStream(InputStream delegate) {
         this.delegate = delegate;
     }
 
-    boolean isClosed() {
+    public boolean isClosed() {
         return closeCalled.isPresent();
     }
 
-    void assertNotClosed() {
+    public void assertNotClosed() {
         if (closeCalled.isPresent()) {
             Assertions.fail("Expected CloseRecordingInputStream to be open but was closed", closeCalled.get());
         }

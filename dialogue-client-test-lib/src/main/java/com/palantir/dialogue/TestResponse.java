@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-package com.palantir.conjure.java.dialogue.serde;
+package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.errorprone.annotations.CheckReturnValue;
-import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
 
-final class TestResponse implements Response {
+public final class TestResponse implements Response {
 
     private final CloseRecordingInputStream inputStream =
             new CloseRecordingInputStream(new ByteArrayInputStream(new byte[] {}));
@@ -46,7 +45,7 @@ final class TestResponse implements Response {
     }
 
     @CheckReturnValue
-    TestResponse code(int value) {
+    public TestResponse code(int value) {
         this.code = value;
         return this;
     }
@@ -67,7 +66,7 @@ final class TestResponse implements Response {
         }
     }
 
-    boolean isClosed() {
+    public boolean isClosed() {
         return closeCalled.isPresent();
     }
 
@@ -78,7 +77,7 @@ final class TestResponse implements Response {
     }
 
     @CheckReturnValue
-    TestResponse contentType(String contentType) {
+    public TestResponse contentType(String contentType) {
         this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
         return this;
     }
