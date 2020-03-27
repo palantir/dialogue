@@ -32,7 +32,13 @@ final class CloseRecordingInputStream extends InputStream {
     }
 
     boolean isClosed() {
-        return !closeCalled.isPresent();
+        return closeCalled.isPresent();
+    }
+
+    void assertUnClosed() {
+        if (isClosed()) {
+            throw new AssertionError("Expected CloseRecordingInputStream to be open but was closed", closeCalled.get());
+        }
     }
 
     @Override

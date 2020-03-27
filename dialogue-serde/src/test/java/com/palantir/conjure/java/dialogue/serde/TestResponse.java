@@ -22,6 +22,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
 
 final class TestResponse implements Response {
@@ -29,6 +30,7 @@ final class TestResponse implements Response {
     private final CloseRecordingInputStream inputStream =
             new CloseRecordingInputStream(new ByteArrayInputStream(new byte[] {}));
 
+    private Optional<Throwable> closeCalled = Optional.empty();
     private int code = 0;
     private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
@@ -49,10 +51,22 @@ final class TestResponse implements Response {
 
     @Override
     public void close() {
+        checkPrecondition();
         try {
+            closeCalled = Optional.of(new SafeRuntimeException("Close called here"));
             inputStream.close();
         } catch (IOException e) {
             throw new SafeRuntimeException("Failed to close", e);
+        }
+    }
+
+    boolean isClosed() {
+        return closeCalled.isPresent();
+    }
+
+    private void checkPrecondition() {
+        if (closeCalled.isPresent()) {
+            throw new SafeRuntimeException("Please don't close twices", closeCalled.get());
         }
     }
 
