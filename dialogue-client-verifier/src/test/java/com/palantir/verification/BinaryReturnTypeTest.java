@@ -180,6 +180,7 @@ public class BinaryReturnTypeTest {
         return new InputStream() {
             private long position = 0;
 
+            @Override
             public int read() {
                 if (position < limit) {
                     return sample[(int) (position++ % sample.length)];
@@ -188,6 +189,8 @@ public class BinaryReturnTypeTest {
                 }
             }
 
+            // this optimized version isn't really necessary, I just wanted to see how fast we could make
+            // the test go
             @Override
             public int read(byte[] outputArray, int off, int len) {
                 long remainingInStream = limit - position;

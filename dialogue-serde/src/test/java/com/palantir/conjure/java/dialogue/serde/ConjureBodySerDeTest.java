@@ -34,7 +34,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Optional;
 import org.junit.Test;
 import org.junit.runner.RunWith;

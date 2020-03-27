@@ -45,7 +45,8 @@ public class BinaryEncodingTest {
         deserialized.close();
         assertThat(response.isClosed())
                 .describedAs(
-                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
+                        "Response#close was never called, but no big deal because the body is the only resource worth"
+                                + " closing")
                 .isFalse();
     }
 
@@ -68,7 +69,8 @@ public class BinaryEncodingTest {
         deserialized.close();
         assertThat(response.isClosed())
                 .describedAs(
-                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
+                        "Response#close was never called, but no big deal because the body is the only resource worth"
+                                + " closing")
                 .isFalse();
     }
 }
