@@ -219,9 +219,8 @@ final class ConjureBodySerDe implements BodySerDe {
                     if (!isOptionalType) {
                         throw new SafeRuntimeException(
                                 "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
-                    } else {
-                        return TypeMarkers.getEmptyOptional(token);
                     }
+                    return TypeMarkers.getEmptyOptional(token);
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
