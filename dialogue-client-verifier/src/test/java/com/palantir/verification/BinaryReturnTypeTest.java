@@ -18,7 +18,10 @@ package com.palantir.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
+import com.google.common.io.ByteStreams;
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -41,7 +44,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -81,14 +86,37 @@ public class BinaryReturnTypeTest {
     @Test
     public void conjure_generated_blocking_interface_with_optional_binary_return_type_and_gzip() {
         setBinaryGzipResponse("Hello, world");
-        SampleServiceBlocking client = SampleServiceBlocking.of(
-                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
-                DefaultConjureRuntime.builder().build());
 
-        Optional<InputStream> maybeBinary = client.getOptionalBinary();
+        Optional<InputStream> maybeBinary = sampleServiceBlocking().getOptionalBinary();
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    @Test
+    public void stream_3_gigabytes() throws IOException {
+        long oneMegabyte = 1000_000;
+        int megabytes = 3000;
+        long limit = megabytes * oneMegabyte;
+        assertThat(limit).isGreaterThan(Integer.MAX_VALUE);
+
+        byte[] sample = new byte[8192];
+        Arrays.fill(sample, (byte) 'A');
+
+        undertowHandler = exchange -> {
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
+            InputStream bigInputStream = repeat(sample, limit);
+            ByteStreams.copy(bigInputStream, exchange.getOutputStream());
+        };
+
+        Stopwatch sw = Stopwatch.createStarted();
+
+        InputStream maybeBinary = sampleServiceBlocking().getOptionalBinary().get();
+        assertThat(ByteStreams.exhaust(maybeBinary))
+                .describedAs("Should receive exactly the number of bytes we sent!")
+                .isEqualTo(limit);
+
+        System.out.printf("%d MB took %d millis%n", megabytes, sw.elapsed(TimeUnit.MILLISECONDS));
     }
 
     private void setBinaryGzipResponse(String stringToCompress) {
@@ -97,6 +125,12 @@ public class BinaryReturnTypeTest {
             exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
             exchange.getOutputStream().write(gzipCompress(stringToCompress));
         };
+    }
+
+    private SampleServiceBlocking sampleServiceBlocking() {
+        return SampleServiceBlocking.of(
+                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
+                DefaultConjureRuntime.builder().build());
     }
 
     private SampleServiceAsync sampleServiceAsync() {
@@ -139,5 +173,47 @@ public class BinaryReturnTypeTest {
     private static String getUri(Undertow undertow) {
         Undertow.ListenerInfo listenerInfo = Iterables.getOnlyElement(undertow.getListenerInfo());
         return String.format("%s:/%s", listenerInfo.getProtcol(), listenerInfo.getAddress());
+    }
+
+    /** Produces a big inputStream by repeating a smaller bytearray sample until limit is reached. */
+    private static InputStream repeat(byte[] sample, long limit) {
+        return new InputStream() {
+            private long position = 0;
+
+            public int read() {
+                if (position < limit) {
+                    return sample[(int) (position++ % sample.length)];
+                } else {
+                    return -1;
+                }
+            }
+
+            @Override
+            public int read(byte[] outputArray, int off, int len) {
+                long remainingInStream = limit - position;
+                if (remainingInStream <= 0) {
+                    return -1;
+                }
+
+                int numBytesToWrite = (int) Math.min(len, remainingInStream);
+                int bytesWritten = 0;
+                while (bytesWritten < numBytesToWrite) {
+                    int sampleIndex = (int) position % sample.length;
+                    int outputIndex = off + bytesWritten;
+                    int chunkSize = Math.min(sample.length - sampleIndex, numBytesToWrite - bytesWritten);
+
+                    System.arraycopy(sample, sampleIndex, outputArray, outputIndex, chunkSize);
+                    position += chunkSize;
+                    bytesWritten += chunkSize;
+                }
+
+                return bytesWritten;
+            }
+
+            @Override
+            public int available() {
+                return Ints.saturatedCast(limit - position);
+            }
+        };
     }
 }
