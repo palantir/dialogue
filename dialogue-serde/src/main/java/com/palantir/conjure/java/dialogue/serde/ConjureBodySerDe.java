@@ -247,7 +247,10 @@ final class ConjureBodySerDe implements BodySerDe {
                     return container;
                 }
             }
-            throw new SafeRuntimeException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
+            throw new SafeRuntimeException(
+                    "Unsupported Content-Type",
+                    SafeArg.of("received", contentType.get()),
+                    SafeArg.of("supportedEncodings", encodings));
         }
     }
 
@@ -259,6 +262,11 @@ final class ConjureBodySerDe implements BodySerDe {
         EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
             this.encoding = encoding;
             this.deserializer = encoding.deserializer(token);
+        }
+
+        @Override
+        public String toString() {
+            return "EncodingDeserializerContainer{encoding=" + encoding + ", deserializer=" + deserializer + '}';
         }
     }
 
