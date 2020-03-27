@@ -16,24 +16,23 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Optional;
 
-/** An inputstream which can only be closed once. */
-final class CloseableInputStream extends InputStream {
+/** A test-only inputstream which can only be closed once. */
+final class CloseRecordingInputStream extends InputStream {
 
     private final InputStream delegate;
-    private boolean closed = false;
+    private Optional<Throwable> closeCalled = Optional.empty();
 
-    CloseableInputStream(InputStream delegate) {
+    CloseRecordingInputStream(InputStream delegate) {
         this.delegate = delegate;
     }
 
-    @VisibleForTesting
     boolean isClosed() {
-        return closed;
+        return !closeCalled.isPresent();
     }
 
     @Override
@@ -67,10 +66,8 @@ final class CloseableInputStream extends InputStream {
     }
 
     @Override
-    public synchronized void mark(int readlimit) {
-        if (closed) {
-            return;
-        }
+    public void mark(int readlimit) {
+        checkPrecondition();
         delegate.mark(readlimit);
     }
 
@@ -82,13 +79,13 @@ final class CloseableInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        closed = true;
+        closeCalled = Optional.of(new RuntimeException("close was called here"));
         delegate.close();
     }
 
     private void checkPrecondition() {
-        if (closed) {
-            throw new SafeIllegalStateException("Stream closed");
+        if (closeCalled.isPresent()) {
+            throw new SafeIllegalStateException("Can't do stuff after InputStream closed", closeCalled.get());
         }
     }
 }

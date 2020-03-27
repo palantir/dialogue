@@ -239,14 +239,14 @@ public class ConjureBodySerDeTest {
 
     private static final class TestResponse implements Response {
 
-        private final CloseableInputStream body =
-                new CloseableInputStream(new ByteArrayInputStream(new byte[]{}));
+        private final CloseRecordingInputStream inputStream =
+                new CloseRecordingInputStream(new ByteArrayInputStream(new byte[] {}));
         private int code = 0;
         private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
         @Override
-        public CloseableInputStream body() {
-            return body;
+        public CloseRecordingInputStream body() {
+            return inputStream;
         }
 
         @Override
@@ -262,7 +262,7 @@ public class ConjureBodySerDeTest {
         @Override
         public void close() {
             try {
-                body.close();
+                inputStream.close();
             } catch (IOException e) {
                 throw new SafeRuntimeException("Failed to close", e);
             }
