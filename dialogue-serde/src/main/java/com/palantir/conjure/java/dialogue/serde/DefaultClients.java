@@ -57,7 +57,19 @@ enum DefaultClients implements Clients {
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
-        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+        return Futures.transform(
+                response,
+                resp -> {
+                    try {
+                        return deserializer.deserialize(resp);
+                    } catch (RuntimeException e) {
+                        if (resp != null) {
+                            resp.close(); // extra safety net, just in case something unexpected throws
+                        }
+                        throw e;
+                    }
+                },
+                MoreExecutors.directExecutor());
     }
 
     private static ListenableFuture<Response> closeRequestBodyOnCompletion(
