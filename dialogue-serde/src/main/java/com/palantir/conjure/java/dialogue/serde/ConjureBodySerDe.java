@@ -222,7 +222,12 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
+                if (!contentType.isPresent()) {
+                    throw new SafeIllegalArgumentException(
+                            "Response is missing Content-Type header",
+                            SafeArg.of("received", response.headers().keySet()));
+                }
+                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
                 return container.deserializer.deserialize(response.body());
             } finally {
                 // response.close();
@@ -237,17 +242,17 @@ final class ConjureBodySerDe implements BodySerDe {
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(Optional<String> contentType) {
-            if (!contentType.isPresent()) {
-                throw new SafeIllegalArgumentException("Response is missing Content-Type header");
-            }
+        EncodingDeserializerContainer<T> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
                 EncodingDeserializerContainer<T> container = encodings.get(i);
-                if (container.encoding.supportsContentType(contentType.get())) {
+                if (container.encoding.supportsContentType(contentType)) {
                     return container;
                 }
             }
-            throw new SafeRuntimeException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
+            throw new SafeRuntimeException(
+                    "Unsupported Content-Type",
+                    SafeArg.of("received", contentType),
+                    SafeArg.of("supportedEncodings", encodings));
         }
     }
 
@@ -259,6 +264,11 @@ final class ConjureBodySerDe implements BodySerDe {
         EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
             this.encoding = encoding;
             this.deserializer = encoding.deserializer(token);
+        }
+
+        @Override
+        public String toString() {
+            return "EncodingDeserializerContainer{encoding=" + encoding + ", deserializer=" + deserializer + '}';
         }
     }
 
@@ -276,6 +286,11 @@ final class ConjureBodySerDe implements BodySerDe {
         @Override
         public Optional<String> accepts() {
             return Optional.empty();
+        }
+
+        @Override
+        public String toString() {
+            return "EmptyBodyDeserializer{}";
         }
     }
 }

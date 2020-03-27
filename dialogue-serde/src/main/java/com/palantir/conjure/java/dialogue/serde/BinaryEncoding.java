@@ -44,9 +44,9 @@ enum BinaryEncoding implements Encoding {
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
         if (MARKER.equals(type)) {
-            return input -> (T) input;
+            return (Deserializer<T>) InputStreamDeserializer.INSTANCE;
         } else if (OPTIONAL_MARKER.equals(type)) {
-            return input -> (T) Optional.of(input);
+            return (Deserializer<T>) OptionalInputStreamDeserializer.INSTANCE;
         }
         throw new SafeIllegalStateException(
                 "BinaryEncoding only supports InputStream and Optional<InputStream>", SafeArg.of("requested", type));
@@ -60,5 +60,38 @@ enum BinaryEncoding implements Encoding {
     @Override
     public boolean supportsContentType(String contentType) {
         return Encodings.matchesContentType(CONTENT_TYPE, contentType);
+    }
+
+    @Override
+    public String toString() {
+        return "BinaryEncoding{" + CONTENT_TYPE + '}';
+    }
+
+    enum OptionalInputStreamDeserializer implements Deserializer<Object> {
+        INSTANCE;
+
+        @Override
+        public Object deserialize(InputStream input) {
+            return Optional.of(input);
+        }
+
+        @Override
+        public String toString() {
+            return "OptionalInputStreamDeserializer{}";
+        }
+    }
+
+    enum InputStreamDeserializer implements Deserializer<Object> {
+        INSTANCE;
+
+        @Override
+        public Object deserialize(InputStream input) {
+            return input;
+        }
+
+        @Override
+        public String toString() {
+            return "InputStreamDeserializer{}";
+        }
     }
 }
