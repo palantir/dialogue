@@ -210,28 +210,26 @@ final class ConjureBodySerDe implements BodySerDe {
 
         @Override
         public T deserialize(Response response) {
-            try {
-                if (errorDecoder.isError(response)) {
-                    throw errorDecoder.decode(response);
-                } else if (response.code() == 204) {
-                    if (!isOptionalType) {
-                        throw new SafeRuntimeException(
-                                "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
-                    }
+            if (errorDecoder.isError(response)) {
+                throw errorDecoder.decode(response);
+            } else if (response.code() == 204) {
+                if (!isOptionalType) {
+                    throw new SafeRuntimeException(
+                            "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
+                } else {
                     return TypeMarkers.getEmptyOptional(token);
                 }
-
-                Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-                if (!contentType.isPresent()) {
-                    throw new SafeIllegalArgumentException(
-                            "Response is missing Content-Type header",
-                            SafeArg.of("received", response.headers().keySet()));
-                }
-                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
-                return container.deserializer.deserialize(response.body());
-            } finally {
-                response.close();
             }
+
+            Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
+            if (!contentType.isPresent()) {
+                response.close();
+                throw new SafeIllegalArgumentException(
+                        "Response is missing Content-Type header",
+                        SafeArg.of("received", response.headers().keySet()));
+            }
+            EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType.get());
+            return container.deserializer.deserialize(response.body());
         }
 
         @Override
