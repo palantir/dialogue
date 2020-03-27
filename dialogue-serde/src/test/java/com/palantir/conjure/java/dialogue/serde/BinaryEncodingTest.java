@@ -44,8 +44,9 @@ public class BinaryEncodingTest {
 
         deserialized.close();
         assertThat(response.isClosed())
-                .describedAs("closing the InputStream magically closes the body too")
-                .isTrue();
+                .describedAs(
+                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
+                .isFalse();
     }
 
     @Test
@@ -66,7 +67,8 @@ public class BinaryEncodingTest {
 
         deserialized.close();
         assertThat(response.isClosed())
-                .describedAs("closing the InputStream magically closes the body too")
-                .isTrue();
+                .describedAs(
+                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
+                .isFalse();
     }
 }

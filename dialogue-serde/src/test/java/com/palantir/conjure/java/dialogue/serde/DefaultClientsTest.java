@@ -129,16 +129,15 @@ public final class DefaultClientsTest {
                     .describedAs("Content should be empty")
                     .isEqualTo(0);
             inputStream.assertNotClosed();
-            assertThat(testResponse.isClosed())
-                    .describedAs("TODO(dfox): what do we do with the actual response at this point??")
-                    .isFalse();
+            assertThat(testResponse.isClosed()).describedAs("Response").isFalse();
         }
 
         assertThat(testResponse.body().isClosed())
                 .describedAs("User has closed it now")
                 .isTrue();
         assertThat(testResponse.isClosed())
-                .describedAs("TODO(dfox): I think this should magically be closed by now")
+                .describedAs(
+                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
                 .isFalse();
     }
 
@@ -158,16 +157,15 @@ public final class DefaultClientsTest {
                     .describedAs("Content should be empty")
                     .isEqualTo(0);
             inputStream.assertNotClosed();
-            assertThat(testResponse.isClosed())
-                    .describedAs("TODO(dfox): what do we do with the actual response at this point??")
-                    .isFalse();
+            assertThat(testResponse.isClosed()).describedAs("Response").isFalse();
         }
 
         assertThat(testResponse.body().isClosed())
                 .describedAs("User has closed it now")
                 .isTrue();
         assertThat(testResponse.isClosed())
-                .describedAs("TODO(dfox): I think this should magically be closed by now")
+                .describedAs(
+                        "Response#close was never called, but no big deal because the body is the only resource worth closing")
                 .isFalse();
     }
 
