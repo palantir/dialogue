@@ -287,5 +287,10 @@ final class ConjureBodySerDe implements BodySerDe {
         public Optional<String> accepts() {
             return Optional.empty();
         }
+
+        @Override
+        public String toString() {
+            return "EmptyBodyDeserializer{}";
+        }
     }
 }
