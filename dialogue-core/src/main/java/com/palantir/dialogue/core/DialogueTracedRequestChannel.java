@@ -32,8 +32,7 @@ public final class DialogueTracedRequestChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        String operationName =
-                "Dialogue: " + endpoint.httpMethod() + " " + endpoint.serviceName() + "#" + endpoint.endpointName();
+        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
     }
 }
