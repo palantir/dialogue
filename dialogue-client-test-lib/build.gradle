@@ -9,6 +9,7 @@ dependencies {
     compile 'com.google.guava:guava'
     compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.conjure.java.runtime:keystores'
+    compile 'com.palantir.tracing:tracing-test-utils'
     compile 'com.squareup.okhttp3:mockwebserver'
     compile 'org.assertj:assertj-core'
     compile 'org.assertj:assertj-guava'

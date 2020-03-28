@@ -27,6 +27,8 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.CloseableTracer;
+import com.palantir.tracing.api.SpanType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -59,32 +61,34 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
-        // Create base request given the URL
-        URL target = baseUrl.render(endpoint, request);
-        RequestBuilder builder =
-                RequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
+        try (CloseableTracer unused = CloseableTracer.startSpan("apache-hc4-request", SpanType.CLIENT_OUTGOING)) {
+            // Create base request given the URL
+            URL target = baseUrl.render(endpoint, request);
+            RequestBuilder builder =
+                    RequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
 
-        // Fill headers
-        request.headerParams().forEach(builder::addHeader);
+            // Fill headers
+            request.headerParams().forEach(builder::addHeader);
 
-        if (request.body().isPresent()) {
-            Preconditions.checkArgument(
-                    endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
-            RequestBody body = request.body().get();
-            builder.setEntity(new RequestBodyEntity(body));
-        }
-        CloseableHttpResponse httpClientResponse = client.execute(builder.build());
-        // Defensively ensure that resources are closed if failures occur within this block,
-        // for example HttpClientResponse allocation may throw an OutOfMemoryError.
-        boolean close = true;
-        try {
-            Response dialogueResponse = new HttpClientResponse(httpClientResponse);
-            Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
-            close = false;
-            return leakDetectingResponse;
-        } finally {
-            if (close) {
-                httpClientResponse.close();
+            if (request.body().isPresent()) {
+                Preconditions.checkArgument(
+                        endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
+                RequestBody body = request.body().get();
+                builder.setEntity(new RequestBodyEntity(body));
+            }
+            CloseableHttpResponse httpClientResponse = client.execute(builder.build());
+            // Defensively ensure that resources are closed if failures occur within this block,
+            // for example HttpClientResponse allocation may throw an OutOfMemoryError.
+            boolean close = true;
+            try {
+                Response dialogueResponse = new HttpClientResponse(httpClientResponse);
+                Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
+                close = false;
+                return leakDetectingResponse;
+            } finally {
+                if (close) {
+                    httpClientResponse.close();
+                }
             }
         }
     }
