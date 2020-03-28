@@ -18,7 +18,7 @@ package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class UrlsTest {
 

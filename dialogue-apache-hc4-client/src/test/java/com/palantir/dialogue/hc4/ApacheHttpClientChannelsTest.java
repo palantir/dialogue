@@ -35,7 +35,7 @@ import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
