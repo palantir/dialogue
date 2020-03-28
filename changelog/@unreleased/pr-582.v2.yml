@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Top level span of a request contains the method, service and endpoint
+    that is being called
+  links:
+  - https://github.com/palantir/dialogue/pull/582
