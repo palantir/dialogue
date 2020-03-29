@@ -41,8 +41,9 @@ public final class BlockingChannelAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(BlockingChannelAdapter.class);
 
-    private static final Supplier<ExecutorService> blockingExecutor =
-            Suppliers.memoize(() -> Tracers.wrap(Executors.newCachedThreadPool(new ThreadFactoryBuilder()
+    private static final Supplier<ExecutorService> blockingExecutor = Suppliers.memoize(() -> Tracers.wrap(
+            "dialogue-blocking-channel",
+            Executors.newCachedThreadPool(new ThreadFactoryBuilder()
                     .setNameFormat("dialogue-blocking-channel-%d")
                     .setDaemon(true)
                     .build())));
