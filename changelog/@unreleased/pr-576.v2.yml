@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: When used with conjure-java generated java bindings, dialogue can now
+    deserialize HTTP 204 into `FooAlias.of(Optional.empty())`. Previously it would
+    throw.
+  links:
+  - https://github.com/palantir/dialogue/pull/576
