@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.ri.ResourceIdentifier;
+import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -29,6 +30,8 @@ import java.util.UUID;
  * These utilities are used to serialize HTTP path, query, and header parameter values.
  */
 public interface PlainSerDe {
+
+    String serializeAuthHeader(AuthHeader in);
 
     String serializeBearerToken(BearerToken in);
 

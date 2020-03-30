@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.ri.ResourceIdentifier;
+import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
@@ -31,6 +32,13 @@ import org.junit.jupiter.api.Test;
 public final class PlainSerDeTest {
 
     private static final PlainSerDe PLAIN = ConjurePlainSerDe.INSTANCE;
+
+    @Test
+    public void testSerializeAuthHeader() {
+        AuthHeader in = AuthHeader.of(BearerToken.valueOf("token"));
+        String out = "Bearer token";
+        assertThat(PLAIN.serializeAuthHeader(in)).isEqualTo(out);
+    }
 
     @Test
     public void testSerializeBearerToken() {

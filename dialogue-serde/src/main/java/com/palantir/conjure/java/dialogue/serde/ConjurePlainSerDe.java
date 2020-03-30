@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.ri.ResourceIdentifier;
+import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import java.time.OffsetDateTime;
 import java.util.UUID;
@@ -26,6 +27,11 @@ import java.util.UUID;
 /** Package private internal API. */
 enum ConjurePlainSerDe implements PlainSerDe {
     INSTANCE;
+
+    @Override
+    public String serializeAuthHeader(AuthHeader in) {
+        return in.toString();
+    }
 
     @Override
     public String serializeBearerToken(BearerToken in) {
