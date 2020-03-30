@@ -51,7 +51,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final List<Encoding> encodingsSortedByWeight;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
-    private final EmptyContainerDeserializer empties;
+    private final EmptyContainerDeserializer emptyContainerDeserializer;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
@@ -61,16 +61,25 @@ final class ConjureBodySerDe implements BodySerDe {
      * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
      * by a given request, or the first serializer if no such serializer can be found.
      */
-    ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder, EmptyContainerDeserializer empties) {
+    ConjureBodySerDe(
+            List<WeightedEncoding> encodings,
+            ErrorDecoder errorDecoder,
+            EmptyContainerDeserializer emptyContainerDeserializer) {
         this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
-        this.empties = empties;
+        this.emptyContainerDeserializer = emptyContainerDeserializer;
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.MARKER);
+                ImmutableList.of(BinaryEncoding.INSTANCE),
+                errorDecoder,
+                emptyContainerDeserializer,
+                BinaryEncoding.MARKER);
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.OPTIONAL_MARKER);
+                ImmutableList.of(BinaryEncoding.INSTANCE),
+                errorDecoder,
+                emptyContainerDeserializer,
+                BinaryEncoding.OPTIONAL_MARKER);
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
     }
 
@@ -89,7 +98,8 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(encodingsSortedByWeight, errorDecoder, empties, token);
+        return new EncodingDeserializerRegistry<>(
+                encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token);
     }
 
     @Override
