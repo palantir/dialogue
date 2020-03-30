@@ -18,21 +18,21 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonValue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.example.Alias1;
+import com.palantir.dialogue.example.Alias2;
+import com.palantir.dialogue.example.Alias3;
+import com.palantir.dialogue.example.AliasAlias1;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
-import javax.annotation.Generated;
 import org.junit.Test;
 
 public class JacksonEmptyContainerLoaderTest {
@@ -84,145 +84,5 @@ public class JacksonEmptyContainerLoaderTest {
     public void http_204_can_handle_alias_of_alias_of_optional_string() {
         assertThat(emptyContainerDecoder.getEmptyInstance(new TypeMarker<AliasAlias1>() {}))
                 .isEqualTo(AliasAlias1.of(Alias1.of(Optional.empty())));
-    }
-
-    @Generated("com.palantir.conjure.java.types.AliasGenerator")
-    private static final class Alias1 {
-        private final Optional<String> value;
-
-        private Alias1(Optional<String> value) {
-            Objects.requireNonNull(value, "value cannot be null");
-            this.value = value;
-        }
-
-        @JsonValue
-        public Optional<String> get() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return value.toString();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return this == other || (other instanceof Alias1 && this.value.equals(((Alias1) other).value));
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode();
-        }
-
-        @JsonCreator
-        public static Alias1 of(Optional<String> value) {
-            return new Alias1(value);
-        }
-    }
-
-    @Generated("com.palantir.conjure.java.types.AliasGenerator")
-    private static final class Alias2 {
-        private final OptionalInt value;
-
-        private Alias2(OptionalInt value) {
-            Objects.requireNonNull(value, "value cannot be null");
-            this.value = value;
-        }
-
-        @JsonValue
-        public OptionalInt get() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return value.toString();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return this == other || (other instanceof Alias2 && this.value.equals(((Alias2) other).value));
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode();
-        }
-
-        @JsonCreator
-        public static Alias2 of(OptionalInt value) {
-            return new Alias2(value);
-        }
-    }
-
-    @Generated("com.palantir.conjure.java.types.AliasGenerator")
-    private static final class Alias3 {
-        private final OptionalDouble value;
-
-        private Alias3(OptionalDouble value) {
-            Objects.requireNonNull(value, "value cannot be null");
-            this.value = value;
-        }
-
-        @JsonValue
-        public OptionalDouble get() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return value.toString();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return this == other || (other instanceof Alias3 && this.value.equals(((Alias3) other).value));
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode();
-        }
-
-        @JsonCreator
-        public static Alias3 of(OptionalDouble value) {
-            return new Alias3(value);
-        }
-    }
-
-    @Generated("com.palantir.conjure.java.types.AliasGenerator")
-    private static final class AliasAlias1 {
-        private final Alias1 value;
-
-        private AliasAlias1(Alias1 value) {
-            Objects.requireNonNull(value, "value cannot be null");
-            this.value = value;
-        }
-
-        @JsonValue
-        public Alias1 get() {
-            return value;
-        }
-
-        @Override
-        public String toString() {
-            return value.toString();
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            return this == other || (other instanceof AliasAlias1 && this.value.equals(((AliasAlias1) other).value));
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode();
-        }
-
-        @JsonCreator
-        public static AliasAlias1 of(Alias1 value) {
-            return new AliasAlias1(value);
-        }
     }
 }

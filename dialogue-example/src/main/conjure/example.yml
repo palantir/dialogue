@@ -12,6 +12,18 @@ types:
       AliasOfAliasOfOptional:
         alias: AliasOfOptional
 
+      Alias1:
+        alias: optional<string>
+
+      Alias2:
+        alias: optional<integer>
+
+      Alias3:
+        alias: optional<double>
+
+      AliasAlias1:
+        alias: Alias1
+
 services:
   SampleService:
     name: Sample Service

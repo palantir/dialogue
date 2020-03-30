@@ -9,6 +9,7 @@ dependencies {
     compile 'org.slf4j:slf4j-api'
 
     testCompile project(':dialogue-client-test-lib')
+    testImplementation project(':dialogue-example')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.immutables:value::annotations'
