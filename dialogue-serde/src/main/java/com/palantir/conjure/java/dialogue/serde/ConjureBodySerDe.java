@@ -55,6 +55,7 @@ final class ConjureBodySerDe implements BodySerDe {
     private final EmptyContainerDeserializer empties;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
+    private final Deserializer<Void> emptyBodyDeserializer;
 
     @VisibleForTesting
     ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder, EmptyContainerDeserializer empties) {
@@ -66,6 +67,7 @@ final class ConjureBodySerDe implements BodySerDe {
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.MARKER);
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.OPTIONAL_MARKER);
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
     }
 
     private static Encoding getFirstEncoding(List<WeightedEncoding> encodings) {
@@ -93,7 +95,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public Deserializer<Void> emptyBodyDeserializer() {
-        return EmptyBodyDeserializer.INSTANCE;
+        return emptyBodyDeserializer;
     }
 
     @Override
@@ -193,7 +195,6 @@ final class ConjureBodySerDe implements BodySerDe {
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
         private final Optional<String> acceptValue;
-        private final SafeArg<TypeMarker<T>> tokenSafeArg;
         private final Supplier<T> emptyInstance;
 
         EncodingDeserializerRegistry(
@@ -201,7 +202,6 @@ final class ConjureBodySerDe implements BodySerDe {
                 ErrorDecoder errorDecoder,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token) {
-            this.tokenSafeArg = SafeArg.of("type", token);
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
@@ -296,15 +296,23 @@ final class ConjureBodySerDe implements BodySerDe {
         }
     }
 
-    private enum EmptyBodyDeserializer implements Deserializer<Void> {
-        INSTANCE;
+    private static final class EmptyBodyDeserializer implements Deserializer<Void> {
+        private final ErrorDecoder errorDecoder;
+
+        EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
+            this.errorDecoder = errorDecoder;
+        }
 
         @Override
         @SuppressWarnings("NullAway") // empty body is a special case
         public Void deserialize(Response response) {
             // We should not fail if a server that previously returned nothing starts returning a response
-            response.close();
-            return null;
+            try (Response unused = response) {
+                if (errorDecoder.isError(response)) {
+                    throw errorDecoder.decode(response);
+                }
+                return null;
+            }
         }
 
         @Override

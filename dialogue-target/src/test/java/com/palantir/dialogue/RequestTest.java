@@ -21,7 +21,7 @@ import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public final class RequestTest {
 

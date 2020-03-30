@@ -30,8 +30,8 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.time.Duration;
 import org.awaitility.Awaitility;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class ResponseLeakDetectorTest {
     private static final String CLIENT = "client";
@@ -44,7 +44,7 @@ public class ResponseLeakDetectorTest {
 
     private Response response;
 
-    @Before
+    @BeforeEach
     public void before() {
         mockEndpoint = mock(Endpoint.class);
         response = mock(Response.class);

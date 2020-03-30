@@ -25,7 +25,7 @@ import com.palantir.dialogue.TestResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 public class BinaryEncodingTest {
 

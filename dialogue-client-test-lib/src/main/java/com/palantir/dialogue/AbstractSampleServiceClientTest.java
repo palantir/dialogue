@@ -40,12 +40,15 @@ import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Before;
 import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
 // CHECKSTYLE:ON
 
+@EnableRuleMigrationSupport
 public abstract class AbstractSampleServiceClientTest {
 
     abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
@@ -102,7 +105,7 @@ public abstract class AbstractSampleServiceClientTest {
             .build()
             .toArray(new String[0]);
 
-    @Before
+    @BeforeEach
     public void before() {
         server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
         blockingClient = createBlockingClient(server.url("").url(), Duration.ofSeconds(1));
@@ -186,7 +189,8 @@ public abstract class AbstractSampleServiceClientTest {
         assertThat(asyncClient.voidToVoid().get()).isNull();
     }
 
-    @Test(timeout = 2_000)
+    @Test
+    @Timeout(2)
     public void testBlocking_throwsOnConnectError() throws Exception {
         server.shutdown();
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
@@ -195,7 +199,8 @@ public abstract class AbstractSampleServiceClientTest {
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 
-    @Test(timeout = 5_000) // see client construction: we set a 1s timeout
+    @Test // see client construction: we set a 1s timeout
+    @Timeout(5)
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
@@ -205,7 +210,8 @@ public abstract class AbstractSampleServiceClientTest {
                 .isInstanceOf(RuntimeException.class);
     }
 
-    @Test(timeout = 2_000)
+    @Test
+    @Timeout(2)
     public void testAsync_throwsOnConnectError() throws Exception {
         server.shutdown();
         assertThatThrownBy(() -> asyncClient.voidToVoid().get())

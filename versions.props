@@ -5,7 +5,7 @@ com.google.guava:guava = 27.0.1-jre
 com.netflix.concurrency-limits:* = 0.2.0
 com.palantir.conjure.java.api:* = 2.11.1
 com.palantir.conjure.java.runtime:* = 4.73.0
-com.palantir.conjure.java:* = 5.11.2
+com.palantir.conjure.java:* = 5.12.1
 com.palantir.conjure:conjure = 4.10.1
 com.palantir.ri:resource-identifier = 1.1.0
 com.palantir.safe-logging:* = 1.13.0
@@ -32,7 +32,7 @@ org.apache.commons:commons-lang3 = 3.9
 org.awaitility:awaitility = 4.0.2
 org.jmock:jmock = 2.12.0
 org.knowm.xchart:xchart = 3.6.1
-com.palantir.conjure.verification:* = 0.18.3
+com.palantir.conjure.verification:* = 0.18.4
 io.undertow:undertow-core = 2.0.30.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
 

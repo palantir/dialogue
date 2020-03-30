@@ -9,4 +9,5 @@ dependencies {
     testCompile project(':dialogue-client-test-lib')
     testCompile project(':dialogue-serde')
     testCompile project(':dialogue-core')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }

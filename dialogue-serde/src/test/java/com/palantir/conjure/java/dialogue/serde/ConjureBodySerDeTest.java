@@ -37,12 +37,12 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class ConjureBodySerDeTest {
 
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
@@ -239,6 +239,34 @@ public class ConjureBodySerDeTest {
         public boolean supportsContentType(String _contentType) {
             return true;
         }
+    }
+
+    @Test
+    public void testEmptyResponse_success() {
+        TestResponse response = new TestResponse().code(204);
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
+        serializers.emptyBodyDeserializer().deserialize(response);
+    }
+
+    @Test
+    public void testEmptyResponse_failure() {
+        TestResponse response = new TestResponse().code(400);
+
+        ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
+        SerializableError serialized = SerializableError.forException(serviceException);
+        when(errorDecoder.isError(response)).thenReturn(true);
+        when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
+
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                errorDecoder,
+                Encodings.emptyContainerDeserializer());
+
+        assertThatExceptionOfType(RemoteException.class)
+                .isThrownBy(() -> serializers.emptyBodyDeserializer().deserialize(response));
     }
 
     /** Deserializes requests as the configured content type. */
