@@ -40,11 +40,11 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.CheckForNull;
 import javax.ws.rs.core.HttpHeaders;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public final class ErrorDecoderTest {
 
     private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();

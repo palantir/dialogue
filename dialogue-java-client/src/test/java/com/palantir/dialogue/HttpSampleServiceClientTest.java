@@ -24,10 +24,7 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import javax.net.ssl.SSLParameters;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class HttpSampleServiceClientTest extends AbstractSampleServiceClientTest {
 
     private static final ConjureRuntime runtime =

@@ -27,10 +27,7 @@ import java.util.concurrent.Executors;
 import okhttp3.Dispatcher;
 import okhttp3.OkHttpClient;
 import okhttp3.Protocol;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class OkHttpSampleServiceClientTest extends AbstractSampleServiceClientTest {
 
     private static final ConjureRuntime runtime =

@@ -21,6 +21,7 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableListMultimap;
@@ -45,18 +46,20 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import okio.Buffer;
 import okio.GzipSink;
-import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
 // CHECKSTYLE:ON
 
 @SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
-@RunWith(MockitoJUnitRunner.class)
+@EnableRuleMigrationSupport
+@ExtendWith(MockitoExtension.class)
 public abstract class AbstractChannelTest {
 
     private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
@@ -97,13 +100,13 @@ public abstract class AbstractChannelTest {
 
     private Channel channel;
 
-    @Before
+    @BeforeEach
     public void before() {
         channel = createChannel(server.url("").url());
 
-        when(request.body()).thenReturn(Optional.empty());
-        when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
-        when(request.headerParams()).thenReturn(ImmutableListMultimap.of());
+        lenient().when(request.body()).thenReturn(Optional.empty());
+        lenient().when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
+        lenient().when(request.headerParams()).thenReturn(ImmutableListMultimap.of());
         server.enqueue(new MockResponse());
 
         endpoint = new FakeEndpoint();
@@ -177,8 +180,8 @@ public abstract class AbstractChannelTest {
         assertThat(actualRequest.getHeader("b")).isEqualTo("B");
     }
 
-    @Ignore("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
     @Test
+    @Disabled("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
     public void encodesHeaders() throws Exception {
         when(request.headerParams()).thenReturn(ImmutableListMultimap.of("a", "ø\nü"));
         channel.execute(endpoint, request);
