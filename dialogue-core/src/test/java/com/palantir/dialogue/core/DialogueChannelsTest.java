@@ -38,6 +38,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,7 +93,7 @@ public final class DialogueChannelsTest {
     private Response response;
 
     private Request request = Request.builder().build();
-    private Channel channel;
+    private DialogueChannel channel;
 
     @BeforeEach
     public void before() {
@@ -131,6 +132,36 @@ public final class DialogueChannelsTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void not_allowed_to_construct_with_zero_uris() {
+        // TODO(dfox): I think this is a bit harsh, products could conceivably want to queue up a few requests at
+        //  startup ready for when some URIs appear in service discovery
+        assertThatThrownBy(() -> DialogueChannel.builder()
+                        .channelName("my-channel")
+                        .clientConfiguration(ClientConfiguration.builder()
+                                .from(stubConfig)
+                                .uris(Collections.emptyList())
+                                .build())
+                        .channelFactory(uri -> delegate)
+                        .build())
+                .hasMessage("channels must not be empty");
+    }
+
+    @Test
+    void what_happens_if_we_live_reload_to_zero_uris() {
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(uri -> delegate)
+                .build();
+
+        channel.updateUris(Collections.emptyList()); // this currently throws
+
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        Futures.getUnchecked(future);
     }
 
     @Test
