@@ -16,7 +16,6 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -57,22 +56,22 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
 
-    @VisibleForTesting
+    /**
+     * Selects the first (based on input order) of the provided encodings that
+     * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
+     * by a given request, or the first serializer if no such serializer can be found.
+     */
     ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder, EmptyContainerDeserializer empties) {
         this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
-        this.defaultEncoding = getFirstEncoding(encodings);
+        Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
+        this.defaultEncoding = encodings.get(0).encoding();
         this.empties = empties;
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.MARKER);
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.OPTIONAL_MARKER);
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
-    }
-
-    private static Encoding getFirstEncoding(List<WeightedEncoding> encodings) {
-        Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
-        return encodings.get(0).encoding();
     }
 
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
