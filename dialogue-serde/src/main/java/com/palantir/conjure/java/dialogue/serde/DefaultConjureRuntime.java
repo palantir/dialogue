@@ -31,8 +31,8 @@ import java.util.List;
 public final class DefaultConjureRuntime implements ConjureRuntime {
 
     static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
-            WeightedEncoding.of(Encodings.json(), 1),
-            WeightedEncoding.of(Encodings.smile(), .9),
+            WeightedEncoding.of(Encodings.json(), .9),
+            WeightedEncoding.of(Encodings.smile(), 1),
             WeightedEncoding.of(Encodings.cbor(), .7));
 
     private final BodySerDe bodySerDe;
