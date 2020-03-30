@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -50,39 +49,40 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     @Override
     @SuppressWarnings("unchecked")
     public <T> T getEmptyInstance(TypeMarker<T> token) {
-        Class<?> clazz = getClass(token.getType());
-        return (T) constructEmptyInstance(clazz, token, 10)
+        return (T) constructEmptyInstance(token.getType(), token, 10)
                 .orElseThrow(() -> new SafeIllegalStateException(
                         "Unable to construct empty container type", SafeArg.of("type", token)));
     }
 
-    private Optional<Object> constructEmptyInstance(Class<?> clazz, TypeMarker<?> token, int maxRecursion) {
+    private Optional<Object> constructEmptyInstance(Type type, TypeMarker<?> originalType, int maxRecursion) {
 
         // handle Map, List, Set
-        Optional<Object> collection = coerceCollections(clazz);
+        Optional<Object> collection = coerceCollections(type);
         if (collection.isPresent()) {
             return collection;
         }
 
         // this is our preferred way to construct instances
-        Optional<Object> jacksonInstance = jacksonDeserializeFromNull(clazz);
+        Optional<Object> jacksonInstance = jacksonDeserializeFromNull(type);
         if (jacksonInstance.isPresent()) {
             return jacksonInstance;
         }
 
         // fallback to manual reflection to handle aliases of optionals (and aliases of aliases of optionals)
-        Optional<Method> jsonCreator = getJsonCreatorStaticMethod(clazz);
+        Optional<Method> jsonCreator = getJsonCreatorStaticMethod(type);
         if (jsonCreator.isPresent()) {
             Method method = jsonCreator.get();
-            Class<?> parameterType = method.getParameters()[0].getType();
-            Optional<Object> parameter = constructEmptyInstance(parameterType, token, decrement(maxRecursion, token));
+            Type parameterType = method.getParameters()[0].getParameterizedType();
+            // Class<?> parameterType = method.getParameters()[0].getType();
+            Optional<Object> parameter =
+                    constructEmptyInstance(parameterType, originalType, decrement(maxRecursion, originalType));
 
             if (parameter.isPresent()) {
                 return invokeStaticFactoryMethod(method, parameter.get());
             } else {
                 log.debug(
                         "Found a @JsonCreator, but couldn't construct the parameter",
-                        SafeArg.of("type", token),
+                        SafeArg.of("type", type),
                         SafeArg.of("parameter", parameter));
                 return Optional.empty();
             }
@@ -90,7 +90,7 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
         log.debug(
                 "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator",
-                SafeArg.of("type", token));
+                SafeArg.of("type", type));
         return Optional.empty();
     }
 
@@ -100,6 +100,20 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
                 "Unable to construct an empty instance as @JsonCreator requires too much recursion",
                 SafeArg.of("type", originalType));
         return maxRecursion - 1;
+    }
+
+    private static Optional<Object> coerceCollections(Type type) {
+        if (type instanceof Class) {
+            return coerceCollections((Class<?>) type);
+        }
+        if (type instanceof ParameterizedType) {
+            ParameterizedType parameterizedType = (ParameterizedType) type;
+            Type raw = parameterizedType.getRawType();
+            if (raw instanceof Class) {
+                return coerceCollections((Class<?>) raw);
+            }
+        }
+        return Optional.empty();
     }
 
     private static Optional<Object> coerceCollections(Class<?> clazz) {
@@ -114,21 +128,26 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         }
     }
 
-    private Optional<Object> jacksonDeserializeFromNull(Class<?> clazz) {
+    private Optional<Object> jacksonDeserializeFromNull(Type type) {
         try {
-            return Optional.ofNullable(mapper.readValue("null", clazz));
+            return Optional.ofNullable(mapper.readerFor(mapper.getTypeFactory().constructType(type))
+                    .readValue(mapper.nullNode()));
         } catch (IOException e) {
             return Optional.empty();
         }
     }
 
     // doesn't attempt to handle multiple @JsonCreator methods on one class
-    private static Optional<Method> getJsonCreatorStaticMethod(@Nonnull Class<?> clazz) {
-        return Arrays.stream(clazz.getMethods())
-                .filter(method -> Modifier.isStatic(method.getModifiers())
-                        && method.getParameterCount() == 1
-                        && method.getAnnotation(JsonCreator.class) != null)
-                .findFirst();
+    private static Optional<Method> getJsonCreatorStaticMethod(@Nonnull Type type) {
+        if (type instanceof Class) {
+            Class<?> clazz = (Class<?>) type;
+            return Arrays.stream(clazz.getMethods())
+                    .filter(method -> Modifier.isStatic(method.getModifiers())
+                            && method.getParameterCount() == 1
+                            && method.getAnnotation(JsonCreator.class) != null)
+                    .findFirst();
+        }
+        return Optional.empty();
     }
 
     private static Optional<Object> invokeStaticFactoryMethod(Method method, Object parameter) {
@@ -137,17 +156,6 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         } catch (IllegalAccessException | InvocationTargetException e) {
             log.debug("Reflection instantiation failed", e);
             return Optional.empty();
-        }
-    }
-
-    private static Class<?> getClass(Type type) {
-        if (type instanceof Class) {
-            return (Class<?>) type;
-        } else if (type instanceof ParameterizedType) {
-            ParameterizedType parameterized = (ParameterizedType) type;
-            return getClass(parameterized.getRawType());
-        } else {
-            throw new SafeIllegalArgumentException("Unable to getClass", SafeArg.of("type", type));
         }
     }
 }
