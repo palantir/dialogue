@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.google.common.base.Suppliers;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
@@ -28,6 +29,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
 // TODO(rfink): Consider async Jackson, see
@@ -36,6 +38,9 @@ import javax.annotation.Nullable;
 public final class Encodings {
 
     private Encodings() {}
+
+    private static final Supplier<ObjectMapper> JSON_MAPPER =
+            Suppliers.memoize(() -> configure(ObjectMappers.newClientObjectMapper()));
 
     private abstract static class AbstractJacksonEncoding implements Encoding {
 
@@ -87,7 +92,7 @@ public final class Encodings {
 
     /** Returns a serializer for the Conjure JSON wire format. */
     public static Encoding json() {
-        return new AbstractJacksonEncoding(configure(ObjectMappers.newClientObjectMapper())) {
+        return new AbstractJacksonEncoding(JSON_MAPPER.get()) {
             private static final String CONTENT_TYPE = "application/json";
 
             @Override
@@ -134,6 +139,10 @@ public final class Encodings {
                 return matchesContentType(CONTENT_TYPE, contentType);
             }
         };
+    }
+
+    static EmptyContainerDeserializer emptyContainerDeserializer() {
+        return new JacksonEmptyContainerLoader(JSON_MAPPER.get());
     }
 
     static boolean matchesContentType(String contentType, @Nullable String typeToCheck) {

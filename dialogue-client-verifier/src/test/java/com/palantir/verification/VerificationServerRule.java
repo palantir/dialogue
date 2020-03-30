@@ -70,6 +70,7 @@ public final class VerificationServerRule extends ExternalResource {
                 .redirectOutput(ProcessBuilder.Redirect.PIPE);
 
         processBuilder.environment().put("PORT", String.valueOf(PORT));
+        processBuilder.environment().put("RUST_BACKTRACE", "true");
         process = processBuilder.start();
 
         log.info("Waiting for server to start up");
@@ -99,8 +100,9 @@ public final class VerificationServerRule extends ExternalResource {
         thread.setDaemon(true);
         thread.start();
 
+        // extremely generous startup timeout because sometimes infosec tooling scans the entire binary before starting
         Preconditions.checkState(
-                latch.await(3, TimeUnit.SECONDS), "verification-server failed to start up within 2 seconds");
+                latch.await(15, TimeUnit.SECONDS), "verification-server failed to start up within 15 seconds");
     }
 
     @Override

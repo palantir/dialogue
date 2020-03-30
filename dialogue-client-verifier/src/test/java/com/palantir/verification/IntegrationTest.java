@@ -30,6 +30,8 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.example.AliasOfAliasOfOptional;
+import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
@@ -53,7 +55,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-public class BinaryReturnTypeTest {
+public class IntegrationTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("BinaryReturnTypeTest", "0.0.0"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("../dialogue-core/src/test/resources/trustStore.jks"),
@@ -70,6 +72,22 @@ public class BinaryReturnTypeTest {
                         0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
         undertow.start();
+    }
+
+    @Test
+    public void alias_of_optional() {
+        set204Response();
+        AliasOfOptional myAlias = sampleServiceBlocking().getMyAlias();
+        Optional<String> maybeString = myAlias.get();
+        assertThat(maybeString).isNotPresent();
+    }
+
+    @Test
+    public void alias_of_alias_of_optional() {
+        set204Response();
+        AliasOfAliasOfOptional myAlias = sampleServiceBlocking().getMyAlias2();
+        Optional<String> maybeString = myAlias.get().get();
+        assertThat(maybeString).isNotPresent();
     }
 
     @Test
@@ -118,6 +136,12 @@ public class BinaryReturnTypeTest {
                 .isEqualTo(limit);
 
         System.out.printf("%d MB took %d millis%n", megabytes, sw.elapsed(TimeUnit.MILLISECONDS));
+    }
+
+    private void set204Response() {
+        undertowHandler = exchange -> {
+            exchange.setStatusCode(204);
+        };
     }
 
     private void setBinaryGzipResponse(String stringToCompress) {

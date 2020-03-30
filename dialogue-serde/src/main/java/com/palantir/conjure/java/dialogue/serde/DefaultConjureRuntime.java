@@ -39,8 +39,9 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
-                // TODO(rfink): The default thing here is a little odd
-                builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings);
+                builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
     }
 
     public static Builder builder() {

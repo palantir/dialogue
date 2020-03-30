@@ -16,45 +16,48 @@ client:
    receiveStringExample:
    - '{"value":8}' # jackson coerces things to other types
 
-   receiveListAnyAliasExample:
-   - '[null]'
-
-   receiveMapBinaryAliasExample:
-    - '{}'
-    - '{"SGVsbG8sIFdvcmxk": true}'
-   receiveMapDoubleAliasExample:
-    - '{"10": true, "10e0": false}'
-    - '{"10": true, "10.0": false}'
-   receiveOptionalAnyAliasExample:
-    - 'null'
-   receiveOptionalBearerAliasExample:
-    - 'null'
-   receiveOptionalBearerTokenAliasExample:
-    - 'null'
-   receiveOptionalBooleanAliasExample:
-    - 'null'
-   receiveOptionalDateTimeAliasExample:
-    - 'null'
-   receiveOptionalDoubleAliasExample:
-    - 'null'
    receiveOptionalIntegerExample:
    - '{"value":"1234"}' # jackson coerces things to other types
-   receiveOptionalIntegerAliasExample:
-    - 'null'
-   receiveOptionalRidAliasExample:
-    - 'null'
-   receiveOptionalSafeLongAliasExample:
-    - 'null'
-   receiveOptionalStringAliasExample:
-    - 'null'
-   receiveOptionalUuidAliasExample:
-    - 'null'
-   receiveRawOptionalExample:
-    - 'null'
-   receiveSetAnyAliasExample:
-    - '[null]'
    receiveSetStringExample:
     - '{"value":["a","a"]}' # client turns this into a set of ["a"] without error
+
+   # TODO(dfox): be stricter about 204s
+   receiveListAnyAliasExample: [ 'null', '[null]' ]
+   receiveListBearerTokenAliasExample: [ 'null' ]
+   receiveListBinaryAliasExample: [ 'null' ]
+   receiveListBooleanAliasExample: [ 'null' ]
+   receiveListDateTimeAliasExample: [ 'null' ]
+   receiveListDoubleAliasExample: [ 'null' ]
+   receiveListIntegerAliasExample: [ 'null' ]
+   receiveListOptionalAnyAliasExample: [ 'null' ]
+   receiveListRidAliasExample: [ 'null' ]
+   receiveListSafeLongAliasExample: [ 'null' ]
+   receiveListStringAliasExample: [ 'null' ]
+   receiveListUuidAliasExample: [ 'null' ]
+   receiveMapBinaryAliasExample: [ 'null', '{}', '{"SGVsbG8sIFdvcmxk": true}' ]
+   receiveMapBooleanAliasExample: [ 'null' ]
+   receiveMapDateTimeAliasExample: [ 'null' ]
+   receiveMapDoubleAliasExample: [ 'null', '{"10": true, "10e0": false}', '{"10": true, "10.0": false}' ]
+   receiveMapEnumExampleAlias: [ 'null' ]
+   receiveMapIntegerAliasExample: [ 'null' ]
+   receiveMapRidAliasExample: [ 'null' ]
+   receiveMapSafeLongAliasExample: [ 'null' ]
+   receiveMapStringAliasExample: [ 'null' ]
+   receiveMapUuidAliasExample: [ 'null' ]
+   receiveSetAnyAliasExample: [ 'null', '[null]' ]
+   receiveSetBearerTokenAliasExample: [ 'null' ]
+   receiveSetBinaryAliasExample: [ 'null' ]
+   receiveSetBooleanAliasExample: [ 'null' ]
+   receiveSetDateTimeAliasExample: [ 'null' ]
+   receiveSetDoubleAliasExample: [ 'null' ]
+   receiveSetIntegerAliasExample: [ 'null' ]
+   receiveSetOptionalAnyAliasExample: [ 'null' ]
+   receiveSetRidAliasExample: [ 'null' ]
+   receiveSetSafeLongAliasExample: [ 'null' ]
+   receiveSetStringAliasExample: [ 'null' ]
+   receiveSetUuidAliasExample: [ 'null' ]
+   receiveMapBearerTokenAliasExample: [ 'null' ]
+
   singleHeaderService: {}
 
   singlePathParamService:
