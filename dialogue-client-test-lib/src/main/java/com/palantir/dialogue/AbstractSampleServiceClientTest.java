@@ -200,7 +200,7 @@ public abstract class AbstractSampleServiceClientTest {
     }
 
     @Test // see client construction: we set a 1s timeout
-    @Timeout(2)
+    @Timeout(5)
     public void testBlocking_throwsOnTimeout() throws Exception {
         server.enqueue(new MockResponse()
                 .setBody("\"response\"")
