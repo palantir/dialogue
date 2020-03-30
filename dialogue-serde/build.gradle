@@ -17,3 +17,5 @@ dependencies {
     testCompile 'com.palantir.safe-logging:preconditions-assertj'
     testCompile 'org.apache.commons:commons-lang3'
 }
+
+configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5
