@@ -17,11 +17,9 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.dialogue.TypeMarker;
-import javax.annotation.Nullable;
 
 interface EmptyContainerDeserializer {
 
-    /** Only Nullable because it's confusing to deal with optionals of optionals. */
-    @Nullable
+    /** Throws if constructing an empty instance is not possible. */
     <T> T getEmptyInstance(TypeMarker<T> typeMarker);
 }

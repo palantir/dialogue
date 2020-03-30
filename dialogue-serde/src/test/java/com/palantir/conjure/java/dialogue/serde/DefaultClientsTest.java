@@ -64,7 +64,8 @@ public final class DefaultClientsTest {
     private ArgumentCaptor<Request> requestCaptor;
 
     private Response response = new TestResponse();
-    private BodySerDe bodySerde = new ConjureBodySerDe(DefaultConjureRuntime.DEFAULT_ENCODINGS);
+    private BodySerDe bodySerde = new ConjureBodySerDe(
+            DefaultConjureRuntime.DEFAULT_ENCODINGS, ErrorDecoder.INSTANCE, Encodings.emptyContainerDeserializer());
     private final SettableFuture<Response> responseFuture = SettableFuture.create();
 
     @Test

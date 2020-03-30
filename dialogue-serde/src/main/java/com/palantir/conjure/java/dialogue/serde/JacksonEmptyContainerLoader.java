@@ -22,6 +22,7 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -35,7 +36,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,11 +47,13 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         this.mapper = mapper;
     }
 
-    @Nullable
     @Override
+    @SuppressWarnings("unchecked")
     public <T> T getEmptyInstance(TypeMarker<T> token) {
         Class<?> clazz = getClass(token.getType());
-        return (T) constructEmptyInstance(clazz, token, 10).orElse(null);
+        return (T) constructEmptyInstance(clazz, token, 10)
+                .orElseThrow(() -> new SafeIllegalStateException(
+                        "Unable to construct empty container type", SafeArg.of("type", token)));
     }
 
     private Optional<Object> constructEmptyInstance(Class<?> clazz, TypeMarker<?> token, int maxRecursion) {

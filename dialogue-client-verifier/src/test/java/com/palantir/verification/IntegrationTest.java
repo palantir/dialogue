@@ -140,7 +140,6 @@ public class IntegrationTest {
 
     private void set204Response() {
         undertowHandler = exchange -> {
-            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
             exchange.setStatusCode(204);
         };
     }

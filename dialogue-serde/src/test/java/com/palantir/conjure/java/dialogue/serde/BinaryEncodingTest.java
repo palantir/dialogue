@@ -33,7 +33,9 @@ public class BinaryEncodingTest {
     public void testBinary() throws IOException {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
-                ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))));
+                ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         InputStream deserialized = serializers.inputStreamDeserializer().deserialize(response);
         assertThat(deserialized.available()).isEqualTo(0);
         CloseRecordingInputStream rawInputStream = response.body();
@@ -54,7 +56,9 @@ public class BinaryEncodingTest {
     public void testBinary_optional_present() throws IOException {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
-                ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))));
+                ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         Optional<InputStream> maybe =
                 serializers.optionalInputStreamDeserializer().deserialize(response);
         assertThat(maybe).isPresent();

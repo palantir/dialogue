@@ -27,6 +27,7 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
@@ -50,14 +51,19 @@ public class ConjureBodySerDeTest {
     @Mock
     private ErrorDecoder errorDecoder;
 
+    @Mock
+    private EmptyContainerDeserializer empties;
+
     @Test
     public void testRequestContentType() throws IOException {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
         TestResponse response = new TestResponse().contentType("text/plain");
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         String value = serializers.deserializer(TYPE).deserialize(response);
         assertThat(value).isEqualTo(plain.getContentType());
     }
@@ -65,17 +71,22 @@ public class ConjureBodySerDeTest {
     @Test
     public void testRequestOptionalEmpty() {
         TestResponse response = new TestResponse().code(204);
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
-        Optional<String> value = serializers.deserializer(OPTIONAL_TYPE).deserialize(response);
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
+        Deserializer<Optional<String>> deserializer = serializers.deserializer(OPTIONAL_TYPE);
+        Optional<String> value = deserializer.deserialize(response);
         assertThat(value).isEmpty();
     }
 
     @Test
     public void testRequestNoContentType() {
         TestResponse response = new TestResponse();
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessageContaining("Response is missing Content-Type header");
@@ -84,8 +95,10 @@ public class ConjureBodySerDeTest {
     @Test
     public void testUnsupportedRequestContentType() {
         TestResponse response = new TestResponse().contentType("application/unknown");
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("Unsupported Content-Type");
@@ -96,8 +109,10 @@ public class ConjureBodySerDeTest {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(plain), WeightedEncoding.of(json)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(plain), WeightedEncoding.of(json)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         // first encoding is default
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(plain.getContentType());
@@ -109,8 +124,10 @@ public class ConjureBodySerDeTest {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(plain, .5), WeightedEncoding.of(json, 1)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(plain, .5), WeightedEncoding.of(json, 1)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         // first encoding is default
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(plain.getContentType());
@@ -122,8 +139,10 @@ public class ConjureBodySerDeTest {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(json.getContentType());
     }
@@ -133,8 +152,10 @@ public class ConjureBodySerDeTest {
         Encoding json = new StubEncoding("application/json");
         Encoding plain = new StubEncoding("text/plain");
 
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(json), WeightedEncoding.of(plain)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(json.getContentType());
     }
@@ -149,7 +170,7 @@ public class ConjureBodySerDeTest {
         when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
 
         BodySerDe serializers = new ConjureBodySerDe(
-                ImmutableList.of(WeightedEncoding.of(new StubEncoding("text/plain"))), errorDecoder);
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("text/plain"))), errorDecoder, empties);
 
         assertThatExceptionOfType(RemoteException.class)
                 .isThrownBy(() -> serializers.deserializer(TYPE).deserialize(response));
@@ -163,8 +184,10 @@ public class ConjureBodySerDeTest {
     @Test
     public void testBinary_optional_empty() {
         TestResponse response = new TestResponse().code(204);
-        BodySerDe serializers =
-                new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(new StubEncoding("application/json"))),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         assertThat(serializers.optionalInputStreamDeserializer().deserialize(response))
                 .isEmpty();
         assertThat(response.body().isClosed())
@@ -176,7 +199,10 @@ public class ConjureBodySerDeTest {
     @Test
     public void if_deserialize_throws_response_is_still_closed() {
         TestResponse response = new TestResponse().code(200).contentType("application/json");
-        BodySerDe serializers = new ConjureBodySerDe(ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)));
+        BodySerDe serializers = new ConjureBodySerDe(
+                ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)),
+                ErrorDecoder.INSTANCE,
+                Encodings.emptyContainerDeserializer());
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("brokenEncoding is broken");

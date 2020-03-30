@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
@@ -38,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
 import org.slf4j.Logger;
@@ -50,28 +52,25 @@ final class ConjureBodySerDe implements BodySerDe {
     private final List<Encoding> encodingsSortedByWeight;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
+    private final EmptyContainerDeserializer empties;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
 
-    /**
-     * Selects the first (based on input order) of the provided encodings that
-     * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
-     * by a given request, or the first serializer if no such serializer can be found.
-     */
-    ConjureBodySerDe(List<WeightedEncoding> encodings) {
-        this(encodings, ErrorDecoder.INSTANCE);
-    }
-
     @VisibleForTesting
-    ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder) {
+    ConjureBodySerDe(List<WeightedEncoding> encodings, ErrorDecoder errorDecoder, EmptyContainerDeserializer empties) {
         this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
-        Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
-        this.defaultEncoding = encodings.get(0).encoding();
+        this.defaultEncoding = getFirstEncoding(encodings);
+        this.empties = empties;
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.MARKER);
+                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.MARKER);
         this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
-                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, BinaryEncoding.OPTIONAL_MARKER);
+                ImmutableList.of(BinaryEncoding.INSTANCE), errorDecoder, empties, BinaryEncoding.OPTIONAL_MARKER);
+    }
+
+    private static Encoding getFirstEncoding(List<WeightedEncoding> encodings) {
+        Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
+        return encodings.get(0).encoding();
     }
 
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
@@ -89,7 +88,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(encodingsSortedByWeight, errorDecoder, token);
+        return new EncodingDeserializerRegistry<>(encodingsSortedByWeight, errorDecoder, empties, token);
     }
 
     @Override
@@ -193,17 +192,21 @@ final class ConjureBodySerDe implements BodySerDe {
         private static final Logger log = LoggerFactory.getLogger(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
-        private final TypeMarker<T> token;
-        private final boolean isOptionalType;
         private final Optional<String> acceptValue;
+        private final SafeArg<TypeMarker<T>> tokenSafeArg;
+        private final Supplier<T> emptyInstance;
 
-        EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
+        EncodingDeserializerRegistry(
+                List<Encoding> encodings,
+                ErrorDecoder errorDecoder,
+                EmptyContainerDeserializer empty,
+                TypeMarker<T> token) {
+            this.tokenSafeArg = SafeArg.of("type", token);
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
-            this.token = token;
-            this.isOptionalType = TypeMarkers.isOptional(token);
+            this.emptyInstance = Suppliers.memoize(() -> empty.getEmptyInstance(token)); // TODO(dfox): save exception?
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue =
                     Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
@@ -216,11 +219,10 @@ final class ConjureBodySerDe implements BodySerDe {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
                 } else if (response.code() == 204) {
-                    if (!isOptionalType) {
-                        throw new SafeRuntimeException(
-                                "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
-                    }
-                    return TypeMarkers.getEmptyOptional(token);
+                    // TODO(dfox): what if we get a 204 for a non-optional type???
+                    // TODO(dfox): support http200 & body=null
+                    // TODO(dfox): what if we were expecting an empty list but got {}?
+                    return emptyInstance.get();
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
