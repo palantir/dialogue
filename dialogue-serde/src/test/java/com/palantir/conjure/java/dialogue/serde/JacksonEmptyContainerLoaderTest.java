@@ -64,25 +64,25 @@ public class JacksonEmptyContainerLoaderTest {
 
     @Test
     public void http_204_turns_empty_body_into_alias_of_OptionalEmpty() {
-        assertThat(emptyContainerDecoder.getEmptyInstanceIfOptional(new TypeMarker<Alias1>() {}))
+        assertThat(emptyContainerDecoder.tryGetEmptyInstance(new TypeMarker<Alias1>() {}))
                 .hasValue(Alias1.of(Optional.empty()));
     }
 
     @Test
     public void http_204_turns_empty_body_into_alias_of_OptionalInt() {
-        assertThat(emptyContainerDecoder.getEmptyInstanceIfOptional(new TypeMarker<Alias2>() {}))
+        assertThat(emptyContainerDecoder.tryGetEmptyInstance(new TypeMarker<Alias2>() {}))
                 .hasValue(Alias2.of(OptionalInt.empty()));
     }
 
     @Test
     public void http_204_turns_empty_body_into_alias_of_OptionalDouble() {
-        assertThat(emptyContainerDecoder.getEmptyInstanceIfOptional(new TypeMarker<Alias3>() {}))
+        assertThat(emptyContainerDecoder.tryGetEmptyInstance(new TypeMarker<Alias3>() {}))
                 .hasValue(Alias3.of(OptionalDouble.empty()));
     }
 
     @Test
     public void http_204_can_handle_alias_of_alias_of_optional_string() {
-        assertThat(emptyContainerDecoder.getEmptyInstanceIfOptional(new TypeMarker<AliasAlias1>() {}))
+        assertThat(emptyContainerDecoder.tryGetEmptyInstance(new TypeMarker<AliasAlias1>() {}))
                 .hasValue(AliasAlias1.of(Alias1.of(Optional.empty())));
     }
 }

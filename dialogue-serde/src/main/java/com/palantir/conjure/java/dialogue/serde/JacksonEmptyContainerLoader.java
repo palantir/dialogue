@@ -47,7 +47,7 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> Optional<T> getEmptyInstanceIfOptional(TypeMarker<T> token) {
+    public <T> Optional<T> tryGetEmptyInstance(TypeMarker<T> token) {
         return (Optional<T>) constructEmptyInstance(token.getType(), token, 10);
     }
 

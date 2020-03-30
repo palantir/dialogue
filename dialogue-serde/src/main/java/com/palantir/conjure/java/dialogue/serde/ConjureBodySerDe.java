@@ -215,7 +215,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
             this.token = token;
-            this.emptyInstance = empty.getEmptyInstanceIfOptional(token);
+            this.emptyInstance = empty.tryGetEmptyInstance(token);
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue =
                     Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
