@@ -21,19 +21,32 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracer;
+import com.palantir.tracing.api.SpanType;
 import com.palantir.tracing.api.TraceHttpHeaders;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
+    public static final String OPERATION = "Dialogue-http-request";
     private final Channel delegate;
 
     TraceEnrichingChannel(Channel delegate) {
-        this.delegate = delegate;
+        this.delegate = new NeverThrowChannel(delegate);
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        DetachedSpan span = DetachedSpan.start(OPERATION);
+        // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
+        // no active trace, the detached span would not be associated with work initiated by delegateFactory.
+        try (CloseableSpan ignored = span.childSpan(OPERATION + " initial", SpanType.CLIENT_OUTGOING)) {
+            return DialogueFutures.addDirectListener(executeInternal(endpoint, request), span::complete);
+        }
+    }
+
+    private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
         Request newRequest = Tracer.maybeGetTraceMetadata()
                 .map(metadata -> {
                     Request.Builder requestBuilder = Request.builder()
