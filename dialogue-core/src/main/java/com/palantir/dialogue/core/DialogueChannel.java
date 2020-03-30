@@ -45,8 +45,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
+
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy =
             new AtomicReference<>(ZeroUriChannel.INSTANCE);
@@ -140,6 +144,7 @@ public final class DialogueChannel implements Channel {
             Random random,
             String channelName) {
         if (channels.isEmpty()) {
+            log.info("Zero URIs available, all requests will be queued", SafeArg.of("channelName", channelName));
             return ZeroUriChannel.INSTANCE;
         }
 
