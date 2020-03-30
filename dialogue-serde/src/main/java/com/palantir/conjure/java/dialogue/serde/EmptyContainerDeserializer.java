@@ -17,9 +17,10 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.dialogue.TypeMarker;
+import java.util.Optional;
 
 interface EmptyContainerDeserializer {
 
     /** Throws if constructing an empty instance is not possible. */
-    <T> T getEmptyInstance(TypeMarker<T> typeMarker);
+    <T> Optional<T> getEmptyInstanceIfOptional(TypeMarker<T> typeMarker);
 }

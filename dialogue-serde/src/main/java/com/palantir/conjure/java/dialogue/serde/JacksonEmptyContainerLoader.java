@@ -21,7 +21,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -48,10 +47,8 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <T> T getEmptyInstance(TypeMarker<T> token) {
-        return (T) constructEmptyInstance(token.getType(), token, 10)
-                .orElseThrow(() -> new SafeIllegalStateException(
-                        "Unable to construct empty container type", SafeArg.of("type", token)));
+    public <T> Optional<T> getEmptyInstanceIfOptional(TypeMarker<T> token) {
+        return (Optional<T>) constructEmptyInstance(token.getType(), token, 10);
     }
 
     private Optional<Object> constructEmptyInstance(Type type, TypeMarker<?> originalType, int maxRecursion) {
