@@ -14,6 +14,7 @@ dependencies {
     compile 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.tritium:tritium-metrics'
 
+    testImplementation project(':dialogue-client-test-lib')
     testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.junit.jupiter:junit-jupiter'

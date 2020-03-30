@@ -48,7 +48,9 @@ import javax.annotation.Nullable;
 
 public final class DialogueChannel implements Channel {
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
+    private final AtomicReference<LimitedChannel> nodeSelectionStrategy =
+            new AtomicReference<>(ZeroUriChannel.INSTANCE);
+    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
 
     private final String channelName;
     private final ClientConfiguration clientConfiguration;
@@ -69,17 +71,14 @@ public final class DialogueChannel implements Channel {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
-        clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
+        this.clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.clock = clock;
         this.random = random;
+        this.queuedChannel =
+                new QueuedChannel(new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics);
+
         updateUris(clientConfiguration.uris());
-        this.delegate = wrap(
-                channelName,
-                new SupplierChannel(nodeSelectionStrategy::get),
-                clientConfiguration,
-                scheduler,
-                random,
-                clientMetrics);
+        this.delegate = wrap(queuedChannel, channelName, clientConfiguration, scheduler, random, clientMetrics);
     }
 
     @Override
@@ -110,6 +109,9 @@ public final class DialogueChannel implements Channel {
                 ImmutableList.copyOf(limitedChannelByUri.values()),
                 random,
                 channelName));
+
+        // some stuck requests might be able to make progress now
+        queuedChannel.schedule();
     }
 
     private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
@@ -132,11 +134,15 @@ public final class DialogueChannel implements Channel {
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
-            @Nullable LimitedChannel previousNodeSelectionStrategy,
+            LimitedChannel previousNodeSelectionStrategy,
             ClientConfiguration config,
             List<LimitedChannel> channels,
             Random random,
             String channelName) {
+        if (channels.isEmpty()) {
+            return ZeroUriChannel.INSTANCE;
+        }
+
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
             return channels.get(0);
@@ -210,13 +216,13 @@ public final class DialogueChannel implements Channel {
     }
 
     private static Channel wrap(
+            QueuedChannel queuedChannel,
             String channelName,
-            LimitedChannel delegate,
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate, channelName, clientMetrics));
+        Channel channel = new LimitedChannelToChannelAdapter(queuedChannel);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
@@ -294,7 +300,6 @@ public final class DialogueChannel implements Channel {
         }
 
         private void preconditions(ClientConfiguration conf) {
-            Preconditions.checkArgument(!conf.uris().isEmpty(), "channels must not be empty");
             Preconditions.checkArgument(conf.userAgent().isPresent(), "config.userAgent() must be specified");
             Preconditions.checkArgument(
                     conf.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,

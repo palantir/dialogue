@@ -23,6 +23,11 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -35,12 +40,17 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tracing.TestTracing;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.MetricName;
 import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +68,7 @@ public final class DialogueChannelsTest {
                     .addUris("http://localhost")
                     .security(SSL_CONFIG)
                     .build()))
+            .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
             .userAgent(USER_AGENT)
             .build();
 
@@ -135,33 +146,53 @@ public final class DialogueChannelsTest {
     }
 
     @Test
-    void not_allowed_to_construct_with_zero_uris() {
-        // TODO(dfox): I think this is a bit harsh, products could conceivably want to queue up a few requests at
-        //  startup ready for when some URIs appear in service discovery
-        assertThatThrownBy(() -> DialogueChannel.builder()
-                        .channelName("my-channel")
-                        .clientConfiguration(ClientConfiguration.builder()
-                                .from(stubConfig)
-                                .uris(Collections.emptyList())
-                                .build())
-                        .channelFactory(uri -> delegate)
+    void constructing_a_client_with_zero_uris_just_queues_things_up() throws Exception {
+        when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .uris(Collections.emptyList())
                         .build())
-                .hasMessage("channels must not be empty");
+                .channelFactory(uri -> delegate)
+                .build();
+        ListenableFuture<Response> future1 = channel.execute(endpoint, request);
+        ListenableFuture<Response> future2 = channel.execute(endpoint, request);
+        ListenableFuture<Response> future3 = channel.execute(endpoint, request);
+        assertThat(queuedRequestsCounter())
+                .describedAs("All the requests we submitted should just be sitting on the queue")
+                .isEqualTo(3);
+
+        // live-reload from 0 -> 1
+        channel.updateUris(ImmutableList.of("http://dont-care"));
+
+        assertThat(future1.get(1, TimeUnit.MILLISECONDS).code()).isEqualTo(200);
+        assertThat(future2.get(1, TimeUnit.MILLISECONDS).code()).isEqualTo(200);
+        assertThat(future3.get(1, TimeUnit.MILLISECONDS).code()).isEqualTo(200);
     }
 
     @Test
-    void what_happens_if_we_live_reload_to_zero_uris() {
+    void live_reloading_to_zero_uris_is_allowed_because_futures_are_just_queued() throws Exception {
+        when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .channelFactory(uri -> delegate)
                 .build();
+        assertThat(channel.execute(endpoint, request).get().code())
+                .describedAs("Initial requests should go through fine")
+                .isEqualTo(200);
 
-        channel.updateUris(Collections.emptyList()); // this currently throws
+        // live reload from 1 -> 0
+        channel.updateUris(Collections.emptyList());
 
         ListenableFuture<Response> future = channel.execute(endpoint, request);
-
-        Futures.getUnchecked(future);
+        assertThat(future)
+                .describedAs("Future should be unresolved while we have 0 uris")
+                .isNotDone();
+        assertThat(queuedRequestsCounter()).isEqualTo(1);
     }
 
     @Test
@@ -202,5 +233,13 @@ public final class DialogueChannelsTest {
         try (Response response = channel.execute(endpoint, request).get()) {
             assertThat(response.code()).isEqualTo(200);
         }
+    }
+
+    private static long queuedRequestsCounter() {
+        Map<MetricName, Metric> metrics = Maps.filterKeys(
+                stubConfig.taggedMetricRegistry().getMetrics(),
+                name -> Objects.equals(name.safeName(), "dialogue.client.requests.queued"));
+        Counter counter = (Counter) Iterables.getOnlyElement(metrics.values());
+        return counter.getCount();
     }
 }
