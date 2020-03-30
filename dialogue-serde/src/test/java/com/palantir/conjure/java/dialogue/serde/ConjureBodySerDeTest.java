@@ -36,6 +36,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -267,6 +268,22 @@ public class ConjureBodySerDeTest {
 
         assertThatExceptionOfType(RemoteException.class)
                 .isThrownBy(() -> serializers.emptyBodyDeserializer().deserialize(response));
+    }
+
+    @Test
+    public void testEmptyResponse_list() {
+        BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+        List<String> result =
+                serde.deserializer(new TypeMarker<List<String>>() {}).deserialize(new TestResponse().code(204));
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    @SuppressWarnings("rawtypes")
+    public void testEmptyResponse_list_raw() {
+        BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+        List result = serde.deserializer(new TypeMarker<List>() {}).deserialize(new TestResponse().code(204));
+        assertThat(result).isEmpty();
     }
 
     /** Deserializes requests as the configured content type. */

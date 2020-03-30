@@ -18,7 +18,6 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.NullNode;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -132,7 +131,7 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     private Optional<Object> jacksonDeserializeFromNull(Type type) {
         try {
             return Optional.ofNullable(mapper.readerFor(mapper.getTypeFactory().constructType(type))
-                    .readValue(NullNode.instance));
+                    .readValue(mapper.nullNode()));
         } catch (IOException e) {
             return Optional.empty();
         }
