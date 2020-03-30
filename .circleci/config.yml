@@ -4,7 +4,7 @@
 
 version: 2.1
 jobs:
-  compile:
+  build:
     docker: [{ image: 'circleci/openjdk:11-node' }]
     resource_class: large
     environment:
@@ -39,13 +39,18 @@ jobs:
             echo "Detected tag build, deleting all tags except '$CIRCLE_TAG' which point to HEAD: [${TAGS_TO_DELETE/$'\n'/,}]"
             echo "$TAGS_TO_DELETE" | while read -r TAG; do git tag -d "$TAG" 1>/dev/null; done
       - restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
-      - restore_cache: { key: 'compile-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
-      - run: ./gradlew --parallel --stacktrace classes testClasses
+      - restore_cache: { key: 'build-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
+      - run: ./gradlew --parallel --stacktrace --max-workers=4 build publishToMavenLocal
+      - deploy:
+          command: |
+            if [[ "${CIRCLE_BRANCH:-x}" == "develop" ]] || [[ "${CIRCLE_TAG:-x}" != "x" ]]; then
+              ./gradlew --parallel --stacktrace --continue --max-workers=4 publish
+            fi
       - save_cache:
           key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}'
           paths: [ ~/.gradle/wrapper ]
       - save_cache:
-          key: 'compile-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
+          key: 'build-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
           paths: [ ~/.gradle/caches ]
       - store_test_results: { path: ~/junit }
       - store_artifacts: { path: ~/artifacts }
@@ -53,125 +58,20 @@ jobs:
           root: /home/circleci
           paths: [ project, .gradle/init.gradle ]
 
-  check:
-    docker: [{ image: 'circleci/openjdk:11-node' }]
-    environment:
-      CIRCLE_TEST_REPORTS: /home/circleci/junit
-      CIRCLE_ARTIFACTS: /home/circleci/artifacts
-      GRADLE_OPTS: -Dorg.gradle.jvmargs='-Xms3072m -Xmx3072m'
-      _JAVA_OPTIONS: -XX:ActiveProcessorCount=2 -XX:ErrorFile=/home/circleci/artifacts/hs_err_pid%p.log -XX:HeapDumpPath=/home/circleci/artifacts
-    steps:
-      - attach_workspace: { at: /home/circleci }
-      - restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
-      - restore_cache: { key: 'check-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
-      - run: ./gradlew --parallel --stacktrace --continue check idea -x test
-      - save_cache:
-          key: 'check-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
-          paths: [ ~/.gradle/caches ]
-      - run:
-          command: mkdir -p ~/junit && find . -type f -regex ".*/build/.*TEST.*xml" -exec cp --parents {} ~/junit/ \;
-          when: always
-      - store_test_results: { path: ~/junit }
-      - store_artifacts: { path: ~/artifacts }
-
-  unit-test:
-    docker: [{ image: 'circleci/openjdk:11-node' }]
-    resource_class: large
-    environment:
-      CIRCLE_TEST_REPORTS: /home/circleci/junit
-      CIRCLE_ARTIFACTS: /home/circleci/artifacts
-      GRADLE_OPTS: -Dorg.gradle.jvmargs='-XX:MaxMetaspaceSize=256m' -Dorg.gradle.workers.max=4
-      _JAVA_OPTIONS: -XX:ActiveProcessorCount=4 -Xmx1177m -XX:MaxMetaspaceSize=512m -XX:ErrorFile=/home/circleci/artifacts/hs_err_pid%p.log -XX:HeapDumpPath=/home/circleci/artifacts
-    steps:
-      - attach_workspace: { at: /home/circleci }
-      - restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
-      - restore_cache: { key: 'unit-test-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
-      - run: ./gradlew --parallel --stacktrace --continue --max-workers=2 test
-      - save_cache:
-          key: 'unit-test-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
-          paths: [ ~/.gradle/caches ]
-      - run:
-          command: mkdir -p ~/junit && find . -type f -regex ".*/build/.*TEST.*xml" -exec cp --parents {} ~/junit/ \;
-          when: always
-      - store_test_results: { path: ~/junit }
-      - store_artifacts: { path: ~/artifacts }
-
-  trial-publish:
-    docker: [{ image: 'circleci/openjdk:11-node' }]
-    environment:
-      CIRCLE_TEST_REPORTS: /home/circleci/junit
-      CIRCLE_ARTIFACTS: /home/circleci/artifacts
-      GRADLE_OPTS: -Dorg.gradle.jvmargs='-Xms3072m -Xmx3072m'
-      _JAVA_OPTIONS: -XX:ActiveProcessorCount=2 -XX:ErrorFile=/home/circleci/artifacts/hs_err_pid%p.log -XX:HeapDumpPath=/home/circleci/artifacts
-    steps:
-      - attach_workspace: { at: /home/circleci }
-      - restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
-      - restore_cache: { key: 'trial-publish-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
-      - run: ./gradlew --stacktrace publishToMavenLocal
-      - save_cache:
-          key: 'trial-publish-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
-          paths: [ ~/.gradle/caches ]
-      - store_test_results: { path: ~/junit }
-      - store_artifacts: { path: ~/artifacts }
-
-  publish:
-    docker: [{ image: 'circleci/openjdk:11-node' }]
-    environment:
-      CIRCLE_TEST_REPORTS: /home/circleci/junit
-      CIRCLE_ARTIFACTS: /home/circleci/artifacts
-      GRADLE_OPTS: -Dorg.gradle.jvmargs='-Xms3072m -Xmx3072m'
-      _JAVA_OPTIONS: -XX:ActiveProcessorCount=2 -XX:ErrorFile=/home/circleci/artifacts/hs_err_pid%p.log -XX:HeapDumpPath=/home/circleci/artifacts
-    steps:
-      - attach_workspace: { at: /home/circleci }
-      - restore_cache: { key: 'gradle-wrapper-v2-{{ checksum "gradle/wrapper/gradle-wrapper.properties" }}' }
-      - restore_cache: { key: 'publish-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}' }
-      - deploy:
-          command: ./gradlew --parallel --stacktrace --continue publish
-      - save_cache:
-          key: 'publish-gradle-cache-v2-{{ checksum "versions.props" }}-{{ checksum "build.gradle" }}'
-          paths: [ ~/.gradle/caches ]
-      - store_test_results: { path: ~/junit }
-      - store_artifacts: { path: ~/artifacts }
-
   markdown:
     docker: [{ image: 'raviqqe/liche:0.1.1' }]
     steps:
       - checkout
       - run: /liche -d . -r . -v
 
-  circle-all:
-    docker: [{ image: 'circleci/openjdk:11-node' }]
-    resource_class: small
-    steps:
-      - run: {command: echo "All required jobs finished successfully"}
-
 workflows:
   version: 2
   build:
     jobs:
-      - compile:
-          filters: { tags: { only: /.*/ } }
-
-      - unit-test:
-          requires: [ compile ]
-          filters: { tags: { only: /.*/ } }
-
-      - check:
-          requires: [ compile ]
+      # Everything is done in a single CircleCI job because spinning up containers in circle.com is much
+      # slower than internally
+      - build:
           filters: { tags: { only: /.*/ } }
 
       - markdown:
           filters: { tags: { only: /.*/ } }
-
-      - trial-publish:
-          requires: [ compile ]
-          filters: { branches: { ignore: develop } }
-
-      # Catch-all for all required checks
-      - circle-all:
-          requires: [ unit-test, check, trial-publish ]
-          filters: { tags: { only: /.*/ } }
-
-      - publish:
-          requires: [ circle-all ]
-          filters: { tags: { only: /.*/ }, branches: { only: develop } }
