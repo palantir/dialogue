@@ -23,8 +23,14 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Metric;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -37,8 +43,10 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tracing.TestTracing;
+import com.palantir.tritium.metrics.registry.MetricName;
 import java.nio.file.Paths;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -92,7 +100,7 @@ public final class DialogueChannelsTest {
     private Response response;
 
     private Request request = Request.builder().build();
-    private Channel channel;
+    private DialogueChannel channel;
 
     @BeforeEach
     public void before() {
@@ -156,6 +164,35 @@ public final class DialogueChannelsTest {
     }
 
     @Test
+    @SuppressWarnings("FutureReturnValueIgnored") // intentionally spawning a bunch of throwaway requests
+    void live_reloading_an_extra_uri_allows_queued_requests_to_make_progress() {
+        when(delegate.execute(any(), any())).thenReturn(SettableFuture.create());
+
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(uri -> delegate)
+                .build();
+
+        int numRequests = 100; // we kick off a bunch of requests but don't bother waiting for their futures.
+        for (int i = 0; i < numRequests; i++) {
+            channel.execute(endpoint, request);
+        }
+
+        assertThat(queuedRequestsCounter())
+                .describedAs("stubConfig has one uri and ConcurrencyLimitedChannel's initialLimit is 20, so there "
+                        + "should be 80 queued up requests")
+                .isEqualTo(numRequests - ConcurrencyLimitedChannel.INITIAL_LIMIT);
+
+        // live-reload from 0 -> 1
+        channel.updateUris(ImmutableList.of(stubConfig.uris().get(0), "https://some-other-uri"));
+
+        assertThat(queuedRequestsCounter())
+                .describedAs("Now that we have two uris, another batch of 20 requests can get out the door")
+                .isEqualTo(numRequests - 2 * ConcurrencyLimitedChannel.INITIAL_LIMIT);
+    }
+
+    @Test
     @TestTracing(snapshot = true)
     public void traces_on_retries() throws Exception {
         when(response.code()).thenReturn(429);
@@ -171,5 +208,13 @@ public final class DialogueChannelsTest {
         try (Response response = channel.execute(endpoint, request).get()) {
             assertThat(response.code()).isEqualTo(200);
         }
+    }
+
+    private long queuedRequestsCounter() {
+        Map<MetricName, Metric> metrics = Maps.filterKeys(
+                stubConfig.taggedMetricRegistry().getMetrics(),
+                name -> Objects.equals(name.safeName(), "dialogue.client.requests.queued"));
+        Counter counter = (Counter) Iterables.getOnlyElement(metrics.values());
+        return counter.getCount();
     }
 }
