@@ -29,7 +29,7 @@ import com.palantir.tracing.api.TraceHttpHeaders;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
-    public static final String OPERATION = "Dialogue-http-request";
+    private static final String OPERATION = "Dialogue-http-request";
     private final Channel delegate;
 
     TraceEnrichingChannel(Channel delegate) {
