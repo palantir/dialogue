@@ -63,7 +63,7 @@ public final class DialogueChannelsTest {
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
-    private static final ClientConfiguration stubConfig = ClientConfiguration.builder()
+    private final ClientConfiguration stubConfig = ClientConfiguration.builder()
             .from(ClientConfigurations.of(ServiceConfiguration.builder()
                     .addUris("http://localhost")
                     .security(SSL_CONFIG)
@@ -235,7 +235,7 @@ public final class DialogueChannelsTest {
         }
     }
 
-    private static long queuedRequestsCounter() {
+    private long queuedRequestsCounter() {
         Map<MetricName, Metric> metrics = Maps.filterKeys(
                 stubConfig.taggedMetricRegistry().getMetrics(),
                 name -> Objects.equals(name.safeName(), "dialogue.client.requests.queued"));
