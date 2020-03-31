@@ -21,13 +21,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Metric;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -43,10 +41,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tracing.TestTracing;
-import com.palantir.tritium.metrics.registry.MetricName;
 import java.nio.file.Paths;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -179,17 +175,16 @@ public final class DialogueChannelsTest {
             channel.execute(endpoint, request);
         }
 
-        assertThat(queuedRequestsCounter())
-                .describedAs("stubConfig has one uri and ConcurrencyLimitedChannel's initialLimit is 20, so there "
-                        + "should be 80 queued up requests")
-                .isEqualTo(numRequests - ConcurrencyLimitedChannel.INITIAL_LIMIT);
+        // stubConfig has 1 uri and ConcurrencyLimitedChannel initialLimit is 20
+        verify(delegate, times(ConcurrencyLimitedChannel.INITIAL_LIMIT)).execute(any(), any());
 
-        // live-reload from 0 -> 1
-        channel.updateUris(ImmutableList.of(stubConfig.uris().get(0), "https://some-other-uri"));
+        // live-reload from 1 -> 2 uris
+        ImmutableList<String> reloadedUris = ImmutableList.of(stubConfig.uris().get(0), "https://some-other-uri");
+        channel.updateUris(reloadedUris);
 
-        assertThat(queuedRequestsCounter())
-                .describedAs("Now that we have two uris, another batch of 20 requests can get out the door")
-                .isEqualTo(numRequests - 2 * ConcurrencyLimitedChannel.INITIAL_LIMIT);
+        // Now that we have two uris, another batch of 20 requests can get out the door
+        verify(delegate, times(reloadedUris.size() * ConcurrencyLimitedChannel.INITIAL_LIMIT))
+                .execute(any(), any());
     }
 
     @Test
@@ -208,13 +203,5 @@ public final class DialogueChannelsTest {
         try (Response response = channel.execute(endpoint, request).get()) {
             assertThat(response.code()).isEqualTo(200);
         }
-    }
-
-    private long queuedRequestsCounter() {
-        Map<MetricName, Metric> metrics = Maps.filterKeys(
-                stubConfig.taggedMetricRegistry().getMetrics(),
-                name -> Objects.equals(name.safeName(), "dialogue.client.requests.queued"));
-        Counter counter = (Counter) Iterables.getOnlyElement(metrics.values());
-        return counter.getCount();
     }
 }
