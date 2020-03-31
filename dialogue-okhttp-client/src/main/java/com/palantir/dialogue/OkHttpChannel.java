@@ -133,7 +133,7 @@ public final class OkHttpChannel implements Channel {
             }
 
             @Override
-            public boolean cancel(boolean mayInterruptIfRunning) {
+            public boolean cancel(boolean _mayInterruptIfRunning) {
                 okCall.cancel();
                 return false;
             }

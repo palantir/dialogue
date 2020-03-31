@@ -134,12 +134,12 @@ public final class OkHttpChannels {
         // some servers fail to implement this piece of the specification, which can violate our
         // assumptions.
         // This check can be removed once we've migrated to TLSv1.3+
-        // if (!config.enableGcmCipherSuites() || !config.enableHttp2().orElse(DEFAULT_ENABLE_HTTP2)) {
-        //     builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
-        // }
+        if (!config.enableGcmCipherSuites() || !config.enableHttp2().orElse(DEFAULT_ENABLE_HTTP2)) {
+            builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
+        }
 
-        // TODO(dfox): get the h2 upgrading working
-        builder.protocols(ImmutableList.of(Protocol.H2_PRIOR_KNOWLEDGE));
+        // // TODO(dfox): get the h2 upgrading working
+        // builder.protocols(ImmutableList.of(Protocol.H2_PRIOR_KNOWLEDGE));
 
         return builder.build();
     }

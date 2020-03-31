@@ -148,13 +148,14 @@ public class IntegrationTest {
             outputStream.write(" World".getBytes(StandardCharsets.UTF_8));
         };
 
-
         ClientConfiguration clientConf = clientConf(getUri(undertow));
-        Channel okhttpChannel = OkHttpChannels.create(clientConf);
-        Channel rawOkhttp = OkHttpChannel.of(OkHttpChannels.createOkHttpClient(clientConf), new URL(getUri(undertow)));
-        // ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
-        DefaultConjureRuntime runtime = DefaultConjureRuntime.builder().build();
-        SampleServiceAsync sampleServiceAsync = SampleServiceAsync.of(rawOkhttp, runtime);
+
+        Channel channel = OkHttpChannel.of(OkHttpChannels.createOkHttpClient(clientConf), new URL(getUri(undertow)));
+        // Channel channel = OkHttpChannels.create(clientConf);
+        // Channel channel = ApacheHttpClientChannels.create(clientConf(getUri(undertow)));
+
+        SampleServiceAsync sampleServiceAsync =
+                SampleServiceAsync.of(channel, DefaultConjureRuntime.builder().build());
 
         ListenableFuture<Optional<InputStream>> future = sampleServiceAsync.getOptionalBinary();
 

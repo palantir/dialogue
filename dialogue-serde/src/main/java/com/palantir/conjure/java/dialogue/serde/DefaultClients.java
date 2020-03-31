@@ -79,8 +79,8 @@ enum DefaultClients implements Clients {
                     }
 
                     @Override
-                    public void onFailure(Throwable t) {
-                        settableFuture.setException(t);
+                    public void onFailure(Throwable throwable) {
+                        settableFuture.setException(throwable);
                     }
                 },
                 MoreExecutors.directExecutor());
