@@ -30,6 +30,8 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.OkHttpChannel;
 import com.palantir.dialogue.OkHttpChannels;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
@@ -47,11 +49,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPOutputStream;
@@ -119,48 +123,57 @@ public class IntegrationTest {
 
     @Test
     public void can_clients_abort_in_progress_server_work() throws Exception {
+        AtomicBoolean unnecessaryWorkDone = new AtomicBoolean(false);
         undertowHandler = exchange -> {
             exchange.setStatusCode(200);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
             System.out.println(exchange.getProtocol());
 
-            AtomicBoolean closed = new AtomicBoolean(false);
-            exchange.getConnection().addCloseListener(connection -> {
-                System.out.println("CLOSE LISTENER FIRED");
-                closed.set(true);
-            });
+            CountDownLatch abortNow = new CountDownLatch(1);
+            exchange.getConnection().addCloseListener(connection -> abortNow.countDown());
 
             OutputStream outputStream = exchange.getOutputStream();
             outputStream.write("Hello".getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
             System.out.println("First chunk written");
 
-            Thread.sleep(3000);
-            if (closed.get()) {
+            boolean abortSignaled = abortNow.await(3, TimeUnit.SECONDS);
+            if (abortSignaled) {
                 System.out.println("Not writing second chunk as request has been closed");
                 return;
             }
 
             System.out.println("Writing second chunk");
+            unnecessaryWorkDone.set(true);
             outputStream.write(" World".getBytes(StandardCharsets.UTF_8));
         };
 
-        System.out.println(getUri(undertow));
 
-        // Thread.sleep(200_000);
+        ClientConfiguration clientConf = clientConf(getUri(undertow));
+        Channel okhttpChannel = OkHttpChannels.create(clientConf);
+        Channel rawOkhttp = OkHttpChannel.of(OkHttpChannels.createOkHttpClient(clientConf), new URL(getUri(undertow)));
+        // ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
+        DefaultConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+        SampleServiceAsync sampleServiceAsync = SampleServiceAsync.of(rawOkhttp, runtime);
 
-        SampleServiceAsync sampleServiceAsync = SampleServiceAsync.of(
-                OkHttpChannels.create(clientConf(getUri(undertow))),
-                // ApacheHttpClientChannels .create(clientConf(getUri(undertow))),
-                DefaultConjureRuntime.builder().build());
         ListenableFuture<Optional<InputStream>> future = sampleServiceAsync.getOptionalBinary();
+
         InputStream inputStream = future.get().get();
         for (int i = 0; i < 5; i++) {
             System.out.println(inputStream.available() + " " + (char) inputStream.read());
         }
-        // serverSideInterrupt.countDown();
+
+        System.out.println("Attempting to cancel");
         future.cancel(true);
-        assertThat(inputStream).describedAs("Remaining data on the stream").hasContent(" World");
+
+        try {
+            assertThat(inputStream).describedAs("Remaining data on the stream").hasContent(" World");
+        } catch (Exception e) {
+            System.out.println(e);
+        }
+        assertThat(unnecessaryWorkDone)
+                .describedAs("Server handler should be closed before time is spent doing unnecessary work")
+                .isFalse();
     }
 
     @Test
