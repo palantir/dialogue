@@ -45,8 +45,12 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
+
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
     private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
@@ -89,6 +93,20 @@ public final class DialogueChannel implements Channel {
         // Uris didn't really change so nothing to do
         if (limitedChannelByUri.keySet().equals(uniqueUris)) {
             return;
+        }
+
+        if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
+            log.info(
+                    "Updated to zero uris",
+                    SafeArg.of("channelName", channelName),
+                    SafeArg.of("prevNumUris", limitedChannelByUri.size()));
+        }
+        boolean firstTime = nodeSelectionStrategy.get() == null;
+        if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
+            log.info(
+                    "Updated from zero uris",
+                    SafeArg.of("channelName", channelName),
+                    SafeArg.of("numUris", uris.size()));
         }
 
         Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
