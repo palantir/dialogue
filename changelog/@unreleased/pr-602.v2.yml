@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: A DialogueChannel can now be constructed with zero uris (or live-reloaded
+    to zero uris).  In this state, all requests are just queued up and drained when
+    uris become available.
+  links:
+  - https://github.com/palantir/dialogue/pull/602
