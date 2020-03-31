@@ -44,11 +44,13 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
@@ -110,6 +112,41 @@ public class IntegrationTest {
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    @Test
+    public void can_clients_abort_in_progress_server_work() throws Exception {
+        CountDownLatch serverSideInterrupt = new CountDownLatch(1);
+        undertowHandler = exchange -> {
+            exchange.setStatusCode(200);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
+
+            System.out.println(exchange.getProtocol());
+
+            OutputStream outputStream = exchange.getOutputStream();
+            outputStream.write("Hello".getBytes(StandardCharsets.UTF_8));
+            outputStream.flush();
+            System.out.println("First chunk written");
+
+            if (serverSideInterrupt.await(4, TimeUnit.SECONDS)) {
+                throw new InterruptedException();
+            }
+
+            System.out.println("Writing second chunk. Interrupted=" + Thread.currentThread().isInterrupted());
+            outputStream.write(" World".getBytes(StandardCharsets.UTF_8));
+        };
+
+        SampleServiceAsync sampleServiceAsync = sampleServiceAsync();
+        ListenableFuture<Optional<InputStream>> future = sampleServiceAsync.getOptionalBinary();
+        InputStream inputStream = future.get().get();
+        for (int i = 0; i < 5; i++) {
+            System.out.println(inputStream.available() + " " + (char) inputStream.read());
+        }
+        // serverSideInterrupt.countDown();
+        future.cancel(true);
+        assertThat(inputStream)
+                .describedAs("Remaining data on the stream")
+                .hasContent(" World");
     }
 
     @Test
@@ -182,7 +219,7 @@ public class IntegrationTest {
                 .from(ClientConfigurations.of(ServiceConfiguration.builder()
                         .addUris(uri)
                         .security(SSL_CONFIG)
-                        .readTimeout(Duration.ofSeconds(1))
+                        .readTimeout(Duration.ofSeconds(10))
                         .writeTimeout(Duration.ofSeconds(1))
                         .connectTimeout(Duration.ofSeconds(1))
                         .build()))
