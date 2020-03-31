@@ -22,6 +22,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
@@ -40,6 +41,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +61,62 @@ enum DefaultClients implements Clients {
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
-        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+
+        return manualTransform(response, deserializer);
+    }
+
+    private static <T> ListenableFuture<T> manualTransform(
+            ListenableFuture<Response> inputFuture, Deserializer<T> deserializer) {
+        SettableFuture<T> settableFuture = SettableFuture.create();
+        Futures.addCallback(
+                inputFuture,
+                new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response result) {
+                        // TODO(dfox): try catch?
+                        T deserialized = deserializer.deserialize(result);
+                        settableFuture.set(deserialized);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        settableFuture.setException(t);
+                    }
+                },
+                MoreExecutors.directExecutor());
+
+        return new ListenableFuture<T>() {
+            @Override
+            public void addListener(Runnable listener, Executor executor) {
+                settableFuture.addListener(listener, executor);
+            }
+
+            @Override
+            public T get() throws InterruptedException, ExecutionException {
+                return settableFuture.get();
+            }
+
+            @Override
+            public T get(long timeout, TimeUnit unit)
+                    throws InterruptedException, ExecutionException, TimeoutException {
+                return settableFuture.get(timeout, unit);
+            }
+
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                return inputFuture.cancel(mayInterruptIfRunning);
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return inputFuture.isCancelled();
+            }
+
+            @Override
+            public boolean isDone() {
+                return inputFuture.isDone();
+            }
+        };
     }
 
     private static ListenableFuture<Response> closeRequestBodyOnCompletion(
