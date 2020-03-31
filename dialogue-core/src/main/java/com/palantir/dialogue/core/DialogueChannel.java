@@ -119,7 +119,6 @@ public final class DialogueChannel implements Channel {
         channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TraceEnrichingChannel(channel);
-        channel = new TracedChannel(channel, "Dialogue-http-request");
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
