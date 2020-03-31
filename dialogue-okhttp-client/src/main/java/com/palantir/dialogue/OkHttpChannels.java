@@ -93,6 +93,15 @@ public final class OkHttpChannels {
     private OkHttpChannels() {}
 
     public static Channel create(ClientConfiguration config) {
+        OkHttpClient client = createOkHttpClient(config);
+        return DialogueChannel.builder()
+                .channelName("okhtpp-channel")
+                .clientConfiguration(config)
+                .channelFactory(uri -> OkHttpChannel.of(client, url(uri)))
+                .build();
+    }
+
+    public static OkHttpClient createOkHttpClient(ClientConfiguration config) {
         Preconditions.checkArgument(
                 !config.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
         Preconditions.checkArgument(!config.meshProxy().isPresent(), "Mesh proxy is not supported");
@@ -125,16 +134,14 @@ public final class OkHttpChannels {
         // some servers fail to implement this piece of the specification, which can violate our
         // assumptions.
         // This check can be removed once we've migrated to TLSv1.3+
-        if (!config.enableGcmCipherSuites() || !config.enableHttp2().orElse(DEFAULT_ENABLE_HTTP2)) {
-            builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
-        }
+        // if (!config.enableGcmCipherSuites() || !config.enableHttp2().orElse(DEFAULT_ENABLE_HTTP2)) {
+        //     builder.protocols(ImmutableList.of(Protocol.HTTP_1_1));
+        // }
 
-        OkHttpClient client = builder.build();
-        return DialogueChannel.builder()
-                .channelName("okhtpp-channel")
-                .clientConfiguration(config)
-                .channelFactory(uri -> OkHttpChannel.of(client, url(uri)))
-                .build();
+        // TODO(dfox): get the h2 upgrading working
+        builder.protocols(ImmutableList.of(Protocol.H2_PRIOR_KNOWLEDGE));
+
+        return builder.build();
     }
 
     private static URL url(String uri) {
