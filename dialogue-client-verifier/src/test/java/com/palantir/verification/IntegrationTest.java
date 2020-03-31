@@ -30,6 +30,7 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.OkHttpChannels;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -37,6 +38,7 @@ import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import io.undertow.Undertow;
+import io.undertow.UndertowOptions;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.util.Headers;
@@ -50,8 +52,8 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -70,6 +72,7 @@ public class IntegrationTest {
     @Before
     public void before() {
         undertow = Undertow.builder()
+                .setServerOption(UndertowOptions.ENABLE_HTTP2, true)
                 .addHttpListener(
                         0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
@@ -116,27 +119,40 @@ public class IntegrationTest {
 
     @Test
     public void can_clients_abort_in_progress_server_work() throws Exception {
-        CountDownLatch serverSideInterrupt = new CountDownLatch(1);
         undertowHandler = exchange -> {
             exchange.setStatusCode(200);
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
-
             System.out.println(exchange.getProtocol());
+
+            AtomicBoolean closed = new AtomicBoolean(false);
+            exchange.getConnection().addCloseListener(connection -> {
+                System.out.println("CLOSE LISTENER FIRED");
+                closed.set(true);
+            });
 
             OutputStream outputStream = exchange.getOutputStream();
             outputStream.write("Hello".getBytes(StandardCharsets.UTF_8));
             outputStream.flush();
             System.out.println("First chunk written");
 
-            if (serverSideInterrupt.await(4, TimeUnit.SECONDS)) {
-                throw new InterruptedException();
+            Thread.sleep(3000);
+            if (closed.get()) {
+                System.out.println("Not writing second chunk as request has been closed");
+                return;
             }
 
-            System.out.println("Writing second chunk. Interrupted=" + Thread.currentThread().isInterrupted());
+            System.out.println("Writing second chunk");
             outputStream.write(" World".getBytes(StandardCharsets.UTF_8));
         };
 
-        SampleServiceAsync sampleServiceAsync = sampleServiceAsync();
+        System.out.println(getUri(undertow));
+
+        // Thread.sleep(200_000);
+
+        SampleServiceAsync sampleServiceAsync = SampleServiceAsync.of(
+                OkHttpChannels.create(clientConf(getUri(undertow))),
+                // ApacheHttpClientChannels .create(clientConf(getUri(undertow))),
+                DefaultConjureRuntime.builder().build());
         ListenableFuture<Optional<InputStream>> future = sampleServiceAsync.getOptionalBinary();
         InputStream inputStream = future.get().get();
         for (int i = 0; i < 5; i++) {
@@ -144,9 +160,7 @@ public class IntegrationTest {
         }
         // serverSideInterrupt.countDown();
         future.cancel(true);
-        assertThat(inputStream)
-                .describedAs("Remaining data on the stream")
-                .hasContent(" World");
+        assertThat(inputStream).describedAs("Remaining data on the stream").hasContent(" World");
     }
 
     @Test
@@ -219,6 +233,8 @@ public class IntegrationTest {
                 .from(ClientConfigurations.of(ServiceConfiguration.builder()
                         .addUris(uri)
                         .security(SSL_CONFIG)
+                        .enableHttp2(true)
+                        .enableGcmCipherSuites(true)
                         .readTimeout(Duration.ofSeconds(10))
                         .writeTimeout(Duration.ofSeconds(1))
                         .connectTimeout(Duration.ofSeconds(1))

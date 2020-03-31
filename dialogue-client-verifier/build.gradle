@@ -29,6 +29,7 @@ dependencies {
 
     testImplementation project('verification-server-api')
     testImplementation project(':dialogue-apache-hc4-client')
+    testImplementation project(':dialogue-okhttp-client')
     testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
     testImplementation 'junit:junit'
