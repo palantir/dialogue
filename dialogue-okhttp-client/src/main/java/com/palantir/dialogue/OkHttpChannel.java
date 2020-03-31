@@ -23,6 +23,10 @@ import com.palantir.logsafe.Preconditions;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import javax.annotation.Nullable;
 import okhttp3.Callback;
 import okhttp3.MediaType;
@@ -98,18 +102,51 @@ public final class OkHttpChannel implements Channel {
 
         okhttp3.Call okCall = client.newCall(okRequest.build());
 
-        SettableFuture<Response> future = SettableFuture.create();
+        SettableFuture<Response> settableFuture = SettableFuture.create();
         okCall.enqueue(new Callback() {
             @Override
             public void onFailure(okhttp3.Call _call, IOException exception) {
-                future.setException(exception);
+                settableFuture.setException(exception);
             }
 
             @Override
             public void onResponse(okhttp3.Call _call, okhttp3.Response response) {
-                future.set(OkHttpResponse.wrap(response));
+                settableFuture.set(OkHttpResponse.wrap(response));
             }
         });
-        return future;
+
+        return new ListenableFuture<Response>() {
+            @Override
+            public void addListener(Runnable listener, Executor executor) {
+                settableFuture.addListener(listener, executor);
+            }
+
+            @Override
+            public Response get() throws InterruptedException, ExecutionException {
+                return settableFuture.get();
+            }
+
+            @Override
+            public Response get(long timeout, TimeUnit unit)
+                    throws InterruptedException, ExecutionException, TimeoutException {
+                return settableFuture.get(timeout, unit);
+            }
+
+            @Override
+            public boolean cancel(boolean mayInterruptIfRunning) {
+                okCall.cancel();
+                return false;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return okCall.isCanceled();
+            }
+
+            @Override
+            public boolean isDone() {
+                return okCall.isExecuted();
+            }
+        };
     }
 }
