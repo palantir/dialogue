@@ -42,6 +42,8 @@ import javax.annotation.Nullable;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
+    static final int INITIAL_LIMIT = 20;
+
     @Nullable
     private static final Void NO_CONTEXT = null;
 
@@ -86,7 +88,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
         AIMDLimit aimdLimit = AIMDLimit.newBuilder()
                 // Explicitly set values to prevent library changes from breaking us
-                .initialLimit(20)
+                .initialLimit(INITIAL_LIMIT)
                 .minLimit(1)
                 .backoffRatio(0.9)
                 // Don't count slow calls as a sign of the server being overloaded

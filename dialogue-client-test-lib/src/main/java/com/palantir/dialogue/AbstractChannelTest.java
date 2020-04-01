@@ -29,6 +29,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.tracing.TestTracing;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -346,6 +347,7 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    @TestTracing(snapshot = true)
     public void requestAreTraced() throws Exception {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());

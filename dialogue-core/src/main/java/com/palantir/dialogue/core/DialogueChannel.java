@@ -45,10 +45,15 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel {
+    private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
+
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
     private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
+    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
 
     private final String channelName;
     private final ClientConfiguration clientConfiguration;
@@ -72,14 +77,10 @@ public final class DialogueChannel implements Channel {
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.clock = clock;
         this.random = random;
+        this.queuedChannel =
+                new QueuedChannel(new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics);
         updateUris(clientConfiguration.uris());
-        this.delegate = wrap(
-                channelName,
-                new SupplierChannel(nodeSelectionStrategy::get),
-                clientConfiguration,
-                scheduler,
-                random,
-                clientMetrics);
+        this.delegate = wrap(queuedChannel, channelName, clientConfiguration, scheduler, random, clientMetrics);
     }
 
     @Override
@@ -92,6 +93,20 @@ public final class DialogueChannel implements Channel {
         // Uris didn't really change so nothing to do
         if (limitedChannelByUri.keySet().equals(uniqueUris)) {
             return;
+        }
+
+        if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
+            log.info(
+                    "Updated to zero uris",
+                    SafeArg.of("channelName", channelName),
+                    SafeArg.of("prevNumUris", limitedChannelByUri.size()));
+        }
+        boolean firstTime = nodeSelectionStrategy.get() == null;
+        if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
+            log.info(
+                    "Updated from zero uris",
+                    SafeArg.of("channelName", channelName),
+                    SafeArg.of("numUris", uris.size()));
         }
 
         Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
@@ -110,6 +125,9 @@ public final class DialogueChannel implements Channel {
                 ImmutableList.copyOf(limitedChannelByUri.values()),
                 random,
                 channelName));
+
+        // some queued requests might be able to make progress on a new uri now
+        queuedChannel.schedule();
     }
 
     private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
@@ -119,7 +137,6 @@ public final class DialogueChannel implements Channel {
         channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TraceEnrichingChannel(channel);
-        channel = new TracedChannel(channel, "Dialogue-http-request");
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
@@ -210,13 +227,13 @@ public final class DialogueChannel implements Channel {
     }
 
     private static Channel wrap(
+            QueuedChannel queuedChannel,
             String channelName,
-            LimitedChannel delegate,
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(new QueuedChannel(delegate, channelName, clientMetrics));
+        Channel channel = new LimitedChannelToChannelAdapter(queuedChannel);
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());
