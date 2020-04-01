@@ -113,6 +113,8 @@ public final class ApacheHttpClientChannels {
         long socketTimeoutMillis =
                 Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
         int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
+        long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(55).toMillis(), socketTimeoutMillis);
+        int connectionPoolInactivityCheckMillis = (int) (idleConnectionTimeoutMillis / 2.5);
 
         SocketConfig socketConfig = SocketConfig.custom().setSoKeepAlive(true).build();
         SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
@@ -138,8 +140,7 @@ public final class ApacheHttpClientChannels {
         connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
         // Increased from two seconds to twenty-five seconds because we have strong support for retries
         // and can optimistically avoid expensive connection checks.
-        connectionManager.setValidateAfterInactivity(
-                Ints.checkedCast(Duration.ofSeconds(25).toMillis()));
+        connectionManager.setValidateAfterInactivity(connectionPoolInactivityCheckMillis);
 
         HttpClientBuilder builder = HttpClients.custom()
                 .setDefaultRequestConfig(RequestConfig.custom()
@@ -152,7 +153,7 @@ public final class ApacheHttpClientChannels {
                         .setRelativeRedirectsAllowed(false)
                         .build())
                 .setDefaultSocketConfig(socketConfig)
-                .evictIdleConnections(55, TimeUnit.SECONDS)
+                .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                 .setConnectionManagerShared(false) // will be closed when the client is closed
                 .setConnectionManager(connectionManager)
                 .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
