@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Apache client idle and validation timeouts scale with socket timeouts
+  links:
+  - https://github.com/palantir/dialogue/pull/608
