@@ -31,22 +31,22 @@ import java.util.function.Supplier;
  * Note that this results in the first request to a given endpoint being more expensive than it would be
  * otherwise, though this is already the case to an extent before the JIT compiler can optimize the path.
  */
-final class DeferredEncoding implements Encoding {
+final class LazilyInitializedEncoding implements Encoding {
 
     private final Encoding delegate;
 
-    DeferredEncoding(Encoding delegate) {
+    LazilyInitializedEncoding(Encoding delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Encoding is required");
     }
 
     @Override
     public <T> Serializer<T> serializer(TypeMarker<T> type) {
-        return new DeferredSerializer<>(() -> delegate.serializer(type));
+        return new LazilyInitializedSerializer<>(() -> delegate.serializer(type));
     }
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
-        return new DeferredDeserializer<>(() -> delegate.deserializer(type));
+        return new LazilyInitializedDeserializer<>(() -> delegate.deserializer(type));
     }
 
     @Override
@@ -61,14 +61,14 @@ final class DeferredEncoding implements Encoding {
 
     @Override
     public String toString() {
-        return "DeferredEncoding{delegate=" + delegate + '}';
+        return "LazilyInitializedEncoding{delegate=" + delegate + '}';
     }
 
-    private static final class DeferredSerializer<T> implements Serializer<T> {
+    private static final class LazilyInitializedSerializer<T> implements Serializer<T> {
 
         private final Supplier<Serializer<T>> delegate;
 
-        DeferredSerializer(Supplier<Serializer<T>> delegate) {
+        LazilyInitializedSerializer(Supplier<Serializer<T>> delegate) {
             this.delegate = Suppliers.memoize(delegate::get);
         }
 
@@ -78,11 +78,11 @@ final class DeferredEncoding implements Encoding {
         }
     }
 
-    private static final class DeferredDeserializer<T> implements Deserializer<T> {
+    private static final class LazilyInitializedDeserializer<T> implements Deserializer<T> {
 
         private final Supplier<Deserializer<T>> delegate;
 
-        DeferredDeserializer(Supplier<Deserializer<T>> delegate) {
+        LazilyInitializedDeserializer(Supplier<Deserializer<T>> delegate) {
             this.delegate = Suppliers.memoize(delegate::get);
         }
 
