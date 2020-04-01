@@ -60,9 +60,10 @@ final class ConjureBodySerDe implements BodySerDe {
      * by a given request, or the first serializer if no such serializer can be found.
      */
     ConjureBodySerDe(
-            List<WeightedEncoding> encodings,
+            List<WeightedEncoding> rawEncodings,
             ErrorDecoder errorDecoder,
             EmptyContainerDeserializer emptyContainerDeserializer) {
+        List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -79,6 +80,13 @@ final class ConjureBodySerDe implements BodySerDe {
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER);
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
+    }
+
+    private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
+        return input.stream()
+                .map(weightedEncoding -> WeightedEncoding.of(
+                        new LazilyInitializedEncoding(weightedEncoding.encoding()), weightedEncoding.weight()))
+                .collect(ImmutableList.toImmutableList());
     }
 
     private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
