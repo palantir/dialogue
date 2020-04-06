@@ -23,15 +23,14 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.TestEndpoints;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 
 final class ActiveRequestInstrumentationChannelTest {
+    private static final Endpoint ENDPOINT = TestEndpoints.GET;
 
     @Test
     public void testActiveRequests() {
@@ -41,42 +40,15 @@ final class ActiveRequestInstrumentationChannelTest {
         ActiveRequestInstrumentationChannel instrumented =
                 new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", metrics);
         ListenableFuture<Response> result =
-                instrumented.execute(StubEndpoint.INSTANCE, Request.builder().build());
+                instrumented.execute(ENDPOINT, Request.builder().build());
         assertThat(result).isNotDone();
         Counter counter = metrics.requestActive()
                 .channelName("my-channel")
-                .serviceName("StubService")
+                .serviceName(ENDPOINT.serviceName())
                 .stage("stage")
                 .build();
-        assertThat(counter.getCount()).isOne();
+        assertThat(counter.getCount()).describedAs("metric").isOne();
         future.cancel(false);
-        assertThat(counter.getCount()).isZero();
-    }
-
-    enum StubEndpoint implements Endpoint {
-        INSTANCE;
-
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
-
-        @Override
-        public String serviceName() {
-            return "StubService";
-        }
-
-        @Override
-        public String endpointName() {
-            return "stubEndpoint";
-        }
-
-        @Override
-        public String version() {
-            return "0.0.1";
-        }
+        assertThat(counter.getCount()).describedAs("metric").isZero();
     }
 }
