@@ -24,25 +24,19 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
+import com.palantir.dialogue.TestEndpoints;
+import com.palantir.dialogue.TestResponse;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -56,7 +50,6 @@ public class RetryingChannelTest {
     private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
             Futures.immediateFailedFuture(new IllegalArgumentException("FAILED"));
-    private static final TestEndpoint ENDPOINT = new TestEndpoint();
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
@@ -73,7 +66,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
@@ -89,7 +82,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response).isDone();
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
@@ -109,7 +102,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThatThrownBy(response::get)
                 .hasRootCauseExactlyInstanceOf(IllegalArgumentException.class)
                 .hasRootCauseMessage("FAILED");
@@ -126,9 +119,9 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThatThrownBy(response::get).hasCauseInstanceOf(IllegalArgumentException.class);
-        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(TestEndpoints.GET, REQUEST);
     }
 
     @Test
@@ -144,12 +137,12 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response).isDone();
         assertThat(response.get())
                 .as("After retries are exhausted the 429 response should be returned")
                 .isSameAs(mockResponse);
-        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(TestEndpoints.GET, REQUEST);
     }
 
     @Test
@@ -165,12 +158,12 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response).isDone();
         assertThat(response.get())
                 .as("After retries are exhausted the 503 response should be returned")
                 .isSameAs(mockResponse);
-        verify(channel, times(4)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(4)).execute(TestEndpoints.GET, REQUEST);
     }
 
     @Test
@@ -186,10 +179,10 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response).isDone();
         assertThat(response.get().code()).isEqualTo(429);
-        verify(channel, times(1)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(1)).execute(TestEndpoints.GET, REQUEST);
     }
 
     @Test
@@ -205,10 +198,10 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response).isDone();
         assertThat(response.get().code()).isEqualTo(503);
-        verify(channel, times(1)).execute(ENDPOINT, REQUEST);
+        verify(channel, times(1)).execute(TestEndpoints.GET, REQUEST);
     }
 
     @Test
@@ -229,7 +222,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response.get(1, TimeUnit.SECONDS).code()).isEqualTo(200);
 
         verify(response1, times(1)).close();
@@ -247,7 +240,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> retryingResult = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> retryingResult = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(retryingResult.cancel(true)).isTrue();
         assertThat(delegateResult).as("Failed to cancel the delegate future").isCancelled();
     }
@@ -265,7 +258,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(SocketTimeoutException.class);
     }
 
@@ -282,7 +275,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
@@ -300,7 +293,7 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(ENDPOINT, REQUEST);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoints.GET, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }
 
@@ -317,7 +310,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(
-                ENDPOINT,
+                TestEndpoints.GET,
                 Request.builder()
                         .body(new RequestBody() {
                             @Override
@@ -348,50 +341,5 @@ public class RetryingChannelTest {
         Response response = mock(Response.class);
         when(response.code()).thenReturn(status);
         return response;
-    }
-
-    private static final class TestResponse implements Response {
-        @Override
-        public InputStream body() {
-            return new ByteArrayInputStream(new byte[0]);
-        }
-
-        @Override
-        public int code() {
-            return 200;
-        }
-
-        @Override
-        public ListMultimap<String, String> headers() {
-            return ImmutableListMultimap.of();
-        }
-
-        @Override
-        public void close() {}
-    }
-
-    private static final class TestEndpoint implements Endpoint {
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
-
-        @Override
-        public String serviceName() {
-            return "service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "1.0.0";
-        }
     }
 }

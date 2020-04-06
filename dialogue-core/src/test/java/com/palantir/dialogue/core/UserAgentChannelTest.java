@@ -23,10 +23,8 @@ import static org.mockito.Mockito.verify;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.UrlBuilder;
-import java.util.Map;
+import com.palantir.dialogue.TestEndpoints;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,30 +38,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public final class UserAgentChannelTest {
 
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
-    private static final Endpoint endpoint = new Endpoint() {
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
-
-        @Override
-        public String serviceName() {
-            return "test-service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "test-endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "2.3.4";
-        }
-    };
 
     @Mock
     private Channel delegate;
@@ -94,9 +68,9 @@ public final class UserAgentChannelTest {
             dialogueVersion = "0.0.0";
         }
 
-        channel.execute(endpoint, request);
-        verify(delegate).execute(eq(endpoint), requestCaptor.capture());
+        channel.execute(TestEndpoints.GET, request);
+        verify(delegate).execute(eq((Endpoint) TestEndpoints.GET), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
-                .containsExactly("test-class/1.2.3 test-service/2.3.4 dialogue/" + dialogueVersion);
+                .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
     }
 }
