@@ -10,4 +10,5 @@ dependencies {
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.mockito:mockito-core'
     testCompile 'org.awaitility:awaitility'
+    testCompile project(':dialogue-test-common')
 }

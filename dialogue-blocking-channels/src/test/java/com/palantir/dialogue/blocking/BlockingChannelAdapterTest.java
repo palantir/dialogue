@@ -20,8 +20,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Channel;
@@ -29,10 +27,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -43,27 +40,9 @@ import org.junit.jupiter.api.Test;
 
 public class BlockingChannelAdapterTest {
 
-    private static final Response stubResponse = new Response() {
-        @Override
-        public InputStream body() {
-            return new ByteArrayInputStream(new byte[0]);
-        }
+    private final Response stubResponse = new TestResponse().code(200);
 
-        @Override
-        public int code() {
-            return 200;
-        }
-
-        @Override
-        public ListMultimap<String, String> headers() {
-            return ImmutableListMultimap.of();
-        }
-
-        @Override
-        public void close() {}
-    };
-
-    private static final Endpoint stubEndpoint = new Endpoint() {
+    private final Endpoint stubEndpoint = new Endpoint() {
 
         @Override
         public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
