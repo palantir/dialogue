@@ -101,8 +101,8 @@ public enum Strategy {
                 .from(ClientConfigurations.of(ServiceConfiguration.builder()
                         .uris(Collections.emptyList()) // nothing reads this!
                         .security(SslConfiguration.of(
-                                Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),
-                                Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
+                                Paths.get("../dialogue-test-common/src/main/resources/trustStore.jks"),
+                                Paths.get("../dialogue-test-common/src/main/resources/keyStore.jks"),
                                 "keystore"))
                         .build()))
                 .userAgent(UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")))

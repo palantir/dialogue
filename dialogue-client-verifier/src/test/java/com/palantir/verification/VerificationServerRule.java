@@ -42,7 +42,7 @@ public final class VerificationServerRule extends ExternalResource {
 
     private static final Logger log = LoggerFactory.getLogger(VerificationServerRule.class);
     private static final SslConfiguration TRUST_STORE_CONFIGURATION = new SslConfiguration.Builder()
-            .trustStorePath(Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"))
+            .trustStorePath(Paths.get("../dialogue-test-common/src/main/resources/trustStore.jks"))
             .build();
     private static final int PORT = 16298;
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("test", "0.0.0"));

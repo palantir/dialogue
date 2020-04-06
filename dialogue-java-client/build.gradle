@@ -8,7 +8,7 @@ dependencies {
     compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     compile 'com.palantir.safe-logging:preconditions'
 
-    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-test-common')
     testCompile project(':dialogue-serde')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
