@@ -223,6 +223,14 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    public void head_failsWhenBodyIsGiven() {
+        endpoint.method = HttpMethod.HEAD;
+        when(request.body()).thenReturn(Optional.of(body));
+        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
+                .hasMessageContaining("HEAD endpoints must not have a request body");
+    }
+
+    @Test
     public void post_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
@@ -285,6 +293,13 @@ public abstract class AbstractChannelTest {
         endpoint.method = HttpMethod.DELETE;
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("DELETE");
+    }
+
+    @Test
+    public void headMethodYieldsHeadHttpCall() throws InterruptedException {
+        endpoint.method = HttpMethod.HEAD;
+        channel.execute(endpoint, request);
+        assertThat(server.takeRequest().getMethod()).isEqualTo("HEAD");
     }
 
     @Test
