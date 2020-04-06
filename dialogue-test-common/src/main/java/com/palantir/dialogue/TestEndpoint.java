@@ -18,13 +18,8 @@ package com.palantir.dialogue;
 
 import java.util.Map;
 
-public enum TestEndpoints implements Endpoint {
-    POST {
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.POST;
-        }
-    };
+public enum TestEndpoint implements Endpoint {
+    INSTANCE;
 
     @Override
     public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
@@ -32,6 +27,11 @@ public enum TestEndpoints implements Endpoint {
     @Override
     public String serviceName() {
         return "service";
+    }
+
+    @Override
+    public HttpMethod httpMethod() {
+        return HttpMethod.POST;
     }
 
     @Override

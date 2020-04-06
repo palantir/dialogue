@@ -24,7 +24,7 @@ import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.TestEndpoints;
+import com.palantir.dialogue.TestEndpoint;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,8 +68,8 @@ public final class UserAgentChannelTest {
             dialogueVersion = "0.0.0";
         }
 
-        channel.execute(TestEndpoints.POST, request);
-        verify(delegate).execute(eq((Endpoint) TestEndpoints.POST), requestCaptor.capture());
+        channel.execute(TestEndpoint.INSTANCE, request);
+        verify(delegate).execute(eq((Endpoint) TestEndpoint.INSTANCE), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
     }

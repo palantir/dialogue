@@ -38,7 +38,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.TestEndpoints;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
@@ -65,7 +65,7 @@ public final class DialogueChannelsTest {
     @Mock
     private Channel delegate;
 
-    private Endpoint endpoint = TestEndpoints.POST;
+    private Endpoint endpoint = TestEndpoint.INSTANCE;
 
     @Mock
     private Response response;

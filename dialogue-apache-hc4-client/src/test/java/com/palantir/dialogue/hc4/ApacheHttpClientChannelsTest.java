@@ -29,7 +29,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
-import com.palantir.dialogue.TestEndpoints;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -52,12 +52,12 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
-                    channel.execute(TestEndpoints.POST, Request.builder().build());
+                    channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
             assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
         }
 
         ListenableFuture<Response> again =
-                channel.execute(TestEndpoints.POST, Request.builder().build());
+                channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
         assertThatThrownBy(again::get).hasMessageContaining("Connection pool shut down");
     }
 
@@ -70,7 +70,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
             ListenableFuture<Response> future =
-                    channel.execute(TestEndpoints.POST, Request.builder().build());
+                    channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
 
             TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
             try (Response response = Futures.getUnchecked(future)) {

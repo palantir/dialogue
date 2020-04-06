@@ -83,12 +83,12 @@ public abstract class AbstractProxyConfigTest {
         Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
-                directChannel.execute(TestEndpoints.POST, request).get()) {
+                directChannel.execute(TestEndpoint.INSTANCE, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("server");
         }
         try (Response response =
-                proxiedChannel.execute(TestEndpoints.POST, request).get()) {
+                proxiedChannel.execute(TestEndpoint.INSTANCE, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("proxyServer");
         }
@@ -111,7 +111,7 @@ public abstract class AbstractProxyConfigTest {
         Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
-                proxiedChannel.execute(TestEndpoints.POST, request).get()) {
+                proxiedChannel.execute(TestEndpoint.INSTANCE, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("proxyServer");
         }

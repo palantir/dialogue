@@ -25,12 +25,12 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.TestEndpoints;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import org.junit.jupiter.api.Test;
 
 final class ActiveRequestInstrumentationChannelTest {
-    private static final Endpoint ENDPOINT = TestEndpoints.POST;
+    private static final Endpoint ENDPOINT = TestEndpoint.INSTANCE;
 
     @Test
     public void testActiveRequests() {
