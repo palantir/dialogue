@@ -25,6 +25,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,15 +62,11 @@ public final class UserAgentChannelTest {
     @Test
     public void injectsDialogueVersionAndEndpointVersion() {
         // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
-        final String dialogueVersion;
-        if (System.getenv().get("CI") != null) {
-            dialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        } else {
-            dialogueVersion = "0.0.0";
-        }
+        String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
 
-        channel.execute(TestEndpoint.INSTANCE, request);
-        verify(delegate).execute(eq((Endpoint) TestEndpoint.INSTANCE), requestCaptor.capture());
+        channel.execute(TestEndpoint.POST, request);
+        verify(delegate).execute(eq((Endpoint) TestEndpoint.POST), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
     }

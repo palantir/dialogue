@@ -51,7 +51,7 @@ public class BlockingChannelAdapterTest {
             return stubResponse;
         });
         ListenableFuture<Response> result =
-                channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         assertThat(result).isNotDone();
         latch.countDown();
         Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
@@ -66,7 +66,7 @@ public class BlockingChannelAdapterTest {
             throw new SafeRuntimeException("expected");
         });
         ListenableFuture<Response> result =
-                channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         Awaitility.waitAtMost(Duration.ofSeconds(3)).until(result::isDone);
         assertThatThrownBy(result::get)
                 .isInstanceOf(ExecutionException.class)
@@ -87,7 +87,7 @@ public class BlockingChannelAdapterTest {
             return response;
         });
         ListenableFuture<Response> result =
-                channel.execute(TestEndpoint.INSTANCE, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         channelLatch.await();
         assertThat(result.cancel(true)).isTrue();
         assertThat(result).isCancelled();
