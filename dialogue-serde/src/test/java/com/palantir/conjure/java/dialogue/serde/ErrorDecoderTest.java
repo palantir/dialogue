@@ -24,8 +24,6 @@ import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ListMultimap;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -33,13 +31,9 @@ import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import javax.annotation.CheckForNull;
-import javax.ws.rs.core.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -67,7 +61,8 @@ public final class ErrorDecoderTest {
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {
         for (int code : ImmutableList.of(300, 400, 404, 500)) {
-            Response response = response(code, "application/json", SERIALIZED_EXCEPTION);
+            Response response =
+                    TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json");
             assertThat(decoder.isError(response)).isTrue();
 
             RemoteException exception = decoder.decode(response);
@@ -95,7 +90,8 @@ public final class ErrorDecoderTest {
 
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
-        assertThatThrownBy(() -> decoder.decode(response(500, "text/plain", SERIALIZED_EXCEPTION)))
+        assertThatThrownBy(() -> decoder.decode(
+                        TestResponse.withBody(SERIALIZED_EXCEPTION).code(500).contentType("text/plain")))
                 .isInstanceOf(UnknownRemoteException.class)
                 .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
     }
@@ -103,7 +99,7 @@ public final class ErrorDecoderTest {
     @Test
     public void doesNotHandleUnparseableBody() {
         try {
-            decoder.decode(response(500, "application/json/", "not json"));
+            decoder.decode(TestResponse.withBody("not json").code(500).contentType("application/json/"));
             failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
         } catch (UnknownRemoteException expected) {
             assertThat(expected.getStatus()).isEqualTo(500);
@@ -116,7 +112,8 @@ public final class ErrorDecoderTest {
     @Test
     @SuppressWarnings("NullAway") // intentionally testing null body
     public void doesNotHandleNullBody() {
-        assertThatThrownBy(() -> decoder.decode(response(500, "application/json", null)))
+        assertThatThrownBy(() ->
+                        decoder.decode(TestResponse.withBody(null).code(500).contentType("application/json")))
                 .isInstanceOf(UnknownRemoteException.class)
                 .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
     }
@@ -124,7 +121,9 @@ public final class ErrorDecoderTest {
     @Test
     public void handlesUnexpectedJson() {
         try {
-            decoder.decode(response(502, "application/json", "{\"error\":\"some-unknown-json\"}"));
+            decoder.decode(TestResponse.withBody("{\"error\":\"some-unknown-json\"}")
+                    .code(502)
+                    .contentType("application/json"));
             failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
         } catch (UnknownRemoteException expected) {
             assertThat(expected.getStatus()).isEqualTo(502);
@@ -137,8 +136,8 @@ public final class ErrorDecoderTest {
     @Test
     public void handlesJsonWithEncoding() {
         int code = 500;
-        RemoteException exception =
-                decoder.decode(response(code, "application/json; charset=utf-8", SERIALIZED_EXCEPTION));
+        RemoteException exception = decoder.decode(
+                TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json; charset=utf-8"));
         assertThat(exception.getCause()).isNull();
         assertThat(exception.getStatus()).isEqualTo(code);
         assertThat(exception.getError().errorCode())
@@ -164,32 +163,6 @@ public final class ErrorDecoderTest {
         //         ? ((WebApplicationException) exception).getResponse().getStatus()
         //         : 400;
         int status = 400;
-        return decoder.decode(response(status, "application/json", json));
-    }
-
-    private static Response response(int code, String mediaType, @CheckForNull String body) {
-        return new Response() {
-            @Override
-            public InputStream body() {
-                if (body == null) {
-                    return new ByteArrayInputStream(new byte[] {});
-                } else {
-                    return new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
-                }
-            }
-
-            @Override
-            public int code() {
-                return code;
-            }
-
-            @Override
-            public ListMultimap<String, String> headers() {
-                return ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, mediaType);
-            }
-
-            @Override
-            public void close() {}
-        };
+        return decoder.decode(TestResponse.withBody(json).code(status).contentType("application/json"));
     }
 }

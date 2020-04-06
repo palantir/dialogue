@@ -26,12 +26,10 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
-import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -54,12 +52,12 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
-                    channel.execute(new TestEndpoint(), Request.builder().build());
+                    channel.execute(TestEndpoint.POST, Request.builder().build());
             assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
         }
 
         ListenableFuture<Response> again =
-                channel.execute(new TestEndpoint(), Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(again::get).hasMessageContaining("Connection pool shut down");
     }
 
@@ -72,7 +70,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
             ListenableFuture<Response> future =
-                    channel.execute(new TestEndpoint(), Request.builder().build());
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
 
             TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
             try (Response response = Futures.getUnchecked(future)) {
@@ -106,30 +104,5 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         Object value = ((Gauge<?>) gauge).getValue();
         assertThat(value).isInstanceOf(Integer.class);
         return (int) value;
-    }
-
-    private static final class TestEndpoint implements Endpoint {
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
-
-        @Override
-        public String serviceName() {
-            return "service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "1.0.0";
-        }
     }
 }

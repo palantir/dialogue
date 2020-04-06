@@ -36,13 +36,11 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
-import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,30 +65,7 @@ public final class DialogueChannelsTest {
     @Mock
     private Channel delegate;
 
-    private Endpoint endpoint = new Endpoint() {
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
-
-        @Override
-        public String serviceName() {
-            return "test-service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "test-endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "1.0.0";
-        }
-    };
+    private Endpoint endpoint = TestEndpoint.POST;
 
     @Mock
     private Response response;

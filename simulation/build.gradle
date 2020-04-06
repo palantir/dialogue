@@ -5,6 +5,7 @@ versionsLock {
 dependencies {
     implementation project(':dialogue-core')
     implementation project(':dialogue-target')
+    implementation(project(':dialogue-test-common')) { exclude group: 'org.junit.jupiter' }
     implementation 'org.jmock:jmock'
     implementation 'org.knowm.xchart:xchart'
 

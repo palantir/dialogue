@@ -30,7 +30,6 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -84,12 +83,12 @@ public abstract class AbstractProxyConfigTest {
         Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
-                directChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
+                directChannel.execute(TestEndpoint.POST, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("server");
         }
         try (Response response =
-                proxiedChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
+                proxiedChannel.execute(TestEndpoint.POST, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("proxyServer");
         }
@@ -112,7 +111,7 @@ public abstract class AbstractProxyConfigTest {
         Channel proxiedChannel = create(proxiedConfig);
 
         try (Response response =
-                proxiedChannel.execute(FakeEndpoint.INSTANCE, request).get()) {
+                proxiedChannel.execute(TestEndpoint.POST, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("proxyServer");
         }
@@ -133,34 +132,5 @@ public abstract class AbstractProxyConfigTest {
             @Override
             public void connectFailed(URI _uri, SocketAddress _sa, IOException _ioe) {}
         };
-    }
-
-    private enum FakeEndpoint implements Endpoint {
-        INSTANCE;
-
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder url) {
-            url.pathSegment("/string");
-        }
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.POST;
-        }
-
-        @Override
-        public String serviceName() {
-            return "service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "1.0.0";
-        }
     }
 }

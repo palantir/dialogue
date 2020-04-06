@@ -22,17 +22,30 @@ import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Optional;
+import javax.annotation.Nullable;
 import javax.ws.rs.core.HttpHeaders;
 
 public final class TestResponse implements Response {
 
-    private final CloseRecordingInputStream inputStream =
-            new CloseRecordingInputStream(new ByteArrayInputStream(new byte[] {}));
+    private final CloseRecordingInputStream inputStream;
 
     private Optional<Throwable> closeCalled = Optional.empty();
     private int code = 0;
     private ListMultimap<String, String> headers = ImmutableListMultimap.of();
+
+    public TestResponse() {
+        this(new byte[] {});
+    }
+
+    public TestResponse(byte[] bytes) {
+        this.inputStream = new CloseRecordingInputStream(new ByteArrayInputStream(bytes));
+    }
+
+    public static TestResponse withBody(@Nullable String body) {
+        return new TestResponse(body == null ? new byte[] {} : body.getBytes(StandardCharsets.UTF_8));
+    }
 
     @Override
     public CloseRecordingInputStream body() {
@@ -78,7 +91,15 @@ public final class TestResponse implements Response {
 
     @CheckReturnValue
     public TestResponse contentType(String contentType) {
-        this.headers = ImmutableListMultimap.of(HttpHeaders.CONTENT_TYPE, contentType);
+        return withHeader(HttpHeaders.CONTENT_TYPE, contentType);
+    }
+
+    @CheckReturnValue
+    public TestResponse withHeader(String headerName, String headerValue) {
+        this.headers = ImmutableListMultimap.<String, String>builder()
+                .putAll(headers)
+                .put(headerName, headerValue)
+                .build();
         return this;
     }
 }

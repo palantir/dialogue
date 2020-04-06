@@ -1,3 +1,5 @@
+/** Not intended to be published, this project just exists to reduce boilerplate when testing dialogue. */
+
 versionsLock {
     testProject()
 }

@@ -2,7 +2,7 @@ rootProject.name = 'dialogue'
 
 include 'dialogue-apache-hc4-client'
 include 'dialogue-blocking-channels'
-include 'dialogue-client-test-lib'
+include 'dialogue-test-common'
 include 'dialogue-client-verifier'
 include 'dialogue-client-verifier:verification-server-api'
 include 'dialogue-core'

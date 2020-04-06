@@ -22,6 +22,7 @@ import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -428,9 +429,9 @@ public class SimulationTest {
         Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
         return _server -> {
             if (random.nextDouble() <= rate) {
-                return SimulationUtils.response(500, "1.0.0");
+                return new TestResponse().code(500);
             }
-            return SimulationUtils.response(200, "1.0.0");
+            return new TestResponse().code(200);
         };
     }
 

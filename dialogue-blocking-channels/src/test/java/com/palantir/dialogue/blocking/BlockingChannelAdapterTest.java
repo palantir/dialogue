@@ -20,21 +20,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.time.Duration;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,51 +37,7 @@ import org.junit.jupiter.api.Test;
 
 public class BlockingChannelAdapterTest {
 
-    private static final Response stubResponse = new Response() {
-        @Override
-        public InputStream body() {
-            return new ByteArrayInputStream(new byte[0]);
-        }
-
-        @Override
-        public int code() {
-            return 200;
-        }
-
-        @Override
-        public ListMultimap<String, String> headers() {
-            return ImmutableListMultimap.of();
-        }
-
-        @Override
-        public void close() {}
-    };
-
-    private static final Endpoint stubEndpoint = new Endpoint() {
-
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.POST;
-        }
-
-        @Override
-        public String serviceName() {
-            return "service";
-        }
-
-        @Override
-        public String endpointName() {
-            return "endpoint";
-        }
-
-        @Override
-        public String version() {
-            return "1.0.0";
-        }
-    };
+    private final Response stubResponse = new TestResponse().code(200);
 
     @Test
     public void testSuccessful() {
@@ -101,7 +51,7 @@ public class BlockingChannelAdapterTest {
             return stubResponse;
         });
         ListenableFuture<Response> result =
-                channel.execute(stubEndpoint, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         assertThat(result).isNotDone();
         latch.countDown();
         Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
@@ -116,7 +66,7 @@ public class BlockingChannelAdapterTest {
             throw new SafeRuntimeException("expected");
         });
         ListenableFuture<Response> result =
-                channel.execute(stubEndpoint, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         Awaitility.waitAtMost(Duration.ofSeconds(3)).until(result::isDone);
         assertThatThrownBy(result::get)
                 .isInstanceOf(ExecutionException.class)
@@ -137,7 +87,7 @@ public class BlockingChannelAdapterTest {
             return response;
         });
         ListenableFuture<Response> result =
-                channel.execute(stubEndpoint, Request.builder().build());
+                channel.execute(TestEndpoint.POST, Request.builder().build());
         channelLatch.await();
         assertThat(result.cancel(true)).isTrue();
         assertThat(result).isCancelled();

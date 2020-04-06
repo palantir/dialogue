@@ -28,8 +28,8 @@ public final class TestConfigurations {
 
     public static final UserAgent AGENT = UserAgent.of(UserAgent.Agent.of("test", "0.0.1"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("../dialogue-client-test-lib/src/main/resources/trustStore.jks"),
-            Paths.get("../dialogue-client-test-lib/src/main/resources/keyStore.jks"),
+            Paths.get("../dialogue-test-common/src/main/resources/trustStore.jks"),
+            Paths.get("../dialogue-test-common/src/main/resources/keyStore.jks"),
             "keystore");
 
     public static ClientConfiguration create(String... uris) {
