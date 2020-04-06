@@ -27,6 +27,7 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -104,11 +105,15 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public InputStream body() {
-            try {
-                return response.getEntity().getContent();
-            } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to get response stream", e);
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                try {
+                    return entity.getContent();
+                } catch (IOException e) {
+                    throw new SafeRuntimeException("Failed to get response stream", e);
+                }
             }
+            return new ByteArrayInputStream(new byte[0]);
         }
 
         @Override

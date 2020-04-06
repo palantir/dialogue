@@ -108,7 +108,7 @@ public abstract class AbstractChannelTest {
         lenient().when(request.body()).thenReturn(Optional.empty());
         lenient().when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
         lenient().when(request.headerParams()).thenReturn(ImmutableListMultimap.of());
-        server.enqueue(new MockResponse());
+        server.enqueue(new MockResponse().setBody("body"));
 
         endpoint = new FakeEndpoint();
         endpoint.method = HttpMethod.GET;
@@ -231,6 +231,14 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    public void head_failsWhenBodyReturned() throws ExecutionException, InterruptedException {
+        endpoint.method = HttpMethod.HEAD;
+        when(request.body()).thenReturn(Optional.empty());
+        Response response = channel.execute(endpoint, request).get();
+        assertThat(response.body()).hasContent("");
+    }
+
+    @Test
     public void post_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
         when(request.body()).thenReturn(Optional.empty());
@@ -314,9 +322,9 @@ public abstract class AbstractChannelTest {
     @Test
     public void callObservesSuccessfulResponses() throws ExecutionException, InterruptedException {
         ListenableFuture<Response> call = channel.execute(endpoint, request);
-        assertThat(call.get().body()).hasContent("");
+        assertThat(call.get().body()).hasContent("body");
         assertThat(call.get().code()).isEqualTo(200);
-        assertThat(call.get().headers().get(HttpHeaders.CONTENT_LENGTH)).containsExactly("0");
+        assertThat(call.get().headers().get(HttpHeaders.CONTENT_LENGTH)).containsExactly("4");
     }
 
     @Test
