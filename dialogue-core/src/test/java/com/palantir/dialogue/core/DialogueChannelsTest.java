@@ -65,7 +65,7 @@ public final class DialogueChannelsTest {
     @Mock
     private Channel delegate;
 
-    private Endpoint endpoint = TestEndpoints.GET;
+    private Endpoint endpoint = TestEndpoints.POST;
 
     @Mock
     private Response response;

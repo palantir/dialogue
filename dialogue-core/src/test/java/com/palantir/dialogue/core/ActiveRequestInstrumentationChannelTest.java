@@ -30,7 +30,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import org.junit.jupiter.api.Test;
 
 final class ActiveRequestInstrumentationChannelTest {
-    private static final Endpoint ENDPOINT = TestEndpoints.GET;
+    private static final Endpoint ENDPOINT = TestEndpoints.POST;
 
     @Test
     public void testActiveRequests() {

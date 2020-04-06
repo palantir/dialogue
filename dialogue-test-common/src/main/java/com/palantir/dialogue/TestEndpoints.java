@@ -19,10 +19,10 @@ package com.palantir.dialogue;
 import java.util.Map;
 
 public enum TestEndpoints implements Endpoint {
-    GET {
+    POST {
         @Override
         public HttpMethod httpMethod() {
-            return HttpMethod.GET;
+            return HttpMethod.POST;
         }
     };
 

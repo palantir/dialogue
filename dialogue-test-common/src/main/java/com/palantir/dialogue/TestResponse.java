@@ -39,7 +39,7 @@ public final class TestResponse implements Response {
         this(new byte[] {});
     }
 
-    TestResponse(byte[] bytes) {
+    public TestResponse(byte[] bytes) {
         this.inputStream = new CloseRecordingInputStream(new ByteArrayInputStream(bytes));
     }
 
