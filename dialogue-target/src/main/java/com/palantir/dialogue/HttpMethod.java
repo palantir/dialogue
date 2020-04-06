@@ -18,9 +18,10 @@ package com.palantir.dialogue;
 
 /** The HTTP methods supported by Dialogue. */
 public enum HttpMethod {
+    DELETE,
     GET,
+    HEAD,
+    PATCH,
     POST,
     PUT,
-    DELETE,
-    PATCH
 }
