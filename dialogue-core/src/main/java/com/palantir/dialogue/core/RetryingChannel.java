@@ -182,8 +182,8 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
             if (Responses.isQosStatus(response)) {
-                response.close();
                 if (++failures <= maxRetries) {
+                    response.close(); // nobody is going to read this response body
                     Throwable throwableToLog = log.isInfoEnabled()
                             ? new SafeRuntimeException(
                                     "Received retryable response", SafeArg.of("status", response.code()))
@@ -196,6 +196,7 @@ final class RetryingChannel implements Channel {
                             SafeArg.of("retries", maxRetries),
                             SafeArg.of("status", response.code()));
                 }
+                // not closing the final response body because ConjureBodySerde needs to read it to deserialize
                 return Futures.immediateFuture(response);
             }
 
