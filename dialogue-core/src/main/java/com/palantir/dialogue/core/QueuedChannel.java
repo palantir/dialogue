@@ -84,8 +84,7 @@ final class QueuedChannel implements Channel {
         this.queueSizeCounter = metrics.requestsQueued(channelName);
         this.queuedTime = metrics.requestQueuedTime(channelName);
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
-                "Unable to make a request",
-                SafeArg.of("queueSizeEstimate", queueSizeEstimate.get()),
+                "Unable to make a request (queue is full)",
                 SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
