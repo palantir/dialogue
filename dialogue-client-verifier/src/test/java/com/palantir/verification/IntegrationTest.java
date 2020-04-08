@@ -131,7 +131,11 @@ public class IntegrationTest {
         };
 
         assertThatThrownBy(sampleServiceBlocking()::voidToVoid)
-                .isInstanceOf(RemoteException.class);
+                .isInstanceOf(RemoteException.class)
+                .satisfies(throwable -> {
+                    assertThat(((RemoteException) throwable).getError().parameters())
+                            .containsEntry("numCalls", "4");
+                });
 
         assertThat(calls).describedAs("one initial call + 4 retries").hasValue(5);
     }
