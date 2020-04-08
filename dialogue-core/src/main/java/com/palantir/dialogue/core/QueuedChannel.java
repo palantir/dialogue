@@ -71,7 +71,7 @@ final class QueuedChannel implements Channel {
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
     QueuedChannel(LimitedChannel channel, String channelName, DialogueClientMetrics metrics) {
-        this(channel, channelName, metrics, 1_000);
+        this(channel, channelName, metrics, 100_000);
     }
 
     @VisibleForTesting
