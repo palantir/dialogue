@@ -211,8 +211,8 @@ final class RetryingChannel implements Channel {
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
                 Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier) {
-            response.close();
             if (++failures <= maxRetries) {
+                response.close();
                 Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
                 return scheduleRetry(throwableToLog);
             }
@@ -222,6 +222,7 @@ final class RetryingChannel implements Channel {
                         SafeArg.of("retries", maxRetries),
                         SafeArg.of("status", response.code()));
             }
+            // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
         }
 
