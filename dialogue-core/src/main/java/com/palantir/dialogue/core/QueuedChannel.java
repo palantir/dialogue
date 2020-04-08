@@ -57,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *     doing work, much of which will be wasted</li>
  * </ul>
  */
-final class QueuedChannel implements LimitedChannel, Channel {
+final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
     private final Deque<DeferredCall> queuedCalls;
@@ -97,8 +97,7 @@ final class QueuedChannel implements LimitedChannel, Channel {
     /**
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
-    @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    private Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
