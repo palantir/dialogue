@@ -126,7 +126,7 @@ final class RetryingChannel implements Channel {
         return delegate.execute(endpoint, request);
     }
 
-    private boolean isRetryable(Request request) {
+    private static boolean isRetryable(Request request) {
         Optional<RequestBody> maybeBody = request.body();
         return !maybeBody.isPresent() || maybeBody.get().repeatable();
     }
@@ -253,7 +253,8 @@ final class RetryingChannel implements Channel {
             if (!shouldPropagateQos(serverQoS)) {
                 result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
             }
-            result = Futures.catchingAsync(result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
+            result = Futures.catchingAsync(
+                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
         }
     }
