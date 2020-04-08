@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -45,8 +46,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -69,6 +72,17 @@ final class RetryingChannel implements Channel {
                     .setNameFormat(SCHEDULER_NAME + "-%d")
                     .setDaemon(false)
                     .build()));
+
+    @SuppressWarnings("UnnecessaryLambda") // no allocations
+    private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (endpoint, response) ->
+            new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
+
+    @SuppressWarnings("UnnecessaryLambda") // no allocations
+    private static final BiFunction<Endpoint, Response, Throwable> serverErrorThrowable =
+            (endpoint, response) -> new SafeRuntimeException(
+                    "Received server error, but http method is 'safe' and idempotent",
+                    SafeArg.of("status", response.code()),
+                    SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
     private final Channel delegate;
@@ -156,9 +170,9 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> retry(Throwable cause) {
+        ListenableFuture<Response> scheduleRetry(@Nullable Throwable throwableToLog) {
             long backoffNanoseconds = getBackoffNanoseconds();
-            logRetry(backoffNanoseconds, cause);
+            logRetry(backoffNanoseconds, throwableToLog);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -181,23 +195,13 @@ final class RetryingChannel implements Channel {
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
-        ListenableFuture<Response> success(Response response) {
-            // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
-            // a row
+        ListenableFuture<Response> handleHttpResponse(Response response) {
             if (Responses.isQosStatus(response)) {
-                response.close();
-                Throwable failure =
-                        new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
-                if (++failures <= maxRetries) {
-                    return retry(failure);
-                }
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Exhausted {} retries, returning a retryable response with status {}",
-                            SafeArg.of("retries", maxRetries),
-                            SafeArg.of("status", response.code()));
-                }
-                return Futures.immediateFuture(response);
+                return incrementFailuresAndMaybeRetry(response, qosThrowable);
+            }
+
+            if (Responses.isServerError(response) && safeAndIdempotent(endpoint.httpMethod())) {
+                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
@@ -205,10 +209,26 @@ final class RetryingChannel implements Channel {
             return Futures.immediateFuture(response);
         }
 
-        ListenableFuture<Response> failure(Throwable throwable) {
+        private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
+                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier) {
+            response.close();
+            if (++failures <= maxRetries) {
+                Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                return scheduleRetry(throwableToLog);
+            }
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Exhausted {} retries, returning a retryable response with status {}",
+                        SafeArg.of("retries", maxRetries),
+                        SafeArg.of("status", response.code()));
+            }
+            return Futures.immediateFuture(response);
+        }
+
+        ListenableFuture<Response> handleThrowable(Throwable throwable) {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
-                    return retry(throwable);
+                    return scheduleRetry(throwable);
                 } else if (log.isDebugEnabled()) {
                     log.debug(
                             "Not attempting to retry failure",
@@ -234,7 +254,7 @@ final class RetryingChannel implements Channel {
             return true;
         }
 
-        private void logRetry(long backoffNanoseconds, Throwable throwable) {
+        private void logRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
@@ -251,11 +271,37 @@ final class RetryingChannel implements Channel {
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
             if (!shouldPropagateQos(serverQoS)) {
-                result = Futures.transformAsync(result, this::success, MoreExecutors.directExecutor());
+                result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
             }
-            result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
+            result = Futures.catchingAsync(
+                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
         }
+    }
+
+    private static boolean safeAndIdempotent(HttpMethod httpMethod) {
+        switch (httpMethod) {
+            case GET:
+            case HEAD:
+                // As per https://tools.ietf.org/html/rfc7231#section-4.2.1. "Safe" means roughly read-only.
+                // "Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods
+                // are defined to be safe."
+                return true;
+            case PUT:
+            case DELETE:
+                // As per https://tools.ietf.org/html/rfc7231#section-4.2.2. "Idempotent" means multiple attempts of
+                // the same request are intended to have the same effect as just one call.
+                // "Of the request methods defined by this specification, PUT, DELETE, and safe request methods
+                // are idempotent."
+                return true;
+            case PATCH:
+            case POST:
+                // In REST conventions, POST is used to create a new resource and we expect and we expect a fresh ID
+                // to be returned for each call
+                return false;
+        }
+
+        throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
     }
 
     private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {

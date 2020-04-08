@@ -186,6 +186,42 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retries_500s_when_method_is_safe_and_idempotent() throws Exception {
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.GET, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(TestEndpoint.GET, REQUEST);
+    }
+
+    @Test
+    public void doesnt_retry_500s_for_post() throws Exception {
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(500);
+        verify(channel, times(1)).execute(TestEndpoint.POST, REQUEST);
+    }
+
+    @Test
     public void returns_503s_when_requested() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(503);
