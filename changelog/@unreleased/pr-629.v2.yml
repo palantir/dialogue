@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: |-
+    dialogue now retries after 5xx responses for GET, HEAD, PUT, DELETE requests as these are expected to be idempotent (i.e. multiple attempts should have the same effect as just one call).
+
+    Notably we do not retry POST or PATCH requests as we can't determine if these are read-only.
+  links:
+  - https://github.com/palantir/dialogue/pull/629
