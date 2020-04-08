@@ -233,7 +233,7 @@ public final class DialogueChannel implements Channel {
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
             DialogueClientMetrics clientMetrics) {
-        Channel channel = new LimitedChannelToChannelAdapter(queuedChannel);
+        Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
         channel = new UserAgentChannel(channel, conf.userAgent().get());

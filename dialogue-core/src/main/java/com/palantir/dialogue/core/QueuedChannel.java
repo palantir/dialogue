@@ -20,6 +20,7 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
@@ -35,6 +36,7 @@ import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *     doing work, much of which will be wasted</li>
  * </ul>
  */
-final class QueuedChannel implements LimitedChannel {
+final class QueuedChannel implements LimitedChannel, Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
     private final Deque<DeferredCall> queuedCalls;
@@ -66,6 +68,7 @@ final class QueuedChannel implements LimitedChannel {
     private final int maxQueueSize;
     private final Counter queueSizeCounter;
     private final Timer queuedTime;
+    private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
     QueuedChannel(LimitedChannel channel, String channelName, DialogueClientMetrics metrics) {
         this(channel, channelName, metrics, 1_000);
@@ -80,6 +83,15 @@ final class QueuedChannel implements LimitedChannel {
         this.maxQueueSize = maxQueueSize;
         this.queueSizeCounter = metrics.requestsQueued(channelName);
         this.queuedTime = metrics.requestQueuedTime(channelName);
+        this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
+                "Unable to make a request",
+                SafeArg.of("queueSizeEstimate", queueSizeEstimate.get()),
+                SafeArg.of("maxQueueSize", maxQueueSize)));
+    }
+
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);
     }
 
     /**
