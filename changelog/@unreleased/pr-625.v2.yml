@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: When the queue is completely full, the returned failure message demonstrates
+    it's because the queue is full
+  links:
+  - https://github.com/palantir/dialogue/pull/625
