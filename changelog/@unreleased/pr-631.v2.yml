@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: PinUntilError channel now starts off pinned to a randomly chosen url
+    (rather than always picking the first).
+  links:
+  - https://github.com/palantir/dialogue/pull/631
