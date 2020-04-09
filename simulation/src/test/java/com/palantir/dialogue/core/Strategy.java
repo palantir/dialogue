@@ -28,7 +28,6 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -74,7 +73,6 @@ public enum Strategy {
             Simulation sim,
             Supplier<Map<String, SimulationServer>> channelSupplier,
             UnaryOperator<ClientConfiguration.Builder> applyConfig) {
-        Random pseudo = new Random(3218974678L);
         DialogueChannel channel = DialogueChannel.builder()
                 .channelName(SimulationUtils.CHANNEL_NAME)
                 .clientConfiguration(applyConfig
@@ -85,7 +83,7 @@ public enum Strategy {
                         .build())
                 .channelFactory(uri -> channelSupplier.get().get(uri))
                 .clock(sim.clock())
-                .random(pseudo)
+                .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
                 .build();
 
