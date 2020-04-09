@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
@@ -91,8 +91,8 @@ final class RetryingChannel implements Channel {
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
-    private final Counter retryDueToServerError;
-    private final Counter retryDueToQosResponse;
+    private final Meter retryDueToServerError;
+    private final Meter retryDueToQosResponse;
 
     @VisibleForTesting
     RetryingChannel(
@@ -221,11 +221,11 @@ final class RetryingChannel implements Channel {
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
-                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Counter counter) {
+                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
             if (++failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
-                counter.inc();
+                meter.mark();
                 return scheduleRetry(throwableToLog);
             }
             if (log.isDebugEnabled()) {
