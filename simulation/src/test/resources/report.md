@@ -1,72 +1,40 @@
 # Report
 <!-- Run SimulationTest to regenerate this report. -->
 ```
-<<<<<<< HEAD
                 all_nodes_500[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=82.6%	client_mean=PT3.077742714S 	server_cpu=PT47M28.2S     	client_received=2000/2000	server_resps=4747	codes={200=1651, 500=349}
                     all_nodes_500[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=71.6%	client_mean=PT2.40517074S  	server_cpu=PT55M6S        	client_received=2000/2000	server_resps=5510	codes={200=1431, 500=569}
                               all_nodes_500[UNLIMITED_ROUND_ROBIN].txt:	success=70.6%	client_mean=PT2.406374783S 	server_cpu=PT55M15S       	client_received=2000/2000	server_resps=5525	codes={200=1412, 500=588}
-                   black_hole[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=30.0%	client_mean=PT0.6S         	server_cpu=PT6M           	client_received=600/2000	server_resps=600	codes={200=600}
-=======
-                all_nodes_500[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=50.0%	client_mean=PT0.6S         	server_cpu=PT20M          	client_received=2000/2000	server_resps=2000	codes={200=1000, 500=1000}
-                    all_nodes_500[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=50.0%	client_mean=PT0.6S         	server_cpu=PT20M          	client_received=2000/2000	server_resps=2000	codes={200=1000, 500=1000}
-                              all_nodes_500[UNLIMITED_ROUND_ROBIN].txt:	success=50.0%	client_mean=PT0.6S         	server_cpu=PT20M          	client_received=2000/2000	server_resps=2000	codes={200=1000, 500=1000}
                    black_hole[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.6S         	server_cpu=PT20M          	client_received=2000/2000	server_resps=2000	codes={200=2000}
->>>>>>> origin/develop
                        black_hole[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=90.0%	client_mean=PT0.600011117S 	server_cpu=PT17M59.4S     	client_received=1799/2000	server_resps=1799	codes={200=1799}
                                  black_hole[UNLIMITED_ROUND_ROBIN].txt:	success=68.3%	client_mean=PT0.6S         	server_cpu=PT13M39.6S     	client_received=1366/2000	server_resps=1366	codes={200=1366}
              drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT11.430491833S	server_cpu=PT2H28M50.443999975S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                  drastic_slowdown[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT2.060500083S 	server_cpu=PT2H17M22.000333313S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                            drastic_slowdown[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT9.158069333S 	server_cpu=PT10H10M32.277333313S	client_received=4000/4000	server_resps=4000	codes={200=4000}
-<<<<<<< HEAD
-        fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.080925333S 	server_cpu=PT5M3.47S      	client_received=3750/3750	server_resps=3750	codes={200=3750}
+        fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.081126823S 	server_cpu=PT5M3.470999997S	client_received=3750/3750	server_resps=3761	codes={200=3750}
             fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.2%	client_mean=PT0.173513629S 	server_cpu=PT4M53.194832836S	client_received=3750/3750	server_resps=5217	codes={200=3721, 500=29}
                       fast_500s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=99.2%	client_mean=PT0.173513629S 	server_cpu=PT4M53.194832836S	client_received=3750/3750	server_resps=5217	codes={200=3721, 500=29}
-               live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT12.9285176S  	server_cpu=PT2H2M54.3S    	client_received=2500/2500	server_resps=2500	codes={200=2500}
+               live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT13.499727406S	server_cpu=PT2H9M30.6S    	client_received=2500/2500	server_resps=2674	codes={200=2500}
                    live_reloading[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.6%	client_mean=PT7.840515915S 	server_cpu=PT3H37.74S     	client_received=2500/2500	server_resps=3821	codes={200=2489, 500=11}
                              live_reloading[UNLIMITED_ROUND_ROBIN].txt:	success=99.4%	client_mean=PT4.880202527S 	server_cpu=PT3H17M49.94S  	client_received=2500/2500	server_resps=4162	codes={200=2486, 500=14}
-=======
-        fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.7%	client_mean=PT0.080628266S 	server_cpu=PT5M2.355999997S	client_received=3750/3750	server_resps=3750	codes={200=3739, 500=11}
-            fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=76.0%	client_mean=PT0.055333733S 	server_cpu=PT3M27.501499711S	client_received=3750/3750	server_resps=3750	codes={200=2849, 500=901}
-                      fast_500s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=76.0%	client_mean=PT0.055333733S 	server_cpu=PT3M27.501499711S	client_received=3750/3750	server_resps=3750	codes={200=2849, 500=901}
-               live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=93.0%	client_mean=PT11.5675456S  	server_cpu=PT2H48.6S      	client_received=2500/2500	server_resps=2500	codes={200=2326, 500=174}
-                   live_reloading[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=63.7%	client_mean=PT4.210672S    	server_cpu=PT1H58M42.9S   	client_received=2500/2500	server_resps=2500	codes={200=1593, 500=907}
-                             live_reloading[UNLIMITED_ROUND_ROBIN].txt:	success=55.8%	client_mean=PT2.84916S     	server_cpu=PT1H58M42.9S   	client_received=2500/2500	server_resps=2500	codes={200=1394, 500=1106}
->>>>>>> origin/develop
           one_big_spike[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=79.0%	client_mean=PT1.478050977S 	server_cpu=PT1M59.71393673S	client_received=1000/1000	server_resps=790	codes={200=790, Failed to make a request=210}
                 one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT3.53697893S  	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
                     one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.880861693S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
                               one_big_spike[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.115837367S 	server_cpu=PT8M3.3S       	client_received=1000/1000	server_resps=3222	codes={200=1000}
-<<<<<<< HEAD
-one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=97.6%	client_mean=PT1.970194456S 	server_cpu=PT41M42.6S     	client_received=2500/2500	server_resps=4171	codes={200=2441, 500=59}
+one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=98.0%	client_mean=PT2.093826667S 	server_cpu=PT40M59.4S     	client_received=2500/2500	server_resps=4099	codes={200=2451, 500=49}
  one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=97.9%	client_mean=PT1.261569092S 	server_cpu=PT41M42S       	client_received=2500/2500	server_resps=4170	codes={200=2447, 500=53}
            one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].txt:	success=97.9%	client_mean=PT1.152208481S 	server_cpu=PT41M17.4S     	client_received=2500/2500	server_resps=4129	codes={200=2447, 500=53}
-       simplest_possible_case[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.6S         	server_cpu=PT2H12M        	client_received=13200/13200	server_resps=13200	codes={200=13200}
-=======
-one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=64.4%	client_mean=PT0.603104S    	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1611, 500=889}
- one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=65.5%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1638, 500=862}
-           one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].txt:	success=65.6%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1639, 500=861}
        simplest_possible_case[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.8S         	server_cpu=PT2H56M        	client_received=13200/13200	server_resps=13200	codes={200=13200}
->>>>>>> origin/develop
            simplest_possible_case[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.794318181S 	server_cpu=PT2H54M45S     	client_received=13200/13200	server_resps=13200	codes={200=13200}
                      simplest_possible_case[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.794318181S 	server_cpu=PT2H54M45S     	client_received=13200/13200	server_resps=13200	codes={200=13200}
         slow_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.353936023S 	server_cpu=PT16M55.878999975S	client_received=3000/3000	server_resps=3197	codes={200=3000}
             slow_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.707925608S 	server_cpu=PT34M27.664333313S	client_received=3000/3000	server_resps=3390	codes={200=3000}
                       slow_503s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.470730224S 	server_cpu=PT1H11M35.535333313S	client_received=3000/3000	server_resps=3825	codes={200=3000}
-<<<<<<< HEAD
-slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT4M10.469592198S	server_cpu=PT17H12M38.439999621S	client_received=10000/10000	server_resps=17096	codes={200=10000}
+slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT4M55.658921118S	server_cpu=PT20H20M40.773333051S	client_received=10000/10000	server_resps=19642	codes={200=9998, 500=2}
     slowdown_and_error_thresholds[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT4M31.954142854S	server_cpu=PT53H7M50.19999998S	client_received=10000/10000	server_resps=50000	codes={200=120, 500=9880}
               slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT21.777659187S	server_cpu=PT55H13M52.19999998S	client_received=10000/10000	server_resps=50000	codes={200=120, 500=9880}
               uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.001476797S 	server_cpu=PT0.010098S    	client_received=9999/10000	server_resps=10098	codes={200=9999}
                   uncommon_flakes[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.00110398S  	server_cpu=PT0.010097S    	client_received=9999/10000	server_resps=10097	codes={200=9999}
                             uncommon_flakes[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.00110398S  	server_cpu=PT0.010097S    	client_received=9999/10000	server_resps=10097	codes={200=9999}
-=======
-slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=28.9%	client_mean=PT1M32.897189532S	server_cpu=PT10H38M47.999999956S	client_received=10000/10000	server_resps=10000	codes={200=2889, 500=7111}
-    slowdown_and_error_thresholds[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT24.117996466S	server_cpu=PT10H35M17.19999998S	client_received=10000/10000	server_resps=10000	codes={200=120, 500=9880}
-              slowdown_and_error_thresholds[UNLIMITED_ROUND_ROBIN].txt:	success=1.2%	client_mean=PT3.956119999S 	server_cpu=PT10H59M21.19999998S	client_received=10000/10000	server_resps=10000	codes={200=120, 500=9880}
-              uncommon_flakes[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9902, 500=98}
-                  uncommon_flakes[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9902, 500=98}
-                            uncommon_flakes[UNLIMITED_ROUND_ROBIN].txt:	success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9902, 500=98}
->>>>>>> origin/develop
 ```
 
 
