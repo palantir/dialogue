@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 success=100.0%	client_mean=PT4M10.469592198S	server_cpu=PT17H12M38.439999621S	client_received=10000/10000	server_resps=17096	codes={200=10000}
+=======
+success=28.9%	client_mean=PT1M32.897189532S	server_cpu=PT10H38M47.999999956S	client_received=10000/10000	server_resps=10000	codes={200=2889, 500=7111}
+>>>>>>> origin/develop

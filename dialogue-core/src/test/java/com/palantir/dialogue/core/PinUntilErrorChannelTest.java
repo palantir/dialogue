@@ -173,8 +173,8 @@ public class PinUntilErrorChannelTest {
 
     @Test
     void handles_reconstruction_from_stale_state() {
-        PinUntilErrorChannel.from(
-                null,
+        PinUntilErrorChannel.of(
+                Optional.empty(),
                 NodeSelectionStrategy.PIN_UNTIL_ERROR,
                 ImmutableList.of(channel1, channel2),
                 metrics,

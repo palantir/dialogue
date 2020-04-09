@@ -266,6 +266,35 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void final_exhausted_failure_response_body_is_not_closed() throws Exception {
+        TestResponse response1 = new TestResponse().code(503);
+        TestResponse response2 = new TestResponse().code(503);
+        TestResponse response3 = new TestResponse().code(503);
+
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFuture(response1))
+                .thenReturn(Futures.immediateFuture(response2))
+                .thenReturn(Futures.immediateFuture(response3));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
+        assertThat(response.get(1, TimeUnit.SECONDS).code()).isEqualTo(503);
+
+        assertThat(response1.isClosed()).isTrue();
+        assertThat(response2.isClosed()).isTrue();
+        assertThat(response3.isClosed())
+                .describedAs("The last response must be left open so we can read the body"
+                        + " and deserialize it into a structured error")
+                .isFalse();
+    }
+
+    @Test
     public void testPropagatesCancel() {
         ListenableFuture<Response> delegateResult = SettableFuture.create();
         when(channel.execute(any(), any())).thenReturn(delegateResult);

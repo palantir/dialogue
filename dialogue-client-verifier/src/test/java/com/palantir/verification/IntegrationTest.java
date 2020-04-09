@@ -17,6 +17,7 @@
 package com.palantir.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
@@ -27,6 +28,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
@@ -50,6 +52,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -110,6 +113,31 @@ public class IntegrationTest {
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
+    }
+
+    @Test
+    public void deserializes_a_conjure_error_after_exhausting_retries() {
+        AtomicInteger calls = new AtomicInteger(0);
+        undertowHandler = exchange -> {
+            exchange.setStatusCode(429);
+            exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/json");
+            exchange.getResponseSender()
+                    .send("{"
+                            + "\"errorCode\":\"FAILED_PRECONDITION\","
+                            + "\"errorName\":\"Default:FailedPrecondition\","
+                            + "\"errorInstanceId\":\"43580df1-e019-473b-bb3d-be6d489f36e5\","
+                            + "\"parameters\":{\"numCalls\":\"" + calls.getAndIncrement() + "\"}"
+                            + "}\n");
+        };
+
+        assertThatThrownBy(sampleServiceBlocking()::voidToVoid)
+                .isInstanceOf(RemoteException.class)
+                .satisfies(throwable -> {
+                    assertThat(((RemoteException) throwable).getError().parameters())
+                            .containsEntry("numCalls", "4");
+                });
+
+        assertThat(calls).describedAs("one initial call + 4 retries").hasValue(5);
     }
 
     @Test

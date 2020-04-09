@@ -30,6 +30,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import java.lang.instrument.Instrumentation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -82,16 +83,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
     }
 
     static PinUntilErrorChannel of(
-            NodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
-            DialoguePinuntilerrorMetrics metrics,
-            Random random,
-            String channelName) {
-        return from(channels.get(0), strategy, channels, metrics, random, channelName);
-    }
-
-    static PinUntilErrorChannel from(
-            LimitedChannel initialChannel,
+            Optional<LimitedChannel> initialChannel,
             NodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
@@ -104,9 +96,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
         ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
-        // We only rely on reference equality since we expect LimitedChannels to be reused across updates
-        int initialHost = initialShuffle.indexOf(initialChannel);
-        initialHost = initialHost == -1 ? 0 : initialHost;
+        int initialHost = initialChannel
+                // indexOf relies on reference equality since we expect LimitedChannels to be reused across updates
+                .map(limitedChannel -> Math.max(0, initialShuffle.indexOf(limitedChannel)))
+                .orElse(0);
 
         switch (strategy) {
             case PIN_UNTIL_ERROR:
