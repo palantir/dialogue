@@ -175,8 +175,8 @@ public final class DialogueChannel implements Channel {
                             random,
                             channelName);
                 }
-                return PinUntilErrorChannel.of(
-                        config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random, channelName);
+                return PinUntilErrorChannel.from(
+                        null, config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random, channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
                 return new RandomSelectionChannel(channels, random);

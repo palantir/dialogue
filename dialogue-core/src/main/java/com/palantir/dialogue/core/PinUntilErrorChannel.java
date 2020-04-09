@@ -81,17 +81,8 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 SafeArg.of("initialHost", initialHost));
     }
 
-    static PinUntilErrorChannel of(
-            NodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
-            DialoguePinuntilerrorMetrics metrics,
-            Random random,
-            String channelName) {
-        return from(channels.get(0), strategy, channels, metrics, random, channelName);
-    }
-
     static PinUntilErrorChannel from(
-            LimitedChannel initialChannel,
+            @Nullable LimitedChannel initialChannel,
             NodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
