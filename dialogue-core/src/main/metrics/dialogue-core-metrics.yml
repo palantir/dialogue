@@ -20,6 +20,10 @@ namespaces:
           Number of requests that are actively running. The `stage` may refer to `running` requests actively
           executing over the wire or `processing` which may be awaiting a client or backing off for a retry.
           Note that running requests are also counted as processing.
+      request.retry:
+        type: counter
+        tags: [channel-name, reason]
+        docs: Counter of the number times the RetryingChannel retries requests (across all endpoints).
       requests.queued:
         type: counter
         tags: [channel-name]

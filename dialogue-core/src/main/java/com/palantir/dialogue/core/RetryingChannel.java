@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
@@ -78,7 +79,7 @@ final class RetryingChannel implements Channel {
     @SuppressWarnings("UnnecessaryLambda") // no allocations
     private static final BiFunction<Endpoint, Response, Throwable> serverErrorThrowable =
             (endpoint, response) -> new SafeRuntimeException(
-                    "Received server error, but http method is 'safe' and idempotent",
+                    "Received server error, but http method is safe to retry",
                     SafeArg.of("status", response.code()),
                     SafeArg.of("method", endpoint.httpMethod()));
 
@@ -90,6 +91,8 @@ final class RetryingChannel implements Channel {
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
+    private final Counter retryDueToServerError;
+    private final Counter retryDueToQosResponse;
 
     @VisibleForTesting
     RetryingChannel(
@@ -129,6 +132,16 @@ final class RetryingChannel implements Channel {
         this.retryOnTimeout = retryOnTimeout;
         this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
+        this.retryDueToServerError = DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason("serverError")
+                .build();
+        this.retryDueToQosResponse = DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason("qosResponse")
+                .build();
     }
 
     @Override
@@ -195,11 +208,11 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
             if (Responses.isQosStatus(response)) {
-                return incrementFailuresAndMaybeRetry(response, qosThrowable);
+                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
             if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
-                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable);
+                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
@@ -208,10 +221,11 @@ final class RetryingChannel implements Channel {
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
-                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier) {
+                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Counter counter) {
             if (++failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                counter.inc();
                 return scheduleRetry(throwableToLog);
             }
             if (log.isDebugEnabled()) {
