@@ -228,8 +228,8 @@ final class RetryingChannel implements Channel {
                 meter.mark();
                 return scheduleRetry(throwableToLog);
             }
-            if (log.isDebugEnabled()) {
-                log.debug(
+            if (log.isInfoEnabled()) {
+                log.info(
                         "Exhausted {} retries, returning a retryable response with status {}",
                         SafeArg.of("retries", maxRetries),
                         SafeArg.of("status", response.code()));
