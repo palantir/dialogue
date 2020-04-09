@@ -20,6 +20,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,6 +38,7 @@ final class Simulation {
     private final CodahaleClock codahaleClock = new CodahaleClock(ticker);
     private final EventMarkers eventMarkers = new EventMarkers(ticker);
     private final TaggedMetrics taggedMetrics = new TaggedMetrics(codahaleClock);
+    private final Random random = new Random(3218974678L);
 
     Simulation() {
         Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
@@ -69,5 +71,10 @@ final class Simulation {
 
     public void runClockToInfinity(Optional<Duration> infinity) {
         deterministicExecutor.tick(infinity.orElseGet(() -> Duration.ofDays(1)).toNanos(), TimeUnit.NANOSECONDS);
+    }
+
+    // note this is internally mutable
+    public Random pseudoRandom() {
+        return random;
     }
 }
