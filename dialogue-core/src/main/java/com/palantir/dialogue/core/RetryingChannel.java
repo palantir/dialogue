@@ -47,12 +47,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * Immediately retries calls to the underlying channel upon failure.
- */
+/** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
 final class RetryingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
@@ -127,7 +126,7 @@ final class RetryingChannel implements Channel {
         return delegate.execute(endpoint, request);
     }
 
-    private boolean isRetryable(Request request) {
+    private static boolean isRetryable(Request request) {
         Optional<RequestBody> maybeBody = request.body();
         return !maybeBody.isPresent() || maybeBody.get().repeatable();
     }
@@ -156,9 +155,9 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> retry(Throwable cause) {
+        ListenableFuture<Response> scheduleRetry(@Nullable Throwable throwableToLog) {
             long backoffNanoseconds = getBackoffNanoseconds();
-            logRetry(backoffNanoseconds, cause);
+            logRetry(backoffNanoseconds, throwableToLog);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -181,15 +180,15 @@ final class RetryingChannel implements Channel {
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
-        ListenableFuture<Response> success(Response response) {
-            // this condition should really match the BlacklistingChannel so that we don't hit the same host twice in
-            // a row
+        ListenableFuture<Response> handleHttpResponse(Response response) {
             if (Responses.isQosStatus(response)) {
-                response.close();
-                Throwable failure =
-                        new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
                 if (++failures <= maxRetries) {
-                    return retry(failure);
+                    response.close(); // nobody is going to read this response body
+                    Throwable throwableToLog = log.isInfoEnabled()
+                            ? new SafeRuntimeException(
+                                    "Received retryable response", SafeArg.of("status", response.code()))
+                            : null;
+                    return scheduleRetry(throwableToLog);
                 }
                 if (log.isDebugEnabled()) {
                     log.debug(
@@ -197,6 +196,7 @@ final class RetryingChannel implements Channel {
                             SafeArg.of("retries", maxRetries),
                             SafeArg.of("status", response.code()));
                 }
+                // not closing the final response body because ConjureBodySerde needs to read it to deserialize
                 return Futures.immediateFuture(response);
             }
 
@@ -205,10 +205,10 @@ final class RetryingChannel implements Channel {
             return Futures.immediateFuture(response);
         }
 
-        ListenableFuture<Response> failure(Throwable throwable) {
+        ListenableFuture<Response> handleThrowable(Throwable throwable) {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
-                    return retry(throwable);
+                    return scheduleRetry(throwable);
                 } else if (log.isDebugEnabled()) {
                     log.debug(
                             "Not attempting to retry failure",
@@ -234,7 +234,7 @@ final class RetryingChannel implements Channel {
             return true;
         }
 
-        private void logRetry(long backoffNanoseconds, Throwable throwable) {
+        private void logRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
@@ -251,9 +251,10 @@ final class RetryingChannel implements Channel {
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
             if (!shouldPropagateQos(serverQoS)) {
-                result = Futures.transformAsync(result, this::success, MoreExecutors.directExecutor());
+                result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
             }
-            result = Futures.catchingAsync(result, Throwable.class, this::failure, MoreExecutors.directExecutor());
+            result = Futures.catchingAsync(
+                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
         }
     }
