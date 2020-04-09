@@ -167,16 +167,21 @@ public final class DialogueChannel implements Channel {
                 // Previously pin until error, so we should preserve our previous location
                 if (previousNodeSelectionStrategy instanceof PinUntilErrorChannel) {
                     PinUntilErrorChannel previousPinUntilError = (PinUntilErrorChannel) previousNodeSelectionStrategy;
-                    return PinUntilErrorChannel.from(
-                            previousPinUntilError.getCurrentChannel(),
+                    return PinUntilErrorChannel.of(
+                            Optional.of(previousPinUntilError.getCurrentChannel()),
                             config.nodeSelectionStrategy(),
                             channels,
                             pinuntilerrorMetrics,
                             random,
                             channelName);
                 }
-                return PinUntilErrorChannel.from(
-                        null, config.nodeSelectionStrategy(), channels, pinuntilerrorMetrics, random, channelName);
+                return PinUntilErrorChannel.of(
+                        Optional.empty(),
+                        config.nodeSelectionStrategy(),
+                        channels,
+                        pinuntilerrorMetrics,
+                        random,
+                        channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
                 return new RandomSelectionChannel(channels, random);

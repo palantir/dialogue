@@ -34,6 +34,7 @@ import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -41,6 +42,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
+import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +61,7 @@ public final class DialogueChannelsTest {
                     .addUris("http://localhost")
                     .security(SSL_CONFIG)
                     .build()))
+            .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
             .userAgent(USER_AGENT)
             .build();
 
@@ -143,6 +146,7 @@ public final class DialogueChannelsTest {
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
                 .channelFactory(uri -> delegate)
+                .random(new Random(123456L))
                 .build();
 
         int numRequests = 100; // we kick off a bunch of requests but don't bother waiting for their futures.
