@@ -1,5 +1,1 @@
-<<<<<<< HEAD
-success=100.0%	client_mean=PT4M55.658921118S	server_cpu=PT20H20M40.773333051S	client_received=10000/10000	server_resps=19642	codes={200=9998, 500=2}
-=======
-success=32.6%	client_mean=PT1M33.640484199S	server_cpu=PT10H34M22.666666616S	client_received=10000/10000	server_resps=10000	codes={200=3261, 500=6739}
->>>>>>> origin/develop
+success=100.0%	client_mean=PT4M38.710949732S	server_cpu=PT18H55M41.999999816S	client_received=10000/10000	server_resps=18537	codes={200=10000}
