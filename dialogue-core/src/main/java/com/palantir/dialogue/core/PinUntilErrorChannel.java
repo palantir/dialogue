@@ -30,7 +30,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
-import java.lang.instrument.Instrumentation;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -180,6 +179,11 @@ final class PinUntilErrorChannel implements LimitedChannel {
         public int size() {
             return channels.size();
         }
+
+        @Override
+        public String toString() {
+            return "ConstantNodeList{" + channels + '}';
+        }
     }
 
     @VisibleForTesting
@@ -188,7 +192,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Random random;
         private final long intervalWithJitter;
         private final int channelsSize;
-        private final Instrumentation instrumentation;
+        private final PinUntilErrorChannel.Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
@@ -246,6 +250,14 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 instrumentation.reshuffled(newList, intervalWithJitter);
                 channels = newList;
             }
+        }
+
+        @Override
+        public String toString() {
+            return "ReshufflingNodeList{channels="
+                    + channels + ", nextReshuffle="
+                    + nextReshuffle + ", intervalWithJitter="
+                    + intervalWithJitter + '}';
         }
     }
 
