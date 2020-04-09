@@ -172,6 +172,35 @@ public class PinUntilErrorChannelTest {
     }
 
     @Test
+    void what_happens_if_our_channel_is_limited_but_others_have_capacity() {
+        LimitedChannel channel3 = mock(LimitedChannel.class);
+
+        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(
+                new PinUntilErrorChannel.ConstantNodeList(ImmutableList.of(channel1, channel2, channel3)),
+                0,
+                metrics,
+                channelName);
+
+        when(channel1.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        setResponse(channel2, 202);
+        setResponse(channel3, 203);
+
+        assertThat(pinUntilErrorWithoutReshuffle.getCurrentChannel())
+                .describedAs("We start on channel1")
+                .isSameAs(channel1);
+        assertThat(pinUntilErrorWithoutReshuffle.maybeExecute(null, null)).isNotPresent();
+        assertThat(pinUntilErrorWithoutReshuffle.maybeExecute(null, null)).isPresent();
+        assertThat(pinUntilErrorWithoutReshuffle.getCurrentChannel())
+                .describedAs("We've switched to channel2")
+                .isSameAs(channel2);
+        assertThat(pinUntilErrorWithoutReshuffle.maybeExecute(null, null)).isPresent();
+        assertThat(pinUntilErrorWithoutReshuffle.maybeExecute(null, null)).isPresent();
+        assertThat(pinUntilErrorWithoutReshuffle.getCurrentChannel())
+                .describedAs("Still on channel2")
+                .isSameAs(channel2);
+    }
+
+    @Test
     void handles_reconstruction_from_stale_state() {
         PinUntilErrorChannel.of(
                 Optional.empty(),

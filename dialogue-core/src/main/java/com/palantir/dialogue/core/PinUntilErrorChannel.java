@@ -45,7 +45,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Routes all requests to one host until an error is received, then we'll move on to the next host.
+ * Routes all requests to one host until an error is received (or the host refuses a request by returning
+ * Optional.empty), then we'll move on to the next host.
+ *
  * Upside: ensures clients will always hit warm caches
  * Downsides:
  * <ul>
@@ -123,26 +125,37 @@ final class PinUntilErrorChannel implements LimitedChannel {
         int currentIndex = currentHost.get();
         LimitedChannel channel = nodeList.get(currentIndex);
 
-        return channel.maybeExecute(endpoint, request)
-                .map(future -> DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
-                    @Override
-                    public void onSuccess(Response response) {
-                        if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                            OptionalInt next = incrementHostIfNecessary(currentIndex);
-                            instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
-                            // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel
-                            // mapping
-                        } else {
-                            instrumentation.successfulResponse(currentIndex);
-                        }
-                    }
+        Optional<ListenableFuture<Response>> delegateResponse = channel.maybeExecute(endpoint, request);
+        if (!delegateResponse.isPresent()) {
+            // If we just got concurrency limited, we increment the host so that the next request should end up on a
+            // different channel! We don't keep trying all nodes before returning though - that is handled at a
+            // higher layer by the RetryingChannel.
+            OptionalInt next = incrementHostIfNecessary(currentIndex);
+            instrumentation.switchingDueToLimited(currentIndex, channel, next);
+            return Optional.empty();
+        }
+        ListenableFuture<Response> future = delegateResponse.get();
 
-                    @Override
-                    public void onFailure(Throwable throwable) {
-                        OptionalInt next = incrementHostIfNecessary(currentIndex);
-                        instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
-                    }
-                }));
+        DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+            @Override
+            public void onSuccess(Response response) {
+                if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                    OptionalInt next = incrementHostIfNecessary(currentIndex);
+                    instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
+                    // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel mapping
+                } else {
+                    instrumentation.successfulResponse(currentIndex);
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {
+                OptionalInt next = incrementHostIfNecessary(currentIndex);
+                instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
+            }
+        });
+
+        return Optional.of(future);
     }
 
     /**
@@ -276,6 +289,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Meter reshuffleMeter;
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
+        private final Meter nextNodeBecauseLimited;
 
         Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics, String channelName) {
             this.reshuffleMeter = metrics.reshuffle(channelName);
@@ -286,6 +300,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
             this.nextNodeBecauseThrowable = metrics.nextNode()
                     .channelName(channelName)
                     .reason("throwable")
+                    .build();
+            this.nextNodeBecauseLimited = metrics.nextNode()
+                    .channelName(channelName)
+                    .reason("limited")
                     .build();
 
             if (numChannels < 10) {
@@ -308,6 +326,26 @@ final class PinUntilErrorChannel implements LimitedChannel {
                         "Reshuffled channels {} {}",
                         SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
                         UnsafeArg.of("newList", newList));
+            }
+        }
+
+        private void switchingDueToLimited(int currentIndex, LimitedChannel channel, OptionalInt next) {
+            if (next.isPresent()) {
+                nextNodeBecauseLimited.mark();
+            }
+            if (log.isDebugEnabled()) {
+                if (next.isPresent()) {
+                    log.debug(
+                            "Current LimitedChannel refused the request, switching to next channel",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel),
+                            SafeArg.of("nextIndex", next.getAsInt()));
+                } else {
+                    log.debug(
+                            "Current LimitedChannel refused the request, but we've already switched",
+                            SafeArg.of("currentIndex", currentIndex),
+                            UnsafeArg.of("current", channel));
+                }
             }
         }
 
