@@ -1,1 +1,1 @@
-success=32.6%	client_mean=PT1M33.640484199S	server_cpu=PT10H34M22.666666616S	client_received=10000/10000	server_resps=10000	codes={200=3261, 500=6739}
+success=1.5%	client_mean=PT27.054891799S	server_cpu=PT10H42M9.19999998S	client_received=10000/10000	server_resps=10000	codes={200=149, 500=9851}
