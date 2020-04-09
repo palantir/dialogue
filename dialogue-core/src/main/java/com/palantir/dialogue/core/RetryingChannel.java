@@ -198,7 +198,7 @@ final class RetryingChannel implements Channel {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable);
             }
 
-            if (Responses.isServerError(response) && safeAndIdempotent(endpoint.httpMethod())) {
+            if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable);
             }
 
@@ -278,25 +278,21 @@ final class RetryingChannel implements Channel {
         }
     }
 
-    private static boolean safeAndIdempotent(HttpMethod httpMethod) {
+    /**
+     * We are a bit more conservative than the definition of Safe and Idempotent in https://tools.ietf
+     * .org/html/rfc7231#section-4.2.1, as we're not sure whether developers have written non-idempotent PUT/DELETE
+     * endpoints.
+     */
+    private static boolean safeToRetry(HttpMethod httpMethod) {
         switch (httpMethod) {
             case GET:
             case HEAD:
-                // As per https://tools.ietf.org/html/rfc7231#section-4.2.1. "Safe" means roughly read-only.
-                // "Of the request methods defined by this specification, the GET, HEAD, OPTIONS, and TRACE methods
-                // are defined to be safe."
                 return true;
             case PUT:
             case DELETE:
-                // As per https://tools.ietf.org/html/rfc7231#section-4.2.2. "Idempotent" means multiple attempts of
-                // the same request are intended to have the same effect as just one call.
-                // "Of the request methods defined by this specification, PUT, DELETE, and safe request methods
-                // are idempotent."
-                return true;
-            case PATCH:
+                // in theory PUT and DELETE should be fine to retry too, we're just being conservative for now.
             case POST:
-                // In REST conventions, POST is used to create a new resource and we expect and we expect a fresh ID
-                // to be returned for each call
+            case PATCH:
                 return false;
         }
 
