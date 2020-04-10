@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: dialogue's concurrency limiters can now handle a big spike of requests
+    to a defensively rate limited server. Previously, it would fire off requests _too_
+    quickly, leading to user-facing failures where all retries hit a 429.
+  links:
+  - https://github.com/palantir/dialogue/pull/635
