@@ -24,7 +24,6 @@ import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.SettableFuture;
-import com.netflix.concurrency.limits.Limiter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -37,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
@@ -54,8 +54,8 @@ public class ConcurrencyLimitedChannelTest {
     @Mock
     private ConjureLimiter mockLimiter;
 
-    @Mock
-    private Limiter.Listener listener;
+    @Spy
+    private ConjureLimiter.Listener listener = new ConjureLimiter().acquire().get();
 
     @Mock
     private Response response;
@@ -79,7 +79,7 @@ public class ConcurrencyLimitedChannelTest {
         mockResponseCode(200);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).onSuccess();
+        verify(listener).success();
     }
 
     @Test
@@ -88,7 +88,7 @@ public class ConcurrencyLimitedChannelTest {
         mockResponseCode(429);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).onDropped();
+        verify(listener).dropped();
     }
 
     @Test
@@ -97,7 +97,7 @@ public class ConcurrencyLimitedChannelTest {
         responseFuture.setException(new IllegalStateException());
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).onIgnore();
+        verify(listener).ignore();
     }
 
     @Test
@@ -135,11 +135,11 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockLimitAvailable() {
-        when(mockLimiter.acquire(null)).thenReturn(Optional.of(listener));
+        when(mockLimiter.acquire()).thenReturn(Optional.of(listener));
     }
 
     private void mockLimitUnavailable() {
-        when(mockLimiter.acquire(null)).thenReturn(Optional.empty());
+        when(mockLimiter.acquire()).thenReturn(Optional.empty());
     }
 
     private Number getUtilization() {

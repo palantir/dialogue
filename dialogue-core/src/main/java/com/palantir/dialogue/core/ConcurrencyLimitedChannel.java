@@ -18,9 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.netflix.concurrency.limits.Limiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -29,7 +27,6 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -38,9 +35,6 @@ import javax.annotation.Nullable;
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     static final int INITIAL_LIMIT = 20;
-
-    @Nullable
-    private static final Void NO_CONTEXT = null;
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
@@ -86,14 +80,14 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
+        Optional<ConjureLimiter.Listener> maybeListener = limiter.acquire();
         if (maybeListener.isPresent()) {
-            Limiter.Listener listener = maybeListener.get();
+            ConjureLimiter.Listener listener = maybeListener.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
+                DialogueFutures.addDirectCallback(result.get(), listener);
             } else {
-                listener.onIgnore();
+                listener.ignore();
             }
             return result;
         } else {
@@ -105,31 +99,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public String toString() {
         return "ConcurrencyLimitedChannel{" + delegate + '}';
-    }
-    /**
-     * Signals back to the {@link Limiter} whether or not the request was successfully handled.
-     */
-    private static final class LimiterCallback implements FutureCallback<Response> {
-
-        private final Limiter.Listener listener;
-
-        private LimiterCallback(Limiter.Listener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void onSuccess(Response result) {
-            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                listener.onDropped();
-            } else {
-                listener.onSuccess();
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable _throwable) {
-            listener.onIgnore();
-        }
     }
 
     private double getUtilization() {

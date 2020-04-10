@@ -16,13 +16,13 @@
 
 package com.palantir.dialogue.core;
 
-import com.netflix.concurrency.limits.Limiter;
+import com.google.common.util.concurrent.FutureCallback;
+import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
-import javax.annotation.Nullable;
 
-final class ConjureLimiter implements Limiter<Void> {
+final class ConjureLimiter {
 
     private static final int INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
@@ -31,35 +31,12 @@ final class ConjureLimiter implements Limiter<Void> {
     private static final int MAX_LIMIT = Integer.MAX_VALUE / 2;
 
     private static final IntBinaryOperator limitUpdaterDidDrop = newLimitUpdater(true);
-    private static final IntBinaryOperator limitUpdaterDidNotDrop = newLimitUpdater(false);
+    private static final IntBinaryOperator limitUpdaterSuccess = newLimitUpdater(false);
 
     private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    protected Listener createListener() {
-        final int currentInflight = inFlight.incrementAndGet();
-        return new Listener() {
-            @Override
-            public void onSuccess() {
-                inFlight.decrementAndGet();
-                onSample(currentInflight, false);
-            }
-
-            @Override
-            public void onIgnore() {
-                inFlight.decrementAndGet();
-            }
-
-            @Override
-            public void onDropped() {
-                inFlight.decrementAndGet();
-                onSample(currentInflight, true);
-            }
-        };
-    }
-
-    @Override
-    public Optional<Listener> acquire(@Nullable Void _context) {
+    public Optional<Listener> acquire() {
         int currentInFlight = getInflight();
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
@@ -67,8 +44,45 @@ final class ConjureLimiter implements Limiter<Void> {
         return Optional.of(createListener());
     }
 
-    void onSample(int inFlightSnapshot, boolean didDrop) {
-        limit.accumulateAndGet(inFlightSnapshot, didDrop ? limitUpdaterDidDrop : limitUpdaterDidNotDrop);
+    private Listener createListener() {
+        int inFlightSnapshot = inFlight.incrementAndGet();
+        return new Listener(inFlightSnapshot);
+    }
+
+    final class Listener implements FutureCallback<Response> {
+        private final int inFlightSnapshot;
+
+        Listener(int inFlightSnapshot) {
+            this.inFlightSnapshot = inFlightSnapshot;
+        }
+
+        @Override
+        public void onSuccess(Response result) {
+            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
+                dropped();
+            } else {
+                success();
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable _throwable) {
+            ignore();
+        }
+
+        void ignore() {
+            inFlight.decrementAndGet();
+        }
+
+        void dropped() {
+            inFlight.decrementAndGet();
+            limit.accumulateAndGet(inFlightSnapshot, limitUpdaterDidDrop);
+        }
+
+        void success() {
+            inFlight.decrementAndGet();
+            limit.accumulateAndGet(inFlightSnapshot, limitUpdaterSuccess);
+        }
     }
 
     private static IntBinaryOperator newLimitUpdater(boolean didDrop) {
