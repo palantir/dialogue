@@ -27,6 +27,7 @@ import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
@@ -34,6 +35,8 @@ import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -41,6 +44,7 @@ import javax.annotation.Nullable;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
     static final int INITIAL_LIMIT = 20;
 
     @Nullable
@@ -115,7 +119,13 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             }
             return result;
         } else {
-            System.out.println("LIMITED " + limiter.getInflight() + "/" + limiter.getLimit());
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "All permits already in use, request would exceed current max concurrency limit",
+                        SafeArg.of("max", limiter.getLimit()),
+                        SafeArg.of("endpoint", endpoint.endpointName()),
+                        SafeArg.of("service", endpoint.serviceName()));
+            }
             limitedMeter.mark();
             return Optional.empty();
         }
