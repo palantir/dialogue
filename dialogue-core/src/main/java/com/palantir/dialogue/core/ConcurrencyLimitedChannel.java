@@ -54,6 +54,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final LimitedChannel delegate;
     private final SimpleLimiter<Void> limiter;
 
+    // just for debug logging
+    private final SafeArg<String> channelName;
+    private final SafeArg<Integer> uriIndex;
+
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
             SimpleLimiter<Void> limiter,
@@ -67,7 +71,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .reason(getClass().getSimpleName())
                 .build();
         this.limiter = limiter;
-
+        this.channelName = SafeArg.of("channelName", channelName);
+        this.uriIndex = SafeArg.of("uriIndex", uriIndex);
         weakGauge(
                 taggedMetrics,
                 MetricName.builder()
@@ -124,7 +129,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                         "All permits already in use, request would exceed current max concurrency limit",
                         SafeArg.of("max", limiter.getLimit()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
-                        SafeArg.of("service", endpoint.serviceName()));
+                        SafeArg.of("service", endpoint.serviceName()),
+                        channelName,
+                        uriIndex);
             }
             limitedMeter.mark();
             return Optional.empty();
