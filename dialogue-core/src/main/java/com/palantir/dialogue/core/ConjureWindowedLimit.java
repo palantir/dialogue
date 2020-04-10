@@ -27,6 +27,7 @@ import java.util.function.Consumer;
  * <p>1. Modify to reduce window size whenever a dropped sample is seen, rather than awaiting the whole window. 2.
  * Change package and make package private. 3. Code style. 4. Inlined constants.
  */
+@SuppressWarnings("NullAway") // TODO(dfox): deal with this
 class ConjureWindowedLimit implements Limit {
     private static final long MIN_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
     private static final long MAX_WINDOW_TIME = TimeUnit.SECONDS.toNanos(1);
