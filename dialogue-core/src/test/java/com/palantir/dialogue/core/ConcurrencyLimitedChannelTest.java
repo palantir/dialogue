@@ -25,7 +25,6 @@ import static org.mockito.Mockito.when;
 import com.codahale.metrics.Gauge;
 import com.google.common.util.concurrent.SettableFuture;
 import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -53,7 +52,7 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private SimpleLimiter<Void> mockLimiter;
+    private ConjureLimiter mockLimiter;
 
     @Mock
     private Limiter.Listener listener;
@@ -113,7 +112,7 @@ public class ConcurrencyLimitedChannelTest {
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
                 new ChannelToLimitedChannelAdapter(delegate),
-                ConcurrencyLimitedChannel.createLimiter(System::nanoTime),
+                ConcurrencyLimitedChannel.createLimiter(),
                 "channel",
                 0,
                 metrics);
