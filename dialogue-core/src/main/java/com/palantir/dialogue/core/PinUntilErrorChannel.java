@@ -45,7 +45,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Routes all requests to one host until an error is received, then we'll move on to the next host.
+ * Routes all requests to one host until an error is received, then we'll move on to the next host. We explicitly
+ * do not consider limited responses as errors when determining whether to change hosts, trading off improved locality
+ * over overall throughput.
  * Upside: ensures clients will always hit warm caches
  * Downsides:
  * <ul>
