@@ -194,7 +194,7 @@ public final class ApacheHttpClientChannels {
         }
 
         public ClientBuilder clientName(String value) {
-            this.clientName = Preconditions.checkNotNull(value, "ClientConfiguration is required");
+            this.clientName = Preconditions.checkNotNull(value, "clientName is required");
             return this;
         }
 
