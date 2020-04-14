@@ -88,11 +88,7 @@ final class AimdConcurrencyLimiter {
             @Override
             public int applyAsInt(int originalLimit, int inFlightSnapshot) {
                 if (inFlightSnapshot * 2 >= originalLimit) {
-                    int updatedLimit = originalLimit + 1;
-                    if (updatedLimit >= MAX_LIMIT) {
-                        updatedLimit = Math.max(MIN_LIMIT, updatedLimit / 2);
-                    }
-                    return Math.min(MAX_LIMIT, updatedLimit);
+                    return Math.min(MAX_LIMIT, originalLimit + 1);
                 }
                 return originalLimit;
             }
