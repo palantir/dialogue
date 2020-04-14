@@ -40,6 +40,7 @@ import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -264,7 +265,9 @@ final class RetryingChannel implements Channel {
                             && socketTimeout.getMessage().contains("connect timed out");
                 }
             }
-            return true;
+            // Only retry IOExceptions. Other failures, particularly RuntimeException and Error are not
+            // meant to be recovered from.
+            return throwable instanceof IOException;
         }
 
         private void logRetry(long backoffNanoseconds, @Nullable Throwable throwable) {

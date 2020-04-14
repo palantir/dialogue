@@ -34,6 +34,8 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.logsafe.exceptions.SafeIoException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -49,7 +51,7 @@ public class RetryingChannelTest {
     private static final TestResponse EXPECTED_RESPONSE = new TestResponse();
     private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
-            Futures.immediateFailedFuture(new IllegalArgumentException("FAILED"));
+            Futures.immediateFailedFuture(new SafeIoException("FAILED"));
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
@@ -104,7 +106,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
         assertThatThrownBy(response::get)
-                .hasRootCauseExactlyInstanceOf(IllegalArgumentException.class)
+                .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
     }
 
@@ -120,7 +122,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
-        assertThatThrownBy(response::get).hasCauseInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
         verify(channel, times(4)).execute(TestEndpoint.POST, REQUEST);
     }
 
@@ -342,6 +344,25 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Test
+    public void doesNotRetryRuntimeException() {
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFailedFuture(new SafeRuntimeException("bug")))
+                .thenReturn(SUCCESS);
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
+        assertThatThrownBy(response::get)
+                .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
+                .hasRootCauseMessage("bug");
     }
 
     @Test
