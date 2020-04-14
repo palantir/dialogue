@@ -38,11 +38,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final ConjureLimiter limiter;
+    private final AimdConcurrencyLimiter limiter;
 
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
-            ConjureLimiter limiter,
+            AimdConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
@@ -74,15 +74,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 ConcurrencyLimitedChannel::getMax);
     }
 
-    static ConjureLimiter createLimiter() {
-        return new ConjureLimiter();
+    static AimdConcurrencyLimiter createLimiter() {
+        return new AimdConcurrencyLimiter();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<ConjureLimiter.Listener> maybeListener = limiter.acquire();
+        Optional<AimdConcurrencyLimiter.Listener> maybeListener = limiter.acquire();
         if (maybeListener.isPresent()) {
-            ConjureLimiter.Listener listener = maybeListener.get();
+            AimdConcurrencyLimiter.Listener listener = maybeListener.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), listener);

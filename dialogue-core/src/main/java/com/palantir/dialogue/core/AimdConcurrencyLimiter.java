@@ -22,7 +22,8 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
 
-final class ConjureLimiter {
+/** Simple lock-free additive increase multiplicative decrease concurrency limiter. */
+final class AimdConcurrencyLimiter {
 
     private static final int INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;

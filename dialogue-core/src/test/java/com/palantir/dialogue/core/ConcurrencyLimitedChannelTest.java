@@ -52,10 +52,11 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private ConjureLimiter mockLimiter;
+    private AimdConcurrencyLimiter mockLimiter;
 
     @Spy
-    private ConjureLimiter.Listener listener = new ConjureLimiter().acquire().get();
+    private AimdConcurrencyLimiter.Listener listener =
+            new AimdConcurrencyLimiter().acquire().get();
 
     @Mock
     private Response response;
