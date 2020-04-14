@@ -25,6 +25,7 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -193,7 +194,12 @@ public final class ApacheHttpClientChannels {
             return this;
         }
 
-        public ClientBuilder clientName(String value) {
+        /**
+         * {@link Safe} loggable identifier used to identify this client instance for instrumentation
+         * purposes. While this value does not impact behavior, using a unique value for each client
+         * makes it much easier to monitor and debug the RPC stack.
+         */
+        public ClientBuilder clientName(@Safe String value) {
             this.clientName = Preconditions.checkNotNull(value, "clientName is required");
             return this;
         }
