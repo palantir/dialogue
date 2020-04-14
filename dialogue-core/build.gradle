@@ -6,7 +6,6 @@ dependencies {
     compile project(':dialogue-target')
     compile 'com.github.ben-manes.caffeine:caffeine'
     compile 'com.google.guava:guava'
-    compile 'com.netflix.concurrency-limits:concurrency-limits-core'
     compile 'com.palantir.conjure.java.runtime:client-config'
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.palantir.tracing:tracing'

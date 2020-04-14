@@ -82,7 +82,6 @@ public enum Strategy {
                                 .taggedMetricRegistry(sim.taggedMetrics()))
                         .build())
                 .channelFactory(uri -> channelSupplier.get().get(uri))
-                .clock(sim.clock())
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
                 .build();

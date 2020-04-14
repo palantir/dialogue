@@ -18,12 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.limit.AIMDLimit;
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -31,9 +26,7 @@ import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import javax.annotation.Nullable;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -43,16 +36,13 @@ import javax.annotation.Nullable;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     static final int INITIAL_LIMIT = 20;
 
-    @Nullable
-    private static final Void NO_CONTEXT = null;
-
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final SimpleLimiter<Void> limiter;
+    private final AimdConcurrencyLimiter limiter;
 
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
-            SimpleLimiter<Void> limiter,
+            AimdConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
@@ -84,34 +74,20 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 ConcurrencyLimitedChannel::getMax);
     }
 
-    static SimpleLimiter<Void> createLimiter(Ticker nanoTimeClock) {
-        AIMDLimit aimdLimit = AIMDLimit.newBuilder()
-                // Explicitly set values to prevent library changes from breaking us
-                .initialLimit(INITIAL_LIMIT)
-                .minLimit(1)
-                .backoffRatio(0.9)
-                // Don't count slow calls as a sign of the server being overloaded
-                .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
-                // Don't limit the maximum concurrency to a fixed value. This allows the client and server
-                // to negotiate a reasonable capacity based on traffic.
-                .maxLimit(Integer.MAX_VALUE)
-                .build();
-        return SimpleLimiter.newBuilder()
-                .clock(nanoTimeClock::read)
-                .limit(aimdLimit)
-                .build();
+    static AimdConcurrencyLimiter createLimiter() {
+        return new AimdConcurrencyLimiter();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
+        Optional<AimdConcurrencyLimiter.Listener> maybeListener = limiter.acquire();
         if (maybeListener.isPresent()) {
-            Limiter.Listener listener = maybeListener.get();
+            AimdConcurrencyLimiter.Listener listener = maybeListener.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
+                DialogueFutures.addDirectCallback(result.get(), listener);
             } else {
-                listener.onIgnore();
+                listener.ignore();
             }
             return result;
         } else {
@@ -123,31 +99,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public String toString() {
         return "ConcurrencyLimitedChannel{" + delegate + '}';
-    }
-    /**
-     * Signals back to the {@link Limiter} whether or not the request was successfully handled.
-     */
-    private static final class LimiterCallback implements FutureCallback<Response> {
-
-        private final Limiter.Listener listener;
-
-        private LimiterCallback(Limiter.Listener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void onSuccess(Response result) {
-            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                listener.onDropped();
-            } else {
-                listener.onSuccess();
-            }
-        }
-
-        @Override
-        public void onFailure(Throwable _throwable) {
-            listener.onIgnore();
-        }
     }
 
     private double getUtilization() {
