@@ -148,10 +148,10 @@ final class RetryingChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         if (isRetryable(request)) {
-            Optional<SafeRuntimeException> exceptionForStacktrace = log.isDebugEnabled()
+            Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
                     ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
                     : Optional.empty();
-            return new RetryingCallback(endpoint, request, exceptionForStacktrace).execute();
+            return new RetryingCallback(endpoint, request, debugStacktrace).execute();
         }
         return delegate.execute(endpoint, request);
     }
@@ -164,15 +164,15 @@ final class RetryingChannel implements Channel {
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
-        private final Optional<SafeRuntimeException> exceptionForStacktrace;
+        private final Optional<SafeRuntimeException> debugStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
         private RetryingCallback(
-                Endpoint endpoint, Request request, Optional<SafeRuntimeException> exceptionForStacktrace) {
+                Endpoint endpoint, Request request, Optional<SafeRuntimeException> debugStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
-            this.exceptionForStacktrace = exceptionForStacktrace;
+            this.debugStacktrace = debugStacktrace;
         }
 
         ListenableFuture<Response> execute() {
@@ -248,10 +248,10 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> handleThrowable(Throwable throwable) {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
-                    exceptionForStacktrace.ifPresent(throwable::addSuppressed);
+                    debugStacktrace.ifPresent(throwable::addSuppressed);
                     return scheduleRetry(throwable);
                 } else if (log.isDebugEnabled()) {
-                    exceptionForStacktrace.ifPresent(throwable::addSuppressed);
+                    debugStacktrace.ifPresent(throwable::addSuppressed);
                     log.debug(
                             "Not attempting to retry failure",
                             SafeArg.of("channelName", channelName),
