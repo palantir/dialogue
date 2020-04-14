@@ -148,7 +148,10 @@ final class RetryingChannel implements Channel {
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         if (isRetryable(request)) {
-            return new RetryingCallback(endpoint, request).execute();
+            Optional<SafeRuntimeException> exceptionForStacktrace = log.isDebugEnabled()
+                    ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
+                    : Optional.empty();
+            return new RetryingCallback(endpoint, request, exceptionForStacktrace).execute();
         }
         return delegate.execute(endpoint, request);
     }
@@ -161,12 +164,15 @@ final class RetryingChannel implements Channel {
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
+        private final Optional<SafeRuntimeException> exceptionForStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
-        private RetryingCallback(Endpoint endpoint, Request request) {
+        private RetryingCallback(
+                Endpoint endpoint, Request request, Optional<SafeRuntimeException> exceptionForStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
+            this.exceptionForStacktrace = exceptionForStacktrace;
         }
 
         ListenableFuture<Response> execute() {
@@ -242,8 +248,10 @@ final class RetryingChannel implements Channel {
         ListenableFuture<Response> handleThrowable(Throwable throwable) {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
+                    exceptionForStacktrace.ifPresent(throwable::addSuppressed);
                     return scheduleRetry(throwable);
                 } else if (log.isDebugEnabled()) {
+                    exceptionForStacktrace.ifPresent(throwable::addSuppressed);
                     log.debug(
                             "Not attempting to retry failure",
                             SafeArg.of("channelName", channelName),

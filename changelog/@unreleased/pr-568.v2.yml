@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: |
+    RetryingChannel records informational stacktraces when debug logging is enabled. These are not collected
+    during normal operation to avoid the performance impact on calls that don't retry.
+  links:
+  - https://github.com/palantir/dialogue/pull/568
