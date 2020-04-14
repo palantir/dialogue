@@ -50,6 +50,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -138,10 +139,24 @@ public class IntegrationTest {
         System.out.printf("%d MB took %d millis%n", megabytes, sw.elapsed(TimeUnit.MILLISECONDS));
     }
 
-    private void set204Response() {
+    @Test
+    public void testClosedConnectionIsRetried() {
+        AtomicInteger requests = new AtomicInteger();
         undertowHandler = exchange -> {
-            exchange.setStatusCode(204);
+            if (requests.getAndIncrement() == 0) {
+                exchange.getConnection().close();
+            } else {
+                exchange.setStatusCode(204);
+            }
         };
+        AliasOfOptional myAlias = sampleServiceBlocking().getMyAlias();
+        Optional<String> maybeString = myAlias.get();
+        assertThat(maybeString).isNotPresent();
+        assertThat(requests).hasValue(2);
+    }
+
+    private void set204Response() {
+        undertowHandler = exchange -> exchange.setStatusCode(204);
     }
 
     private void setBinaryGzipResponse(String stringToCompress) {

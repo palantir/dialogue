@@ -40,6 +40,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
 import java.util.Random;
@@ -164,6 +165,33 @@ public final class DialogueChannelsTest {
         // Now that we have two uris, another batch of 20 requests can get out the door
         verify(delegate, times(reloadedUris.size() * ConcurrencyLimitedChannel.INITIAL_LIMIT))
                 .execute(any(), any());
+    }
+
+    @Test
+    void test_queue_rejection_is_not_retried() {
+        when(delegate.execute(any(), any())).thenReturn(SettableFuture.create());
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(uri -> delegate)
+                .random(new Random(123456L))
+                .maxQueueSize(1)
+                .build();
+        // Saturate the concurrency limiter
+        int initialConcurrencyLimit = 20;
+        for (int i = 0; i < initialConcurrencyLimit; i++) {
+            ListenableFuture<Response> running = channel.execute(endpoint, request);
+            assertThat(running).isNotDone();
+        }
+        // Queue a request
+        ListenableFuture<Response> queued = channel.execute(endpoint, request);
+        assertThat(queued).isNotDone();
+        // Next request should be rejected.
+        ListenableFuture<Response> rejected = channel.execute(endpoint, request);
+        assertThat(rejected).isDone();
+        assertThatThrownBy(rejected::get)
+                .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
+                .hasMessageContaining("queue is full");
     }
 
     @Test

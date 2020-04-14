@@ -67,14 +67,15 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration clientConfiguration,
             ChannelFactory channelFactory,
             Random random,
-            Supplier<ScheduledExecutorService> scheduler) {
+            Supplier<ScheduledExecutorService> scheduler,
+            int maxQueueSize) {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.random = random;
-        this.queuedChannel =
-                new QueuedChannel(new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics);
+        this.queuedChannel = new QueuedChannel(
+                new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics, maxQueueSize);
         updateUris(clientConfiguration.uris());
         this.delegate = wrap(queuedChannel, channelName, clientConfiguration, scheduler, random, clientMetrics);
     }
@@ -258,6 +259,8 @@ public final class DialogueChannel implements Channel {
         @Nullable
         private ChannelFactory channelFactory;
 
+        private int maxQueueSize = 100_000;
+
         public Builder channelName(String value) {
             this.channelName = value;
             return this;
@@ -285,6 +288,13 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
+        @VisibleForTesting
+        Builder maxQueueSize(int value) {
+            Preconditions.checkArgument(value > 0, "maxQueueSize must be positive");
+            this.maxQueueSize = value;
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
@@ -295,7 +305,7 @@ public final class DialogueChannel implements Channel {
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(name, cleanedConf, factory, random, scheduler);
+            return new DialogueChannel(name, cleanedConf, factory, random, scheduler, maxQueueSize);
         }
 
         private void preconditions(ClientConfiguration conf) {
