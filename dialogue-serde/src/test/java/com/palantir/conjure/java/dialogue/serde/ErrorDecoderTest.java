@@ -17,14 +17,13 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
-import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.errors.ErrorType;
+import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
@@ -34,6 +33,8 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import java.time.Duration;
+import javax.ws.rs.core.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -65,20 +66,104 @@ public final class ErrorDecoderTest {
                     TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json");
             assertThat(decoder.isError(response)).isTrue();
 
-            RemoteException exception = decoder.decode(response);
-            assertThat(exception.getCause()).isNull();
-            assertThat(exception.getStatus()).isEqualTo(code);
-            assertThat(exception.getError().errorCode())
-                    .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
-            assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
-            assertThat(exception.getMessage())
-                    .isEqualTo("RemoteException: "
-                            + ErrorType.FAILED_PRECONDITION.code().name()
-                            + " ("
-                            + ErrorType.FAILED_PRECONDITION.name()
-                            + ") with instance ID "
-                            + SERVICE_EXCEPTION.getErrorInstanceId());
+            RuntimeException result = decoder.decode(response);
+            assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
+                assertThat(exception.getCause()).isNull();
+                assertThat(exception.getStatus()).isEqualTo(code);
+                assertThat(exception.getError().errorCode())
+                        .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
+                assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
+                assertThat(exception.getMessage())
+                        .isEqualTo("RemoteException: "
+                                + ErrorType.FAILED_PRECONDITION.code().name()
+                                + " ("
+                                + ErrorType.FAILED_PRECONDITION.name()
+                                + ") with instance ID "
+                                + SERVICE_EXCEPTION.getErrorInstanceId());
+            });
         }
+    }
+
+    @Test
+    public void testQos503() {
+        Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(503);
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result).isInstanceOf(QosException.Unavailable.class);
+    }
+
+    @Test
+    public void testQos429() {
+        Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(429);
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result)
+                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
+                        .isEmpty());
+    }
+
+    @Test
+    public void testQos429_retryAfter() {
+        Response response =
+                TestResponse.withBody(SERIALIZED_EXCEPTION).code(429).withHeader(HttpHeaders.RETRY_AFTER, "3");
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result)
+                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
+                        .hasValue(Duration.ofSeconds(3)));
+    }
+
+    @Test
+    public void testQos429_retryAfter_invalid() {
+        Response response =
+                TestResponse.withBody(SERIALIZED_EXCEPTION).code(429).withHeader(HttpHeaders.RETRY_AFTER, "bad");
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result)
+                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
+                        .isEmpty());
+    }
+
+    @Test
+    public void testQos308_noLocation() {
+        Response response = TestResponse.withBody(SERIALIZED_EXCEPTION).code(308);
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result)
+                .isInstanceOfSatisfying(UnknownRemoteException.class, exception -> assertThat(exception.getStatus())
+                        .isEqualTo(308));
+    }
+
+    @Test
+    public void testQos308_invalidLocation() {
+        Response response =
+                TestResponse.withBody(SERIALIZED_EXCEPTION).code(308).withHeader(HttpHeaders.LOCATION, "invalid");
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result)
+                .isInstanceOfSatisfying(UnknownRemoteException.class, exception -> assertThat(exception.getStatus())
+                        .isEqualTo(308));
+    }
+
+    @Test
+    public void testQos308() {
+        String expectedLocation = "https://localhost";
+        Response response = TestResponse.withBody(SERIALIZED_EXCEPTION)
+                .code(308)
+                .withHeader(HttpHeaders.LOCATION, expectedLocation);
+        assertThat(decoder.isError(response)).isTrue();
+
+        RuntimeException result = decoder.decode(response);
+        assertThat(result).isInstanceOfSatisfying(QosException.RetryOther.class, exception -> assertThat(
+                        exception.getRedirectTo())
+                .asString()
+                .isEqualTo(expectedLocation));
     }
 
     @Test
@@ -90,7 +175,7 @@ public final class ErrorDecoderTest {
 
     @Test
     public void cannotDecodeNonJsonMediaTypes() {
-        assertThatThrownBy(() -> decoder.decode(
+        assertThat(decoder.decode(
                         TestResponse.withBody(SERIALIZED_EXCEPTION).code(500).contentType("text/plain")))
                 .isInstanceOf(UnknownRemoteException.class)
                 .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
@@ -98,51 +183,48 @@ public final class ErrorDecoderTest {
 
     @Test
     public void doesNotHandleUnparseableBody() {
-        try {
-            decoder.decode(TestResponse.withBody("not json").code(500).contentType("application/json/"));
-            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
-        } catch (UnknownRemoteException expected) {
-            assertThat(expected.getStatus()).isEqualTo(500);
-            assertThat(expected.getBody()).isEqualTo("not json");
-            assertThat(expected.getMessage())
-                    .isEqualTo("Error 500. (Failed to parse response body as SerializableError.)");
-        }
+        assertThat(decoder.decode(TestResponse.withBody("not json").code(500).contentType("application/json/")))
+                .isInstanceOfSatisfying(UnknownRemoteException.class, expected -> {
+                    assertThat(expected.getStatus()).isEqualTo(500);
+                    assertThat(expected.getBody()).isEqualTo("not json");
+                    assertThat(expected.getMessage())
+                            .isEqualTo("Error 500. (Failed to parse response body as SerializableError.)");
+                });
     }
 
     @Test
     @SuppressWarnings("NullAway") // intentionally testing null body
     public void doesNotHandleNullBody() {
-        assertThatThrownBy(() ->
-                        decoder.decode(TestResponse.withBody(null).code(500).contentType("application/json")))
+        assertThat(decoder.decode(TestResponse.withBody(null).code(500).contentType("application/json")))
                 .isInstanceOf(UnknownRemoteException.class)
                 .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
     }
 
     @Test
     public void handlesUnexpectedJson() {
-        try {
-            decoder.decode(TestResponse.withBody("{\"error\":\"some-unknown-json\"}")
-                    .code(502)
-                    .contentType("application/json"));
-            failBecauseExceptionWasNotThrown(UnknownRemoteException.class);
-        } catch (UnknownRemoteException expected) {
-            assertThat(expected.getStatus()).isEqualTo(502);
-            assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
-            assertThat(expected.getMessage())
-                    .isEqualTo("Error 502. (Failed to parse response body as SerializableError.)");
-        }
+        assertThat(decoder.decode(TestResponse.withBody("{\"error\":\"some-unknown-json\"}")
+                        .code(502)
+                        .contentType("application/json")))
+                .isInstanceOfSatisfying(UnknownRemoteException.class, expected -> {
+                    assertThat(expected.getStatus()).isEqualTo(502);
+                    assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
+                    assertThat(expected.getMessage())
+                            .isEqualTo("Error 502. (Failed to parse response body as SerializableError.)");
+                });
     }
 
     @Test
     public void handlesJsonWithEncoding() {
         int code = 500;
-        RemoteException exception = decoder.decode(
+        RuntimeException result = decoder.decode(
                 TestResponse.withBody(SERIALIZED_EXCEPTION).code(code).contentType("application/json; charset=utf-8"));
-        assertThat(exception.getCause()).isNull();
-        assertThat(exception.getStatus()).isEqualTo(code);
-        assertThat(exception.getError().errorCode())
-                .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
-        assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
+        assertThat(result).isInstanceOfSatisfying(RemoteException.class, exception -> {
+            assertThat(exception.getCause()).isNull();
+            assertThat(exception.getStatus()).isEqualTo(code);
+            assertThat(exception.getError().errorCode())
+                    .isEqualTo(ErrorType.FAILED_PRECONDITION.code().name());
+            assertThat(exception.getError().errorName()).isEqualTo(ErrorType.FAILED_PRECONDITION.name());
+        });
     }
 
     private static RemoteException encodeAndDecode(Exception exception) {
@@ -163,6 +245,9 @@ public final class ErrorDecoderTest {
         //         ? ((WebApplicationException) exception).getResponse().getStatus()
         //         : 400;
         int status = 400;
-        return decoder.decode(TestResponse.withBody(json).code(status).contentType("application/json"));
+        RuntimeException result =
+                decoder.decode(TestResponse.withBody(json).code(status).contentType("application/json"));
+        assertThat(result).isInstanceOf(RemoteException.class);
+        return (RemoteException) result;
     }
 }

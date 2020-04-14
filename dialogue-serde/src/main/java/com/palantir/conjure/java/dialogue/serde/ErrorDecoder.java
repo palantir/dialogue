@@ -18,18 +18,26 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.io.CharStreams;
+import com.google.common.primitives.Longs;
+import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Optional;
 import javax.ws.rs.core.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Extracts and returns a {@link RemoteException} from an {@link Response}.
@@ -40,36 +48,66 @@ import javax.ws.rs.core.HttpHeaders;
 enum ErrorDecoder {
     INSTANCE;
 
+    private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
     boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    RemoteException decode(Response response) {
+    RuntimeException decode(Response response) {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
+
+        int code = response.code();
+        switch (code) {
+            case 308:
+                Optional<String> location = response.getFirstHeader(HttpHeaders.LOCATION);
+                if (location.isPresent()) {
+                    String locationHeader = location.get();
+                    try {
+                        return QosException.retryOther(new URL(locationHeader));
+                    } catch (MalformedURLException e) {
+                        log.error(
+                                "Failed to parse location header for QosException.RetryOther",
+                                UnsafeArg.of("locationHeader", locationHeader),
+                                e);
+                    }
+                } else {
+                    log.error("Retrieved HTTP status code 308 without Location header, cannot perform "
+                            + "redirect. This appears to be a server-side protocol violation.");
+                }
+                break;
+            case 429:
+                return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
+                        .map(Longs::tryParse)
+                        .map(Duration::ofSeconds)
+                        .map(QosException::throttle)
+                        .orElseGet(QosException::throttle);
+            case 503:
+                return QosException.unavailable();
+        }
 
         String body;
         try {
             body = toString(response.body());
         } catch (NullPointerException | IOException e) {
-            UnknownRemoteException exception = new UnknownRemoteException(response.code(), "<unparseable>");
+            UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
-            throw exception;
+            return exception;
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
         if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
             try {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
-                return new RemoteException(serializableError, response.code());
+                return new RemoteException(serializableError, code);
             } catch (Exception e) {
-                throw new UnknownRemoteException(response.code(), body);
+                return new UnknownRemoteException(code, body);
             }
         }
 
-        throw new UnknownRemoteException(response.code(), body);
+        return new UnknownRemoteException(code, body);
     }
 
     private static String toString(InputStream body) throws IOException {

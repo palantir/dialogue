@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Implement QosException mapping
+  links:
+  - https://github.com/palantir/dialogue/pull/633
