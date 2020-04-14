@@ -23,7 +23,6 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.netflix.concurrency.limits.Limiter;
 import com.netflix.concurrency.limits.limit.AIMDLimit;
-import com.netflix.concurrency.limits.limit.WindowedLimit;
 import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -99,7 +98,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .build();
         return SimpleLimiter.newBuilder()
                 .clock(nanoTimeClock::read)
-                .limit(WindowedLimit.newBuilder().build(aimdLimit))
+                .limit(aimdLimit)
                 .build();
     }
 
