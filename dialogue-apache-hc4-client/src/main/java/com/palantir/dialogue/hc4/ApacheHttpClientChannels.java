@@ -204,18 +204,16 @@ public final class ApacheHttpClientChannels {
         }
 
         public CloseableClient build() {
-            Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
-            Preconditions.checkNotNull(clientName, "Client name is required");
+            ClientConfiguration conf =
+                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is " + "required");
+            String name = Preconditions.checkNotNull(clientName, "Client name is required");
             Preconditions.checkArgument(
-                    !clientConfiguration.fallbackToCommonNameVerification(),
-                    "fallback-to-common-name-verification is not supported");
-            Preconditions.checkArgument(!clientConfiguration.meshProxy().isPresent(), "Mesh proxy is not supported");
+                    !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
+            Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
-            long socketTimeoutMillis = Math.max(
-                    clientConfiguration.readTimeout().toMillis(),
-                    clientConfiguration.writeTimeout().toMillis());
-            int connectTimeout =
-                    Ints.checkedCast(clientConfiguration.connectTimeout().toMillis());
+            long socketTimeoutMillis =
+                    Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
+            int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
             // as clients attempt to use them.
@@ -228,17 +226,16 @@ public final class ApacheHttpClientChannels {
 
             SocketConfig socketConfig =
                     SocketConfig.custom().setSoKeepAlive(true).build();
-            SSLSocketFactory rawSocketFactory = clientConfiguration.sslSocketFactory();
+            SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                    MetricRegistries.instrument(
-                            clientConfiguration.taggedMetricRegistry(), rawSocketFactory, clientName),
+                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
                     new String[] {"TLSv1.2"},
                     supportedCipherSuites(
-                            clientConfiguration.enableGcmCipherSuites()
+                            conf.enableGcmCipherSuites()
                                     ? CipherSuites.allCipherSuites()
                                     : CipherSuites.fastCipherSuites(),
                             rawSocketFactory,
-                            clientName),
+                            name),
                     new DefaultHostnameVerifier());
 
             PoolingHttpClientConnectionManager connectionManager =
@@ -247,7 +244,7 @@ public final class ApacheHttpClientChannels {
                             .register("https", sslSocketFactory)
                             .build());
 
-            setupConnectionPoolMetrics(clientConfiguration.taggedMetricRegistry(), clientName, connectionManager);
+            setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
             connectionManager.setDefaultSocketConfig(socketConfig);
             connectionManager.setMaxTotal(Integer.MAX_VALUE);
@@ -268,7 +265,7 @@ public final class ApacheHttpClientChannels {
                     .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                     .setConnectionManagerShared(false) // will be closed when the client is closed
                     .setConnectionManager(connectionManager)
-                    .setRoutePlanner(new SystemDefaultRoutePlanner(null, clientConfiguration.proxy()))
+                    .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
                     .disableConnectionState()
@@ -282,7 +279,7 @@ public final class ApacheHttpClientChannels {
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(
                             RegistryBuilder.<AuthSchemeProvider>create().build());
-            clientConfiguration.proxyCredentials().ifPresent(credentials -> {
+            conf.proxyCredentials().ifPresent(credentials -> {
                 builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
                         .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
                         .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
@@ -291,9 +288,7 @@ public final class ApacheHttpClientChannels {
             });
 
             return new CloseableClient(
-                    builder.build(),
-                    ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry()),
-                    executor);
+                    builder.build(), ResponseLeakDetector.of(name, conf.taggedMetricRegistry()), executor);
         }
     }
 
