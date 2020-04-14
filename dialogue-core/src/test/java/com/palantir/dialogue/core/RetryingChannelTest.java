@@ -250,6 +250,25 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retries_500s_when_method_is_safe_and_idempotent_when_qos_propagated() throws Exception {
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.GET, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(TestEndpoint.GET, REQUEST);
+    }
+
+    @Test
     public void doesnt_retry_500s_for_post() throws Exception {
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
 
