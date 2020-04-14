@@ -28,6 +28,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -93,12 +94,21 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testLimiterAvailable_exceptionIsIgnored() {
+    public void testLimiterAvailable_runtimeExceptionIsIgnored() {
         mockLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
         verify(listener).ignore();
+    }
+
+    @Test
+    public void testLimiterAvailable_ioExceptionIsDropped() {
+        mockLimitAvailable();
+        responseFuture.setException(new SafeIoException("failure"));
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        verify(listener).dropped();
     }
 
     @Test
