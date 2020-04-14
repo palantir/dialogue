@@ -31,13 +31,10 @@ final class AimdConcurrencyLimiter {
     // Effectively unlimited, reduced from MAX_VALUE to prevent overflow
     private static final int MAX_LIMIT = Integer.MAX_VALUE / 2;
 
-    private static final IntBinaryOperator limitUpdaterDidDrop = newLimitUpdater(true);
-    private static final IntBinaryOperator limitUpdaterSuccess = newLimitUpdater(false);
-
     private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    public Optional<Listener> acquire() {
+    Optional<Listener> acquire() {
         int currentInFlight = getInflight();
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
@@ -77,26 +74,34 @@ final class AimdConcurrencyLimiter {
 
         void dropped() {
             inFlight.decrementAndGet();
-            limit.accumulateAndGet(inFlightSnapshot, limitUpdaterDidDrop);
+            limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
         }
 
         void success() {
             inFlight.decrementAndGet();
-            limit.accumulateAndGet(inFlightSnapshot, limitUpdaterSuccess);
+            limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
         }
     }
 
-    private static IntBinaryOperator newLimitUpdater(boolean didDrop) {
-        return (currentLimit, inFlightSnapshot) -> {
-            if (didDrop) {
-                currentLimit = (int) (currentLimit * BACKOFF_RATIO);
-            } else if (inFlightSnapshot * 2 >= currentLimit) {
-                currentLimit = currentLimit + 1;
+    enum LimitUpdater implements IntBinaryOperator {
+        SUCCESS() {
+            @Override
+            public int applyAsInt(int originalLimit, int inFlightSnapshot) {
+                if (inFlightSnapshot * 2 >= originalLimit) {
+                    int updatedLimit = originalLimit + 1;
+                    if (updatedLimit >= MAX_LIMIT) {
+                        updatedLimit = Math.max(MIN_LIMIT, updatedLimit / 2);
+                    }
+                    return Math.min(MAX_LIMIT, updatedLimit);
+                }
+                return originalLimit;
             }
-            if (currentLimit >= MAX_LIMIT) {
-                currentLimit = currentLimit / 2;
+        },
+        DROPPED() {
+            @Override
+            public int applyAsInt(int originalLimit, int _inFlightSnapshot) {
+                return Math.max(MIN_LIMIT, (int) (originalLimit * BACKOFF_RATIO));
             }
-            return Math.min(MAX_LIMIT, Math.max(MIN_LIMIT, currentLimit));
         };
     }
 
@@ -106,5 +111,10 @@ final class AimdConcurrencyLimiter {
 
     int getInflight() {
         return inFlight.get();
+    }
+
+    @Override
+    public String toString() {
+        return "AimdConcurrencyLimiter{limit=" + limit + ", inFlight=" + inFlight + '}';
     }
 }
