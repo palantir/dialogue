@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
+import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
@@ -64,8 +65,12 @@ final class AimdConcurrencyLimiter {
         }
 
         @Override
-        public void onFailure(Throwable _throwable) {
-            ignore();
+        public void onFailure(Throwable throwable) {
+            if (throwable instanceof IOException) {
+                dropped();
+            } else {
+                ignore();
+            }
         }
 
         void ignore() {
