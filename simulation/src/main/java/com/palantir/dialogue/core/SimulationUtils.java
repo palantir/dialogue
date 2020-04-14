@@ -62,7 +62,7 @@ final class SimulationUtils {
 
             @Override
             public HttpMethod httpMethod() {
-                return HttpMethod.GET;
+                return HttpMethod.POST;
             }
 
             @Override

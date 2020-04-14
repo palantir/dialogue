@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.Futures;
@@ -27,6 +28,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -45,6 +47,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -69,6 +72,17 @@ final class RetryingChannel implements Channel {
                     .setDaemon(false)
                     .build()));
 
+    @SuppressWarnings("UnnecessaryLambda") // no allocations
+    private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (endpoint, response) ->
+            new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
+
+    @SuppressWarnings("UnnecessaryLambda") // no allocations
+    private static final BiFunction<Endpoint, Response, Throwable> serverErrorThrowable =
+            (endpoint, response) -> new SafeRuntimeException(
+                    "Received server error, but http method is safe to retry",
+                    SafeArg.of("status", response.code()),
+                    SafeArg.of("method", endpoint.httpMethod()));
+
     private final ListeningScheduledExecutorService scheduler;
     private final Channel delegate;
     private final String channelName;
@@ -77,6 +91,8 @@ final class RetryingChannel implements Channel {
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
+    private final Meter retryDueToServerError;
+    private final Meter retryDueToQosResponse;
 
     @VisibleForTesting
     RetryingChannel(
@@ -116,6 +132,16 @@ final class RetryingChannel implements Channel {
         this.retryOnTimeout = retryOnTimeout;
         this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
+        this.retryDueToServerError = DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason("serverError")
+                .build();
+        this.retryDueToQosResponse = DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason("qosResponse")
+                .build();
     }
 
     @Override
@@ -182,26 +208,33 @@ final class RetryingChannel implements Channel {
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
             if (Responses.isQosStatus(response)) {
-                if (++failures <= maxRetries) {
-                    response.close(); // nobody is going to read this response body
-                    Throwable throwableToLog = log.isInfoEnabled()
-                            ? new SafeRuntimeException(
-                                    "Received retryable response", SafeArg.of("status", response.code()))
-                            : null;
-                    return scheduleRetry(throwableToLog);
-                }
-                if (log.isDebugEnabled()) {
-                    log.debug(
-                            "Exhausted {} retries, returning a retryable response with status {}",
-                            SafeArg.of("retries", maxRetries),
-                            SafeArg.of("status", response.code()));
-                }
-                // not closing the final response body because ConjureBodySerde needs to read it to deserialize
-                return Futures.immediateFuture(response);
+                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
+            }
+
+            if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
+                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
             // TODO(dfox): if people are using 308, we probably need to support it too
 
+            return Futures.immediateFuture(response);
+        }
+
+        private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
+                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
+            if (++failures <= maxRetries) {
+                response.close();
+                Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                meter.mark();
+                return scheduleRetry(throwableToLog);
+            }
+            if (log.isInfoEnabled()) {
+                log.info(
+                        "Exhausted {} retries, returning a retryable response with status {}",
+                        SafeArg.of("retries", maxRetries),
+                        SafeArg.of("status", response.code()));
+            }
+            // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
         }
 
@@ -257,6 +290,27 @@ final class RetryingChannel implements Channel {
                     result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
         }
+    }
+
+    /**
+     * We are a bit more conservative than the definition of Safe and Idempotent in https://tools.ietf
+     * .org/html/rfc7231#section-4.2.1, as we're not sure whether developers have written non-idempotent PUT/DELETE
+     * endpoints.
+     */
+    private static boolean safeToRetry(HttpMethod httpMethod) {
+        switch (httpMethod) {
+            case GET:
+            case HEAD:
+                return true;
+            case PUT:
+            case DELETE:
+                // in theory PUT and DELETE should be fine to retry too, we're just being conservative for now.
+            case POST:
+            case PATCH:
+                return false;
+        }
+
+        throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
     }
 
     private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
