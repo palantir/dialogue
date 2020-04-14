@@ -208,15 +208,15 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (Responses.isQosStatus(response)) {
+            if (Responses.isQosStatus(response) && !shouldPropagateQos(serverQoS)) {
+                // n.b. 308 retry-other responses are handled the same as other qos status codes,
+                // the provided location is not taken into account.
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
             if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
-
-            // TODO(dfox): if people are using 308, we probably need to support it too
 
             return Futures.immediateFuture(response);
         }
@@ -286,9 +286,7 @@ final class RetryingChannel implements Channel {
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
-            if (!shouldPropagateQos(serverQoS)) {
-                result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
-            }
+            result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
             result = Futures.catchingAsync(
                     result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
