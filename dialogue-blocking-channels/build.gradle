@@ -5,6 +5,7 @@ dependencies {
     api project(':dialogue-target')
     api 'com.google.guava:guava'
     implementation 'com.palantir.tracing:tracing'
+    implementation 'com.palantir.tritium:tritium-metrics'
 
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.assertj:assertj-core'
