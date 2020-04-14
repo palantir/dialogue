@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -60,7 +59,6 @@ public final class DialogueChannel implements Channel {
     private final ChannelFactory channelFactory;
     private final Channel delegate;
     private final DialogueClientMetrics clientMetrics;
-    private final Ticker clock;
     private final Random random;
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
@@ -68,14 +66,12 @@ public final class DialogueChannel implements Channel {
             String channelName,
             ClientConfiguration clientConfiguration,
             ChannelFactory channelFactory,
-            Ticker clock,
             Random random,
             Supplier<ScheduledExecutorService> scheduler) {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
-        this.clock = clock;
         this.random = random;
         this.queuedChannel =
                 new QueuedChannel(new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics);
@@ -140,12 +136,7 @@ public final class DialogueChannel implements Channel {
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
         return concurrencyLimiter(
-                clientConfiguration,
-                limitedChannel,
-                clientConfiguration.taggedMetricRegistry(),
-                clock,
-                channelName,
-                uriIndex);
+                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), channelName, uriIndex);
     }
 
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
@@ -194,14 +185,13 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration config,
             LimitedChannel channel,
             TaggedMetricRegistry metrics,
-            Ticker clock,
             String channelName,
             int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(clock), channelName, uriIndex, metrics);
+                        channel, ConcurrencyLimitedChannel.createLimiter(), channelName, uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }
@@ -256,7 +246,6 @@ public final class DialogueChannel implements Channel {
     }
 
     public static final class Builder {
-        private Ticker clock = Ticker.systemTicker();
         private Random random = SafeThreadLocalRandom.get();
         private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
 
@@ -285,12 +274,6 @@ public final class DialogueChannel implements Channel {
         }
 
         @VisibleForTesting
-        Builder clock(Ticker value) {
-            this.clock = value;
-            return this;
-        }
-
-        @VisibleForTesting
         Builder random(Random value) {
             this.random = value;
             return this;
@@ -312,7 +295,7 @@ public final class DialogueChannel implements Channel {
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(name, cleanedConf, factory, clock, random, scheduler);
+            return new DialogueChannel(name, cleanedConf, factory, random, scheduler);
         }
 
         private void preconditions(ClientConfiguration conf) {

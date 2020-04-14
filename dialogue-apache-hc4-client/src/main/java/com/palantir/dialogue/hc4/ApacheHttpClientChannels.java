@@ -21,9 +21,11 @@ import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -41,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
@@ -90,14 +93,17 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        return BlockingChannelAdapter.of(
-                new ApacheHttpClientBlockingChannel(client.client, url(uri), client.leakDetector));
+        BlockingChannel blockingChannel =
+                new ApacheHttpClientBlockingChannel(client.client, url(uri), client.leakDetector);
+        return client.executor == null
+                ? BlockingChannelAdapter.of(blockingChannel)
+                : BlockingChannelAdapter.of(blockingChannel, client.executor);
     }
 
     /**
-     * Prefer {@link #createCloseableHttpClient(ClientConfiguration, String)}.
+     * Prefer {@link #clientBuilder()}.
      *
-     * @deprecated Use the overload with a client name.
+     * @deprecated Use the builder
      */
     @Deprecated
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
@@ -105,84 +111,7 @@ public final class ApacheHttpClientChannels {
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
-        Preconditions.checkArgument(
-                !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
-        Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
-        Preconditions.checkNotNull(clientName, "Client name is required");
-
-        long socketTimeoutMillis =
-                Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
-        int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
-        // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-        // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-        // as clients attempt to use them.
-        long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(55).toMillis(), socketTimeoutMillis);
-        // Increased from two seconds to 40% of the idle connection timeout because we have strong support for retries
-        // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
-        // are possible when the target closes connections prior to this timeout, and can be safely retried.
-        int connectionPoolInactivityCheckMillis = (int) (idleConnectionTimeoutMillis / 2.5);
-
-        SocketConfig socketConfig = SocketConfig.custom().setSoKeepAlive(true).build();
-        SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-        SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, clientName),
-                new String[] {"TLSv1.2"},
-                supportedCipherSuites(
-                        conf.enableGcmCipherSuites() ? CipherSuites.allCipherSuites() : CipherSuites.fastCipherSuites(),
-                        rawSocketFactory,
-                        clientName),
-                new DefaultHostnameVerifier());
-
-        PoolingHttpClientConnectionManager connectionManager =
-                new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
-                        .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                        .register("https", sslSocketFactory)
-                        .build());
-
-        setupConnectionPoolMetrics(conf.taggedMetricRegistry(), clientName, connectionManager);
-
-        connectionManager.setDefaultSocketConfig(socketConfig);
-        connectionManager.setMaxTotal(Integer.MAX_VALUE);
-        connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
-        connectionManager.setValidateAfterInactivity(connectionPoolInactivityCheckMillis);
-
-        HttpClientBuilder builder = HttpClients.custom()
-                .setDefaultRequestConfig(RequestConfig.custom()
-                        .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
-                        .setConnectTimeout(connectTimeout)
-                        // Don't allow clients to block forever waiting on a connection to become available
-                        .setConnectionRequestTimeout(connectTimeout)
-                        // Match okhttp, disallow redirects
-                        .setRedirectsEnabled(false)
-                        .setRelativeRedirectsAllowed(false)
-                        .build())
-                .setDefaultSocketConfig(socketConfig)
-                .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
-                .setConnectionManagerShared(false) // will be closed when the client is closed
-                .setConnectionManager(connectionManager)
-                .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
-                .disableAutomaticRetries()
-                // Must be disabled otherwise connections are not reused when client certificates are provided
-                .disableConnectionState()
-                // Match okhttp behavior disabling cookies
-                .disableCookieManagement()
-                // Dialogue handles content-compression with ContentDecodingChannel
-                .disableContentCompression()
-                .setSSLSocketFactory(sslSocketFactory)
-                .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
-                .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
-                .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
-                .setDefaultAuthSchemeRegistry(
-                        RegistryBuilder.<AuthSchemeProvider>create().build());
-        conf.proxyCredentials().ifPresent(credentials -> {
-            builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
-                    .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
-                    .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
-                            .register(AuthSchemes.BASIC, new BasicSchemeFactory())
-                            .build());
-        });
-
-        return new CloseableClient(builder.build(), ResponseLeakDetector.of(clientName, conf.taggedMetricRegistry()));
+        return clientBuilder().clientConfiguration(conf).clientName(clientName).build();
     }
 
     private static void setupConnectionPoolMetrics(
@@ -219,9 +148,14 @@ public final class ApacheHttpClientChannels {
         private final CloseableHttpClient client;
         private final ResponseLeakDetector leakDetector;
 
-        CloseableClient(CloseableHttpClient client, ResponseLeakDetector leakDetector) {
+        @Nullable
+        private final ExecutorService executor;
+
+        CloseableClient(
+                CloseableHttpClient client, ResponseLeakDetector leakDetector, @Nullable ExecutorService executor) {
             this.client = client;
             this.leakDetector = leakDetector;
+            this.executor = executor;
         }
 
         @Override
@@ -231,7 +165,143 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public String toString() {
-            return "CloseableClient{client=" + client + '}';
+            return "CloseableClient{client="
+                    + client + ", leakDetector="
+                    + leakDetector + ", executor="
+                    + executor + '}';
+        }
+    }
+
+    public static ClientBuilder clientBuilder() {
+        return new ClientBuilder();
+    }
+
+    public static final class ClientBuilder {
+
+        @Nullable
+        private ClientConfiguration clientConfiguration;
+
+        @Nullable
+        private String clientName;
+
+        @Nullable
+        private ExecutorService executor;
+
+        private ClientBuilder() {}
+
+        public ClientBuilder clientConfiguration(ClientConfiguration value) {
+            this.clientConfiguration = Preconditions.checkNotNull(value, "ClientConfiguration is required");
+            return this;
+        }
+
+        /**
+         * {@link Safe} loggable identifier used to identify this client instance for instrumentation
+         * purposes. While this value does not impact behavior, using a unique value for each client
+         * makes it much easier to monitor and debug the RPC stack.
+         */
+        public ClientBuilder clientName(@Safe String value) {
+            this.clientName = Preconditions.checkNotNull(value, "clientName is required");
+            return this;
+        }
+
+        /**
+         * Configures the {@link ExecutorService} used to execute blocking http requests. If no
+         * {@link ExecutorService executor} is provided, a singleton will be used. It's strongly
+         * recommended that custom executors support tracing-java.
+         * Cached executors are the best fit because we use concurrency limiters to bound
+         * concurrent requests.
+         */
+        public ClientBuilder executor(ExecutorService value) {
+            this.executor = Preconditions.checkNotNull(value, "ExecutorService is required");
+            return this;
+        }
+
+        public CloseableClient build() {
+            ClientConfiguration conf =
+                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is " + "required");
+            String name = Preconditions.checkNotNull(clientName, "Client name is required");
+            Preconditions.checkArgument(
+                    !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
+            Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
+
+            long socketTimeoutMillis =
+                    Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
+            int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
+            // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
+            // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
+            // as clients attempt to use them.
+            long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(55).toMillis(), socketTimeoutMillis);
+            // Increased from two seconds to 40% of the idle connection timeout because we have strong support for
+            // retries
+            // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
+            // are possible when the target closes connections prior to this timeout, and can be safely retried.
+            int connectionPoolInactivityCheckMillis = (int) (idleConnectionTimeoutMillis / 2.5);
+
+            SocketConfig socketConfig =
+                    SocketConfig.custom().setSoKeepAlive(true).build();
+            SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
+            SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
+                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
+                    new String[] {"TLSv1.2"},
+                    supportedCipherSuites(
+                            conf.enableGcmCipherSuites()
+                                    ? CipherSuites.allCipherSuites()
+                                    : CipherSuites.fastCipherSuites(),
+                            rawSocketFactory,
+                            name),
+                    new DefaultHostnameVerifier());
+
+            PoolingHttpClientConnectionManager connectionManager =
+                    new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
+                            .register("http", PlainConnectionSocketFactory.getSocketFactory())
+                            .register("https", sslSocketFactory)
+                            .build());
+
+            setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
+
+            connectionManager.setDefaultSocketConfig(socketConfig);
+            connectionManager.setMaxTotal(Integer.MAX_VALUE);
+            connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
+            connectionManager.setValidateAfterInactivity(connectionPoolInactivityCheckMillis);
+
+            HttpClientBuilder builder = HttpClients.custom()
+                    .setDefaultRequestConfig(RequestConfig.custom()
+                            .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
+                            .setConnectTimeout(connectTimeout)
+                            // Don't allow clients to block forever waiting on a connection to become available
+                            .setConnectionRequestTimeout(connectTimeout)
+                            // Match okhttp, disallow redirects
+                            .setRedirectsEnabled(false)
+                            .setRelativeRedirectsAllowed(false)
+                            .build())
+                    .setDefaultSocketConfig(socketConfig)
+                    .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
+                    .setConnectionManagerShared(false) // will be closed when the client is closed
+                    .setConnectionManager(connectionManager)
+                    .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
+                    .disableAutomaticRetries()
+                    // Must be disabled otherwise connections are not reused when client certificates are provided
+                    .disableConnectionState()
+                    // Match okhttp behavior disabling cookies
+                    .disableCookieManagement()
+                    // Dialogue handles content-compression with ContentDecodingChannel
+                    .disableContentCompression()
+                    .setSSLSocketFactory(sslSocketFactory)
+                    .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
+                    .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
+                    .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
+                    .setDefaultAuthSchemeRegistry(
+                            RegistryBuilder.<AuthSchemeProvider>create().build());
+            conf.proxyCredentials().ifPresent(credentials -> {
+                builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
+                        .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
+                        .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
+                                .register(AuthSchemes.BASIC, new BasicSchemeFactory())
+                                .build());
+            });
+
+            return new CloseableClient(
+                    builder.build(), ResponseLeakDetector.of(name, conf.taggedMetricRegistry()), executor);
         }
     }
 

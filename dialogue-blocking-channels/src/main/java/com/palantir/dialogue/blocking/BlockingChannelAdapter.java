@@ -28,6 +28,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tracing.Tracers;
+import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -41,18 +43,22 @@ public final class BlockingChannelAdapter {
 
     private static final Logger log = LoggerFactory.getLogger(BlockingChannelAdapter.class);
 
+    @SuppressWarnings("deprecation") // No reasonable way to pass a tagged registry to this singleton
     private static final Supplier<ExecutorService> blockingExecutor = Suppliers.memoize(() -> Tracers.wrap(
             "dialogue-blocking-channel",
-            Executors.newCachedThreadPool(new ThreadFactoryBuilder()
-                    .setNameFormat("dialogue-blocking-channel-%d")
-                    .setDaemon(true)
-                    .build())));
+            Executors.newCachedThreadPool(MetricRegistries.instrument(
+                    SharedTaggedMetricRegistries.getSingleton(),
+                    new ThreadFactoryBuilder()
+                            .setNameFormat("dialogue-blocking-channel-%d")
+                            .setDaemon(true)
+                            .build(),
+                    "dialogue-blocking-channel"))));
 
     public static Channel of(BlockingChannel blockingChannel) {
         return of(blockingChannel, blockingExecutor.get());
     }
 
-    private static Channel of(BlockingChannel blockingChannel, ExecutorService executor) {
+    public static Channel of(BlockingChannel blockingChannel, ExecutorService executor) {
         return new BlockingChannelAdapterChannel(blockingChannel, executor);
     }
 
