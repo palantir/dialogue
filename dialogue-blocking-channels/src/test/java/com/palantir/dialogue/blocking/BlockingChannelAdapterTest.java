@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
@@ -31,25 +32,44 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.time.Duration;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.awaitility.Awaitility;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class BlockingChannelAdapterTest {
 
     private final Response stubResponse = new TestResponse().code(200);
 
+    private ExecutorService executor;
+
+    @BeforeEach
+    public void beforeEach() {
+        executor = Executors.newCachedThreadPool();
+    }
+
+    @AfterEach
+    public void afterEach() {
+        assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(3)))
+                .isTrue();
+    }
+
     @Test
     public void testSuccessful() {
         CountDownLatch latch = new CountDownLatch(1);
-        Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-            return stubResponse;
-        });
+        Channel channel = BlockingChannelAdapter.of(
+                (_endpoint, _request) -> {
+                    try {
+                        latch.await();
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return stubResponse;
+                },
+                executor);
         ListenableFuture<Response> result =
                 channel.execute(TestEndpoint.POST, Request.builder().build());
         assertThat(result).isNotDone();
@@ -62,9 +82,11 @@ public class BlockingChannelAdapterTest {
 
     @Test
     public void testFailure() {
-        Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
-            throw new SafeRuntimeException("expected");
-        });
+        Channel channel = BlockingChannelAdapter.of(
+                (_endpoint, _request) -> {
+                    throw new SafeRuntimeException("expected");
+                },
+                executor);
         ListenableFuture<Response> result =
                 channel.execute(TestEndpoint.POST, Request.builder().build());
         Awaitility.waitAtMost(Duration.ofSeconds(3)).until(result::isDone);
@@ -80,12 +102,14 @@ public class BlockingChannelAdapterTest {
         CountDownLatch returnLatch = new CountDownLatch(1);
         AtomicBoolean invocationInterrupted = new AtomicBoolean();
         Response response = mock(Response.class);
-        Channel channel = BlockingChannelAdapter.of((_endpoint, _request) -> {
-            channelLatch.countDown();
-            Uninterruptibles.awaitUninterruptibly(returnLatch);
-            invocationInterrupted.set(Thread.currentThread().isInterrupted());
-            return response;
-        });
+        Channel channel = BlockingChannelAdapter.of(
+                (_endpoint, _request) -> {
+                    channelLatch.countDown();
+                    Uninterruptibles.awaitUninterruptibly(returnLatch);
+                    invocationInterrupted.set(Thread.currentThread().isInterrupted());
+                    return response;
+                },
+                executor);
         ListenableFuture<Response> result =
                 channel.execute(TestEndpoint.POST, Request.builder().build());
         channelLatch.await();
