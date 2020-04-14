@@ -71,6 +71,15 @@ public final class ResponseLeakDetector {
         return random.nextFloat() <= leakDetectionProbability;
     }
 
+    @Override
+    public String toString() {
+        return "ResponseLeakDetector{clientName='"
+                + clientName
+                + "', leakDetectionProbability="
+                + leakDetectionProbability
+                + '}';
+    }
+
     /**
      * {@link LeakDetector} object is shared between the {@link Response} and {@link Response#body()} to ensure
      * at least one of the two has been closed.

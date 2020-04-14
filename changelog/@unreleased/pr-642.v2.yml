@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: The dialogue apache client executor is configurable
+  links:
+  - https://github.com/palantir/dialogue/pull/642

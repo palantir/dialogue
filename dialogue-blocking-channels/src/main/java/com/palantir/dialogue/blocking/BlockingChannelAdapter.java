@@ -58,7 +58,7 @@ public final class BlockingChannelAdapter {
         return of(blockingChannel, blockingExecutor.get());
     }
 
-    private static Channel of(BlockingChannel blockingChannel, ExecutorService executor) {
+    public static Channel of(BlockingChannel blockingChannel, ExecutorService executor) {
         return new BlockingChannelAdapterChannel(blockingChannel, executor);
     }
 
