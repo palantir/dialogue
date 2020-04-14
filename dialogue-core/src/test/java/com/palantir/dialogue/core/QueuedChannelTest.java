@@ -66,8 +66,8 @@ public class QueuedChannelTest {
 
     @BeforeEach
     public void before() {
-        queuedChannel =
-                new QueuedChannel(delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()));
+        queuedChannel = new QueuedChannel(
+                delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 100_000);
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 

@@ -70,11 +70,6 @@ final class QueuedChannel implements Channel {
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
-    QueuedChannel(LimitedChannel channel, String channelName, DialogueClientMetrics metrics) {
-        this(channel, channelName, metrics, 100_000);
-    }
-
-    @VisibleForTesting
     QueuedChannel(LimitedChannel delegate, String channelName, DialogueClientMetrics metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
