@@ -100,7 +100,7 @@ public final class ApacheHttpClientChannels {
     }
 
     /**
-     * Prefer {@link #closeableClientBuilder()}.
+     * Prefer {@link #clientBuilder()}.
      *
      * @deprecated Use the builder
      */
@@ -110,10 +110,7 @@ public final class ApacheHttpClientChannels {
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
-        return closeableClientBuilder()
-                .clientConfiguration(conf)
-                .clientName(clientName)
-                .build();
+        return clientBuilder().clientConfiguration(conf).clientName(clientName).build();
     }
 
     private static void setupConnectionPoolMetrics(
@@ -167,15 +164,18 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public String toString() {
-            return "CloseableClient{client=" + client + '}';
+            return "CloseableClient{client="
+                    + client + ", leakDetector="
+                    + leakDetector + ", executor="
+                    + executor + '}';
         }
     }
 
-    public static CloseableClientBuilder closeableClientBuilder() {
-        return new CloseableClientBuilder();
+    public static ClientBuilder clientBuilder() {
+        return new ClientBuilder();
     }
 
-    public static final class CloseableClientBuilder {
+    public static final class ClientBuilder {
 
         @Nullable
         private ClientConfiguration clientConfiguration;
@@ -186,19 +186,26 @@ public final class ApacheHttpClientChannels {
         @Nullable
         private ExecutorService executor;
 
-        private CloseableClientBuilder() {}
+        private ClientBuilder() {}
 
-        public CloseableClientBuilder clientConfiguration(ClientConfiguration value) {
+        public ClientBuilder clientConfiguration(ClientConfiguration value) {
             this.clientConfiguration = Preconditions.checkNotNull(value, "ClientConfiguration is required");
             return this;
         }
 
-        public CloseableClientBuilder clientName(String value) {
+        public ClientBuilder clientName(String value) {
             this.clientName = Preconditions.checkNotNull(value, "ClientConfiguration is required");
             return this;
         }
 
-        public CloseableClientBuilder clientName(ExecutorService value) {
+        /**
+         * Configures the {@link ExecutorService} used to execute blocking http requests. If no
+         * {@link ExecutorService executor} is provided, a singleton will be used. It's strongly
+         * recommended that custom executors support tracing-java.
+         * Cached executors are the best fit because we use concurrency limiters to bound
+         * concurrent requests.
+         */
+        public ClientBuilder executor(ExecutorService value) {
             this.executor = Preconditions.checkNotNull(value, "ExecutorService is required");
             return this;
         }
