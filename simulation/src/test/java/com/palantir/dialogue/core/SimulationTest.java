@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import java.io.IOException;
@@ -135,25 +136,26 @@ public class SimulationTest {
 
     @Test
     public void slowdown_and_error_thresholds() {
+        Endpoint getEndpoint = SimulationUtils.endpoint("endpoint", HttpMethod.GET);
         int errorThreshold = 40;
         int slowdownThreshold = 30;
         servers = servers(
                 SimulationServer.builder()
                         .serverName("fast")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("medium")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("slightly_slow")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
@@ -161,6 +163,7 @@ public class SimulationTest {
                 .requestsPerSecond(500)
                 .simulation(simulation)
                 .sendUntil(Duration.ofSeconds(20))
+                .endpoints(getEndpoint)
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
@@ -304,8 +307,8 @@ public class SimulationTest {
 
     @Test
     public void one_endpoint_dies_on_each_server() {
-        Endpoint endpoint1 = SimulationUtils.endpoint("e1");
-        Endpoint endpoint2 = SimulationUtils.endpoint("e2");
+        Endpoint endpoint1 = SimulationUtils.endpoint("e1", HttpMethod.POST);
+        Endpoint endpoint2 = SimulationUtils.endpoint("e2", HttpMethod.POST);
 
         servers = servers(
                 SimulationServer.builder()
@@ -331,7 +334,7 @@ public class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
-                .randomEndpoints(endpoint1, endpoint2)
+                .endpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))

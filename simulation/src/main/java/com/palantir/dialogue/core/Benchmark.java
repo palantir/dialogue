@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -86,7 +87,7 @@ public final class Benchmark {
         return numRequests(num);
     }
 
-    public Benchmark randomEndpoints(Endpoint... endpoints) {
+    public Benchmark endpoints(Endpoint... endpoints) {
         return endpoints(true, endpoints);
     }
 
@@ -308,7 +309,7 @@ public final class Benchmark {
 
     @Value.Immutable
     interface ScheduledRequest {
-        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
+        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
 
         long number();
 

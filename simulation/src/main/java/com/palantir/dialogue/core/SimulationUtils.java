@@ -55,14 +55,14 @@ final class SimulationUtils {
     static final String CHANNEL_NAME = "test-channel";
     static final String SERVICE_NAME = "svc";
 
-    public static Endpoint endpoint(String name) {
+    public static Endpoint endpoint(String name, HttpMethod method) {
         return new Endpoint() {
             @Override
             public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
 
             @Override
             public HttpMethod httpMethod() {
-                return HttpMethod.POST;
+                return method;
             }
 
             @Override
