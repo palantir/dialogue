@@ -133,10 +133,9 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     void testGauges() {
-        when(mockLimiter.getInflight()).thenReturn(5);
-        when(mockLimiter.getLimit()).thenReturn(20);
+        when(mockLimiter.getLimit()).thenReturn(21);
 
-        assertThat(getMax()).isEqualTo(20);
+        assertThat(getMax()).isEqualTo(21);
     }
 
     private void mockResponseCode(int code) {
