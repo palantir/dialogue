@@ -161,7 +161,7 @@ public final class ApacheHttpClientChannels {
                 PoolingHttpClientConnectionManager pool,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
-            log.debug("Apache client created", SafeArg.of("name", name));
+            log.info("Apache client created", SafeArg.of("name", name));
             this.name = name;
             this.client = client;
             this.pool = pool;
@@ -172,15 +172,15 @@ public final class ApacheHttpClientChannels {
         @Override
         public void close() throws IOException {
             PoolStats poolStats = pool.getTotalStats();
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Closing Apache client",
-                        SafeArg.of("name", name),
-                        SafeArg.of("idle", poolStats.getAvailable()),
-                        SafeArg.of("leased", poolStats.getLeased()),
-                        SafeArg.of("pending", poolStats.getPending()),
-                        new SafeRuntimeException("Exception for stacktrace"));
-            }
+            SafeRuntimeException stacktrace =
+                    log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
+            log.info(
+                    "Closing Apache client",
+                    SafeArg.of("name", name),
+                    SafeArg.of("idle", poolStats.getAvailable()),
+                    SafeArg.of("leased", poolStats.getLeased()),
+                    SafeArg.of("pending", poolStats.getPending()),
+                    stacktrace);
             client.close();
         }
 
