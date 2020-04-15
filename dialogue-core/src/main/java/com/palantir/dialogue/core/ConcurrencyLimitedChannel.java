@@ -57,15 +57,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         weakGauge(
                 taggedMetrics,
                 MetricName.builder()
-                        .safeName("dialogue.concurrencylimiter.utilization")
-                        .putSafeTags("channel-name", channelName)
-                        .putSafeTags("hostIndex", Integer.toString(uriIndex))
-                        .build(),
-                this,
-                ConcurrencyLimitedChannel::getUtilization);
-        weakGauge(
-                taggedMetrics,
-                MetricName.builder()
                         .safeName("dialogue.concurrencylimiter.max")
                         .putSafeTags("channel-name", channelName)
                         .putSafeTags("hostIndex", Integer.toString(uriIndex))
@@ -99,12 +90,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     @Override
     public String toString() {
         return "ConcurrencyLimitedChannel{" + delegate + '}';
-    }
-
-    private double getUtilization() {
-        double inflight = limiter.getInflight();
-        double limit = limiter.getLimit();
-        return inflight / limit; // minLimit is 1 so we should never get NaN from this
     }
 
     private int getMax() {

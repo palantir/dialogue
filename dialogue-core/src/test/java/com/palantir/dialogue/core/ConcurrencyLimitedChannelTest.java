@@ -133,11 +133,9 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     void testGauges() {
-        when(mockLimiter.getInflight()).thenReturn(5);
-        when(mockLimiter.getLimit()).thenReturn(20);
+        when(mockLimiter.getLimit()).thenReturn(21);
 
-        assertThat(getMax()).isEqualTo(20);
-        assertThat(getUtilization()).isEqualTo(0.25d);
+        assertThat(getMax()).isEqualTo(21);
     }
 
     private void mockResponseCode(int code) {
@@ -151,16 +149,6 @@ public class ConcurrencyLimitedChannelTest {
 
     private void mockLimitUnavailable() {
         when(mockLimiter.acquire()).thenReturn(Optional.empty());
-    }
-
-    private Number getUtilization() {
-        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
-                        .safeName("dialogue.concurrencylimiter.utilization")
-                        .putSafeTags("channel-name", "channel")
-                        .putSafeTags("hostIndex", "0")
-                        .build())
-                .get();
-        return (Number) gauge.getValue();
     }
 
     private Number getMax() {
