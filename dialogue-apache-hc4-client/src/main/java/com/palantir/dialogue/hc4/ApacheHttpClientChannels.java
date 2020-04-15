@@ -27,6 +27,7 @@ import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -161,7 +162,6 @@ public final class ApacheHttpClientChannels {
                 PoolingHttpClientConnectionManager pool,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
-            log.info("Apache client created", SafeArg.of("name", name));
             this.name = name;
             this.client = client;
             this.pool = pool;
@@ -177,6 +177,7 @@ public final class ApacheHttpClientChannels {
             log.info(
                     "Closing Apache client",
                     SafeArg.of("name", name),
+                    SafeArg.of("client", System.identityHashCode(client)),
                     SafeArg.of("idle", poolStats.getAvailable()),
                     SafeArg.of("leased", poolStats.getLeased()),
                     SafeArg.of("pending", poolStats.getPending()),
@@ -321,9 +322,16 @@ public final class ApacheHttpClientChannels {
                                 .build());
             });
 
+            CloseableHttpClient client = builder.build();
+            log.info(
+                    "Created Apache client",
+                    SafeArg.of("name", name),
+                    SafeArg.of("client", System.identityHashCode(client)),
+                    UnsafeArg.of("clientConfiguration", clientConfiguration),
+                    UnsafeArg.of("executor", executor));
             return new CloseableClient(
                     name,
-                    builder.build(),
+                    client,
                     connectionManager,
                     ResponseLeakDetector.of(name, conf.taggedMetricRegistry()),
                     executor);
