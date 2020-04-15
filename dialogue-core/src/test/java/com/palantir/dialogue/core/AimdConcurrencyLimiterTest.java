@@ -36,29 +36,29 @@ public class AimdConcurrencyLimiterTest {
     }
 
     @Test
-    void acquire_returnsTokensWhileInflightTokenLimitNotReached() {
+    void acquire_returnsPermitssWhileInflightPermitLimitNotReached() {
         int max = limiter.getLimit();
-        Optional<AimdConcurrencyLimiter.Token> latestToken = null;
+        Optional<AimdConcurrencyLimiter.Permit> latestPermit = null;
         for (int i = 0; i < max; ++i) {
-            latestToken = limiter.acquire();
-            assertThat(latestToken).isPresent();
+            latestPermit = limiter.acquire();
+            assertThat(latestPermit).isPresent();
         }
 
-        // Limit reached, cannot acquire token
+        // Limit reached, cannot acquire permit
         assertThat(limiter.getInflight()).isEqualTo(max);
         assertThat(limiter.acquire()).isEmpty();
 
-        // Release one token, can acquire new token.
-        latestToken.get().ignore();
+        // Release one permit, can acquire new permit.
+        latestPermit.get().ignore();
         assertThat(limiter.acquire()).isPresent();
     }
 
     @Test
-    public void ignore_releasesToken() {
+    public void ignore_releasesPermit() {
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<AimdConcurrencyLimiter.Token> token = limiter.acquire();
+        Optional<AimdConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
-        token.get().ignore();
+        permit.get().ignore();
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
@@ -70,11 +70,11 @@ public class AimdConcurrencyLimiterTest {
     }
 
     @Test
-    public void dropped_releasesToken() {
+    public void dropped_releasesPermit() {
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<AimdConcurrencyLimiter.Token> token = limiter.acquire();
+        Optional<AimdConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
-        token.get().dropped();
+        permit.get().dropped();
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
@@ -86,11 +86,11 @@ public class AimdConcurrencyLimiterTest {
     }
 
     @Test
-    public void success_releasesToken() {
+    public void success_releasesPermit() {
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<AimdConcurrencyLimiter.Token> token = limiter.acquire();
+        Optional<AimdConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
-        token.get().success();
+        permit.get().success();
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 

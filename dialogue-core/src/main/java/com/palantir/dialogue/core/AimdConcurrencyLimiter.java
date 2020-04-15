@@ -25,8 +25,11 @@ import java.util.function.IntBinaryOperator;
 
 /**
  * Simple lock-free additive increase multiplicative decrease concurrency limiter. Typically, a dispatching
- * {@link com.palantir.dialogue.Request} tries to {@link #acquire} a new token and releases it when the
+ * {@link com.palantir.dialogue.Request} tries to {@link #acquire} a new permit and releases it when the
  * corresponding {@link Response} is retrieved.
+ *
+ * This class is a stripped-down version of the
+ * <a href="https://github.com/Netflix/concurrency-limits">Netflix AIMD library</a>.
  */
 final class AimdConcurrencyLimiter {
 
@@ -40,18 +43,18 @@ final class AimdConcurrencyLimiter {
     private final AtomicInteger inFlight = new AtomicInteger();
 
     /**
-     * Returns a new request token if the number of {@link #getInflight in-flight} tokens is smaller than the
-     * current {@link #getLimit upper limit} of allowed concurrent tokens. The caller is responsible for
-     * eventually releasing the token by calling exactly one of the {@link Token#ignore}, {@link Token#dropped},
-     * or {@link Token#success} methods.
+     * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
+     * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
+     * eventually releasing the permit by calling exactly one of the {@link Permit#ignore}, {@link Permit#dropped},
+     * or {@link Permit#success} methods.
      *
-     * If the token
-     * is used in the context of a {@link Response Future&lt;Response&gt;} object, then passing the {@link Token} as a
-     * {@link FutureCallback callback} to the future will invoke either {@link Token#onSuccess} or
-     * {@link Token#onFailure} which delegate to
+     * If the permit
+     * is used in the context of a {@link Response Future&lt;Response&gt;} object, then passing the {@link Permit} as a
+     * {@link FutureCallback callback} to the future will invoke either {@link Permit#onSuccess} or
+     * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Token> acquire() {
+    Optional<Permit> acquire() {
         int currentInFlight = getInflight();
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
@@ -59,15 +62,15 @@ final class AimdConcurrencyLimiter {
         return Optional.of(createToken());
     }
 
-    private Token createToken() {
+    private Permit createToken() {
         int inFlightSnapshot = inFlight.incrementAndGet();
-        return new Token(inFlightSnapshot);
+        return new Permit(inFlightSnapshot);
     }
 
-    final class Token implements FutureCallback<Response> {
+    final class Permit implements FutureCallback<Response> {
         private final int inFlightSnapshot;
 
-        Token(int inFlightSnapshot) {
+        Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
         }
 
@@ -90,14 +93,15 @@ final class AimdConcurrencyLimiter {
         }
 
         /**
-         * Indicates that the effect of the request corresponding to this token on concurrency limits should be ignored.
+         * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
+         * ignored.
          */
         void ignore() {
             inFlight.decrementAndGet();
         }
 
         /**
-         * Indicates that the request corresponding to this token was dropped and that the concurrency limit should be
+         * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
          * multiplicatively decreased.
          */
         void dropped() {
@@ -106,7 +110,7 @@ final class AimdConcurrencyLimiter {
         }
 
         /**
-         * Indicates that the request corresponding to this token was successful and that the concurrency limit should
+         * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
          * be additively increased.
          */
         void success() {
@@ -135,14 +139,14 @@ final class AimdConcurrencyLimiter {
 
     /**
      * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
-     * tokens such that another token can be {@link #acquire acquired}.
+     * permits such that another permit can be {@link #acquire acquired}.
      */
     int getLimit() {
         return limit.get();
     }
 
     /**
-     * Returns the current number of in-flight tokens, i.e., tokens that been acquired but not yet released through
+     * Returns the current number of in-flight permits, i.e., permits that been acquired but not yet released through
      * either of ignore/dropped/success.
      */
     int getInflight() {

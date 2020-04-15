@@ -80,14 +80,14 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<AimdConcurrencyLimiter.Token> maybeToken = limiter.acquire();
-        if (maybeToken.isPresent()) {
-            AimdConcurrencyLimiter.Token token = maybeToken.get();
+        Optional<AimdConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+        if (maybePermit.isPresent()) {
+            AimdConcurrencyLimiter.Permit permit = maybePermit.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), token);
+                DialogueFutures.addDirectCallback(result.get(), permit);
             } else {
-                token.ignore();
+                permit.ignore();
             }
             return result;
         } else {
