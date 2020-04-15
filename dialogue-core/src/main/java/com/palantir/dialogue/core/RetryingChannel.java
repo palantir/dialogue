@@ -94,6 +94,7 @@ final class RetryingChannel implements Channel {
     private final DoubleSupplier jitter;
     private final Meter retryDueToServerError;
     private final Meter retryDueToQosResponse;
+    private final Meter retryDueToThrowable;
 
     @VisibleForTesting
     RetryingChannel(
@@ -143,6 +144,11 @@ final class RetryingChannel implements Channel {
                 .channelName(channelName)
                 .reason("qosResponse")
                 .build();
+        this.retryDueToThrowable = DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason("throwable")
+                .build();
     }
 
     @Override
@@ -168,8 +174,7 @@ final class RetryingChannel implements Channel {
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
-        private RetryingCallback(
-                Endpoint endpoint, Request request, Optional<SafeRuntimeException> debugStacktrace) {
+        private RetryingCallback(Endpoint endpoint, Request request, Optional<SafeRuntimeException> debugStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
             this.debugStacktrace = debugStacktrace;
@@ -188,7 +193,8 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> scheduleRetry(@Nullable Throwable throwableToLog) {
+        ListenableFuture<Response> scheduleRetry(@Nullable Throwable throwableToLog, Meter meter) {
+            meter.mark();
             long backoffNanoseconds = getBackoffNanoseconds();
             logRetry(backoffNanoseconds, throwableToLog);
             if (backoffNanoseconds <= 0) {
@@ -232,8 +238,7 @@ final class RetryingChannel implements Channel {
             if (++failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
-                meter.mark();
-                return scheduleRetry(throwableToLog);
+                return scheduleRetry(throwableToLog, meter);
             }
             if (log.isInfoEnabled()) {
                 log.info(
@@ -249,7 +254,7 @@ final class RetryingChannel implements Channel {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
-                    return scheduleRetry(throwable);
+                    return scheduleRetry(throwable, retryDueToThrowable);
                 } else if (log.isDebugEnabled()) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
                     log.debug(
