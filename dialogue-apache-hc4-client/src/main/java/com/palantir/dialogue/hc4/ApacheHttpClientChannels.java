@@ -27,7 +27,9 @@ import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -73,6 +75,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
+import org.apache.http.pool.PoolStats;
 import org.apache.http.protocol.HttpContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -145,21 +148,40 @@ public final class ApacheHttpClientChannels {
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
+        private final String name;
         private final CloseableHttpClient client;
+        private final PoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
 
         @Nullable
         private final ExecutorService executor;
 
         CloseableClient(
-                CloseableHttpClient client, ResponseLeakDetector leakDetector, @Nullable ExecutorService executor) {
+                String name,
+                CloseableHttpClient client,
+                PoolingHttpClientConnectionManager pool,
+                ResponseLeakDetector leakDetector,
+                @Nullable ExecutorService executor) {
+            this.name = name;
             this.client = client;
+            this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
         }
 
         @Override
         public void close() throws IOException {
+            PoolStats poolStats = pool.getTotalStats();
+            SafeRuntimeException stacktrace =
+                    log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
+            log.info(
+                    "Closing Apache client",
+                    SafeArg.of("name", name),
+                    SafeArg.of("client", System.identityHashCode(client)),
+                    SafeArg.of("idle", poolStats.getAvailable()),
+                    SafeArg.of("leased", poolStats.getLeased()),
+                    SafeArg.of("pending", poolStats.getPending()),
+                    stacktrace);
             client.close();
         }
 
@@ -300,8 +322,19 @@ public final class ApacheHttpClientChannels {
                                 .build());
             });
 
+            CloseableHttpClient client = builder.build();
+            log.info(
+                    "Created Apache client",
+                    SafeArg.of("name", name),
+                    SafeArg.of("client", System.identityHashCode(client)),
+                    UnsafeArg.of("clientConfiguration", clientConfiguration),
+                    UnsafeArg.of("executor", executor));
             return new CloseableClient(
-                    builder.build(), ResponseLeakDetector.of(name, conf.taggedMetricRegistry()), executor);
+                    name,
+                    client,
+                    connectionManager,
+                    ResponseLeakDetector.of(name, conf.taggedMetricRegistry()),
+                    executor);
         }
     }
 
