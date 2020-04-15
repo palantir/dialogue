@@ -208,9 +208,7 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (Responses.isQosStatus(response) && !shouldPropagateQos(serverQoS)) {
-                // n.b. 308 retry-other responses are handled the same as other qos status codes,
-                // the provided location is not taken into account.
+            if (isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
@@ -219,6 +217,17 @@ final class RetryingChannel implements Channel {
             }
 
             return Futures.immediateFuture(response);
+        }
+
+        private boolean isRetryableQosStatus(Response response) {
+            if (!Responses.isQosStatus(response)) {
+                // Not QoS
+                return false;
+            }
+            // ServerQos.PROPAGATE_429_and_503_TO_CALLER should only propagate too-many-requests and unavailable.
+            boolean shouldPropagate = shouldPropagate429And503(serverQoS)
+                    && (Responses.isTooManyRequests(response) || Responses.isUnavailable(response));
+            return !shouldPropagate;
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
@@ -314,7 +323,7 @@ final class RetryingChannel implements Channel {
         throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
     }
 
-    private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
+    private static boolean shouldPropagate429And503(ClientConfiguration.ServerQoS serverQoS) {
         switch (serverQoS) {
             case PROPAGATE_429_and_503_TO_CALLER:
                 return true;

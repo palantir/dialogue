@@ -190,7 +190,7 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void propagates_308s_when_requested() throws Exception {
+    public void retries_308s_when_429_and_503_are_propagated() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(308);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
@@ -200,7 +200,7 @@ public class RetryingChannelTest {
                 "my-channel",
                 3,
                 Duration.ZERO,
-                // Okay. This is odd. It doesn't say 308, but we consider it the same as other server QoS exceptions.
+                // This does not apply to 308 responses
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
@@ -208,7 +208,7 @@ public class RetryingChannelTest {
         assertThat(response.get())
                 .as("After retries are exhausted the 308 response should be returned")
                 .isSameAs(mockResponse);
-        verify(channel, times(1)).execute(TestEndpoint.POST, REQUEST);
+        verify(channel, times(4)).execute(TestEndpoint.POST, REQUEST);
     }
 
     @Test

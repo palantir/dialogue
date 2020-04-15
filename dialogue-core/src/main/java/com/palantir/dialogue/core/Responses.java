@@ -24,11 +24,11 @@ final class Responses {
         return response.code() == 308;
     }
 
-    private static boolean isTooManyRequests(Response response) {
+    static boolean isTooManyRequests(Response response) {
         return response.code() == 429;
     }
 
-    private static boolean isUnavailable(Response response) {
+    static boolean isUnavailable(Response response) {
         return response.code() == 503;
     }
 
