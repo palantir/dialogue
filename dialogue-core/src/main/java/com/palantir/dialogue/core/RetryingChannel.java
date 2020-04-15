@@ -94,7 +94,7 @@ final class RetryingChannel implements Channel {
     private final DoubleSupplier jitter;
     private final Meter retryDueToServerError;
     private final Meter retryDueToQosResponse;
-    private final Meter retryDueToThrowable;
+    private final DialogueClientMetrics.RequestRetryBuilderReasonStage retryDueToThrowable;
 
     @VisibleForTesting
     RetryingChannel(
@@ -144,11 +144,8 @@ final class RetryingChannel implements Channel {
                 .channelName(channelName)
                 .reason("qosResponse")
                 .build();
-        this.retryDueToThrowable = DialogueClientMetrics.of(metrics)
-                .requestRetry()
-                .channelName(channelName)
-                .reason("throwable")
-                .build();
+        this.retryDueToThrowable =
+                DialogueClientMetrics.of(metrics).requestRetry().channelName(channelName);
     }
 
     @Override
@@ -254,7 +251,10 @@ final class RetryingChannel implements Channel {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
-                    return scheduleRetry(throwable, retryDueToThrowable);
+                    Meter retryReason = retryDueToThrowable
+                            .reason(throwable.getClass().getSimpleName())
+                            .build();
+                    return scheduleRetry(throwable, retryReason);
                 } else if (log.isDebugEnabled()) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
                     log.debug(
