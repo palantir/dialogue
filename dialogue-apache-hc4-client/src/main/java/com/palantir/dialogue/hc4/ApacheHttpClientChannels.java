@@ -28,6 +28,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -171,12 +172,15 @@ public final class ApacheHttpClientChannels {
         @Override
         public void close() throws IOException {
             PoolStats poolStats = pool.getTotalStats();
-            log.debug(
-                    "Closing Apache client",
-                    SafeArg.of("name", name),
-                    SafeArg.of("idle", poolStats.getAvailable()),
-                    SafeArg.of("leased", poolStats.getLeased()),
-                    SafeArg.of("pending", poolStats.getPending()));
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Closing Apache client",
+                        SafeArg.of("name", name),
+                        SafeArg.of("idle", poolStats.getAvailable()),
+                        SafeArg.of("leased", poolStats.getLeased()),
+                        SafeArg.of("pending", poolStats.getPending()),
+                        new SafeRuntimeException("Exception for stacktrace"));
+            }
             client.close();
         }
 
