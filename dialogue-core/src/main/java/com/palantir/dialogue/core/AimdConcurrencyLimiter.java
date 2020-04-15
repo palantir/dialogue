@@ -90,7 +90,7 @@ final class AimdConcurrencyLimiter {
         }
 
         /**
-         * Indicates that the effect of the request corresponding to this token on concurrency limits should be ignored
+         * Indicates that the effect of the request corresponding to this token on concurrency limits should be ignored.
          */
         void ignore() {
             inFlight.decrementAndGet();
