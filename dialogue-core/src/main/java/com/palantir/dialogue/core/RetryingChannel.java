@@ -39,6 +39,7 @@ import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.net.SocketTimeoutException;
@@ -67,11 +68,15 @@ final class RetryingChannel implements Channel {
      * edge case where services are already operating in a degraded state and we should not
      * spam servers.
      */
+    @SuppressWarnings("deprecation") // Singleton registry for a singleton executor
     static final Supplier<ScheduledExecutorService> sharedScheduler =
-            Suppliers.memoize(() -> Executors.newSingleThreadScheduledExecutor(new ThreadFactoryBuilder()
-                    .setNameFormat(SCHEDULER_NAME + "-%d")
-                    .setDaemon(false)
-                    .build()));
+            Suppliers.memoize(() -> Executors.newSingleThreadScheduledExecutor(MetricRegistries.instrument(
+                    SharedTaggedMetricRegistries.getSingleton(),
+                    new ThreadFactoryBuilder()
+                            .setNameFormat(SCHEDULER_NAME + "-%d")
+                            .setDaemon(false)
+                            .build(),
+                    SCHEDULER_NAME)));
 
     @SuppressWarnings("UnnecessaryLambda") // no allocations
     private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (endpoint, response) ->
