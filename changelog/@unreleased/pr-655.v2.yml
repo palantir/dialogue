@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: '`ApacheHttpClientChannels` prints some debug log lines around creation
+    & close'
+  links:
+  - https://github.com/palantir/dialogue/pull/655
