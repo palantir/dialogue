@@ -128,9 +128,10 @@ public final class BlockingChannelAdapter {
                     Response response = delegate.execute(endpoint, request);
                     if (!result.set(response)) {
                         log.info(
-                                "Future has already been completed, response will be closed",
+                                "Received response, but future has already been completed",
                                 SafeArg.of("service", endpoint.serviceName()),
-                                SafeArg.of("endpoint", endpoint.endpointName()));
+                                SafeArg.of("endpoint", endpoint.endpointName()),
+                                SafeArg.of("futureCancelled", result.isCancelled()));
                         response.close();
                     }
                 } catch (Throwable t) {
