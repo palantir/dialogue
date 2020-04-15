@@ -36,6 +36,24 @@ public class AimdConcurrencyLimiterTest {
     }
 
     @Test
+    void acquire_returnsTokensWhileInflightTokenLimitNotReached() {
+        int max = limiter.getLimit();
+        Optional<AimdConcurrencyLimiter.Token> latestToken = null;
+        for (int i = 0; i < max; ++i) {
+            latestToken = limiter.acquire();
+            assertThat(latestToken).isPresent();
+        }
+
+        // Limit reached, cannot acquire token
+        assertThat(limiter.getInflight()).isEqualTo(max);
+        assertThat(limiter.acquire()).isEmpty();
+
+        // Release one token, can acquire new token.
+        latestToken.get().ignore();
+        assertThat(limiter.acquire()).isPresent();
+    }
+
+    @Test
     public void ignore_releasesToken() {
         assertThat(limiter.getInflight()).isEqualTo(0);
         Optional<AimdConcurrencyLimiter.Token> token = limiter.acquire();

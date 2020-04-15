@@ -89,14 +89,16 @@ final class AimdConcurrencyLimiter {
             }
         }
 
-        /** Indicates that the effect of this request on concurrency limits should be ignored. */
+        /**
+         * Indicates that the effect of the request corresponding to this token on concurrency limits should be ignored
+         */
         void ignore() {
             inFlight.decrementAndGet();
         }
 
         /**
-         * Indicates that this request was dropped and that the concurrency limit should be multiplicatively
-         * decreased.
+         * Indicates that the request corresponding to this token was dropped and that the concurrency limit should be
+         * multiplicatively decreased.
          */
         void dropped() {
             inFlight.decrementAndGet();
@@ -104,8 +106,8 @@ final class AimdConcurrencyLimiter {
         }
 
         /**
-         * Indicates that this request was successful and that the concurrency limit should be additively
-         * increased.
+         * Indicates that the request corresponding to this token was successful and that the concurrency limit should
+         * be additively increased.
          */
         void success() {
             inFlight.decrementAndGet();
