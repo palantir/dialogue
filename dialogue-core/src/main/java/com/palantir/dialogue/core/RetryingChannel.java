@@ -50,6 +50,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
@@ -94,7 +95,7 @@ final class RetryingChannel implements Channel {
     private final DoubleSupplier jitter;
     private final Meter retryDueToServerError;
     private final Meter retryDueToQosResponse;
-    private final DialogueClientMetrics.RequestRetryBuilderReasonStage retryDueToThrowable;
+    private final Function<Throwable, Meter> retryDueToThrowable;
 
     @VisibleForTesting
     RetryingChannel(
@@ -144,8 +145,11 @@ final class RetryingChannel implements Channel {
                 .channelName(channelName)
                 .reason("qosResponse")
                 .build();
-        this.retryDueToThrowable =
-                DialogueClientMetrics.of(metrics).requestRetry().channelName(channelName);
+        this.retryDueToThrowable = throwable -> DialogueClientMetrics.of(metrics)
+                .requestRetry()
+                .channelName(channelName)
+                .reason(throwable.getClass().getSimpleName())
+                .build();
     }
 
     @Override
@@ -251,9 +255,7 @@ final class RetryingChannel implements Channel {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(throwable)) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
-                    Meter retryReason = retryDueToThrowable
-                            .reason(throwable.getClass().getSimpleName())
-                            .build();
+                    Meter retryReason = retryDueToThrowable.apply(throwable);
                     return scheduleRetry(throwable, retryReason);
                 } else if (log.isDebugEnabled()) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
