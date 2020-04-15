@@ -56,7 +56,7 @@ public class ConcurrencyLimitedChannelTest {
     private AimdConcurrencyLimiter mockLimiter;
 
     @Spy
-    private AimdConcurrencyLimiter.Listener listener =
+    private AimdConcurrencyLimiter.Permit permit =
             new AimdConcurrencyLimiter().acquire().get();
 
     @Mock
@@ -81,7 +81,7 @@ public class ConcurrencyLimitedChannelTest {
         mockResponseCode(200);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).success();
+        verify(permit).success();
     }
 
     @Test
@@ -90,7 +90,7 @@ public class ConcurrencyLimitedChannelTest {
         mockResponseCode(429);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).dropped();
+        verify(permit).dropped();
     }
 
     @Test
@@ -99,7 +99,7 @@ public class ConcurrencyLimitedChannelTest {
         responseFuture.setException(new IllegalStateException());
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).ignore();
+        verify(permit).ignore();
     }
 
     @Test
@@ -108,7 +108,7 @@ public class ConcurrencyLimitedChannelTest {
         responseFuture.setException(new SafeIoException("failure"));
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(listener).dropped();
+        verify(permit).dropped();
     }
 
     @Test
@@ -116,7 +116,7 @@ public class ConcurrencyLimitedChannelTest {
         mockLimitUnavailable();
 
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
-        verifyNoMoreInteractions(listener);
+        verifyNoMoreInteractions(permit);
     }
 
     @Test
@@ -146,7 +146,7 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockLimitAvailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.of(listener));
+        when(mockLimiter.acquire()).thenReturn(Optional.of(permit));
     }
 
     private void mockLimitUnavailable() {

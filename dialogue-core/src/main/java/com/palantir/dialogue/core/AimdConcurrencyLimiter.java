@@ -23,7 +23,14 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
 
-/** Simple lock-free additive increase multiplicative decrease concurrency limiter. */
+/**
+ * Simple lock-free additive increase multiplicative decrease concurrency limiter. Typically, a dispatching
+ * {@link com.palantir.dialogue.Request} tries to {@link #acquire} a new permit and releases it when the
+ * corresponding {@link Response} is retrieved.
+ *
+ * This class is a stripped-down version of the
+ * <a href="https://github.com/Netflix/concurrency-limits">Netflix AIMD library</a>.
+ */
 final class AimdConcurrencyLimiter {
 
     private static final int INITIAL_LIMIT = 20;
@@ -35,23 +42,35 @@ final class AimdConcurrencyLimiter {
     private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    Optional<Listener> acquire() {
+    /**
+     * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
+     * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
+     * eventually releasing the permit by calling exactly one of the {@link Permit#ignore}, {@link Permit#dropped},
+     * or {@link Permit#success} methods.
+     *
+     * If the permit
+     * is used in the context of a {@link Response Future&lt;Response&gt;} object, then passing the {@link Permit} as a
+     * {@link FutureCallback callback} to the future will invoke either {@link Permit#onSuccess} or
+     * {@link Permit#onFailure} which delegate to
+     * ignore/dropped/success depending on the success or failure state of the response.
+     * */
+    Optional<Permit> acquire() {
         int currentInFlight = getInflight();
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
         }
-        return Optional.of(createListener());
+        return Optional.of(createToken());
     }
 
-    private Listener createListener() {
+    private Permit createToken() {
         int inFlightSnapshot = inFlight.incrementAndGet();
-        return new Listener(inFlightSnapshot);
+        return new Permit(inFlightSnapshot);
     }
 
-    final class Listener implements FutureCallback<Response> {
+    final class Permit implements FutureCallback<Response> {
         private final int inFlightSnapshot;
 
-        Listener(int inFlightSnapshot) {
+        Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
         }
 
@@ -73,15 +92,27 @@ final class AimdConcurrencyLimiter {
             }
         }
 
+        /**
+         * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
+         * ignored.
+         */
         void ignore() {
             inFlight.decrementAndGet();
         }
 
+        /**
+         * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
+         * multiplicatively decreased.
+         */
         void dropped() {
             inFlight.decrementAndGet();
             limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
         }
 
+        /**
+         * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
+         * be additively increased.
+         */
         void success() {
             inFlight.decrementAndGet();
             limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
@@ -106,10 +137,18 @@ final class AimdConcurrencyLimiter {
         };
     }
 
+    /**
+     * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
+     * permits such that another permit can be {@link #acquire acquired}.
+     */
     int getLimit() {
         return limit.get();
     }
 
+    /**
+     * Returns the current number of in-flight permits, i.e., permits that been acquired but not yet released through
+     * either of ignore/dropped/success.
+     */
     int getInflight() {
         return inFlight.get();
     }
