@@ -137,7 +137,6 @@ public class ConcurrencyLimitedChannelTest {
         when(mockLimiter.getLimit()).thenReturn(20);
 
         assertThat(getMax()).isEqualTo(20);
-        assertThat(getUtilization()).isEqualTo(0.25d);
     }
 
     private void mockResponseCode(int code) {
@@ -151,16 +150,6 @@ public class ConcurrencyLimitedChannelTest {
 
     private void mockLimitUnavailable() {
         when(mockLimiter.acquire()).thenReturn(Optional.empty());
-    }
-
-    private Number getUtilization() {
-        Gauge<Object> gauge = metrics.gauge(MetricName.builder()
-                        .safeName("dialogue.concurrencylimiter.utilization")
-                        .putSafeTags("channel-name", "channel")
-                        .putSafeTags("hostIndex", "0")
-                        .build())
-                .get();
-        return (Number) gauge.getValue();
     }
 
     private Number getMax() {

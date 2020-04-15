@@ -44,10 +44,6 @@ namespaces:
   dialogue.concurrencylimiter:
     docs: Instrumentation for the ConcurrencyLimitedChannel
     metrics:
-      utilization:
-        type: gauge
-        tags: [channel-name, hostIndex]
-        docs: The proportion of the available concurrency which is currently being used, i.e. if there are 20 permits and only one inflight call, this will be 0.05.
       max:
         type: gauge
         tags: [channel-name, hostIndex]
