@@ -135,17 +135,18 @@ final class RetryingChannel implements Channel {
         this.retryOnTimeout = retryOnTimeout;
         this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
-        this.retryDueToServerError = DialogueClientMetrics.of(metrics)
+        DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
+        this.retryDueToServerError = dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason("serverError")
                 .build();
-        this.retryDueToQosResponse = DialogueClientMetrics.of(metrics)
+        this.retryDueToQosResponse = dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason("qosResponse")
                 .build();
-        this.retryDueToThrowable = throwable -> DialogueClientMetrics.of(metrics)
+        this.retryDueToThrowable = throwable -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason(throwable.getClass().getSimpleName())
