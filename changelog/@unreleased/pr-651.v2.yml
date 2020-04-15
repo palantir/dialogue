@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Tests and docs for AimdConcurrencyLimiter
-  links:
-  - https://github.com/palantir/dialogue/pull/651
