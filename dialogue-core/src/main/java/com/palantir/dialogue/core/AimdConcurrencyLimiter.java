@@ -23,7 +23,11 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
 
-/** Simple lock-free additive increase multiplicative decrease concurrency limiter. */
+/**
+ * Simple lock-free additive increase multiplicative decrease concurrency limiter. Typically, a dispatching
+ * {@link com.palantir.dialogue.Request} tries to {@link #acquire} a new token and releases it when the
+ * corresponding {@link Response} is retrieved.
+ */
 final class AimdConcurrencyLimiter {
 
     private static final int INITIAL_LIMIT = 20;
@@ -35,23 +39,35 @@ final class AimdConcurrencyLimiter {
     private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
-    Optional<Listener> acquire() {
+    /**
+     * Returns a new request token if the number of {@link #getInflight in-flight} tokens is smaller than the
+     * current {@link #getLimit upper limit} of allowed concurrent tokens. The caller is responsible for
+     * eventually releasing the token by calling exactly one of the {@link Token#ignore}, {@link Token#dropped},
+     * or {@link Token#success} methods.
+     *
+     * If the token
+     * is used in the context of a {@link Response Future&lt;Response&gt;} object, then passing the {@link Token} as a
+     * {@link FutureCallback callback} to the future will invoke either {@link Token#onSuccess} or
+     * {@link Token#onFailure} which delegate to
+     * ignore/dropped/success depending on the success or failure state of the response.
+     * */
+    Optional<Token> acquire() {
         int currentInFlight = getInflight();
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
         }
-        return Optional.of(createListener());
+        return Optional.of(createToken());
     }
 
-    private Listener createListener() {
+    private Token createToken() {
         int inFlightSnapshot = inFlight.incrementAndGet();
-        return new Listener(inFlightSnapshot);
+        return new Token(inFlightSnapshot);
     }
 
-    final class Listener implements FutureCallback<Response> {
+    final class Token implements FutureCallback<Response> {
         private final int inFlightSnapshot;
 
-        Listener(int inFlightSnapshot) {
+        Token(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
         }
 
@@ -73,15 +89,24 @@ final class AimdConcurrencyLimiter {
             }
         }
 
+        /** Indicates that the effect of this request on concurrency limits should be ignored. */
         void ignore() {
             inFlight.decrementAndGet();
         }
 
+        /**
+         * Indicates that this request was dropped and that the concurrency limit should be multiplicatively
+         * decreased.
+         */
         void dropped() {
             inFlight.decrementAndGet();
             limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
         }
 
+        /**
+         * Indicates that this request was successful and that the concurrency limit should be additively
+         * increased.
+         */
         void success() {
             inFlight.decrementAndGet();
             limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
@@ -106,10 +131,18 @@ final class AimdConcurrencyLimiter {
         };
     }
 
+    /**
+     * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
+     * tokens such that another token can be {@link #acquire acquired}.
+     */
     int getLimit() {
         return limit.get();
     }
 
+    /**
+     * Returns the current number of in-flight tokens, i.e., tokens that been acquired but not yet released through
+     * either of ignore/dropped/success.
+     */
     int getInflight() {
         return inFlight.get();
     }
