@@ -220,14 +220,16 @@ final class RetryingChannel implements Channel {
         }
 
         private boolean isRetryableQosStatus(Response response) {
-            if (!Responses.isQosStatus(response)) {
-                // Not QoS
-                return false;
+            switch (serverQoS) {
+                case AUTOMATIC_RETRY:
+                    return Responses.isQosStatus(response);
+                case PROPAGATE_429_and_503_TO_CALLER:
+                    return Responses.isQosStatus(response)
+                            && !Responses.isTooManyRequests(response)
+                            && !Responses.isUnavailable(response);
             }
-            // ServerQos.PROPAGATE_429_and_503_TO_CALLER should only propagate too-many-requests and unavailable.
-            boolean shouldPropagate = shouldPropagate429And503(serverQoS)
-                    && (Responses.isTooManyRequests(response) || Responses.isUnavailable(response));
-            return !shouldPropagate;
+            throw new SafeIllegalStateException(
+                    "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
@@ -321,18 +323,6 @@ final class RetryingChannel implements Channel {
         }
 
         throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
-    }
-
-    private static boolean shouldPropagate429And503(ClientConfiguration.ServerQoS serverQoS) {
-        switch (serverQoS) {
-            case PROPAGATE_429_and_503_TO_CALLER:
-                return true;
-            case AUTOMATIC_RETRY:
-                return false;
-        }
-
-        throw new SafeIllegalStateException(
-                "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
     }
 
     private static ListeningScheduledExecutorService instrument(
