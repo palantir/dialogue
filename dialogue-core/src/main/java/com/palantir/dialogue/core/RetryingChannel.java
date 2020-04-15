@@ -220,7 +220,7 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (Responses.isQosStatus(response)) {
+            if (isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
@@ -228,9 +228,20 @@ final class RetryingChannel implements Channel {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
-            // TODO(dfox): if people are using 308, we probably need to support it too
-
             return Futures.immediateFuture(response);
+        }
+
+        private boolean isRetryableQosStatus(Response response) {
+            switch (serverQoS) {
+                case AUTOMATIC_RETRY:
+                    return Responses.isQosStatus(response);
+                case PROPAGATE_429_and_503_TO_CALLER:
+                    return Responses.isQosStatus(response)
+                            && !Responses.isTooManyRequests(response)
+                            && !Responses.isUnavailable(response);
+            }
+            throw new SafeIllegalStateException(
+                    "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
         }
 
         private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
@@ -299,9 +310,7 @@ final class RetryingChannel implements Channel {
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
-            if (!shouldPropagateQos(serverQoS)) {
-                result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
-            }
+            result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
             result = Futures.catchingAsync(
                     result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
             return result;
@@ -327,18 +336,6 @@ final class RetryingChannel implements Channel {
         }
 
         throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
-    }
-
-    private static boolean shouldPropagateQos(ClientConfiguration.ServerQoS serverQoS) {
-        switch (serverQoS) {
-            case PROPAGATE_429_and_503_TO_CALLER:
-                return true;
-            case AUTOMATIC_RETRY:
-                return false;
-        }
-
-        throw new SafeIllegalStateException(
-                "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
     }
 
     private static ListeningScheduledExecutorService instrument(

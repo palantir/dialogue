@@ -20,16 +20,20 @@ import com.palantir.dialogue.Response;
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
 
-    private static boolean isTooManyRequests(Response response) {
+    private static boolean isRetryOther(Response response) {
+        return response.code() == 308;
+    }
+
+    static boolean isTooManyRequests(Response response) {
         return response.code() == 429;
     }
 
-    private static boolean isUnavailable(Response response) {
+    static boolean isUnavailable(Response response) {
         return response.code() == 503;
     }
 
     static boolean isQosStatus(Response response) {
-        return isTooManyRequests(response) || isUnavailable(response);
+        return isRetryOther(response) || isTooManyRequests(response) || isUnavailable(response);
     }
 
     static boolean isServerError(Response response) {

@@ -169,7 +169,50 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void retries_429s_when_requested() throws Exception {
+    public void retries_308s() throws Exception {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(308);
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 308 response should be returned")
+                .isSameAs(mockResponse);
+        verify(channel, times(4)).execute(TestEndpoint.POST, REQUEST);
+    }
+
+    @Test
+    public void retries_308s_when_429_and_503_are_propagated() throws Exception {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(308);
+        when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                // This does not apply to 308 responses
+                ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 308 response should be returned")
+                .isSameAs(mockResponse);
+        verify(channel, times(4)).execute(TestEndpoint.POST, REQUEST);
+    }
+
+    @Test
+    public void propagates_429s_when_requested() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
@@ -199,6 +242,25 @@ public class RetryingChannelTest {
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(TestEndpoint.GET, REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(TestEndpoint.GET, REQUEST);
+    }
+
+    @Test
+    public void retries_500s_when_method_is_safe_and_idempotent_when_qos_propagated() throws Exception {
+        when(channel.execute(any(), any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        Channel retryer = new RetryingChannel(
+                channel,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.GET, REQUEST);
         assertThat(response).isDone();
