@@ -299,7 +299,7 @@ public final class ApacheHttpClientChannels {
                     .setDefaultSocketConfig(socketConfig)
                     .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                     .setConnectionManagerShared(false) // will be closed when the client is closed
-                    .setConnectionManager(connectionManager)
+                    .setConnectionManager(new SafeLoggingHttpClientConnectionManager(connectionManager))
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
