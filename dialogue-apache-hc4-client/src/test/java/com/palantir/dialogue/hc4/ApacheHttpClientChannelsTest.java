@@ -30,9 +30,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
@@ -58,7 +60,15 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
         ListenableFuture<Response> again =
                 channel.execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(again::get).hasMessageContaining("Connection pool shut down");
+        assertThatThrownBy(() -> {
+                    try {
+                        again.get();
+                    } catch (ExecutionException e) {
+                        throw e.getCause();
+                    }
+                })
+                .isExactlyInstanceOf(SafeIllegalStateException.class)
+                .hasMessage("Connection pool shut down");
     }
 
     @Test
