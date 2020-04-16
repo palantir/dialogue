@@ -259,10 +259,15 @@ final class RetryingChannel implements Channel {
                 return scheduleRetry(throwableToLog, meter);
             }
             if (log.isInfoEnabled()) {
+                SafeRuntimeException stacktrace = debugStacktrace.orElse(null);
                 log.info(
                         "Exhausted {} retries, returning a retryable response with status {}",
                         SafeArg.of("retries", maxRetries),
-                        SafeArg.of("status", response.code()));
+                        SafeArg.of("status", response.code()),
+                        SafeArg.of("channelName", channelName),
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()),
+                        stacktrace);
             }
             // not closing response because ConjureBodySerde will need to deserialize it
             return Futures.immediateFuture(response);
