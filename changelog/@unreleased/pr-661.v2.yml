@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: PinUntilErrorChannel doesn't switch on 429, to unblock transactional
+    workflows
+  links:
+  - https://github.com/palantir/dialogue/pull/661
