@@ -110,7 +110,7 @@ public class PinUntilErrorChannelTest {
         assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
                 .describedAs("Even after receiving QoS responses, we must stay pinned on the same channel to support "
                         + "transactional workflows like the internal atlas-replacement, which rely on all requests "
-                        + "hitting the same node")
+                        + "hitting the same node. See PDS-117063 for an example.")
                 .contains(status, status, status, status, status, status);
     }
 
