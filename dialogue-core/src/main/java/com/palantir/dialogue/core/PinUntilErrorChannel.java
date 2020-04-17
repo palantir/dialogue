@@ -129,11 +129,12 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 .map(future -> DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
                     @Override
                     public void onSuccess(Response response) {
-                        if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                        // We *only* switch nodes on server *errors*, NOT QoS responses to support transactional
+                        // workflows where it is important for a large number of requests to all land on the same node,
+                        // even if a couple of them get rate limited in the middle.
+                        if (Responses.isServerError(response)) {
                             OptionalInt next = incrementHostIfNecessary(currentIndex);
                             instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
-                            // TODO(dfox): handle 308 See Other somehow, as we currently don't have a host -> channel
-                            // mapping
                         } else {
                             instrumentation.successfulResponse(currentIndex);
                         }

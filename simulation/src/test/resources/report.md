@@ -17,7 +17,7 @@
                    live_reloading[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=89.9%	client_mean=PT3.8310808S   	server_cpu=PT1H55M21.66S  	client_received=2500/2500	server_resps=2500	codes={200=2248, 500=252}
                              live_reloading[UNLIMITED_ROUND_ROBIN].txt:	success=60.2%	client_mean=PT2.84698S     	server_cpu=PT1H58M37.45S  	client_received=2500/2500	server_resps=2500	codes={200=1504, 500=996}
           one_big_spike[CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN].txt:	success=79.0%	client_mean=PT1.478050977S 	server_cpu=PT1M59.71393673S	client_received=1000/1000	server_resps=790	codes={200=790, Failed to make a request=210}
-                one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT1.286733552S 	server_cpu=PT2M48.75S     	client_received=1000/1000	server_resps=1125	codes={200=1000}
+                one_big_spike[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT1.135007332S 	server_cpu=PT2M49.65S     	client_received=1000/1000	server_resps=1131	codes={200=1000}
                     one_big_spike[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.73895799S  	server_cpu=PT2M45S        	client_received=1000/1000	server_resps=1100	codes={200=1000}
                               one_big_spike[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT1.115837367S 	server_cpu=PT8M3.3S       	client_received=1000/1000	server_resps=3222	codes={200=1000}
 one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=64.4%	client_mean=PT2.6866096S   	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1611, 500=889}

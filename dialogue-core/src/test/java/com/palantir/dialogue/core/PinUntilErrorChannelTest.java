@@ -87,7 +87,6 @@ public class PinUntilErrorChannelTest {
 
     @Test
     public void various_error_status_codes_cause_node_switch() {
-        testStatusCausesNodeSwitch(429);
         for (int errorStatus = 500; errorStatus < 600; errorStatus++) {
             testStatusCausesNodeSwitch(errorStatus);
         }
