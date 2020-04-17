@@ -87,10 +87,29 @@ public class PinUntilErrorChannelTest {
 
     @Test
     public void various_error_status_codes_cause_node_switch() {
-        testStatusCausesNodeSwitch(429);
+        testStatusCausesNodeSwitch(308);
+        testStatusCausesNodeSwitch(503);
         for (int errorStatus = 500; errorStatus < 600; errorStatus++) {
             testStatusCausesNodeSwitch(errorStatus);
         }
+    }
+
+    @Test
+    void http_429_responses_do_not_cause_node_switch() {
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Should be locked on to channel2 initially")
+                .contains(204, 204, 204, 204, 204, 204);
+
+        setResponse(channel2, 429);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Even after receiving a 429, we must stay pinned on the same channel to support "
+                        + "transactional workflows like the internal atlas-replacement, which rely on all requests "
+                        + "hitting the same node. See PDS-117063 for an example.")
+                .contains(429, 429, 429, 429, 429, 429);
     }
 
     private void testStatusCausesNodeSwitch(int errorStatus) {
