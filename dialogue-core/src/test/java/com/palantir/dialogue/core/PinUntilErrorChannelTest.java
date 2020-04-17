@@ -35,9 +35,12 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -90,6 +93,29 @@ public class PinUntilErrorChannelTest {
         for (int errorStatus = 500; errorStatus < 600; errorStatus++) {
             testStatusCausesNodeSwitch(errorStatus);
         }
+    }
+
+    @ParameterizedTest
+    @MethodSource("qosCodes")
+    void qos_responses_do_not_cause_node_switch(int status) {
+        setResponse(channel1, 100);
+        setResponse(channel2, 204);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Should be locked on to channel2 initially")
+                .contains(204, 204, 204, 204, 204, 204);
+
+        setResponse(channel2, status);
+
+        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+                .describedAs("Even after receiving QoS responses, we must stay pinned on the same channel to support "
+                        + "transactional workflows like the internal atlas-replacement, which rely on all requests "
+                        + "hitting the same node")
+                .contains(status, status, status, status, status, status);
+    }
+
+    public static Stream<Integer> qosCodes() {
+        return Stream.of(429, 503, 308);
     }
 
     private void testStatusCausesNodeSwitch(int errorStatus) {
