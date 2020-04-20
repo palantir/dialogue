@@ -57,7 +57,7 @@ public final class InstrumentedChannelTest {
         when(endpoint.serviceName()).thenReturn("my-service");
 
         MetricName name = MetricName.builder()
-                .safeName("dialogue.client.response")
+                .safeName("client.response")
                 .putSafeTags("channel-name", "my-channel")
                 .putSafeTags("service-name", endpoint.serviceName())
                 .build();
