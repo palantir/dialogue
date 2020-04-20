@@ -58,7 +58,8 @@ public final class DialogueChannel implements Channel {
     private final ClientConfiguration clientConfiguration;
     private final ChannelFactory channelFactory;
     private final Channel delegate;
-    private final DialogueClientMetrics clientMetrics;
+    private final ClientMetrics clientMetrics;
+    private final DialogueClientMetrics dialogueClientMetrics;
     private final Random random;
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
@@ -72,12 +73,20 @@ public final class DialogueChannel implements Channel {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
-        clientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
+        clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
+        dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.random = random;
         this.queuedChannel = new QueuedChannel(
-                new SupplierChannel(nodeSelectionStrategy::get), channelName, clientMetrics, maxQueueSize);
+                new SupplierChannel(nodeSelectionStrategy::get), channelName, dialogueClientMetrics, maxQueueSize);
         updateUris(clientConfiguration.uris());
-        this.delegate = wrap(queuedChannel, channelName, clientConfiguration, scheduler, random, clientMetrics);
+        this.delegate = wrap(
+                queuedChannel,
+                channelName,
+                clientConfiguration,
+                scheduler,
+                random,
+                clientMetrics,
+                dialogueClientMetrics);
     }
 
     @Override
@@ -131,7 +140,7 @@ public final class DialogueChannel implements Channel {
         Channel channel = channelFactory.create(uri);
         // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(channel, channelName, clientMetrics);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", dialogueClientMetrics);
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TraceEnrichingChannel(channel);
 
@@ -228,7 +237,8 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
-            DialogueClientMetrics clientMetrics) {
+            ClientMetrics clientMetrics,
+            DialogueClientMetrics dialogueClientMetrics) {
         Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
@@ -237,7 +247,7 @@ public final class DialogueChannel implements Channel {
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", dialogueClientMetrics);
 
         return channel;
     }

@@ -2,13 +2,25 @@ options:
   javaPackage: com.palantir.dialogue.core
   javaVisibility: packagePrivate
 namespaces:
-  dialogue.client:
-    docs: Dialogue client response metrics.
+  client:
+    docs: General client metrics produced by dialogue. These metrics are meant to be applicable to all conjure clients
+          without being implementation-specific.
     metrics:
       response:
         type: timer
         tags: [channel-name, service-name]
         docs: Request time, note that this does not include time spent reading the response body.
+      response.error:
+        type: meter
+        tags: [channel-name, service-name, reason]
+        docs: Rate of errors received by reason and service-name. Currently only errors with reason `IOException` are reported.
+      deprecations:
+        type: meter
+        tags: [service-name]
+        docs: Rate of deprecated endpoints being invoked.
+  dialogue.client:
+    docs: Dialogue client response metrics.
+    metrics:
       response.leak:
         type: meter
         tags: [client-name, service-name, endpoint]
@@ -32,10 +44,6 @@ namespaces:
         type: timer
         tags: [channel-name]
         docs: Time spent waiting in the queue before execution.
-      deprecations:
-        type: meter
-        tags: [service-name]
-        docs: Rate of deprecated endpoints being invoked.
       limited:
         type: meter
         tags: [channel-name, reason]

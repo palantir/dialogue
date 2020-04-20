@@ -17,12 +17,13 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.io.IOException;
 
 /**
  * A channel that observes metrics about the processed requests and responses.
@@ -31,9 +32,9 @@ import com.palantir.dialogue.Response;
 final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
-    private final DialogueClientMetrics metrics;
+    private final ClientMetrics metrics;
 
-    InstrumentedChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
+    InstrumentedChannel(Channel delegate, String channelName, ClientMetrics metrics) {
         this.delegate = delegate;
         this.channelName = channelName;
         this.metrics = metrics;
@@ -47,8 +48,25 @@ final class InstrumentedChannel implements Channel {
                 .build()
                 .time();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
-        response.addListener(context::stop, MoreExecutors.directExecutor());
-        return response;
+        return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
+            @Override
+            public void onSuccess(Response _result) {
+                context.stop();
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {
+                context.stop();
+                if (throwable instanceof IOException) {
+                    metrics.responseError()
+                            .channelName(channelName)
+                            .serviceName(endpoint.serviceName())
+                            .reason("IOException")
+                            .build()
+                            .mark();
+                }
+            }
+        });
     }
 
     @Override
