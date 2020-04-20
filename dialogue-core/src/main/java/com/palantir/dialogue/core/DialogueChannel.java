@@ -155,6 +155,9 @@ public final class DialogueChannel implements Channel {
             List<LimitedChannel> channels,
             Random random,
             String channelName) {
+        if (channels.isEmpty()) {
+            return ZeroUriChannel.INSTANCE;
+        }
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
             return channels.get(0);
