@@ -1,6 +1,6 @@
 type: improvement
 improvement:
-  description: Rename `dialogue.client.response` metric to `client.response` to match
-    CJR and avoid unnecessary churn on dashboards and alerts.
+  description: Rename `dialogue.client.response` and `dialogue.client.deprecations` metric to `client.response` and
+    `client.deprecations` respectively to match CJR and avoid unnecessary churn on dashboards and alerts.
   links:
   - https://github.com/palantir/dialogue/pull/662

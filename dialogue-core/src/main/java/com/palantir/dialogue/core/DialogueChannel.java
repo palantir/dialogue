@@ -79,7 +79,14 @@ public final class DialogueChannel implements Channel {
         this.queuedChannel = new QueuedChannel(
                 new SupplierChannel(nodeSelectionStrategy::get), channelName, dialogueClientMetrics, maxQueueSize);
         updateUris(clientConfiguration.uris());
-        this.delegate = wrap(queuedChannel, channelName, clientConfiguration, scheduler, random, dialogueClientMetrics);
+        this.delegate = wrap(
+                queuedChannel,
+                channelName,
+                clientConfiguration,
+                scheduler,
+                random,
+                clientMetrics,
+                dialogueClientMetrics);
     }
 
     @Override
@@ -230,7 +237,8 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration conf,
             Supplier<ScheduledExecutorService> scheduler,
             Random random,
-            DialogueClientMetrics clientMetrics) {
+            ClientMetrics clientMetrics,
+            DialogueClientMetrics dialogueClientMetrics) {
         Channel channel = queuedChannel;
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = retryingChannel(channel, channelName, conf, scheduler, random);
@@ -239,7 +247,7 @@ public final class DialogueChannel implements Channel {
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", clientMetrics);
+        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", dialogueClientMetrics);
 
         return channel;
     }
