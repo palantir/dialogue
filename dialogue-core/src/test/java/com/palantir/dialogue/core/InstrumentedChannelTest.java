@@ -20,13 +20,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.IOException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,15 +54,19 @@ public final class InstrumentedChannelTest {
     }
 
     @Test
-    public void addsMetricsForSuccessfulAndUnsuccessfulExecution() {
+    public void addsMetricsForSuccessfulExecution() {
         when(endpoint.serviceName()).thenReturn("my-service");
 
-        MetricName name = MetricName.builder()
-                .safeName("client.response")
-                .putSafeTags("channel-name", "my-channel")
-                .putSafeTags("service-name", endpoint.serviceName())
+        ClientMetrics metrics = ClientMetrics.of(registry);
+        Timer timer = metrics.response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
                 .build();
-        Timer timer = registry.timer(name);
+        Meter responseErrors = metrics.responseError()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .reason(IOException.class.getSimpleName())
+                .build();
 
         assertThat(timer.getCount()).isZero();
 
@@ -69,10 +74,54 @@ public final class InstrumentedChannelTest {
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(null));
         channel.execute(endpoint, null);
         assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(responseErrors.getCount()).isZero();
+    }
 
-        // Unsuccessful execution
+    @Test
+    public void addsMetricsForUnsuccessfulExecution_runtimeException() {
+        when(endpoint.serviceName()).thenReturn("my-service");
+        ClientMetrics metrics = ClientMetrics.of(registry);
+        Timer timer = metrics.response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .build();
+        Meter responseErrors = metrics.responseError()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .reason(IOException.class.getSimpleName())
+                .build();
+
+        assertThat(timer.getCount()).isZero();
+        assertThat(responseErrors.getCount()).isZero();
+
+        // Unsuccessful execution with IOException
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
         channel.execute(endpoint, null);
-        assertThat(timer.getCount()).isEqualTo(2);
+        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(responseErrors.getCount()).isZero();
+    }
+
+    @Test
+    public void addsMetricsForUnsuccessfulExecution_ioException() {
+        when(endpoint.serviceName()).thenReturn("my-service");
+        ClientMetrics metrics = ClientMetrics.of(registry);
+        Timer timer = metrics.response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .build();
+        Meter responseErrors = metrics.responseError()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .reason(IOException.class.getSimpleName())
+                .build();
+
+        assertThat(timer.getCount()).isZero();
+        assertThat(responseErrors.getCount()).isZero();
+
+        // Unsuccessful execution with IOException
+        when(delegate.execute(any(), any())).thenReturn(Futures.immediateFailedFuture(new IOException()));
+        channel.execute(endpoint, null);
+        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(responseErrors.getCount()).isOne();
     }
 }
