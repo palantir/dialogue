@@ -202,11 +202,10 @@ public final class DialogueChannelsTest {
                 .channelName("my-channel")
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(stubConfig)
-                        .uris(Collections.singletonList("https://localhost"))
+                        .uris(Collections.emptyList())
                         .build())
                 .channelFactory(uri -> delegate)
                 .build();
-        channel.updateUris(Collections.emptyList());
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
     }
