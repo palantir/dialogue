@@ -49,7 +49,7 @@ public final class InstrumentedChannelTest {
     @BeforeEach
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
-        channel = new InstrumentedChannel(delegate, "my-channel", DialogueClientMetrics.of(registry));
+        channel = new InstrumentedChannel(delegate, "my-channel", ClientMetrics.of(registry));
     }
 
     @Test

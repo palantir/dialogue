@@ -168,7 +168,7 @@ public final class Benchmark {
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
+        ClientMetrics clientMetrics = ClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
                 .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, clientMetrics))

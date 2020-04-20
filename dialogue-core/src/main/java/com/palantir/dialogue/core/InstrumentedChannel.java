@@ -31,9 +31,9 @@ import com.palantir.dialogue.Response;
 final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
-    private final DialogueClientMetrics metrics;
+    private final ClientMetrics metrics;
 
-    InstrumentedChannel(Channel delegate, String channelName, DialogueClientMetrics metrics) {
+    InstrumentedChannel(Channel delegate, String channelName, ClientMetrics metrics) {
         this.delegate = delegate;
         this.channelName = channelName;
         this.metrics = metrics;
