@@ -95,9 +95,10 @@ public final class DialogueChannel implements Channel {
     }
 
     public void updateUris(Collection<String> uris) {
+        boolean firstTime = nodeSelectionStrategy.get() == null;
         Set<String> uniqueUris = new HashSet<>(uris);
         // Uris didn't really change so nothing to do
-        if (limitedChannelByUri.keySet().equals(uniqueUris)) {
+        if (limitedChannelByUri.keySet().equals(uniqueUris) && !firstTime) {
             return;
         }
 
@@ -107,7 +108,6 @@ public final class DialogueChannel implements Channel {
                     SafeArg.of("channelName", channelName),
                     SafeArg.of("prevNumUris", limitedChannelByUri.size()));
         }
-        boolean firstTime = nodeSelectionStrategy.get() == null;
         if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
             log.info(
                     "Updated from zero uris",
@@ -155,6 +155,9 @@ public final class DialogueChannel implements Channel {
             List<LimitedChannel> channels,
             Random random,
             String channelName) {
+        if (channels.isEmpty()) {
+            return ZeroUriChannel.INSTANCE;
+        }
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
             return channels.get(0);
@@ -319,7 +322,6 @@ public final class DialogueChannel implements Channel {
         }
 
         private void preconditions(ClientConfiguration conf) {
-            Preconditions.checkArgument(!conf.uris().isEmpty(), "channels must not be empty");
             Preconditions.checkArgument(conf.userAgent().isPresent(), "config.userAgent() must be specified");
             Preconditions.checkArgument(
                     conf.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,

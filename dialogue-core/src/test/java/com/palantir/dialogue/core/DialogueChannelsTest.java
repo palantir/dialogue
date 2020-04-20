@@ -40,9 +40,11 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.TestTracing;
 import java.nio.file.Paths;
+import java.util.Collections;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
@@ -192,6 +194,20 @@ public final class DialogueChannelsTest {
         assertThatThrownBy(rejected::get)
                 .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("queue is full");
+    }
+
+    @Test
+    void constructing_a_client_with_zero_uris_causes_immediate_failures() {
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(stubConfig)
+                        .uris(Collections.emptyList())
+                        .build())
+                .channelFactory(uri -> delegate)
+                .build();
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+        assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
     }
 
     @Test
