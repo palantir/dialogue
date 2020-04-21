@@ -27,6 +27,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -274,7 +275,12 @@ public final class DialogueChannel implements Channel {
 
         private int maxQueueSize = 100_000;
 
-        public Builder channelName(String value) {
+        /**
+         * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
+         * does not impact behavior, using a unique value for each channel makes it much easier to monitor and debug
+         * the RPC stack.
+         */
+        public Builder channelName(@Safe String value) {
             this.channelName = value;
             return this;
         }
