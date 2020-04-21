@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Add documentation/annotations describing log-safety of channel names
+  links:
+  - https://github.com/palantir/dialogue/pull/665
