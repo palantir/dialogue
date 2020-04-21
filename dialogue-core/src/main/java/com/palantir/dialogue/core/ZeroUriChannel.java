@@ -21,16 +21,26 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
 
 /** When we literally have zero URIs, no request can get out the door. */
-enum ZeroUriChannel implements LimitedChannel {
-    INSTANCE;
+final class ZeroUriChannel implements LimitedChannel {
+
+    private final String channelName;
+
+    ZeroUriChannel(String channelName) {
+        this.channelName = Preconditions.checkNotNull(channelName, "Channel name is required");
+    }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request) {
-        return Optional.of(Futures.immediateFailedFuture(
-                new SafeIllegalStateException("There are no URIs configured to handle requests")));
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request _request) {
+        return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
+                "There are no URIs configured to handle requests",
+                SafeArg.of("channel", channelName),
+                SafeArg.of("service", endpoint.serviceName()),
+                SafeArg.of("endpoint", endpoint.endpointName()))));
     }
 }
