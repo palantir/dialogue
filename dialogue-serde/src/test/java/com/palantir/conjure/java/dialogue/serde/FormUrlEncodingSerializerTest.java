@@ -54,6 +54,12 @@ class FormUrlEncodingSerializerTest {
     }
 
     @Test
+    void percent_emoji() throws IOException {
+        RequestBody body = FormUrlEncodingSerializer.INSTANCE.serialize(ImmutableMap.of("key", "🚀"));
+        assertThat(asString(body)).isEqualTo("key=%F0%9F%9A%80");
+    }
+
+    @Test
     void handles_null() throws IOException {
         Map<String, String> map = new HashMap<>();
         map.put("foo", null);
