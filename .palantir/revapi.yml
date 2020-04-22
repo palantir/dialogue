@@ -252,3 +252,9 @@ acceptedBreaks:
       old: null
       new: "method void com.palantir.dialogue.RequestBody::close()"
       justification: "internal interface not for extension"
+  "1.26.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.Serializer<java.util.Map<java.lang.String,\
+        \ java.lang.String>> com.palantir.dialogue.BodySerDe::formUrlEncodingSerializer()"
+      justification: "No known external implementations of BodySerDe yet"
