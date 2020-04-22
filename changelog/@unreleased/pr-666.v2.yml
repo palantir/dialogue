@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: The `BodySerDe#formUrlEncodingSerializer` can be used to send `application/x-www-form-urlencoded`
+    data (e.g. for OAuth2 endpoints).
+  links:
+  - https://github.com/palantir/dialogue/pull/666
