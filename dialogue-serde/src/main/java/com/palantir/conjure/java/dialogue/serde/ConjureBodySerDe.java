@@ -36,6 +36,7 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
@@ -154,6 +155,11 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
             }
         };
+    }
+
+    @Override
+    public Serializer<Map<String, String>> formUrlEncodingSerializer() {
+        return FormUrlEncodingSerializer.INSTANCE;
     }
 
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {

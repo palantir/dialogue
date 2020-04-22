@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import java.io.InputStream;
+import java.util.Map;
 import java.util.Optional;
 
 /** Request and response Deserialization and Serialization functionality used by generated code. */
@@ -46,4 +47,7 @@ public interface BodySerDe {
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
+
+    /** Serializes key-value tuples according to https://url.spec.whatwg.org/#urlencoded-serializing. */
+    Serializer<Map<String, String>> formUrlEncodingSerializer();
 }
