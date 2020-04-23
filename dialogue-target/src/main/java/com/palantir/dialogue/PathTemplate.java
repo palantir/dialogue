@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+import com.google.errorprone.annotations.Immutable;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.util.ArrayList;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Set;
 import javax.annotation.Nullable;
 
+@Immutable
 public final class PathTemplate {
 
     // TODO(rfink): Add query parameters.
@@ -86,6 +88,7 @@ public final class PathTemplate {
         }
     }
 
+    @Immutable
     public static final class Segment {
         @Nullable
         private final String fixed;
