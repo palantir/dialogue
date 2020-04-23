@@ -370,6 +370,29 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    public void supports_empty_path_parameter() throws InterruptedException, ExecutionException {
+        endpoint.method = HttpMethod.GET;
+        endpoint.renderPath =
+                (params, url) -> url.pathSegment("a").pathSegment("").pathSegment("b");
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("GET");
+        assertThat(recorded.getPath()).isEqualTo("/a//b");
+        assertThat(result.get().code()).isEqualTo(200);
+    }
+
+    @Test
+    public void emptyTrailingPathParameterResultsInTrailingSlash() throws InterruptedException, ExecutionException {
+        endpoint.method = HttpMethod.GET;
+        endpoint.renderPath = (params, url) -> url.pathSegment("foo").pathSegment("");
+        ListenableFuture<Response> result = channel.execute(endpoint, request);
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(recorded.getMethod()).isEqualTo("GET");
+        assertThat(recorded.getPath()).isEqualTo("/foo/");
+        assertThat(result.get().code()).isEqualTo(200);
+    }
+
+    @Test
     @TestTracing(snapshot = true)
     public void requestAreTraced() throws Exception {
         endpoint.method = HttpMethod.POST;
