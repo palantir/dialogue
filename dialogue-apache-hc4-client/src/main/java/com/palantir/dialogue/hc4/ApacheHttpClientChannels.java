@@ -295,6 +295,9 @@ public final class ApacheHttpClientChannels {
                             // Match okhttp, disallow redirects
                             .setRedirectsEnabled(false)
                             .setRelativeRedirectsAllowed(false)
+                            // Don't attempt to replace duplicated slashes with a single slash, otherwise
+                            // empty path parameters cannot be matched by the server.
+                            .setNormalizeUri(false)
                             .build())
                     .setDefaultSocketConfig(socketConfig)
                     .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
