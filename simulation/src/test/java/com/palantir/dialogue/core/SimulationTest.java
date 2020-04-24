@@ -203,22 +203,22 @@ public class SimulationTest {
                 SimulationServer.builder()
                         .serverName("normal")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build(),
                 SimulationServer.builder()
                         .serverName("fast_503s_then_revert")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .until(Duration.ofSeconds(3), "fast 503s")
-                        .handler(h -> h.response(503).responseTime(Duration.ofMillis(1)))
+                        .handler(h -> h.response(503).responseTime(Duration.ofNanos(10)))
                         .until(Duration.ofMinutes(1), "revert")
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(50)
+                .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(90))
-                .clients(1, i -> strategy.getChannel(simulation, servers))
+                .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
