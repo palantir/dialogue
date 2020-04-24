@@ -194,7 +194,7 @@ public final class DialogueChannel implements Channel {
                         channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
-                return new PreferLowestUtilization(channels, random, ticker);
+                return new PreferLowestRememberFailures(channels, random, ticker);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

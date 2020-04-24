@@ -31,7 +31,7 @@ import javax.annotation.Nullable;
 
 /**
  * Randomly selects a channel for a given request, attempting to choose a channel that has some available capacity.
- * @deprecated in favour of {@link PreferLowestUtilization}
+ * @deprecated in favour of {@link PreferLowestRememberFailures}
  */
 @Deprecated
 final class RandomSelectionChannel implements LimitedChannel {

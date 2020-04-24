@@ -32,7 +32,10 @@ final class ActiveRequestInstrumentationChannel implements Channel {
     private final Channel delegate;
 
     ActiveRequestInstrumentationChannel(
-            Channel delegate, String channelName, @CompileTimeConstant String stage, DialogueClientMetrics metrics) {
+            Channel delegate,
+            String channelName,
+            final @CompileTimeConstant String stage,
+            DialogueClientMetrics metrics) {
         // The delegate must never be allowed to throw, otherwise the counter may be incremented without
         // being decremented.
         this.delegate = new NeverThrowChannel(delegate);

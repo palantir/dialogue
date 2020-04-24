@@ -41,7 +41,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PreferLowestUtilizationTest {
+class PreferLowestRememberFailuresTest {
     private Random random = new Random(12388544234L);
 
     @Mock
@@ -54,11 +54,12 @@ class PreferLowestUtilizationTest {
     Request request;
 
     private Endpoint endpoint = TestEndpoint.GET;
-    private PreferLowestUtilization channel;
+    private PreferLowestRememberFailures channel;
+    private Ticker clock = Ticker.systemTicker();
 
     @BeforeEach
     public void before() {
-        channel = new PreferLowestUtilization(ImmutableList.of(chan1, chan2), random, Ticker.systemTicker());
+        channel = new PreferLowestRememberFailures(ImmutableList.of(chan1, chan2), random, clock);
     }
 
     @Test
@@ -98,19 +99,22 @@ class PreferLowestUtilizationTest {
 
     @Test
     void sorting() {
-        PreferLowestUtilization.ChannelWithStats chan100 = channel.newChannelWithStats(chan1);
-        chan100.inflight().set(100);
-        PreferLowestUtilization.ChannelWithStats chan100failed = channel.newChannelWithStats(chan1);
-        chan100failed.inflight().set(100);
-        chan100failed.recentFailures().update(1);
-        PreferLowestUtilization.ChannelWithStats chan50 = channel.newChannelWithStats(chan1);
-        chan50.inflight().set(50);
-        chan50.recentFailures().update(1);
-        PreferLowestUtilization.ChannelWithStats chan101 = channel.newChannelWithStats(chan1);
-        chan101.inflight().set(101);
+        PreferLowestRememberFailures.ChannelWithStats chan100 =
+                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan100.inflight.set(100);
+        PreferLowestRememberFailures.ChannelWithStats chan100failed =
+                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan100failed.inflight.set(100);
+        chan100failed.recentFailures.update(1);
+        PreferLowestRememberFailures.ChannelWithStats chan50 =
+                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan50.inflight.set(50);
+        chan50.recentFailures.update(1);
+        PreferLowestRememberFailures.ChannelWithStats chan101 =
+                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan101.inflight.set(101);
 
-        assertThat(Stream.of(chan100failed, chan100, chan50, chan101)
-                        .sorted(PreferLowestUtilization.PREFER_LOWEST_TIEBREAK))
+        assertThat(Stream.of(chan100failed, chan100, chan50, chan101).sorted(PreferLowestRememberFailures.BY_SCORE))
                 .describedAs("Tie-breaking is done by preferring the channel which didn't fail last")
                 .containsExactly(chan50, chan100, chan100failed, chan101);
     }
