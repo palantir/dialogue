@@ -203,16 +203,16 @@ public class SimulationTest {
                 SimulationServer.builder()
                         .serverName("normal")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
                         .build(),
                 SimulationServer.builder()
                         .serverName("fast_503s_then_revert")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
                         .until(Duration.ofSeconds(3), "fast 503s")
-                        .handler(h -> h.response(503).responseTime(Duration.ofNanos(10)))
+                        .handler(h -> h.response(503).responseTime(Duration.ofMillis(1)))
                         .until(Duration.ofMinutes(1), "revert")
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(1200)))
                         .build());
 
         result = Benchmark.builder()

@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -55,11 +56,18 @@ final class PreferLowestUtilization implements LimitedChannel {
     PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Random random) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
+        if (log.isErrorEnabled()) {
+            log.error("{}", channels);
+        }
         this.channels = channels.stream().map(ChannelWithStats::of).collect(ImmutableList.toImmutableList());
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        if (log.isErrorEnabled()) {
+            log.error("{}", Lists.transform(channels, ChannelWithStats::score));
+        }
+
         // pre-shuffling to tie-break is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
         return shuffleImmutableList(channels, random).stream()
@@ -83,12 +91,7 @@ final class PreferLowestUtilization implements LimitedChannel {
      * finishes a lot quicker than network requests do, and we don't mind if it's not exactly right.
      */
     @VisibleForTesting
-    static final Comparator<ChannelWithStats> PREFER_LOWEST_TIEBREAK = Comparator.comparing((ChannelWithStats c) -> {
-                return c.inflight().get();
-            })
-            .thenComparing((ChannelWithStats c) -> {
-                return c.lastRequestFailed().get();
-            });
+    static final Comparator<ChannelWithStats> PREFER_LOWEST_TIEBREAK = Comparator.comparing(ChannelWithStats::score);
 
     @Value.Immutable
     interface ChannelWithStats extends LimitedChannel {
@@ -101,6 +104,15 @@ final class PreferLowestUtilization implements LimitedChannel {
         /** Trivial bit of memory for tie-breaking. */
         AtomicBoolean lastRequestFailed();
 
+        /** Low = good. */
+        default int score() {
+            if (lastRequestFailed().get()) {
+                return 20 + 20 * inflight().get();
+            } else {
+                return inflight().get();
+            }
+        }
+
         static ChannelWithStats of(LimitedChannel channel) {
             return ImmutableChannelWithStats.builder()
                     .delegate(channel)
@@ -111,14 +123,10 @@ final class PreferLowestUtilization implements LimitedChannel {
 
         @Override
         default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            int currentInflight = inflight().incrementAndGet();
+            inflight().incrementAndGet();
             Optional<ListenableFuture<Response>> maybe = delegate().maybeExecute(endpoint, request);
 
             if (maybe.isPresent()) {
-                // if (log.isInfoEnabled()) {
-                    log.info("channel {} inflight {}", delegate(), currentInflight);
-                // }
-
                 DialogueFutures.addDirectCallback(maybe.get(), new FutureCallback<Response>() {
                     @Override
                     public void onSuccess(Response result) {
