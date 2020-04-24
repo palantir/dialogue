@@ -216,9 +216,9 @@ public class SimulationTest {
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(500)
+                .requestsPerSecond(50)
                 .sendUntil(Duration.ofSeconds(90))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(1, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();

@@ -16,24 +16,23 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
+import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,63 +49,26 @@ import org.slf4j.LoggerFactory;
 final class PreferLowestUtilization implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PreferLowestUtilization.class);
 
-    /**
-     * This comparator is a little risky because the data can change while we're sorting. In practise the sort
-     * finishes a lot quicker than network requests do, and we don't mind if it's not exactly right.
-     */
-    private static final Comparator<Map.Entry<AtomicInteger, LimitedChannel>> PREFER_LOWEST =
-            Comparator.comparing(pair -> pair.getKey().get());
-
-    /** Each AtomicInteger stores the number of active requests that a channel is currently serving. */
-    private final ImmutableList<Map.Entry<AtomicInteger, LimitedChannel>> channelsByActiveRequest;
-
+    private final ImmutableList<ChannelWithStats> channels;
     private final Random random;
 
     PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Random random) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-
         this.random = random;
-        this.channelsByActiveRequest = channels.stream()
-                .map(c -> Maps.immutableEntry(new AtomicInteger(0), c))
-                .collect(ImmutableList.toImmutableList());
+        this.channels = channels.stream().map(ChannelWithStats::of).collect(ImmutableList.toImmutableList());
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-
-        // tie-breaking is pretty important here, otherwise when there are no requests in flight, we'd *always*
-        // prefer the first channe of the list, leading to a higher overall load.
-        Optional<ListenableFuture<Response>> response = shuffleImmutableList(channelsByActiveRequest, random).stream()
-                .sorted(PREFER_LOWEST)
-                .map(pair -> {
-                    AtomicInteger atomicInteger = pair.getKey();
-                    LimitedChannel channel = pair.getValue();
-
-                    atomicInteger.incrementAndGet();
-                    Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
-                    if (!maybeFuture.isPresent()) {
-                        atomicInteger.decrementAndGet(); // quick undo
-                        return maybeFuture;
-                    }
-
-                    ListenableFuture<Response> future = maybeFuture.get();
-                    future.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
-
-                    return maybeFuture;
-                })
+        // pre-shuffling to tie-break is pretty important here, otherwise when there are no requests in flight, we'd
+        // *always* prefer the first channel of the list, leading to a higher overall load.
+        return shuffleImmutableList(channels, random).stream()
+                .sorted(PREFER_LOWEST_TIEBREAK)
+                .map(channel -> channel.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
+                .map(Optional::get)
                 // we rely heavily on streams being lazy here
-                .findFirst()
-                .map(Optional::get);
-
-        if (log.isDebugEnabled() && !response.isPresent()) {
-            List<Integer> utilization = channelsByActiveRequest.stream()
-                    .map(entry -> entry.getKey().get())
-                    .collect(Collectors.toList());
-            log.debug("Every channel refused", SafeArg.of("utilization", utilization));
-        }
-
-        return response;
+                .findFirst();
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -114,5 +76,65 @@ final class PreferLowestUtilization implements LimitedChannel {
         List<T> mutableList = new ArrayList<>(sourceList);
         Collections.shuffle(mutableList, random);
         return mutableList;
+    }
+
+    /**
+     * This comparator is a little risky because the data can change while we're sorting. In practise the sort
+     * finishes a lot quicker than network requests do, and we don't mind if it's not exactly right.
+     */
+    @VisibleForTesting
+    static final Comparator<ChannelWithStats> PREFER_LOWEST_TIEBREAK = Comparator.comparing((ChannelWithStats c) -> {
+                return c.inflight().get();
+            })
+            .thenComparing((ChannelWithStats c) -> {
+                return c.lastRequestFailed().get();
+            });
+
+    @Value.Immutable
+    interface ChannelWithStats extends LimitedChannel {
+
+        LimitedChannel delegate();
+
+        /** Number of requests which are being sent down this channel. */
+        AtomicInteger inflight();
+
+        /** Trivial bit of memory for tie-breaking. */
+        AtomicBoolean lastRequestFailed();
+
+        static ChannelWithStats of(LimitedChannel channel) {
+            return ImmutableChannelWithStats.builder()
+                    .delegate(channel)
+                    .inflight(new AtomicInteger(0))
+                    .lastRequestFailed(new AtomicBoolean(false))
+                    .build();
+        }
+
+        @Override
+        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            int currentInflight = inflight().incrementAndGet();
+            Optional<ListenableFuture<Response>> maybe = delegate().maybeExecute(endpoint, request);
+
+            if (maybe.isPresent()) {
+                // if (log.isInfoEnabled()) {
+                    log.info("channel {} inflight {}", delegate(), currentInflight);
+                // }
+
+                DialogueFutures.addDirectCallback(maybe.get(), new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response result) {
+                        inflight().decrementAndGet();
+                        lastRequestFailed().set(Responses.isQosStatus(result) || Responses.isServerError(result));
+                    }
+
+                    @Override
+                    public void onFailure(Throwable t) {
+                        lastRequestFailed().set(true);
+                    }
+                });
+            } else {
+                inflight().decrementAndGet(); // quickly undo
+            }
+            return maybe;
+        }
     }
 }

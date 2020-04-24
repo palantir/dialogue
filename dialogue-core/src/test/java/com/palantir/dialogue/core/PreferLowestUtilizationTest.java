@@ -32,6 +32,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.util.Optional;
 import java.util.Random;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -92,6 +93,24 @@ class PreferLowestUtilizationTest {
         assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
         verify(chan1, times(1)).maybeExecute(any(), any());
         verify(chan2, times(1)).maybeExecute(any(), any());
+    }
+
+    @Test
+    void sorting() {
+        PreferLowestUtilization.ChannelWithStats chan100 = PreferLowestUtilization.ChannelWithStats.of(chan1);
+        chan100.inflight().set(100);
+        PreferLowestUtilization.ChannelWithStats chan100failed = PreferLowestUtilization.ChannelWithStats.of(chan1);
+        chan100failed.inflight().set(100);
+        chan100failed.lastRequestFailed().set(true);
+        PreferLowestUtilization.ChannelWithStats chan50 = PreferLowestUtilization.ChannelWithStats.of(chan1);
+        chan50.inflight().set(50);
+        chan50.lastRequestFailed().set(true);
+        PreferLowestUtilization.ChannelWithStats chan101 = PreferLowestUtilization.ChannelWithStats.of(chan1);
+        chan101.inflight().set(101);
+
+        assertThat(Stream.of(chan100failed, chan100, chan50, chan101).sorted(PreferLowestUtilization.PREFER_LOWEST_TIEBREAK))
+                .describedAs("Tie-breaking is done by preferring the channel which didn't fail last")
+                .containsExactly(chan50, chan100, chan100failed, chan101);
     }
 
     private static void set200(LimitedChannel chan) {
