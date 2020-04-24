@@ -35,7 +35,6 @@ import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -153,7 +152,7 @@ public final class DialogueChannel implements Channel {
     private static LimitedChannel getUpdatedNodeSelectionStrategy(
             @Nullable LimitedChannel previousNodeSelectionStrategy,
             ClientConfiguration config,
-            List<LimitedChannel> channels,
+            ImmutableList<LimitedChannel> channels,
             Random random,
             String channelName) {
         if (channels.isEmpty()) {
@@ -189,7 +188,7 @@ public final class DialogueChannel implements Channel {
                         channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
-                return new RandomSelectionChannel(channels, random);
+                return new PreferLowestUtilization(channels, random);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

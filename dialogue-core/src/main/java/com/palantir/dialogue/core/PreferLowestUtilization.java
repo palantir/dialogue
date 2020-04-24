@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
  * The idea here is to keep track of how many requests are currently being served by each server, and when we're asked
  * to execute a request, just pick the one with the fewest in flight.
  *
- * This is intended to be a strict improvement over the {@link RoundRobinChannel}, which can leave fast servers
+ * This is intended to be a strict improvement over the {@link RandomSelectionChannel}, which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node.
  *
  * I know this implementation is expensive to calculate - just intending to evaluate the usefulness of the
