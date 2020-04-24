@@ -16,11 +16,8 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Caffeine;
-import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ListMultimap;
-import com.google.common.collect.MultimapBuilder;
+import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
@@ -30,10 +27,13 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,67 +50,67 @@ import org.slf4j.LoggerFactory;
 final class PreferLowestUtilization implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PreferLowestUtilization.class);
 
-    private final Random random;
-    private final ImmutableList<LimitedChannel> channels;
+    /**
+     * This comparator is a little risky because the data can change while we're sorting. In practise the sort
+     * finishes a lot quicker than network requests do, and we don't mind if it's not exactly right.
+     */
+    private static final Comparator<Map.Entry<AtomicInteger, LimitedChannel>> PREFER_LOWEST =
+            Comparator.comparing(pair -> pair.getKey().get());
 
     /** Each AtomicInteger stores the number of active requests that a channel is currently serving. */
-    private final LoadingCache<LimitedChannel, AtomicInteger> activeRequestsPerChannel =
-            Caffeine.newBuilder().maximumSize(1000).build(upstream -> new AtomicInteger());
+    private final ImmutableList<Map.Entry<AtomicInteger, LimitedChannel>> channelsByActiveRequest;
+
+    private final Random random;
 
     PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Random random) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-        this.channels = channels;
+
         this.random = random;
+        this.channelsByActiveRequest = channels.stream()
+                .map(c -> Maps.immutableEntry(new AtomicInteger(0), c))
+                .collect(ImmutableList.toImmutableList());
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
 
-        // we accumulate everything right now (which is quite expensive), but it allows us to move on to the
-        // next-best channel if our preferred one refuses
-        ListMultimap<Integer, LimitedChannel> channelsByUtilization = sortChannelsByLowestUtilization();
+        // tie-breaking is pretty important here, otherwise when there are no requests in flight, we'd *always*
+        // prefer the first channe of the list, leading to a higher overall load.
+        Optional<ListenableFuture<Response>> response = shuffleImmutableList(channelsByActiveRequest, random).stream()
+                .sorted(PREFER_LOWEST)
+                .map(pair -> {
+                    AtomicInteger atomicInteger = pair.getKey();
+                    LimitedChannel channel = pair.getValue();
 
-        for (Integer activeCount : channelsByUtilization.keySet()) {
-            // multiple channels might have the same number of inflight requests
-            for (LimitedChannel channel : channelsByUtilization.get(activeCount)) {
+                    atomicInteger.incrementAndGet();
+                    Optional<ListenableFuture<Response>> maybeFuture = channel.maybeExecute(endpoint, request);
+                    if (!maybeFuture.isPresent()) {
+                        atomicInteger.decrementAndGet(); // quick undo
+                        return maybeFuture;
+                    }
 
-                AtomicInteger atomicInteger = activeRequestsPerChannel.get(channel);
-                atomicInteger.incrementAndGet();
+                    ListenableFuture<Response> future = maybeFuture.get();
+                    future.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
 
-                Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+                    return maybeFuture;
+                })
+                .filter(Optional::isPresent)
+                // we rely heavily on streams being lazy here
+                .findFirst()
+                .map(Optional::get);
 
-                if (maybeResponse.isPresent()) {
-                    ListenableFuture<Response> response = maybeResponse.get();
-                    response.addListener(atomicInteger::decrementAndGet, MoreExecutors.directExecutor());
-                    return Optional.of(response);
-                } else {
-                    // we quickly undo the atomicInteger thing we optimistically incremented earlier
-                    atomicInteger.decrementAndGet();
-                }
-            }
+        if (log.isDebugEnabled() && !response.isPresent()) {
+            List<Integer> utilization = channelsByActiveRequest.stream()
+                    .map(entry -> entry.getKey().get())
+                    .collect(Collectors.toList());
+            log.debug("Every channel refused", SafeArg.of("utilization", utilization));
         }
 
-        if (log.isDebugEnabled()) {
-            log.debug("Every channel refused", SafeArg.of("channels", channelsByUtilization));
-        }
-        return Optional.empty();
-    }
-
-    private ListMultimap<Integer, LimitedChannel> sortChannelsByLowestUtilization() {
-        ListMultimap<Integer, LimitedChannel> channelsByUtilization =
-                MultimapBuilder.treeKeys().arrayListValues().build();
-
-        // the shuffle ensures that when nodes have the same utilization, we won't always pick the same one
-        for (LimitedChannel channel : shuffleImmutableList(channels)) {
-            int activeRequests = activeRequestsPerChannel.get(channel).get();
-            channelsByUtilization.put(activeRequests, channel);
-        }
-
-        return channelsByUtilization;
+        return response;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
-    private <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList) {
+    private static <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList, Random random) {
         List<T> mutableList = new ArrayList<>(sourceList);
         Collections.shuffle(mutableList, random);
         return mutableList;
