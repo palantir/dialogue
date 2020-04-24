@@ -159,7 +159,7 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration config,
             ImmutableList<LimitedChannel> channels,
             Random random,
-            Ticker ticker,
+            Ticker tick,
             String channelName) {
         if (channels.isEmpty()) {
             return new ZeroUriChannel(channelName);
@@ -194,7 +194,7 @@ public final class DialogueChannel implements Channel {
                         channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
-                return new PreferLowestRememberFailures(channels, random, ticker);
+                return new PreferLowestRememberFailures(channels, random, tick);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
@@ -321,8 +321,8 @@ public final class DialogueChannel implements Channel {
         }
 
         @VisibleForTesting
-        Builder ticker(Ticker ticker) {
-            this.ticker = ticker;
+        Builder ticker(Ticker value) {
+            this.ticker = value;
             return this;
         }
 

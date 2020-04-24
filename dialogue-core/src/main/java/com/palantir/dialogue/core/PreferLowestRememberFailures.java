@@ -109,7 +109,7 @@ final class PreferLowestRememberFailures implements LimitedChannel {
         return mutableList;
     }
 
-    static class ChannelWithStats implements LimitedChannel {
+    static final class ChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
 
         @VisibleForTesting
