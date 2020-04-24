@@ -1,0 +1,26 @@
+/** Not intended to be published, this project just exists to reduce boilerplate when testing dialogue. */
+
+versionsLock {
+    testProject()
+}
+
+dependencies {
+    compile project(':dialogue-target')
+    compile project(':dialogue-example:dialogue-example-dialogue')
+
+    compile 'com.google.guava:guava'
+    compile 'com.palantir.conjure.java.runtime:client-config'
+    compile 'com.palantir.conjure.java.runtime:keystores'
+    compile 'com.palantir.tracing:tracing-test-utils'
+    compile 'com.squareup.okhttp3:mockwebserver'
+    compile 'org.assertj:assertj-core'
+    compile 'org.assertj:assertj-guava'
+    compile 'org.junit.jupiter:junit-jupiter'
+    compile 'org.junit.jupiter:junit-jupiter-migrationsupport'
+    compile 'org.mockito:mockito-core'
+    compile 'org.mockito:mockito-junit-jupiter'
+}
+
+tasks.withType(JavaCompile) {
+    options.errorprone.errorproneArgs += '-Xep:NullAway:OFF'
+}

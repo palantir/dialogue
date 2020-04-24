@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Report metrics for in-flight requests
+  links:
+  - https://github.com/palantir/dialogue/pull/486

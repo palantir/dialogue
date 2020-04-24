@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Interrupted calls properly close resources
+  links:
+  - https://github.com/palantir/dialogue/pull/458

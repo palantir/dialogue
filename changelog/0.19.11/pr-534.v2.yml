@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Record metrics describing time spent queued
+  links:
+  - https://github.com/palantir/dialogue/pull/534

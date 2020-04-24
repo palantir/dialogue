@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Reduce the number of available concurrency limits in response to 429's
+    and 5xx's
+  links:
+  - https://github.com/palantir/dialogue/pull/513

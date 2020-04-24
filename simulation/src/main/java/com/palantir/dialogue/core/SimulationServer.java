@@ -27,6 +27,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.time.Duration;
@@ -84,9 +85,9 @@ final class SimulationServer implements Channel {
             }
 
             ListenableFuture<Response> resp = maybeResp.get();
+            DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(ignored -> globalResponses.inc()));
             resp.addListener(
                     () -> {
-                        globalResponses.inc();
                         activeRequests.dec();
                         globalServerTimeNanos.inc(simulation.clock().read() - beforeNanos);
                     },
@@ -235,15 +236,15 @@ final class SimulationServer implements Channel {
         HandlerBuilder1 response(Function<SimulationServer, Response> func);
 
         default HandlerBuilder1 response(int status) {
-            return response(server -> SimulationUtils.response(status, "1.0.0"));
+            return response(server -> new TestResponse().code(status));
         }
 
         default HandlerBuilder1 respond200UntilCapacity(int errorStatus, int capacity) {
             return response(server -> {
                 if (server.activeRequests.getCount() > capacity) {
-                    return SimulationUtils.response(errorStatus, "1.0.0");
+                    return new TestResponse().code(errorStatus);
                 } else {
-                    return SimulationUtils.response(200, "1.0.0");
+                    return new TestResponse().code(200);
                 }
             });
         }

@@ -16,182 +16,93 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
-import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
+import java.nio.file.Paths;
 import java.time.Duration;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
+import java.util.Collections;
+import java.util.Map;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import java.util.function.UnaryOperator;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
     CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
-    CONCURRENCY_LIMITER_BLACKLIST_ROUND_ROBIN(Strategy::concurrencyLimiterBlacklistRoundRobin),
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::roundRobin),
-    PREFER_LOWEST(Strategy::preferLowest);
+    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
-    private static final Logger log = LoggerFactory.getLogger(Strategy.class);
-    private final BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel;
+    private final BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel;
 
-    Strategy(BiFunction<Simulation, Supplier<List<SimulationServer>>, Channel> getChannel) {
+    Strategy(BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel) {
         this.getChannel = getChannel;
     }
 
-    public Channel getChannel(Simulation simulation, Supplier<List<SimulationServer>> servers) {
+    public Channel getChannel(Simulation simulation, Supplier<Map<String, SimulationServer>> servers) {
         return getChannel.apply(simulation, servers);
     }
 
-    private static Channel concurrencyLimiter(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1);
-        });
+    private static Channel concurrencyLimiter(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .failedUrlCooldown(Duration.ofMillis(200)));
     }
 
-    private static Channel concurrencyLimiterBlacklistRoundRobin(
-            Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
-                    .collect(Collectors.toList());
-            LimitedChannel limited1 = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited1, listener);
-        });
+    private static Channel pinUntilError(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(
+                sim,
+                channelSupplier,
+                configBuilder -> configBuilder.nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR));
     }
 
-    private static Channel pinUntilError(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        Random psuedoRandom = new Random(3218974678L);
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            LimitedChannel limited = new PinUntilErrorChannel(
-                    new PinUntilErrorChannel.ReshufflingNodeList(limitedChannels, psuedoRandom, sim.clock()));
-            return queuedChannelAndRetrying(sim, limited);
-        });
+    private static Channel unlimitedRoundRobin(
+            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .failedUrlCooldown(Duration.ofMillis(200))
+                .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS));
     }
 
-    private static Channel roundRobin(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            List<LimitedChannel> limitedChannels = channels.stream()
-                    .map(Strategy::noOpLimitedChannel)
-                    .map(addFixedLimiter(sim))
-                    .collect(Collectors.toList());
-            LimitedChannel limited = new RoundRobinChannel(limitedChannels);
-            return queuedChannelAndRetrying(sim, limited);
-        });
+    private static Channel withDefaults(
+            Simulation sim,
+            Supplier<Map<String, SimulationServer>> channelSupplier,
+            UnaryOperator<ClientConfiguration.Builder> applyConfig) {
+        DialogueChannel channel = DialogueChannel.builder()
+                .channelName(SimulationUtils.CHANNEL_NAME)
+                .clientConfiguration(applyConfig
+                        .apply(ClientConfiguration.builder()
+                                .uris(ImmutableList.copyOf(channelSupplier.get().keySet()))
+                                .from(stubConfig())
+                                .taggedMetricRegistry(sim.taggedMetrics()))
+                        .build())
+                .channelFactory(uri -> channelSupplier.get().get(uri))
+                .random(sim.pseudoRandom())
+                .scheduler(sim.scheduler())
+                .build();
+
+        return RefreshingChannelFactory.RefreshingChannel.create(
+                () -> channelSupplier.get().keySet(), uris -> {
+                    channel.updateUris(uris);
+                    return channel;
+                });
     }
 
-    private static Channel preferLowest(Simulation sim, Supplier<List<SimulationServer>> channelSupplier) {
-        Random pseudoRandom = new Random(21735712L);
-        DeferredLimitedChannelListener listener = new DeferredLimitedChannelListener();
-
-        return RefreshingChannelFactory.RefreshingChannel.create(channelSupplier, channels -> {
-            ImmutableList<LimitedChannel> limitedChannels = channels.stream()
-                    .map(addConcurrencyLimiter(sim))
-                    // .map(UnlimitedChannel::new)
-                    .map(c -> new BlacklistingChannel(c, Duration.ofSeconds(1), listener, sim.clock(), sim.scheduler()))
-                    .collect(ImmutableList.toImmutableList());
-            LimitedChannel limited = new PreferLowestUtilization(limitedChannels, pseudoRandom);
-            return queuedChannelAndRetrying(sim, limited, listener);
-        });
-    }
-
-    private static Function<Channel, LimitedChannel> addConcurrencyLimiter(Simulation sim) {
-        return channel -> new ConcurrencyLimitedChannel(
-                new LimitedChannelAdapter(channel),
-                ConcurrencyLimitedChannel.createLimiter(sim.clock()),
-                DialogueClientMetrics.of(sim.taggedMetrics()));
-    }
-
-    private static Function<LimitedChannel, LimitedChannel> addFixedLimiter(Simulation sim) {
-        return channel -> new FixedLimitedChannel(channel, 256, DialogueClientMetrics.of(sim.taggedMetrics()));
-    }
-
-    private static Channel queuedChannelAndRetrying(Simulation sim, LimitedChannel limited) {
-        return queuedChannelAndRetrying(sim, limited, new DeferredLimitedChannelListener());
-    }
-
-    private static Channel queuedChannelAndRetrying(
-            Simulation sim, LimitedChannel limited, DeferredLimitedChannelListener listener) {
-        LimitedChannel limited1 = instrumentClient(limited, sim.taggedMetrics());
-        QueuedChannel channel = new QueuedChannel(limited1, DispatcherMetrics.of(sim.taggedMetrics()));
-        listener.delegate = channel::schedule;
-        return new RetryingChannel(
-                channel,
-                4 /* ClientConfigurations.DEFAULT_MAX_NUM_RETRIES */,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY);
-    }
-
-    private static LimitedChannel instrumentClient(LimitedChannel delegate, TaggedMetrics metrics) {
-        Meter starts = metrics.meter("test_client.starts");
-        Counter metric = metrics.counter("test_client.refusals");
-        return new LimitedChannel() {
-
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                log.debug(
-                        "starting request={}",
-                        request.headerParams().get(Benchmark.REQUEST_ID_HEADER).get(0));
-                starts.mark();
-                Optional<ListenableFuture<Response>> response = delegate.maybeExecute(endpoint, request);
-                if (!response.isPresent()) {
-                    metric.inc();
-                }
-                return response;
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    private static LimitedChannel noOpLimitedChannel(Channel delegate) {
-        return new LimitedChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-                return Optional.of(delegate.execute(endpoint, request));
-            }
-
-            @Override
-            public String toString() {
-                return delegate.toString();
-            }
-        };
-    }
-
-    private static final class DeferredLimitedChannelListener implements LimitedChannelListener {
-        private LimitedChannelListener delegate;
-
-        @Override
-        public void onChannelReady() {
-            Preconditions.checkNotNull(delegate, "Delegate listener has not been initialized")
-                    .onChannelReady();
-        }
+    private static ClientConfiguration stubConfig() {
+        return ClientConfiguration.builder()
+                .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                        .uris(Collections.emptyList()) // nothing reads this!
+                        .security(SslConfiguration.of(
+                                Paths.get("../dialogue-test-common/src/main/resources/trustStore.jks"),
+                                Paths.get("../dialogue-test-common/src/main/resources/keyStore.jks"),
+                                "keystore"))
+                        .build()))
+                .userAgent(UserAgent.of(UserAgent.Agent.of("foo", "1.0.0")))
+                .build();
     }
 }

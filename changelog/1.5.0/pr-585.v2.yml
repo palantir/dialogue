@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Provide a tracing operation name to the blocking adapter executor
+  links:
+  - https://github.com/palantir/dialogue/pull/585

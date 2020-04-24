@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: 'fix #389: DefaultErrorDecoder handles types with parameters'
+  links:
+  - https://github.com/palantir/dialogue/pull/473

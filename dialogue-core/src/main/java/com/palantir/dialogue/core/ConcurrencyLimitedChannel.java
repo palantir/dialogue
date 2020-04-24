@@ -16,21 +16,17 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
-import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.netflix.concurrency.limits.Limiter;
-import com.netflix.concurrency.limits.limit.AIMDLimit;
-import com.netflix.concurrency.limits.limit.WindowedLimit;
-import com.netflix.concurrency.limits.limiter.SimpleLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.lang.ref.WeakReference;
 import java.util.Optional;
-import java.util.concurrent.TimeUnit;
-import javax.annotation.Nullable;
+import java.util.function.Function;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -38,54 +34,51 @@ import javax.annotation.Nullable;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
-    @Nullable
-    private static final Void NO_CONTEXT = null;
-
-    private static final Ticker SYSTEM_NANOTIME = System::nanoTime;
+    static final int INITIAL_LIMIT = 20;
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final Limiter<Void> limiter;
+    private final AimdConcurrencyLimiter limiter;
 
-    @VisibleForTesting
-    ConcurrencyLimitedChannel(LimitedChannel delegate, Limiter<Void> limiter, DialogueClientMetrics metrics) {
+    ConcurrencyLimitedChannel(
+            LimitedChannel delegate,
+            AimdConcurrencyLimiter limiter,
+            String channelName,
+            int uriIndex,
+            TaggedMetricRegistry taggedMetrics) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
-        this.limitedMeter = metrics.limited(getClass().getSimpleName());
+        this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
+                .limited()
+                .channelName(channelName)
+                .reason(getClass().getSimpleName())
+                .build();
         this.limiter = limiter;
+
+        weakGauge(
+                taggedMetrics,
+                MetricName.builder()
+                        .safeName("dialogue.concurrencylimiter.max")
+                        .putSafeTags("channel-name", channelName)
+                        .putSafeTags("hostIndex", Integer.toString(uriIndex))
+                        .build(),
+                this,
+                ConcurrencyLimitedChannel::getMax);
     }
 
-    static ConcurrencyLimitedChannel create(LimitedChannel delegate, DialogueClientMetrics metrics) {
-        return new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(SYSTEM_NANOTIME), metrics);
-    }
-
-    @VisibleForTesting
-    static Limiter<Void> createLimiter(Ticker nanoTimeClock) {
-        AIMDLimit aimdLimit = AIMDLimit.newBuilder()
-                // Explicitly set values to prevent library changes from breaking us
-                .initialLimit(20)
-                .minLimit(1)
-                .maxLimit(200)
-                .backoffRatio(0.9)
-                // Don't count slow calls as a sign of the server being overloaded
-                .timeout(Long.MAX_VALUE, TimeUnit.DAYS)
-                .build();
-        return SimpleLimiter.newBuilder()
-                .clock(nanoTimeClock::read)
-                .limit(WindowedLimit.newBuilder().build(aimdLimit))
-                .build();
+    static AimdConcurrencyLimiter createLimiter() {
+        return new AimdConcurrencyLimiter();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<Limiter.Listener> maybeListener = limiter.acquire(NO_CONTEXT);
-        if (maybeListener.isPresent()) {
-            Limiter.Listener listener = maybeListener.get();
+        Optional<AimdConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+        if (maybePermit.isPresent()) {
+            AimdConcurrencyLimiter.Permit permit = maybePermit.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), new LimiterCallback(listener));
+                DialogueFutures.addDirectCallback(result.get(), permit);
             } else {
-                listener.onIgnore();
+                permit.ignore();
             }
             return result;
         } else {
@@ -94,29 +87,35 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
     }
 
+    @Override
+    public String toString() {
+        return "ConcurrencyLimitedChannel{" + delegate + '}';
+    }
+
+    private int getMax() {
+        return limiter.getLimit();
+    }
+
     /**
-     * Signals back to the {@link Limiter} whether or not the request was successfully handled.
+     * Creates a gauge that removes itself when the {@code instance} has been garbage-collected.
+     * We need this to ensure that ConcurrencyLimitedChannels can be GC'd when urls live-reload, otherwise metric
+     * registries could keep around dangling references.
      */
-    private static final class LimiterCallback implements FutureCallback<Response> {
+    private static <T> void weakGauge(
+            TaggedMetricRegistry registry, MetricName metricName, T instance, Function<T, Number> gaugeFunction) {
+        registry.registerWithReplacement(metricName, new Gauge<Number>() {
+            private final WeakReference<T> weakReference = new WeakReference<>(instance);
 
-        private final Limiter.Listener listener;
-
-        private LimiterCallback(Limiter.Listener listener) {
-            this.listener = listener;
-        }
-
-        @Override
-        public void onSuccess(Response result) {
-            if (Responses.isTooManyRequests(result)) {
-                listener.onDropped();
-            } else {
-                listener.onSuccess();
+            @Override
+            public Number getValue() {
+                T value = weakReference.get();
+                if (value != null) {
+                    return gaugeFunction.apply(value);
+                } else {
+                    registry.remove(metricName); // registry must be tolerant to concurrent modification
+                    return 0;
+                }
             }
-        }
-
-        @Override
-        public void onFailure(Throwable _throwable) {
-            listener.onIgnore();
-        }
+        });
     }
 }

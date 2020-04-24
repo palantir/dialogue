@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Replace QueuedChannel with a backoff based retryer
+  links:
+  - https://github.com/palantir/dialogue/pull/432

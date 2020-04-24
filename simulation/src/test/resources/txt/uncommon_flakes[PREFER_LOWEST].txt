@@ -1,1 +1,0 @@
-success=98.2%	client_mean=PT0.106900307S 	server_cpu=PT0.010034S    	client_received=9920/10000	server_resps=9920	codes={200=9822, 500=98}

@@ -16,11 +16,10 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ListMultimap;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 public interface Response extends Closeable {
@@ -32,12 +31,11 @@ public interface Response extends Closeable {
 
     /** The HTTP headers for this response. Headers names are compared in a case-insensitive fashion as per
      * https://tools.ietf.org/html/rfc7540#section-8.1.2. */
-    Map<String, List<String>> headers();
+    ListMultimap<String, String> headers();
 
     /** Retrieves the first value from the header map for the given key. */
     default Optional<String> getFirstHeader(String header) {
-        List<String> headerList = headers().getOrDefault(header, ImmutableList.of());
-
+        List<String> headerList = headers().get(header);
         return headerList.isEmpty() ? Optional.empty() : Optional.of(headerList.get(0));
     }
 
@@ -45,6 +43,9 @@ public interface Response extends Closeable {
      * Releases all resources associated with this response. If the {@link #body()} is still open, {@link #close()}
      * should {@link InputStream#close() close the stream}.
      * Implementations must not throw, preferring to catch and log internally.
+     *
+     * Note that in the case of binary and optional binary endpoints, this method may not be called as the user is
+     * expected to close the {@link #body()} themselves.
      */
     @Override
     void close();

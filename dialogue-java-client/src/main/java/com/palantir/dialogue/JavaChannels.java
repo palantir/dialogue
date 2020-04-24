@@ -16,15 +16,12 @@
 
 package com.palantir.dialogue;
 
-import static java.util.stream.Collectors.toList;
-
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.core.Channels;
+import com.palantir.dialogue.core.DialogueChannel;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.security.GeneralSecurityException;
-import java.util.List;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManager;
@@ -55,11 +52,11 @@ public final class JavaChannels {
                 .sslContext(createSslContext(conf.trustManager()))
                 .build();
 
-        List<Channel> channels = conf.uris().stream()
-                .map(uri -> HttpChannel.of(client, url(uri)))
-                .collect(toList());
-
-        return Channels.create(channels, conf);
+        return DialogueChannel.builder()
+                .channelName("java-channel")
+                .clientConfiguration(conf)
+                .channelFactory(uri -> HttpChannel.of(client, url(uri)))
+                .build();
     }
 
     private static URL url(String uri) {

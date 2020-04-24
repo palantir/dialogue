@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Dialogue now precent-encodes the plus sign character in query strings.
+  links:
+  - https://github.com/palantir/dialogue/pull/572

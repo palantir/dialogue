@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import java.io.InputStream;
+import java.util.Optional;
 
 /** Request and response Deserialization and Serialization functionality used by generated code. */
 public interface BodySerDe {
@@ -32,14 +33,17 @@ public interface BodySerDe {
      */
     Deserializer<Void> emptyBodyDeserializer();
 
-    /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
-    RequestBody serialize(BinaryRequestBody value);
-
     /**
-     * Reads an {@link InputStream} from the {@link Response} request body.
+     * Returns a {@link Deserializer} that reads an {@link InputStream} from the {@link Response} body.
      * <p>
-     * This method is named <pre>deserializeInputStream</pre> not <pre>deserializeBinary</pre>
+     * This method is named <pre>inputStreamDeserializer</pre> not <pre>binaryDeserializer</pre>
      * to support future streaming binary bindings without conflicting method signatures.
      */
-    InputStream deserializeInputStream(Response response);
+    Deserializer<InputStream> inputStreamDeserializer();
+
+    /** Same as {@link #inputStreamDeserializer()} with support for 204 responses. */
+    Deserializer<Optional<InputStream>> optionalInputStreamDeserializer();
+
+    /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
+    RequestBody serialize(BinaryRequestBody value);
 }

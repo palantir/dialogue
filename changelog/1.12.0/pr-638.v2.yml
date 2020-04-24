@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Remove the windowed limit from the Dialogue concurrency limiter configuration
+  links:
+  - https://github.com/palantir/dialogue/pull/638

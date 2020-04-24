@@ -16,44 +16,16 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.List;
 import java.util.Map;
 
 final class SimulationUtils {
-
-    public static Response response(int status, String version) {
-        return new Response() {
-            @Override
-            public InputStream body() {
-                return new ByteArrayInputStream(new byte[0]);
-            }
-
-            @Override
-            public int code() {
-                return status;
-            }
-
-            @Override
-            public Map<String, List<String>> headers() {
-                if (version == null) {
-                    return ImmutableMap.of();
-                }
-                return ImmutableMap.of("server", ImmutableList.of("foundry-catalog/" + version));
-            }
-
-            @Override
-            public void close() {}
-        };
-    }
 
     public static Response wrapWithCloseInstrumentation(Response delegate, TaggedMetricRegistry registry) {
         return new Response() {
@@ -68,27 +40,29 @@ final class SimulationUtils {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
+            public ListMultimap<String, String> headers() {
                 return delegate.headers();
             }
 
             @Override
             public void close() {
                 MetricNames.responseClose(registry).inc();
+                delegate.close();
             }
         };
     }
 
+    static final String CHANNEL_NAME = "test-channel";
     static final String SERVICE_NAME = "svc";
 
-    public static Endpoint endpoint(String name) {
+    public static Endpoint endpoint(String name, HttpMethod method) {
         return new Endpoint() {
             @Override
             public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
 
             @Override
             public HttpMethod httpMethod() {
-                return HttpMethod.GET;
+                return method;
             }
 
             @Override

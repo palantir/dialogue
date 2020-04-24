@@ -16,12 +16,12 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -31,15 +31,12 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.util.Deque;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,56 +56,59 @@ import org.slf4j.LoggerFactory;
  *     <li>Schedule in a spin loop: this would allow us to schedule without delay, but requires a thread constantly
  *     doing work, much of which will be wasted</li>
  * </ul>
- *
- * TODO(jellis): record metrics for queue sizes, num requests in flight, time spent in queue, etc.
  */
 final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
-    private static final Executor DIRECT = MoreExecutors.directExecutor();
 
     private final Deque<DeferredCall> queuedCalls;
     private final LimitedChannel delegate;
+    private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
-    private final AtomicInteger numRunningRequests = new AtomicInteger(0);
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
+    private final Counter queueSizeCounter;
+    private final Timer queuedTime;
+    private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
-    QueuedChannel(LimitedChannel channel, DispatcherMetrics metrics) {
-        this(channel, 1_000, metrics);
-    }
-
-    @VisibleForTesting
-    QueuedChannel(LimitedChannel delegate, int maxQueueSize, DispatcherMetrics metrics) {
+    QueuedChannel(LimitedChannel delegate, String channelName, DialogueClientMetrics metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.channelName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
+        this.queueSizeCounter = metrics.requestsQueued(channelName);
+        this.queuedTime = metrics.requestQueuedTime(channelName);
+        this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
+                "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
+    }
 
-        metrics.callsQueued(queueSizeEstimate::get);
-        metrics.callsRunning(numRunningRequests::get);
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        return maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);
     }
 
     /**
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    @VisibleForTesting
+    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
             Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
-                numRunningRequests.incrementAndGet();
-                result.addListener(this::onCompletion, DIRECT);
-                return result;
+                DialogueFutures.addDirectListener(result, this::onCompletion);
+                // While the queue was avoid, this is equivalent to spending zero time on the queue.
+                queuedTime.update(0, TimeUnit.NANOSECONDS);
+                return maybeResult;
             }
         }
 
         // Important to read the queue size here as well as prior to the optimistic maybeExecute because
         // maybeExecute may take sufficiently long that other requests could be queued.
         if (queueSizeEstimate.get() >= maxQueueSize) {
-            return queueFullResponse();
+            return Optional.empty();
         }
 
         DeferredCall components = DeferredCall.builder()
@@ -116,25 +116,21 @@ final class QueuedChannel implements Channel {
                 .request(request)
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
+                .timer(queuedTime.time())
                 .build();
 
         if (!queuedCalls.offer(components)) {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
-            return queueFullResponse();
+            return Optional.empty();
         }
-        queueSizeEstimate.incrementAndGet();
+        incrementQueueSize();
 
         schedule();
 
-        return components.response();
-    }
-
-    private ListenableFuture<Response> queueFullResponse() {
-        return Futures.immediateFuture(RateLimitedResponse.INSTANCE);
+        return Optional.of(components.response());
     }
 
     private void onCompletion() {
-        numRunningRequests.decrementAndGet();
         schedule();
     }
 
@@ -152,6 +148,16 @@ final class QueuedChannel implements Channel {
         }
     }
 
+    private void incrementQueueSize() {
+        queueSizeEstimate.incrementAndGet();
+        queueSizeCounter.inc();
+    }
+
+    private void decrementQueueSize() {
+        queueSizeEstimate.decrementAndGet();
+        queueSizeCounter.dec();
+    }
+
     /**
      * Get the next call and attempt to execute it. If it is runnable, wire up the underlying future to the one
      * previously returned to the caller. If it is not runnable, add it back into the queue. Returns true if more
@@ -167,7 +173,9 @@ final class QueuedChannel implements Channel {
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
         // request will be quickly cancelled in that case.
         if (queuedResponse.isDone()) {
-            queueSizeEstimate.decrementAndGet();
+            decrementQueueSize();
+            queueHead.span().complete();
+            queueHead.timer().stop();
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
@@ -175,44 +183,45 @@ final class QueuedChannel implements Channel {
             Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
 
             if (maybeResponse.isPresent()) {
-                queueSizeEstimate.decrementAndGet();
+                decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
                 queueHead.span().complete();
-                numRunningRequests.incrementAndGet();
-                response.addListener(numRunningRequests::decrementAndGet, DIRECT);
-                Futures.addCallback(response, new ForwardAndSchedule(queuedResponse), DIRECT);
-                queuedResponse.addListener(
-                        () -> {
-                            if (queuedResponse.isCancelled()) {
-                                // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
-                                // here.
-                                // Currently cancel(false) will be converted to cancel(true)
-                                if (!response.cancel(true) && log.isDebugEnabled()) {
-                                    log.debug(
-                                            "Failed to cancel delegate response, it should be reported by"
-                                                    + " ForwardAndSchedule logging",
-                                            SafeArg.of("service", endpoint.serviceName()),
-                                            SafeArg.of("endpoint", endpoint.endpointName()));
-                                }
-                            }
-                        },
-                        DIRECT);
+                queueHead.timer().stop();
+                DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
+                DialogueFutures.addDirectListener(queuedResponse, () -> {
+                    if (queuedResponse.isCancelled()) {
+                        // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                        // here.
+                        // Currently cancel(false) will be converted to cancel(true)
+                        if (!response.cancel(true) && log.isDebugEnabled()) {
+                            log.debug(
+                                    "Failed to cancel delegate response, it should be reported by ForwardAndSchedule "
+                                            + "logging",
+                                    SafeArg.of("channel", channelName),
+                                    SafeArg.of("service", endpoint.serviceName()),
+                                    SafeArg.of("endpoint", endpoint.endpointName()));
+                        }
+                    }
+                });
                 return true;
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
                     log.error(
                             "Failed to add an attempted call back to the deque",
+                            SafeArg.of("channel", channelName),
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()));
-                    queueSizeEstimate.decrementAndGet();
-                    if (!queuedResponse.setException(
-                            new SafeRuntimeException(
-                                    "Failed to req-queue request",
-                                    SafeArg.of("service", endpoint.serviceName()),
-                                    SafeArg.of("endpoint", endpoint.endpointName())))) {
+                    decrementQueueSize();
+                    queueHead.timer().stop();
+                    if (!queuedResponse.setException(new SafeRuntimeException(
+                            "Failed to req-queue request",
+                            SafeArg.of("channel", channelName),
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName())))) {
                         log.debug(
                                 "Queued response has already been completed",
+                                SafeArg.of("channel", channelName),
                                 SafeArg.of("service", endpoint.serviceName()),
                                 SafeArg.of("endpoint", endpoint.endpointName()));
                     }
@@ -250,28 +259,6 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    private enum RateLimitedResponse implements Response {
-        INSTANCE;
-
-        @Override
-        public InputStream body() {
-            return new ByteArrayInputStream(new byte[0]);
-        }
-
-        @Override
-        public int code() {
-            return 429;
-        }
-
-        @Override
-        public Map<String, List<String>> headers() {
-            return ImmutableMap.of();
-        }
-
-        @Override
-        public void close() {}
-    }
-
     @Value.Immutable
     interface DeferredCall {
         Endpoint endpoint();
@@ -281,6 +268,8 @@ final class QueuedChannel implements Channel {
         SettableFuture<Response> response();
 
         DetachedSpan span();
+
+        Timer.Context timer();
 
         class Builder extends ImmutableDeferredCall.Builder {}
 

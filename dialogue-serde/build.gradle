@@ -1,4 +1,5 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
 
 dependencies {
     compile project(':dialogue-target')
@@ -7,10 +8,14 @@ dependencies {
     compile 'com.palantir.safe-logging:preconditions'
     compile 'org.slf4j:slf4j-api'
 
-    testCompile 'junit:junit'
+    testCompile project(':dialogue-test-common')
+    testImplementation project(':dialogue-example')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
     testCompile 'org.assertj:assertj-core'
     testCompile 'org.immutables:value::annotations'
     testCompile 'org.mockito:mockito-core'
     testCompile 'com.palantir.safe-logging:preconditions-assertj'
     testCompile 'org.apache.commons:commons-lang3'
 }
+
+configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5

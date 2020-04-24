@@ -16,53 +16,85 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.ErrorDecoder;
-import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
-    private static final String BINARY_CONTENT_TYPE = "application/octet-stream";
 
-    private final List<Encoding> encodings;
+    private static final Logger log = LoggerFactory.getLogger(ConjureBodySerDe.class);
+    private final List<Encoding> encodingsSortedByWeight;
     private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
+    private final EmptyContainerDeserializer emptyContainerDeserializer;
+    private final Deserializer<InputStream> binaryInputStreamDeserializer;
+    private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
+    private final Deserializer<Void> emptyBodyDeserializer;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
-     * {@link Encoding#supportsContentType supports} the serialization format {@link Headers#ACCEPT accepted}
+     * {@link Encoding#supportsContentType supports} the serialization format {@link HttpHeaders#ACCEPT accepted}
      * by a given request, or the first serializer if no such serializer can be found.
      */
-    ConjureBodySerDe(List<Encoding> encodings) {
-        // TODO(jellis): consider supporting cbor encoded errors
-        this(encodings, DefaultErrorDecoder.INSTANCE);
-    }
-
-    @VisibleForTesting
-    ConjureBodySerDe(List<Encoding> encodings, ErrorDecoder errorDecoder) {
-        // Defensive copy
-        this.encodings = ImmutableList.copyOf(encodings);
+    ConjureBodySerDe(
+            List<WeightedEncoding> rawEncodings,
+            ErrorDecoder errorDecoder,
+            EmptyContainerDeserializer emptyContainerDeserializer) {
+        List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
+        this.encodingsSortedByWeight = sortByWeight(encodings);
         this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
-        this.defaultEncoding = encodings.get(0);
+        this.defaultEncoding = encodings.get(0).encoding();
+        this.emptyContainerDeserializer = emptyContainerDeserializer;
+        this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE),
+                errorDecoder,
+                emptyContainerDeserializer,
+                BinaryEncoding.MARKER);
+        this.optionalBinaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
+                ImmutableList.of(BinaryEncoding.INSTANCE),
+                errorDecoder,
+                emptyContainerDeserializer,
+                BinaryEncoding.OPTIONAL_MARKER);
+        this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
+    }
+
+    private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
+        return input.stream()
+                .map(weightedEncoding -> WeightedEncoding.of(
+                        new LazilyInitializedEncoding(weightedEncoding.encoding()), weightedEncoding.weight()))
+                .collect(ImmutableList.toImmutableList());
+    }
+
+    private ImmutableList<Encoding> sortByWeight(List<WeightedEncoding> encodings) {
+        // Use list.sort which guarantees a stable sort, so the original order is preserved
+        // when weights are equal.
+        List<WeightedEncoding> mutableEncodings = new ArrayList<>(encodings);
+        mutableEncodings.sort(Comparator.comparing(WeightedEncoding::weight).reversed());
+        return ImmutableList.copyOf(Lists.transform(mutableEncodings, WeightedEncoding::encoding));
     }
 
     @Override
@@ -72,17 +104,23 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(encodings, errorDecoder, token);
+        return new EncodingDeserializerRegistry<>(
+                encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token);
     }
 
     @Override
-    @SuppressWarnings("NullAway") // empty body is a special case
     public Deserializer<Void> emptyBodyDeserializer() {
-        return input -> {
-            // We should not fail if a server that previously returned nothing starts returning a response
-            input.close();
-            return null;
-        };
+        return emptyBodyDeserializer;
+    }
+
+    @Override
+    public Deserializer<InputStream> inputStreamDeserializer() {
+        return binaryInputStreamDeserializer;
+    }
+
+    @Override
+    public Deserializer<Optional<InputStream>> optionalInputStreamDeserializer() {
+        return optionalBinaryInputStreamDeserializer;
     }
 
     @Override
@@ -97,21 +135,25 @@ final class ConjureBodySerDe implements BodySerDe {
 
             @Override
             public String contentType() {
-                return BINARY_CONTENT_TYPE;
+                return BinaryEncoding.CONTENT_TYPE;
+            }
+
+            @Override
+            public boolean repeatable() {
+                // BinaryRequestBody values are not currently repeatable. If a need arises we may
+                // consider adding a 'boolean repeatable()' default method.
+                return false;
+            }
+
+            @Override
+            public void close() {
+                try {
+                    value.close();
+                } catch (IOException | RuntimeException e) {
+                    log.warn("Failed to close BinaryRequestBody {}", UnsafeArg.of("body", value), e);
+                }
             }
         };
-    }
-
-    @Override
-    public InputStream deserializeInputStream(Response exchange) {
-        Optional<String> contentType = exchange.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (!contentType.isPresent()) {
-            throw new SafeIllegalArgumentException("Response is missing Content-Type header");
-        }
-        if (!contentType.get().startsWith(BINARY_CONTENT_TYPE)) {
-            throw new SafeIllegalArgumentException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
-        }
-        return exchange.body();
     }
 
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {
@@ -137,6 +179,16 @@ final class ConjureBodySerDe implements BodySerDe {
                 public String contentType() {
                     return encoding.encoding.getContentType();
                 }
+
+                @Override
+                public boolean repeatable() {
+                    return true;
+                }
+
+                @Override
+                public void close() {
+                    // nop
+                }
             };
         }
     }
@@ -154,48 +206,101 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final class EncodingDeserializerRegistry<T> implements Deserializer<T> {
 
+        private static final Logger log = LoggerFactory.getLogger(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
+        private final Optional<String> acceptValue;
+        private final Optional<T> emptyInstance;
+        private final TypeMarker<T> token;
 
-        EncodingDeserializerRegistry(List<Encoding> encodings, ErrorDecoder errorDecoder, TypeMarker<T> token) {
+        EncodingDeserializerRegistry(
+                List<Encoding> encodings,
+                ErrorDecoder errorDecoder,
+                EmptyContainerDeserializer empty,
+                TypeMarker<T> token) {
             this.encodings = encodings.stream()
                     .map(encoding -> new EncodingDeserializerContainer<>(encoding, token))
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
+            this.token = token;
+            this.emptyInstance = empty.tryGetEmptyInstance(token);
+            // Encodings are applied to the accept header in the order of preference based on the provided list.
+            this.acceptValue =
+                    Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
         }
 
         @Override
         public T deserialize(Response response) {
+            boolean closeResponse = true;
             try {
                 if (errorDecoder.isError(response)) {
                     throw errorDecoder.decode(response);
+                } else if (response.code() == 204) {
+                    // TODO(dfox): what if we get a 204 for a non-optional type???
+                    // TODO(dfox): support http200 & body=null
+                    // TODO(dfox): what if we were expecting an empty list but got {}?
+                    if (emptyInstance.isPresent()) {
+                        return emptyInstance.get();
+                    }
+                    throw new SafeRuntimeException(
+                            "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
                 }
 
                 Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-                EncodingDeserializerContainer<T> container = getResponseDeserializer(contentType);
-                return container.deserializer.deserialize(response.body());
+                if (!contentType.isPresent()) {
+                    throw new SafeIllegalArgumentException(
+                            "Response is missing Content-Type header",
+                            SafeArg.of("received", response.headers().keySet()));
+                }
+                Encoding.Deserializer<T> deserializer = getResponseDeserializer(contentType.get());
+                T deserialized = deserializer.deserialize(response.body());
+                // deserializer has taken on responsibility for closing the response body
+                closeResponse = false;
+                return deserialized;
             } finally {
-                response.close();
+                if (closeResponse) {
+                    response.close();
+                }
             }
+        }
+
+        @Override
+        public Optional<String> accepts() {
+            return acceptValue;
         }
 
         /** Returns the {@link EncodingDeserializerContainer} to use to deserialize the request body. */
         @SuppressWarnings("ForLoopReplaceableByForEach")
         // performance sensitive code avoids iterator allocation
-        EncodingDeserializerContainer<T> getResponseDeserializer(Optional<String> contentType) {
-            if (!contentType.isPresent()) {
-                throw new SafeIllegalArgumentException("Response is missing Content-Type header");
-            }
+        Encoding.Deserializer<T> getResponseDeserializer(String contentType) {
             for (int i = 0; i < encodings.size(); i++) {
                 EncodingDeserializerContainer<T> container = encodings.get(i);
-                if (container.encoding.supportsContentType(contentType.get())) {
-                    return container;
+                if (container.encoding.supportsContentType(contentType)) {
+                    return container.deserializer;
                 }
             }
-            throw new SafeRuntimeException("Unsupported Content-Type", SafeArg.of("Content-Type", contentType));
+            return throwingDeserializer(contentType);
+        }
+
+        private Encoding.Deserializer<T> throwingDeserializer(String contentType) {
+            return new Encoding.Deserializer<T>() {
+                @Override
+                public T deserialize(InputStream input) {
+                    try {
+                        input.close();
+                    } catch (RuntimeException | IOException e) {
+                        log.warn("Failed to close InputStream", e);
+                    }
+                    throw new SafeRuntimeException(
+                            "Unsupported Content-Type",
+                            SafeArg.of("received", contentType),
+                            SafeArg.of("supportedEncodings", encodings));
+                }
+            };
         }
     }
 
+    /** Effectively just a pair. */
     private static final class EncodingDeserializerContainer<T> {
 
         private final Encoding encoding;
@@ -204,6 +309,41 @@ final class ConjureBodySerDe implements BodySerDe {
         EncodingDeserializerContainer(Encoding encoding, TypeMarker<T> token) {
             this.encoding = encoding;
             this.deserializer = encoding.deserializer(token);
+        }
+
+        @Override
+        public String toString() {
+            return "EncodingDeserializerContainer{encoding=" + encoding + ", deserializer=" + deserializer + '}';
+        }
+    }
+
+    private static final class EmptyBodyDeserializer implements Deserializer<Void> {
+        private final ErrorDecoder errorDecoder;
+
+        EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
+            this.errorDecoder = errorDecoder;
+        }
+
+        @Override
+        @SuppressWarnings("NullAway") // empty body is a special case
+        public Void deserialize(Response response) {
+            // We should not fail if a server that previously returned nothing starts returning a response
+            try (Response unused = response) {
+                if (errorDecoder.isError(response)) {
+                    throw errorDecoder.decode(response);
+                }
+                return null;
+            }
+        }
+
+        @Override
+        public Optional<String> accepts() {
+            return Optional.empty();
+        }
+
+        @Override
+        public String toString() {
+            return "EmptyBodyDeserializer{}";
         }
     }
 }

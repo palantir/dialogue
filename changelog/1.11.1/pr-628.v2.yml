@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: The QueuedChannel can now absorb a spike of 100k requests when concurrency
+    limiters are preventing requests from getting out the door (previously it could
+    only absorb 1k).
+  links:
+  - https://github.com/palantir/dialogue/pull/628

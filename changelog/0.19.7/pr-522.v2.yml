@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: ConcurrencyLimitedChannel has no maximum limit value
+  links:
+  - https://github.com/palantir/dialogue/pull/522

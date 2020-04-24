@@ -1,5 +1,3 @@
-apply from: "$rootDir/gradle/publish-jar.gradle"
-
 dependencies {
     api project(':dialogue-core')
     api project(':dialogue-target')
@@ -7,6 +5,6 @@ dependencies {
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:preconditions'
 
-    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-test-common')
     testCompile project(':dialogue-serde')
 }

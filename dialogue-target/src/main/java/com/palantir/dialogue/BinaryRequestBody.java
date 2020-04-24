@@ -16,16 +16,41 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.io.ByteStreams;
+import com.palantir.logsafe.Preconditions;
+import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 
-/**
- * Streamed binary response data with Content-Type <code>application/octet-stream</code>.
- */
-public interface BinaryRequestBody {
+/** Streamed binary request data with Content-Type <code>application/octet-stream</code>. */
+public interface BinaryRequestBody extends Closeable {
 
-    /**
-     * Invoked to write data to the response stream. Called exactly once.
-     */
-    void write(OutputStream responseBody) throws IOException;
+    /** Invoked to write data to the request stream. */
+    void write(OutputStream requestBody) throws IOException;
+
+    /** This method may be overridden to return resources. */
+    @Override
+    default void close() throws IOException {
+        // nop
+    }
+
+    /** Create a {@link BinaryRequestBody} from an {@link InputStream} instance. */
+    static BinaryRequestBody of(InputStream inputStream) {
+        return new BinaryRequestBody() {
+            private boolean invoked;
+
+            @Override
+            public void write(OutputStream requestBody) throws IOException {
+                Preconditions.checkState(!invoked, "Write has already been called");
+                invoked = true;
+                ByteStreams.copy(inputStream, requestBody);
+            }
+
+            @Override
+            public void close() throws IOException {
+                inputStream.close();
+            }
+        };
+    }
 }

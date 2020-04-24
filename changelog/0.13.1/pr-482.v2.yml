@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue clients send Accept headers
+  links:
+  - https://github.com/palantir/dialogue/pull/482

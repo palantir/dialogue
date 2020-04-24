@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: All tagged metrics produced by dialogue will now have an extra `dialogueVersion`
+    tag.
+  links:
+  - https://github.com/palantir/dialogue/pull/436

@@ -15,8 +15,10 @@
  */
 package com.palantir.dialogue.hc4;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
+import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Headers;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -25,17 +27,15 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.TreeMap;
 import javax.annotation.Nullable;
 import org.apache.http.Header;
+import org.apache.http.HeaderIterator;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.RequestBuilder;
@@ -49,10 +49,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final CloseableHttpClient client;
     private final BaseUrl baseUrl;
+    private final ResponseLeakDetector responseLeakDetector;
 
-    ApacheHttpClientBlockingChannel(CloseableHttpClient client, URL baseUrl) {
+    ApacheHttpClientBlockingChannel(
+            CloseableHttpClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
+        this.responseLeakDetector = responseLeakDetector;
     }
 
     @Override
@@ -68,10 +71,25 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         if (request.body().isPresent()) {
             Preconditions.checkArgument(
                     endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.HEAD, "HEAD endpoints must not have a request body");
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
-        return new HttpClientResponse(client.execute(builder.build()));
+        CloseableHttpResponse httpClientResponse = client.execute(builder.build());
+        // Defensively ensure that resources are closed if failures occur within this block,
+        // for example HttpClientResponse allocation may throw an OutOfMemoryError.
+        boolean close = true;
+        try {
+            Response dialogueResponse = new HttpClientResponse(httpClientResponse);
+            Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
+            close = false;
+            return leakDetectingResponse;
+        } finally {
+            if (close) {
+                httpClientResponse.close();
+            }
+        }
     }
 
     private static final class HttpClientResponse implements Response {
@@ -79,7 +97,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         private final CloseableHttpResponse response;
 
         @Nullable
-        private Map<String, List<String>> headers;
+        private ListMultimap<String, String> headers;
 
         HttpClientResponse(CloseableHttpResponse response) {
             this.response = response;
@@ -87,11 +105,15 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public InputStream body() {
-            try {
-                return response.getEntity().getContent();
-            } catch (IOException e) {
-                throw new SafeRuntimeException("Failed to get response stream", e);
+            HttpEntity entity = response.getEntity();
+            if (entity != null) {
+                try {
+                    return entity.getContent();
+                } catch (IOException e) {
+                    throw new SafeRuntimeException("Failed to get response stream", e);
+                }
             }
+            return new ByteArrayInputStream(new byte[0]);
         }
 
         @Override
@@ -100,15 +122,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
-        public Map<String, List<String>> headers() {
+        public ListMultimap<String, String> headers() {
             if (headers == null) {
-                Map<String, List<String>> tmpHeaders = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-                for (Header header : response.getAllHeaders()) {
+                ListMultimap<String, String> tmpHeaders = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+                HeaderIterator headerIterator = response.headerIterator();
+                while (headerIterator.hasNext()) {
+                    Header header = headerIterator.nextHeader();
                     String value = header.getValue();
                     if (value != null) {
-                        tmpHeaders
-                                .computeIfAbsent(header.getName(), _name -> new ArrayList<>(1))
-                                .add(header.getValue());
+                        tmpHeaders.put(header.getName(), value);
                     }
                 }
                 headers = tmpHeaders;
@@ -143,14 +167,14 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         RequestBodyEntity(RequestBody requestBody) {
             this.requestBody = requestBody;
-            this.contentType = new BasicHeader(Headers.CONTENT_TYPE, requestBody.contentType());
+            this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
         }
 
         @Override
         public boolean isRepeatable() {
-            // TODO(#328): Binary bodies are not repeatable, however all our structured bodies are.
-            // Marking the entity repeatable allows proxy authentication to work.
-            return true;
+            // n.b. Proxy authentication can only be negotiated on repeatable requests.
+            // Subsequent requests needn't be repeatable as state is cached by the client.
+            return requestBody.repeatable();
         }
 
         @Override

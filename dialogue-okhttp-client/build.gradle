@@ -1,5 +1,3 @@
-apply from: "$rootDir/gradle/publish-jar.gradle"
-
 dependencies {
     compile project(':dialogue-target')
     compile project(':dialogue-core')
@@ -8,7 +6,8 @@ dependencies {
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.squareup.okhttp3:okhttp'
 
-    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-test-common')
     testCompile project(':dialogue-serde')
     testCompile project(':dialogue-core')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }

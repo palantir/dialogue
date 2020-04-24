@@ -1,0 +1,5 @@
+type: break
+break:
+  description: Remove unused methods from PlainSerDe
+  links:
+  - https://github.com/palantir/dialogue/pull/479

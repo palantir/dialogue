@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Implement naive 308 retry-other handling
+  links:
+  - https://github.com/palantir/dialogue/pull/648

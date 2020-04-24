@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
@@ -29,8 +31,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,6 +65,9 @@ public final class HttpChannel implements Channel {
         Preconditions.checkArgument(
                 !(request.body().isPresent() && endpoint.httpMethod() == HttpMethod.GET),
                 "GET endpoints must not have a request body");
+        Preconditions.checkArgument(
+                !(request.body().isPresent() && endpoint.httpMethod() == HttpMethod.HEAD),
+                "HEAD endpoints must not have a request body");
         httpRequest.method(endpoint.httpMethod().name(), toBody(request));
 
         // Fill headers
@@ -102,8 +105,12 @@ public final class HttpChannel implements Channel {
             }
 
             @Override
-            public Map<String, List<String>> headers() {
-                return response.headers().map();
+            public ListMultimap<String, String> headers() {
+                ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+                response.headers().map().forEach(headers::putAll);
+                return headers;
             }
 
             @Override

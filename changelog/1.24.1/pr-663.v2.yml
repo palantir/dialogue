@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fail reasonably with zero uris rather than IndexOutOfBounds
+  links:
+  - https://github.com/palantir/dialogue/pull/663

@@ -18,32 +18,28 @@ package com.palantir.dialogue;
 
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.dialogue.example.AsyncSampleService;
-import com.palantir.dialogue.example.SampleService;
-import com.palantir.dialogue.example.SampleServiceClient;
+import com.palantir.dialogue.example.SampleServiceAsync;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import java.net.URL;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import javax.net.ssl.SSLParameters;
-import org.junit.runner.RunWith;
-import org.mockito.junit.MockitoJUnitRunner;
 
-@RunWith(MockitoJUnitRunner.class)
 public final class HttpSampleServiceClientTest extends AbstractSampleServiceClientTest {
 
     private static final ConjureRuntime runtime =
             DefaultConjureRuntime.builder().build();
 
     @Override
-    SampleService createBlockingClient(URL baseUrl, Duration timeout) {
+    SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout) {
         Channel channel = createChannel(baseUrl, timeout);
-        return SampleServiceClient.blocking(channel, runtime);
+        return SampleServiceBlocking.of(channel, runtime);
     }
 
     @Override
-    AsyncSampleService createAsyncClient(URL baseUrl, Duration timeout) {
+    SampleServiceAsync createAsyncClient(URL baseUrl, Duration timeout) {
         Channel channel = createChannel(baseUrl, timeout);
-        return SampleServiceClient.async(channel, runtime);
+        return SampleServiceAsync.of(channel, runtime);
     }
 
     private HttpChannel createChannel(URL url, Duration timeout) {

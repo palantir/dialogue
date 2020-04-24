@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue provides its own concurrency limiter implementation
+  links:
+  - https://github.com/palantir/dialogue/pull/641

@@ -1,4 +1,5 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
 
 dependencies {
     compile 'com.palantir.conjure.java:conjure-lib'
@@ -8,12 +9,12 @@ dependencies {
     compile 'com.palantir.tokens:auth-tokens'
     compile 'org.slf4j:slf4j-api'
 
-    testCompile 'javax.ws.rs:javax.ws.rs-api'
-    testCompile 'junit:junit'
+    testCompile 'jakarta.ws.rs:jakarta.ws.rs-api'
     testCompile 'org.assertj:assertj-core'
+    testCompile 'org.assertj:assertj-guava'
     testCompile 'org.immutables:value::annotations'
     testCompile 'org.mockito:mockito-core'
-    testCompile 'org.assertj:assertj-guava'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'

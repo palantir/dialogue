@@ -25,12 +25,14 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -59,6 +61,7 @@ public final class Benchmark {
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
+    private Duration abortAfter;
 
     private Benchmark() {}
 
@@ -84,7 +87,7 @@ public final class Benchmark {
         return numRequests(num);
     }
 
-    public Benchmark randomEndpoints(Endpoint... endpoints) {
+    public Benchmark endpoints(Endpoint... endpoints) {
         return endpoints(true, endpoints);
     }
 
@@ -139,17 +142,18 @@ public final class Benchmark {
     }
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
-    public Benchmark abortAfter(Duration cutoff) {
+    public Benchmark abortAfter(Duration value) {
+        this.abortAfter = value;
         simulation
                 .scheduler()
                 .schedule(
                         () -> {
                             log.warn(
                                     "Aborted running benchmark after cutoff reached - strategy might be buggy {}",
-                                    cutoff);
+                                    value);
                             benchmarkFinished.getFuture().set(null);
                         },
-                        cutoff.toNanos(),
+                        value.toNanos(),
                         TimeUnit.NANOSECONDS);
         return this;
     }
@@ -157,17 +161,17 @@ public final class Benchmark {
     public BenchmarkResult run() {
         ListenableFuture<BenchmarkResult> result = schedule();
         Stopwatch run = Stopwatch.createStarted();
-        simulation.runClockToInfinity();
+        simulation.runClockToInfinity(Optional.ofNullable(abortAfter));
         log.info("Ran clock to infinity ({} ms)", run.elapsed(TimeUnit.MILLISECONDS));
         return Futures.getUnchecked(result);
     }
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
-        DialogueClientMetrics clientMetrics = DialogueClientMetrics.of(simulation.taggedMetrics());
+        ClientMetrics clientMetrics = ClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, clientMetrics))
+                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, clientMetrics))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
@@ -200,20 +204,25 @@ public final class Benchmark {
                                         req.number(),
                                         req);
                                 Channel channel = channels[clientIndexChooser.getAsInt()];
-                                ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
-                                requestsStarted[0] += 1;
+                                try {
+                                    ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                    requestsStarted[0] += 1;
 
-                                Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
-                                future.addListener(
-                                        () -> {
-                                            responsesReceived[0] += 1;
-                                            benchmarkFinished.update(
-                                                    Duration.ofNanos(
-                                                            simulation.clock().read()),
-                                                    requestsStarted[0],
-                                                    responsesReceived[0]);
-                                        },
-                                        MoreExecutors.directExecutor());
+                                    Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                    future.addListener(
+                                            () -> {
+                                                responsesReceived[0] += 1;
+                                                benchmarkFinished.update(
+                                                        Duration.ofNanos(simulation
+                                                                .clock()
+                                                                .read()),
+                                                        requestsStarted[0],
+                                                        responsesReceived[0]);
+                                            },
+                                            MoreExecutors.directExecutor());
+                                } catch (RuntimeException e) {
+                                    log.error("Channels shouldn't throw", e);
+                                }
                             },
                             req.sendTime().toNanos(),
                             TimeUnit.NANOSECONDS);
@@ -232,7 +241,10 @@ public final class Benchmark {
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
                             .clientHistogram(clientMetrics
-                                    .response(SimulationUtils.SERVICE_NAME)
+                                    .response()
+                                    .channelName(SimulationUtils.CHANNEL_NAME)
+                                    .serviceName(SimulationUtils.SERVICE_NAME)
+                                    .build()
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
@@ -297,7 +309,7 @@ public final class Benchmark {
 
     @Value.Immutable
     interface ScheduledRequest {
-        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint");
+        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
 
         long number();
 

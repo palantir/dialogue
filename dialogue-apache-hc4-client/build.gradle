@@ -1,4 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.metric-schema'
+apply plugin: 'com.palantir.revapi'
 
 dependencies {
     api project(':dialogue-core')
@@ -7,7 +9,10 @@ dependencies {
     api 'org.apache.httpcomponents:httpclient'
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.tritium:tritium-metrics'
 
-    testCompile project(':dialogue-client-test-lib')
+    testCompile project(':dialogue-test-common')
     testCompile project(':dialogue-serde')
+    testImplementation 'org.awaitility:awaitility'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
 }

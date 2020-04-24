@@ -41,11 +41,11 @@ final class DeprecationWarningChannel implements Channel {
     private static final Object SENTINEL = new Object();
 
     private final Channel delegate;
-    private final DialogueClientMetrics metrics;
+    private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(Channel delegate, DialogueClientMetrics metrics) {
+    DeprecationWarningChannel(Channel delegate, ClientMetrics metrics) {
         this.delegate = delegate;
         this.metrics = metrics;
     }

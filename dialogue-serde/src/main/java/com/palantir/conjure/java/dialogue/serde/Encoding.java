@@ -42,7 +42,7 @@ public interface Encoding {
      */
     <T> Deserializer<T> deserializer(TypeMarker<T> type);
 
-    /** Returns the value used in response <pre>Content-Type</pre> header. */
+    /** Returns the value used in request <pre>Content-Type</pre> headers. */
     String getContentType();
 
     /**
@@ -57,8 +57,10 @@ public interface Encoding {
 
         /**
          * Reads a serialized type-{@link T} object representation from the given input stream and returns the
-         * corresponding object. Implementations should read the entire input stream, but must not close it.
-         * Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs
+         * corresponding object. Implementations should read the entire input stream and must close it (unless they
+         * return the raw InputStream, e.g. for a binary response type).
+         *
+         * <p>Format-related deserialization errors surface as {@link IllegalArgumentException}. Inputs and outputs
          * must never be null.
          */
         T deserialize(InputStream input);

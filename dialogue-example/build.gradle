@@ -1,5 +1,7 @@
-// note: no publish
+apply plugin: 'com.palantir.conjure'
 
-dependencies {
-    compile project(':dialogue-target')
+subprojects {
+    dependencies {
+        compile project(':dialogue-target')
+    }
 }

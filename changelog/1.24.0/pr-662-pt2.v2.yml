@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Implement `client.response.error` metrics matching those reported by CJR.
+  links:
+  - https://github.com/palantir/dialogue/pull/662

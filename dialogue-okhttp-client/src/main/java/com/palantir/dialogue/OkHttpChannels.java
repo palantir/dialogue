@@ -22,7 +22,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.core.Channels;
+import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.MalformedURLException;
@@ -130,11 +130,11 @@ public final class OkHttpChannels {
         }
 
         OkHttpClient client = builder.build();
-        ImmutableList<Channel> channels = config.uris().stream()
-                .map(uri -> OkHttpChannel.of(client, url(uri)))
-                .collect(ImmutableList.toImmutableList());
-
-        return Channels.create(channels, config);
+        return DialogueChannel.builder()
+                .channelName("okhtpp-channel")
+                .clientConfiguration(config)
+                .channelFactory(uri -> OkHttpChannel.of(client, url(uri)))
+                .build();
     }
 
     private static URL url(String uri) {

@@ -16,9 +16,11 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Map;
+import okhttp3.ResponseBody;
 
 public final class OkHttpResponse implements Response {
 
@@ -35,8 +37,11 @@ public final class OkHttpResponse implements Response {
 
     @Override
     public InputStream body() {
-        // TODO(rfink): Empty bodies may not have a byte stream. Need to produce a zero-length stream.
-        return delegate.body().byteStream();
+        ResponseBody responseBody = delegate.body();
+        if (responseBody != null) {
+            return responseBody.byteStream();
+        }
+        return new ByteArrayInputStream(new byte[0]);
     }
 
     @Override
@@ -45,8 +50,12 @@ public final class OkHttpResponse implements Response {
     }
 
     @Override
-    public Map<String, List<String>> headers() {
-        return delegate.headers().toMultimap();
+    public ListMultimap<String, String> headers() {
+        ListMultimap<String, String> headers = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                .arrayListValues()
+                .build();
+        delegate.headers().toMultimap().forEach(headers::putAll);
+        return headers;
     }
 
     @Override

@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: Validate ciphers against the provided socket factory, this adds support
+    for Conscrypt.
+  links:
+  - https://github.com/palantir/dialogue/pull/556

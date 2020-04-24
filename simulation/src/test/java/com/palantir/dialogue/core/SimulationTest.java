@@ -21,17 +21,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -98,7 +102,7 @@ public class SimulationTest {
     public final TestName testName = new TestName();
 
     private final Simulation simulation = new Simulation();
-    private Supplier<List<SimulationServer>> servers;
+    private Supplier<Map<String, SimulationServer>> servers;
     private Benchmark.BenchmarkResult result;
 
     @Test
@@ -132,25 +136,26 @@ public class SimulationTest {
 
     @Test
     public void slowdown_and_error_thresholds() {
+        Endpoint getEndpoint = SimulationUtils.endpoint("endpoint", HttpMethod.GET);
         int errorThreshold = 40;
         int slowdownThreshold = 30;
         servers = servers(
                 SimulationServer.builder()
                         .serverName("fast")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(600), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("medium")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(800), slowdownThreshold))
                         .build(),
                 SimulationServer.builder()
                         .serverName("slightly_slow")
                         .simulation(simulation)
-                        .handler(h -> h.respond200UntilCapacity(500, errorThreshold)
+                        .handler(getEndpoint, h -> h.respond200UntilCapacity(500, errorThreshold)
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
@@ -158,6 +163,7 @@ public class SimulationTest {
                 .requestsPerSecond(500)
                 .simulation(simulation)
                 .sendUntil(Duration.ofSeconds(20))
+                .endpoints(getEndpoint)
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
@@ -301,8 +307,8 @@ public class SimulationTest {
 
     @Test
     public void one_endpoint_dies_on_each_server() {
-        Endpoint endpoint1 = SimulationUtils.endpoint("e1");
-        Endpoint endpoint2 = SimulationUtils.endpoint("e2");
+        Endpoint endpoint1 = SimulationUtils.endpoint("e1", HttpMethod.POST);
+        Endpoint endpoint2 = SimulationUtils.endpoint("e2", HttpMethod.POST);
 
         servers = servers(
                 SimulationServer.builder()
@@ -328,7 +334,7 @@ public class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
-                .randomEndpoints(endpoint1, endpoint2)
+                .endpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
@@ -393,28 +399,58 @@ public class SimulationTest {
                 .run();
     }
 
+    /**
+     * This simulates an alta client, which might load up some keys and then lookup each key in order to build a big
+     * response for the user. The goal is 100% client-perceived success here, because building up half the response
+     * is no good.
+     */
+    @Test
+    public void one_big_spike() {
+        int capacity = 100;
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("node1")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("node2")
+                        .simulation(simulation)
+                        .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
+                        .build());
+
+        result = Benchmark.builder()
+                .requestsPerSecond(30_000) // fire off a ton of requests very quickly
+                .numRequests(1000)
+                .client(strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
         Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
         return _server -> {
             if (random.nextDouble() <= rate) {
-                return SimulationUtils.response(500, "1.0.0");
+                return new TestResponse().code(500);
             }
-            return SimulationUtils.response(200, "1.0.0");
+            return new TestResponse().code(200);
         };
     }
 
-    private Supplier<List<SimulationServer>> servers(SimulationServer... values) {
-        return Suppliers.memoize(() -> Arrays.asList(values));
+    private Supplier<Map<String, SimulationServer>> servers(SimulationServer... values) {
+        return Suppliers.memoize(
+                () -> Arrays.stream(values).collect(Collectors.toMap(SimulationServer::toString, Function.identity())));
     }
 
     /** Use the {@link #beginAt} method to simulate live-reloads. */
-    private Supplier<List<SimulationServer>> liveReloadingServers(
+    private Supplier<Map<String, SimulationServer>> liveReloadingServers(
             Supplier<Optional<SimulationServer>>... serverSuppliers) {
         return () -> Arrays.stream(serverSuppliers)
                 .map(Supplier::get)
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                .collect(Collectors.toList());
+                .collect(Collectors.toMap(SimulationServer::toString, Function.identity()));
     }
 
     private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {
@@ -464,9 +500,13 @@ public class SimulationTest {
         } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
             Stopwatch sw = Stopwatch.createStarted();
-            Files.write(txt, longSummary.getBytes(StandardCharsets.UTF_8));
+            Files.write(
+                    txt,
+                    longSummary.getBytes(StandardCharsets.UTF_8),
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.TRUNCATE_EXISTING);
 
-            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("active"));
+            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests\\.count$"));
             activeRequests.setTitle(String.format(
                     "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
@@ -480,7 +520,7 @@ public class SimulationTest {
             }
 
             SimulationMetricsReporter.png(
-                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request.*count"))
+                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request\\.count$"))
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));

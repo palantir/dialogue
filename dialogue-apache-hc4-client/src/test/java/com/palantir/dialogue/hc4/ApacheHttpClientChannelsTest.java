@@ -15,22 +15,27 @@
  */
 package com.palantir.dialogue.hc4;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Metric;
+import com.google.common.collect.MoreCollectors;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
-import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
-import org.junit.Test;
+import java.util.concurrent.ExecutionException;
+import org.junit.jupiter.api.Test;
 
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
@@ -45,41 +50,69 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
         Channel channel;
         try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf)) {
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "client")) {
 
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
-                    channel.execute(new TestEndpoint(), Request.builder().build());
+                    channel.execute(TestEndpoint.POST, Request.builder().build());
             assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
         }
 
         ListenableFuture<Response> again =
-                channel.execute(new TestEndpoint(), Request.builder().build());
-        assertThatThrownBy(() -> again.get()).hasMessageContaining("Connection pool shut down");
+                channel.execute(TestEndpoint.POST, Request.builder().build());
+        assertThatThrownBy(() -> {
+                    try {
+                        again.get();
+                    } catch (ExecutionException e) {
+                        throw e.getCause();
+                    }
+                })
+                .isExactlyInstanceOf(SafeIllegalStateException.class)
+                .hasMessage("Connection pool shut down");
     }
 
-    private static final class TestEndpoint implements Endpoint {
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
+    @Test
+    public void metrics() throws Exception {
+        ClientConfiguration conf = TestConfigurations.create("http://unused");
 
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.GET;
-        }
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
 
-        @Override
-        public String serviceName() {
-            return "service";
-        }
+            Channel channel = ApacheHttpClientChannels.createSingleUri("http://neverssl.com", client);
+            ListenableFuture<Response> future =
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
 
-        @Override
-        public String endpointName() {
-            return "endpoint";
-        }
+            TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
+            try (Response response = Futures.getUnchecked(future)) {
+                assertThat(response.code()).isEqualTo(200);
 
-        @Override
-        public String version() {
-            return "1.0.0";
+                assertThat(poolGaugeValue(metrics, "testClient", "idle"))
+                        .describedAs("available")
+                        .isZero();
+                assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                        .describedAs("leased")
+                        .isEqualTo(1);
+            }
+
+            assertThat(poolGaugeValue(metrics, "testClient", "idle"))
+                    .describedAs("available after response closed")
+                    .isZero();
+            assertThat(poolGaugeValue(metrics, "testClient", "leased"))
+                    .describedAs("leased after response closed")
+                    .isZero();
         }
+    }
+
+    private int poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
+        Metric gauge = metrics.getMetrics().entrySet().stream()
+                .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))
+                .filter(entry -> clientName.equals(entry.getKey().safeTags().get("client-name")))
+                .filter(entry -> state.equals(entry.getKey().safeTags().get("state")))
+                .map(Map.Entry::getValue)
+                .collect(MoreCollectors.onlyElement());
+        assertThat(gauge).isInstanceOf(Gauge.class);
+        Object value = ((Gauge<?>) gauge).getValue();
+        assertThat(value).isInstanceOf(Integer.class);
+        return (int) value;
     }
 }

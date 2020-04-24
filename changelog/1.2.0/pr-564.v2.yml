@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Responses are no longer leaked when blocking channel futures are interrupted
+  links:
+  - https://github.com/palantir/dialogue/pull/564
