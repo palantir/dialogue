@@ -27,6 +27,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -89,7 +90,9 @@ final class PreferLowestUtilization implements LimitedChannel {
             }
         }
 
-        log.debug("Every channel refused {}", channelsByUtilization);
+        if (log.isDebugEnabled()) {
+            log.debug("Every channel refused", SafeArg.of("channels", channelsByUtilization));
+        }
         return Optional.empty();
     }
 
