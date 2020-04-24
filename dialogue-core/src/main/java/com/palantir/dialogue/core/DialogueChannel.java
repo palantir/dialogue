@@ -193,8 +193,9 @@ public final class DialogueChannel implements Channel {
                         random,
                         channelName);
             case ROUND_ROBIN:
-                // No need to preserve previous state with round robin
-                return new PreferLowestRememberFailures(channels, random, tick);
+                // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
+                // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
+                return new Balanced(channels, random, tick);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

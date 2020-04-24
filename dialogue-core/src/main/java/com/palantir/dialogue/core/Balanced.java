@@ -50,8 +50,8 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorChannel} remains the best choice for these.
  */
-final class PreferLowestRememberFailures implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(PreferLowestRememberFailures.class);
+final class Balanced implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(Balanced.class);
 
     /**
      * We'd like to remember failures for a long time, but this would increase CPU on a hot codepath as we compute
@@ -70,7 +70,7 @@ final class PreferLowestRememberFailures implements LimitedChannel {
     private final Random random;
     private final CodahaleClock clock;
 
-    PreferLowestRememberFailures(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
+    Balanced(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = new CodahaleClock(ticker);
@@ -84,7 +84,10 @@ final class PreferLowestRememberFailures implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         if (log.isDebugEnabled()) {
-            log.debug("Channel scores {}", SafeArg.of("scores", Lists.transform(channels, ChannelWithStats::score)));
+            log.debug(
+                    "Channel scores {}",
+                    SafeArg.of("scores", Lists.transform(channels, ChannelWithStats::score)),
+                    SafeArg.of("inflight", Lists.transform(channels, ChannelWithStats::inflight)));
         }
 
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
@@ -160,6 +163,10 @@ final class PreferLowestRememberFailures implements LimitedChannel {
                 inflight.decrementAndGet(); // quickly undo
             }
             return maybe;
+        }
+
+        int inflight() {
+            return inflight.get();
         }
     }
 }

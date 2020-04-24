@@ -41,7 +41,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class PreferLowestRememberFailuresTest {
+class BalancedTest {
     private Random random = new Random(12388544234L);
 
     @Mock
@@ -54,12 +54,12 @@ class PreferLowestRememberFailuresTest {
     Request request;
 
     private Endpoint endpoint = TestEndpoint.GET;
-    private PreferLowestRememberFailures channel;
+    private Balanced channel;
     private Ticker clock = Ticker.systemTicker();
 
     @BeforeEach
     public void before() {
-        channel = new PreferLowestRememberFailures(ImmutableList.of(chan1, chan2), random, clock);
+        channel = new Balanced(ImmutableList.of(chan1, chan2), random, clock);
     }
 
     @Test
@@ -99,22 +99,22 @@ class PreferLowestRememberFailuresTest {
 
     @Test
     void sorting() {
-        PreferLowestRememberFailures.ChannelWithStats chan100 =
-                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan100 =
+                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
         chan100.inflight.set(100);
-        PreferLowestRememberFailures.ChannelWithStats chan100failed =
-                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan100failed =
+                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
         chan100failed.inflight.set(100);
         chan100failed.recentFailures.update(1);
-        PreferLowestRememberFailures.ChannelWithStats chan50 =
-                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan50 =
+                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
         chan50.inflight.set(50);
         chan50.recentFailures.update(1);
-        PreferLowestRememberFailures.ChannelWithStats chan101 =
-                new PreferLowestRememberFailures.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan101 =
+                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
         chan101.inflight.set(101);
 
-        assertThat(Stream.of(chan100failed, chan100, chan50, chan101).sorted(PreferLowestRememberFailures.BY_SCORE))
+        assertThat(Stream.of(chan100failed, chan100, chan50, chan101).sorted(Balanced.BY_SCORE))
                 .describedAs("Tie-breaking is done by preferring the channel which didn't fail last")
                 .containsExactly(chan50, chan100, chan100failed, chan101);
     }
