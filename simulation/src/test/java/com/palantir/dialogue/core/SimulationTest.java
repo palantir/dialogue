@@ -507,7 +507,7 @@ public class SimulationTest {
 
             XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests\\.count$"));
             activeRequests.setTitle(String.format(
-                    "%s success=%.0f%% client_mean=%.1f ms server_cpu=%s",
+                    "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     strategy, result.successPercentage(), clientMeanMillis, serverCpu));
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png

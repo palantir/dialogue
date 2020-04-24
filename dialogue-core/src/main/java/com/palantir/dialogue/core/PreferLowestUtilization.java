@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -31,7 +33,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -52,14 +54,25 @@ final class PreferLowestUtilization implements LimitedChannel {
 
     private final ImmutableList<ChannelWithStats> channels;
     private final Random random;
+    private final CodahaleClock clock;
 
-    PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Random random) {
+    PreferLowestUtilization(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         if (log.isErrorEnabled()) {
             log.error("{}", channels);
         }
-        this.channels = channels.stream().map(ChannelWithStats::of).collect(ImmutableList.toImmutableList());
+        this.clock = new CodahaleClock(ticker);
+        this.channels = channels.stream().map(this::newChannelWithStats).collect(ImmutableList.toImmutableList());
+    }
+
+    @VisibleForTesting
+    ChannelWithStats newChannelWithStats(LimitedChannel c) {
+        return ImmutableChannelWithStats.builder()
+                .delegate(c)
+                .inflight(new AtomicInteger(0))
+                .recentFailures(new SlidingTimeWindowArrayReservoir(5, TimeUnit.SECONDS, clock))
+                .build();
     }
 
     @Override
@@ -102,23 +115,11 @@ final class PreferLowestUtilization implements LimitedChannel {
         AtomicInteger inflight();
 
         /** Trivial bit of memory for tie-breaking. */
-        AtomicBoolean lastRequestFailed();
+        SlidingTimeWindowArrayReservoir recentFailures();
 
         /** Low = good. */
         default int score() {
-            if (lastRequestFailed().get()) {
-                return 20 + 20 * inflight().get();
-            } else {
-                return inflight().get();
-            }
-        }
-
-        static ChannelWithStats of(LimitedChannel channel) {
-            return ImmutableChannelWithStats.builder()
-                    .delegate(channel)
-                    .inflight(new AtomicInteger(0))
-                    .lastRequestFailed(new AtomicBoolean(false))
-                    .build();
+            return inflight().get() + recentFailures().getSnapshot().size();
         }
 
         @Override
@@ -131,12 +132,14 @@ final class PreferLowestUtilization implements LimitedChannel {
                     @Override
                     public void onSuccess(Response result) {
                         inflight().decrementAndGet();
-                        lastRequestFailed().set(Responses.isQosStatus(result) || Responses.isServerError(result));
+                        if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
+                            recentFailures().update(1);
+                        }
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
-                        lastRequestFailed().set(true);
+                        recentFailures().update(1);
                     }
                 });
             } else {

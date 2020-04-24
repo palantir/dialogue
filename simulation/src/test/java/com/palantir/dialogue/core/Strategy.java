@@ -84,6 +84,7 @@ public enum Strategy {
                 .channelFactory(uri -> channelSupplier.get().get(uri))
                 .random(sim.pseudoRandom())
                 .scheduler(sim.scheduler())
+                .ticker(sim.clock())
                 .build();
 
         return RefreshingChannelFactory.RefreshingChannel.create(

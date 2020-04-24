@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -61,6 +62,7 @@ public final class DialogueChannel implements Channel {
     private final ClientMetrics clientMetrics;
     private final DialogueClientMetrics dialogueClientMetrics;
     private final Random random;
+    private Ticker ticker;
 
     // TODO(forozco): you really want a refreshable of uri separate from the client config
     private DialogueChannel(
@@ -69,13 +71,15 @@ public final class DialogueChannel implements Channel {
             ChannelFactory channelFactory,
             Random random,
             Supplier<ScheduledExecutorService> scheduler,
-            int maxQueueSize) {
+            int maxQueueSize,
+            Ticker ticker) {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
         clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.random = random;
+        this.ticker = ticker;
         this.queuedChannel = new QueuedChannel(
                 new SupplierChannel(nodeSelectionStrategy::get), channelName, dialogueClientMetrics, maxQueueSize);
         updateUris(clientConfiguration.uris());
@@ -130,6 +134,7 @@ public final class DialogueChannel implements Channel {
                 clientConfiguration,
                 ImmutableList.copyOf(limitedChannelByUri.values()),
                 random,
+                ticker,
                 channelName));
 
         // some queued requests might be able to make progress on a new uri now
@@ -154,6 +159,7 @@ public final class DialogueChannel implements Channel {
             ClientConfiguration config,
             ImmutableList<LimitedChannel> channels,
             Random random,
+            Ticker ticker,
             String channelName) {
         if (channels.isEmpty()) {
             return new ZeroUriChannel(channelName);
@@ -188,7 +194,7 @@ public final class DialogueChannel implements Channel {
                         channelName);
             case ROUND_ROBIN:
                 // No need to preserve previous state with round robin
-                return new PreferLowestUtilization(channels, random);
+                return new PreferLowestUtilization(channels, random, ticker);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
@@ -262,6 +268,7 @@ public final class DialogueChannel implements Channel {
     public static final class Builder {
         private Random random = SafeThreadLocalRandom.get();
         private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
+        private Ticker ticker = Ticker.systemTicker();
 
         @Nullable
         private String channelName;
@@ -313,6 +320,12 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
+        @VisibleForTesting
+        Builder ticker(Ticker ticker) {
+            this.ticker = ticker;
+            return this;
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
@@ -323,7 +336,7 @@ public final class DialogueChannel implements Channel {
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(name, cleanedConf, factory, random, scheduler, maxQueueSize);
+            return new DialogueChannel(name, cleanedConf, factory, random, scheduler, maxQueueSize, ticker);
         }
 
         private void preconditions(ClientConfiguration conf) {
