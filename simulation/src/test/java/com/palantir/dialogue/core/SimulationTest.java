@@ -201,12 +201,7 @@ public class SimulationTest {
     public void fast_503s_then_revert() {
         servers = servers(
                 SimulationServer.builder()
-                        .serverName("server1")
-                        .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
-                        .build(),
-                SimulationServer.builder()
-                        .serverName("server2")
+                        .serverName("normal")
                         .simulation(simulation)
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build(),
