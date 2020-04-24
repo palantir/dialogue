@@ -198,27 +198,26 @@ public class SimulationTest {
     }
 
     @Test
-    public void fast_500s_then_revert() {
-        int capacity = 60;
+    public void fast_503s_then_revert() {
         servers = servers(
                 SimulationServer.builder()
-                        .serverName("fast")
+                        .serverName("normal")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build(),
                 SimulationServer.builder()
-                        .serverName("fast_500s_then_revert")
+                        .serverName("fast_503s_then_revert")
                         .simulation(simulation)
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
-                        .until(Duration.ofSeconds(3), "fast 500s")
-                        .handler(h -> h.response(500).linearResponseTime(Duration.ofMillis(10), capacity))
-                        .until(Duration.ofSeconds(10), "revert")
-                        .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .until(Duration.ofSeconds(3), "fast 503s")
+                        .handler(h -> h.response(503).responseTime(Duration.ofNanos(10)))
+                        .until(Duration.ofMinutes(1), "revert")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
         result = Benchmark.builder()
-                .requestsPerSecond(250)
-                .sendUntil(Duration.ofSeconds(15))
+                .requestsPerSecond(500)
+                .sendUntil(Duration.ofSeconds(90))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
