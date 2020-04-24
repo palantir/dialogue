@@ -10,9 +10,9 @@
              drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT1.965733249S 	server_cpu=PT41M8.192999979S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                  drastic_slowdown[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT2.071746833S 	server_cpu=PT2H18M6.987333314S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                            drastic_slowdown[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT8.280399333S 	server_cpu=PT9H12M1.597333314S	client_received=4000/4000	server_resps=4000	codes={200=4000}
-        fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=99.9%	client_mean=PT0.078624177S 	server_cpu=PT4M54.840666665S	client_received=3750/3750	server_resps=3750	codes={200=3746, 500=4}
-            fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=78.5%	client_mean=PT0.056930933S 	server_cpu=PT3M33.490999698S	client_received=3750/3750	server_resps=3750	codes={200=2944, 500=806}
-                      fast_500s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=76.4%	client_mean=PT0.055505822S 	server_cpu=PT3M28.146833043S	client_received=3750/3750	server_resps=3750	codes={200=2866, 500=884}
+        fast_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.120062204S 	server_cpu=PT15M0.00000003S	client_received=7500/7500	server_resps=7503	codes={200=7500}
+            fast_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=99.9%	client_mean=PT0.165682165S 	server_cpu=PT14M58.68001756S	client_received=7500/7500	server_resps=9245	codes={200=7489, 503=11}
+                      fast_503s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=99.9%	client_mean=PT0.165682165S 	server_cpu=PT14M58.68001756S	client_received=7500/7500	server_resps=9245	codes={200=7489, 503=11}
                live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=97.2%	client_mean=PT4.8253936S   	server_cpu=PT2H46.79S     	client_received=2500/2500	server_resps=2500	codes={200=2430, 500=70}
                    live_reloading[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=89.9%	client_mean=PT3.8310808S   	server_cpu=PT1H55M21.66S  	client_received=2500/2500	server_resps=2500	codes={200=2248, 500=252}
                              live_reloading[UNLIMITED_ROUND_ROBIN].txt:	success=60.2%	client_mean=PT2.84698S     	server_cpu=PT1H58M37.45S  	client_received=2500/2500	server_resps=2500	codes={200=1504, 500=996}
@@ -84,19 +84,19 @@ slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/drastic_slowdown[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="drastic_slowdown[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
-## `fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
+## `fast_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
 <table><tr><th>develop</th><th>current</th></tr>
-<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="fast_500s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="fast_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
 
 
-## `fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN]`
+## `fast_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
-<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="fast_500s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="fast_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
 
 
-## `fast_500s_then_revert[UNLIMITED_ROUND_ROBIN]`
+## `fast_503s_then_revert[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
-<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_500s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="fast_500s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/fast_503s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="fast_503s_then_revert[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
 ## `live_reloading[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
