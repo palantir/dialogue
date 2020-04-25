@@ -138,6 +138,7 @@ final class Balanced implements LimitedChannel {
 
             @Override
             public void onFailure(Throwable _throwable) {
+                inflight.decrementAndGet();
                 recentFailures.update(1);
             }
         };
