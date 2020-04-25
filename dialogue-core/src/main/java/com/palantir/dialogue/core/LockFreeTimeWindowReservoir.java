@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -26,22 +27,22 @@ import javax.annotation.concurrent.ThreadSafe;
  * Stores marks on a timeline of buckets, where marks are forgotten after the specified {@code memory}.
  * Reads and writes are lock-free and efficient.
  *
- * It's 'approximate' because when {@link #mark()} hasn't been called in a while, the next stored mark will probably
- * end up in a stale bucket.
- *
  * Replacement for {@link com.codahale.metrics.SlidingTimeWindowArrayReservoir}.
  */
 @ThreadSafe
-final class ApproximateSlidingTimeWindowReservoir {
+final class LockFreeTimeWindowReservoir {
     private final long[] buckets;
     private final long bucketSizeNanos;
     private final Ticker clock;
 
-    private volatile int cursor;
+    /** Cursor tells us which bucket to write marks into. Always less than buckets.length, always advances. */
+    private final AtomicInteger cursor = new AtomicInteger(0);
+    /** We maintain an extra count variable to serve fast reads - it should always equal the sum of the buckets. */
     private final AtomicLong count = new AtomicLong(0);
+    /** Time in nanos when we need to move the cursor to the next bucket (and expire its contents). */
     private final AtomicLong nextRollover;
 
-    ApproximateSlidingTimeWindowReservoir(Duration memory, int granularity, Ticker clock) {
+    LockFreeTimeWindowReservoir(Duration memory, int granularity, Ticker clock) {
         this.buckets = new long[granularity];
         this.clock = clock;
         this.bucketSizeNanos = memory.toNanos() / granularity;
@@ -50,8 +51,8 @@ final class ApproximateSlidingTimeWindowReservoir {
 
     void mark() {
         maybeRoll();
+        buckets[cursor.get()] += 1;
         count.incrementAndGet();
-        buckets[cursor] += 1;
     }
 
     long size() {
@@ -59,30 +60,49 @@ final class ApproximateSlidingTimeWindowReservoir {
     }
 
     private void maybeRoll() {
-        long next = nextRollover.get();
-        if (clock.read() < next) {
+        long scheduledRollover = nextRollover.get();
+        long now = clock.read();
+        if (now < scheduledRollover) {
+            // it's not time yet, so no-op and we can keep writing to the bucket
             return;
         }
 
-        // note that the new nextRoller value could still be in the past if we haven't seen any calls to mark in a
-        // little while, we'll just fill em in.
-        if (nextRollover.compareAndSet(next, next + bucketSizeNanos)) {
+        long newScheduledRollover = rolloverTo(scheduledRollover);
+        if (newScheduledRollover == -1 || newScheduledRollover > now) {
+            // our work on this thread is done
+            return;
+        }
 
-            int newCursor = (cursor + 1) % buckets.length;
+        // if this is the first mark in a long time, it's possible our cursor was very far behind, so we need to keep
+        // rolling until the newScheduledRollover is actually in the future
+        maybeRoll();
+    }
 
-            // before we can start writing into the next window, we must ensure it's no longer represented in the count
+    private long rolloverTo(long scheduledRollover) {
+        int cursorRead = cursor.get();
+        int newCursor = (cursorRead + 1) % buckets.length;
+
+        // it doesn't matter if this CAS fails, it just means some other thread is doing the work and that's fine
+        long newScheduledRollover = scheduledRollover + bucketSizeNanos;
+        if (nextRollover.compareAndSet(scheduledRollover, newScheduledRollover)) {
+
             while (true) {
                 long oldCount = count.get();
                 long bucketContents = buckets[newCursor];
 
-                // this CAS can fail if someone else increments the count between our read and the decrement, so we just
-                // try again.
+                // this CAS can fail if another mark() call incremented the count between the oldCount read and this
+                // CAS, so we try again
                 if (count.compareAndSet(oldCount, oldCount - bucketContents)) {
                     buckets[newCursor] = 0;
-                    cursor = newCursor;
-                    return;
+                    // doesn't matter if this fails, it means someone else has advanced the cursor already
+                    cursor.compareAndSet(cursorRead, newCursor);
+                    break;
                 }
             }
+
+            return newScheduledRollover;
+        } else {
+            return -1L;
         }
     }
 

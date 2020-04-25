@@ -27,13 +27,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class ApproximateSlidingTimeWindowReservoirTest {
+class LockFreeTimeWindowReservoirTest {
 
     Ticker clock = mock(Ticker.class);
 
     // hilariously poor granularity just for testing
-    ApproximateSlidingTimeWindowReservoir
-            reservoir = new ApproximateSlidingTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
+    LockFreeTimeWindowReservoir
+            reservoir = new LockFreeTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
 
     @Test
     void multiple_marks_into_one_bucket() {
@@ -72,11 +72,10 @@ class ApproximateSlidingTimeWindowReservoirTest {
         reservoir.mark();
 
         assertThat(reservoir)
-                .describedAs("This test demonstrates how the implementation is inaccurate - really there "
-                        + "should be [2, 0, 0, 6, 0], but we naively call maybeRoll to catch up to where the cursor "
-                        + "should *really* be")
+                .describedAs("This test demonstrates how we might have to call roll multiple times to skip past some "
+                        + "buckets and catch up to where the cursor should *really* be")
                 .hasToString("SlidingTimeWindowReservoir{count=8, cursor=3, nextRollover=800000000, "
-                        + "bucketSizeNanos=200000000, buckets=[2, 1, 1, 4, 0]}");
+                        + "bucketSizeNanos=200000000, buckets=[2, 0, 0, 6, 0]}");
     }
 
     @Test
@@ -87,8 +86,8 @@ class ApproximateSlidingTimeWindowReservoirTest {
         reservoir.mark();
 
         assertThat(reservoir.toString())
-                .describedAs("Another inaccuracy here, really we should have forgotten the first bucket")
-                .contains("buckets=[2, 1, 0, 0, 0]");
+                .contains("count=1")
+                .contains("buckets=[0, 0, 1, 0, 0]");
     }
 
     private void setTime(Duration duration) {
