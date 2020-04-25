@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -25,10 +26,13 @@ import javax.annotation.concurrent.ThreadSafe;
  * Stores marks on a timeline of buckets, where marks are forgotten after the specified {@code memory}.
  * Reads and writes are lock-free and efficient.
  *
+ * It's 'approximate' because when {@link #mark()} hasn't been called in a while, the next stored mark will probably
+ * end up in a stale bucket.
+ *
  * Replacement for {@link com.codahale.metrics.SlidingTimeWindowArrayReservoir}.
  */
 @ThreadSafe
-final class SlidingTimeWindowReservoir {
+final class ApproximateSlidingTimeWindowReservoir {
     private final long[] buckets;
     private final long bucketSizeNanos;
     private final Ticker clock;
@@ -37,11 +41,11 @@ final class SlidingTimeWindowReservoir {
     private final AtomicLong count = new AtomicLong(0);
     private final AtomicLong nextRollover;
 
-    SlidingTimeWindowReservoir(Duration memory, int granularity, Ticker clock) {
+    ApproximateSlidingTimeWindowReservoir(Duration memory, int granularity, Ticker clock) {
         this.buckets = new long[granularity];
         this.clock = clock;
         this.bucketSizeNanos = memory.toNanos() / granularity;
-        this.nextRollover = new AtomicLong(clock.read() + memory.toNanos());
+        this.nextRollover = new AtomicLong(clock.read() + bucketSizeNanos);
     }
 
     void mark() {
@@ -60,7 +64,8 @@ final class SlidingTimeWindowReservoir {
             return;
         }
 
-        // only one thread does the rolling, because it requires changing a few variables in lock-step
+        // note that the new nextRoller value could still be in the past if we haven't seen any calls to mark in a
+        // little while, we'll just fill em in.
         if (nextRollover.compareAndSet(next, next + bucketSizeNanos)) {
 
             int newCursor = (cursor + 1) % buckets.length;
@@ -79,5 +84,15 @@ final class SlidingTimeWindowReservoir {
                 }
             }
         }
+    }
+
+    @Override
+    public String toString() {
+        return "SlidingTimeWindowReservoir{count="
+                + count + ", cursor="
+                + cursor + ", nextRollover="
+                + nextRollover + ", bucketSizeNanos="
+                + bucketSizeNanos + ", buckets="
+                + Arrays.toString(buckets) + '}';
     }
 }

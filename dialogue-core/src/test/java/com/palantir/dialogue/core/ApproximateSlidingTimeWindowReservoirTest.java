@@ -27,12 +27,13 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class SlidingTimeWindowReservoirTest {
+class ApproximateSlidingTimeWindowReservoirTest {
 
     Ticker clock = mock(Ticker.class);
 
     // hilariously poor granularity just for testing
-    SlidingTimeWindowReservoir reservoir = new SlidingTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
+    ApproximateSlidingTimeWindowReservoir
+            reservoir = new ApproximateSlidingTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
 
     @Test
     void multiple_marks_into_one_bucket() {
@@ -45,7 +46,7 @@ class SlidingTimeWindowReservoirTest {
     }
 
     @Test
-    void multiple_marks_across_two_buckets() {
+    void multiple_marks_across_adjacent_buckets() {
         reservoir.mark();
         reservoir.mark();
         setTime(Duration.ofMillis(200));
@@ -53,6 +54,41 @@ class SlidingTimeWindowReservoirTest {
         reservoir.mark();
 
         assertThat(reservoir.size()).isEqualTo(4);
+        assertThat(reservoir)
+                .hasToString("SlidingTimeWindowReservoir{count=4, cursor=1, nextRollover=400000000, "
+                        + "bucketSizeNanos=200000000, buckets=[2, 2, 0, 0, 0]}");
+    }
+
+    @Test
+    void multiple_marks_across_skipped_buckets() {
+        reservoir.mark();
+        reservoir.mark();
+        setTime(Duration.ofMillis(600));
+        reservoir.mark();
+        reservoir.mark();
+        reservoir.mark();
+        reservoir.mark();
+        reservoir.mark();
+        reservoir.mark();
+
+        assertThat(reservoir)
+                .describedAs("This test demonstrates how the implementation is inaccurate - really there "
+                        + "should be [2, 0, 0, 6, 0], but we naively call maybeRoll to catch up to where the cursor "
+                        + "should *really* be")
+                .hasToString("SlidingTimeWindowReservoir{count=8, cursor=3, nextRollover=800000000, "
+                        + "bucketSizeNanos=200000000, buckets=[2, 1, 1, 4, 0]}");
+    }
+
+    @Test
+    void mark_call_after_long_pause() {
+        reservoir.mark();
+        reservoir.mark();
+        setTime(Duration.ofMillis(1500)); // longer than the entire memory of the reservoir
+        reservoir.mark();
+
+        assertThat(reservoir.toString())
+                .describedAs("Another inaccuracy here, really we should have forgotten the first bucket")
+                .contains("buckets=[2, 1, 0, 0, 0]");
     }
 
     private void setTime(Duration duration) {
