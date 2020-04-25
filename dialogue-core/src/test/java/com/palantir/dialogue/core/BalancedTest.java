@@ -55,7 +55,9 @@ class BalancedTest {
 
     private Endpoint endpoint = TestEndpoint.GET;
     private Balanced channel;
-    private Ticker clock = Ticker.systemTicker();
+
+    @Mock
+    Ticker clock;
 
     @BeforeEach
     public void before() {
@@ -99,19 +101,15 @@ class BalancedTest {
 
     @Test
     void sorting() {
-        Balanced.ChannelWithStats chan100 =
-                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan100 = new Balanced.ChannelWithStats(chan1, clock);
         chan100.inflight.set(100);
-        Balanced.ChannelWithStats chan100failed =
-                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
+        Balanced.ChannelWithStats chan100failed = new Balanced.ChannelWithStats(chan1, clock);
         chan100failed.inflight.set(100);
-        chan100failed.recentFailures.update(1);
-        Balanced.ChannelWithStats chan50 =
-                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan100failed.recentFailures.mark();
+        Balanced.ChannelWithStats chan50 = new Balanced.ChannelWithStats(chan1, clock);
         chan50.inflight.set(50);
-        chan50.recentFailures.update(1);
-        Balanced.ChannelWithStats chan101 =
-                new Balanced.ChannelWithStats(chan1, new CodahaleClock(clock));
+        chan50.recentFailures.mark();
+        Balanced.ChannelWithStats chan101 = new Balanced.ChannelWithStats(chan1, clock);
         chan101.inflight.set(101);
 
         assertThat(Stream.of(chan100failed, chan100, chan50, chan101).sorted(Balanced.BY_SCORE))

@@ -32,8 +32,7 @@ class LockFreeTimeWindowReservoirTest {
     Ticker clock = mock(Ticker.class);
 
     // hilariously poor granularity just for testing
-    LockFreeTimeWindowReservoir
-            reservoir = new LockFreeTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
+    LockFreeTimeWindowReservoir reservoir = new LockFreeTimeWindowReservoir(Duration.ofSeconds(1), 5, clock);
 
     @Test
     void multiple_marks_into_one_bucket() {
@@ -85,9 +84,7 @@ class LockFreeTimeWindowReservoirTest {
         setTime(Duration.ofMillis(1500)); // longer than the entire memory of the reservoir
         reservoir.mark();
 
-        assertThat(reservoir.toString())
-                .contains("count=1")
-                .contains("buckets=[0, 0, 1, 0, 0]");
+        assertThat(reservoir.toString()).contains("count=1").contains("buckets=[0, 0, 1, 0, 0]");
     }
 
     private void setTime(Duration duration) {

@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.SlidingTimeWindowArrayReservoir;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -36,7 +35,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -68,12 +66,12 @@ final class Balanced implements LimitedChannel {
 
     private final ImmutableList<ChannelWithStats> channels;
     private final Random random;
-    private final CodahaleClock clock;
+    private final Ticker clock;
 
     Balanced(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
-        this.clock = new CodahaleClock(ticker);
+        this.clock = ticker;
         this.channels = channels.stream()
                 .map(channel -> new ChannelWithStats(channel, clock))
                 .collect(ImmutableList.toImmutableList());
@@ -124,7 +122,7 @@ final class Balanced implements LimitedChannel {
          * {@link SimulationTest#fast_503s_then_revert}.
          */
         @VisibleForTesting
-        final SlidingTimeWindowArrayReservoir recentFailures;
+        final LockFreeTimeWindowReservoir recentFailures;
 
         // Saves one allocation on each network call
         private final FutureCallback<Response> updateStats = new FutureCallback<Response>() {
@@ -132,25 +130,24 @@ final class Balanced implements LimitedChannel {
             public void onSuccess(Response result) {
                 inflight.decrementAndGet();
                 if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                    recentFailures.update(1);
+                    recentFailures.mark();
                 }
             }
 
             @Override
             public void onFailure(Throwable _throwable) {
                 inflight.decrementAndGet();
-                recentFailures.update(1);
+                recentFailures.mark();
             }
         };
 
-        ChannelWithStats(LimitedChannel delegate, CodahaleClock clock) {
+        ChannelWithStats(LimitedChannel delegate, Ticker clock) {
             this.delegate = delegate;
-            this.recentFailures =
-                    new SlidingTimeWindowArrayReservoir(FAILURE_MEMORY.toNanos(), TimeUnit.NANOSECONDS, clock);
+            this.recentFailures = new LockFreeTimeWindowReservoir(FAILURE_MEMORY, 100, clock);
         }
 
         /** Low = good. */
-        int score() {
+        long score() {
             return inflight.get() + recentFailures.size();
         }
 
