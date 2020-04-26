@@ -58,4 +58,21 @@ class CoarseExponentialDecayTest {
         clock.set(20);
         assertThat(decay.get()).isZero();
     }
+
+    @Test
+    void testDecay_intermediateDecay() {
+        AtomicLong clock = new AtomicLong();
+        CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
+        for (int i = 0; i < 100; i++) {
+            decay.increment();
+        }
+        assertThat(decay.get()).isEqualTo(100);
+        clock.set(2);
+        assertThat(decay.get())
+                .as("Expected partial decay after a slice of the half life")
+                .isLessThan(100)
+                .isGreaterThan(50);
+        clock.set(10);
+        assertThat(decay.get()).isEqualTo(50);
+    }
 }

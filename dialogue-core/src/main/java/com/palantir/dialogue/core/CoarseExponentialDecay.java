@@ -16,10 +16,10 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.AtomicDouble;
 import java.time.Duration;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.IntBinaryOperator;
 import java.util.function.LongSupplier;
 
 /**
@@ -29,29 +29,34 @@ import java.util.function.LongSupplier;
  */
 final class CoarseExponentialDecay {
 
-    @SuppressWarnings("UnnecessaryLambda") // Extract expensive allocations
-    private static final IntBinaryOperator DECAY_FUNCTION = (value, decays) -> value >> decays;
-
-    private final AtomicInteger value = new AtomicInteger();
+    // DECAY_FACTOR ^ DECAYS_PER_HALF_LIFE == .5
+    // Several decays occur per half life to produce smoother traffic curves.
+    private static final int DECAYS_PER_HALF_LIFE = 10;
+    private static final double DECAY_FACTOR = Math.pow(.5D, 1D / DECAYS_PER_HALF_LIFE);
+    private final AtomicDouble value = new AtomicDouble();
+    /** System precise clock time (nanoseconds) of the last decay. */
     private final AtomicLong lastDecay = new AtomicLong();
+
     private final LongSupplier nanoClock;
     private final long decayIntervalNanoseconds;
 
     CoarseExponentialDecay(LongSupplier nanoClock, Duration halfLife) {
         this.nanoClock = nanoClock;
-        this.decayIntervalNanoseconds = halfLife.toNanos();
+        this.decayIntervalNanoseconds = halfLife.toNanos() / DECAYS_PER_HALF_LIFE;
         lastDecay.set(nanoClock.getAsLong());
     }
 
     void increment() {
         decayIfNecessary();
-        value.incrementAndGet();
+        value.addAndGet(1D);
     }
 
     int get() {
         // Potential optimization if the value is zero
         decayIfNecessary();
-        return value.get();
+        // Results must be rounded otherwise a single increment will be effectively erased after the first
+        // decay cycle.
+        return Ints.saturatedCast(Math.round(value.get()));
     }
 
     void decayIfNecessary() {
@@ -64,8 +69,23 @@ final class CoarseExponentialDecay {
         int decays = (int) (nanosSinceLastDecay / decayIntervalNanoseconds);
         // nanoTime values wrap, it's important that values are used in comparison
         if (decays > 0
+                // On CAS failure another thread has successfully executed the decay function.
+                // It's possible the current thread may read or update the value before a decay has
+                // completed, but ultimately it makes little difference due to smaller segmented decays.
                 && lastDecay.compareAndSet(lastDecaySnapshot, lastDecaySnapshot + decays * decayIntervalNanoseconds)) {
-            value.accumulateAndGet(decays, DECAY_FUNCTION);
+            decay(decays);
+        }
+    }
+
+    private void decay(int decayIterations) {
+        AtomicDouble valueAtomicDouble = value;
+        // AtomicDouble does not have an accumulateAndGet function
+        while (true) {
+            double snapshot = valueAtomicDouble.get();
+            double updated = snapshot * Math.pow(DECAY_FACTOR, decayIterations);
+            if (valueAtomicDouble.compareAndSet(snapshot, updated)) {
+                break;
+            }
         }
     }
 
