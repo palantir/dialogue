@@ -46,9 +46,9 @@ final class CoarseExponentialDecay {
         lastDecay.set(nanoClock.getAsLong());
     }
 
-    void increment() {
+    void update(int updates) {
         decayIfNecessary();
-        value.addAndGet(1D);
+        value.addAndGet(updates);
     }
 
     int get() {

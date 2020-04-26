@@ -29,7 +29,7 @@ class CoarseExponentialDecayTest {
         AtomicLong clock = new AtomicLong();
         CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
         assertThat(decay.get()).isZero();
-        decay.increment();
+        decay.update(1);
         assertThat(decay.get()).isOne();
         clock.set(10);
         assertThat(decay.get()).isZero();
@@ -39,8 +39,7 @@ class CoarseExponentialDecayTest {
     void testDecay_byHalf() {
         AtomicLong clock = new AtomicLong();
         CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
-        decay.increment();
-        decay.increment();
+        decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(10);
         assertThat(decay.get()).isOne();
@@ -52,8 +51,7 @@ class CoarseExponentialDecayTest {
     void testDecay_toZero_intervalsWithoutInteraction() {
         AtomicLong clock = new AtomicLong();
         CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
-        decay.increment();
-        decay.increment();
+        decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(20);
         assertThat(decay.get()).isZero();
@@ -63,9 +61,7 @@ class CoarseExponentialDecayTest {
     void testDecay_intermediateDecay() {
         AtomicLong clock = new AtomicLong();
         CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
-        for (int i = 0; i < 100; i++) {
-            decay.increment();
-        }
+        decay.update(100);
         assertThat(decay.get()).isEqualTo(100);
         clock.set(2);
         assertThat(decay.get())
