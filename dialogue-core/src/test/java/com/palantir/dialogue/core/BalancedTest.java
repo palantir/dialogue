@@ -105,10 +105,10 @@ class BalancedTest {
         chan100.inflight.set(100);
         Balanced.ChannelWithStats chan100failed = new Balanced.ChannelWithStats(chan1, clock);
         chan100failed.inflight.set(100);
-        chan100failed.recentFailures.mark();
+        chan100failed.recentFailures.update(1);
         Balanced.ChannelWithStats chan50 = new Balanced.ChannelWithStats(chan1, clock);
         chan50.inflight.set(50);
-        chan50.recentFailures.mark();
+        chan50.recentFailures.update(1);
         Balanced.ChannelWithStats chan101 = new Balanced.ChannelWithStats(chan1, clock);
         chan101.inflight.set(101);
 
