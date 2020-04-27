@@ -26,8 +26,9 @@ import java.util.function.LongSupplier;
  * A Course exponential decay function which decays at fixed time intervals. This has a change of immediately
  * decaying new values such that some values are more impactful than others depending on when they are reported
  * in relation to the decay interval.
+ * Unlike implementations in common metrics libraries, this is optimized for reads rather than writes.
  */
-final class CoarseExponentialDecay {
+final class CoarseExponentialDecayReservoir {
 
     // DECAY_FACTOR ^ DECAYS_PER_HALF_LIFE == .5
     // Several decays occur per half life to produce smoother traffic curves.
@@ -40,7 +41,7 @@ final class CoarseExponentialDecay {
     private final LongSupplier nanoClock;
     private final long decayIntervalNanoseconds;
 
-    CoarseExponentialDecay(LongSupplier nanoClock, Duration halfLife) {
+    CoarseExponentialDecayReservoir(LongSupplier nanoClock, Duration halfLife) {
         this.nanoClock = nanoClock;
         this.decayIntervalNanoseconds = halfLife.toNanos() / DECAYS_PER_HALF_LIFE;
         lastDecay.set(nanoClock.getAsLong());

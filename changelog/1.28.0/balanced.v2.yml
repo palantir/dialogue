@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: |
+    When users ask for `ROUND_ROBIN`, a new `Balanced` heuristic picks the node with the lowest `activeRequests + 10*recentFailures`. This performs drastically better when one node suddenly becomes very slow.
+  links:
+  - https://github.com/palantir/dialogue/pull/373

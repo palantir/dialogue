@@ -122,7 +122,7 @@ receiving any 5xx, 429 or 308 response. Otherwise, they are additively increased
 Used to balance requests across many servers better than the
 default PIN_UNTIL_ERROR. The actual algorithm has evolved from naive Round Robin, then to Random Selection and now
 makes smarter decisions based on stats about each host (see
-[BalancedChannel.java](dialogue-core/src/main/java/com/palantir/dialogue/core/BalancedChannel.java)). This fixes a dramatic failure
+[BalancedNodeSelectionStrategyChannel.java](dialogue-core/src/main/java/com/palantir/dialogue/core/BalancedNodeSelectionStrategyChannel.java)). This fixes a dramatic failure
 mode when a single server is very slow (this can be seen empirically in the simulations). Note that unlike concurrency limiters, this node selection strategy never *prevents* a request getting out the door,
 it just *ranks* hosts to try to deliver the best possive client-perceived response time (and success rate).
 

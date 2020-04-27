@@ -51,10 +51,10 @@ import org.slf4j.LoggerFactory;
  * This is intended to be a strict improvement over Round Robin and Random Selection which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node. It is *not* appropriate for transactional
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
- * {@link PinUntilErrorChannel} remains the best choice for these.
+ * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class Balanced implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(Balanced.class);
+final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
@@ -67,7 +67,7 @@ final class Balanced implements LimitedChannel {
     private final Random random;
     private final Ticker clock;
 
-    Balanced(
+    BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
             Random random,
             Ticker ticker,
@@ -123,7 +123,7 @@ final class Balanced implements LimitedChannel {
          * <code>SimulationTest.fast_503s_then_revert</code>.
          */
         @VisibleForTesting
-        final CoarseExponentialDecay recentFailures;
+        final CoarseExponentialDecayReservoir recentFailures;
 
         private final PerHostObservability observability;
 
@@ -146,7 +146,7 @@ final class Balanced implements LimitedChannel {
 
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
-            this.recentFailures = new CoarseExponentialDecay(clock::read, FAILURE_MEMORY);
+            this.recentFailures = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
         }
 

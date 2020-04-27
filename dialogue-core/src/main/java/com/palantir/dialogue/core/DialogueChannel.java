@@ -175,9 +175,10 @@ public final class DialogueChannel implements Channel {
                 DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
                         DialoguePinuntilerrorMetrics.of(config.taggedMetricRegistry());
                 // Previously pin until error, so we should preserve our previous location
-                if (previousNodeSelectionStrategy instanceof PinUntilErrorChannel) {
-                    PinUntilErrorChannel previousPinUntilError = (PinUntilErrorChannel) previousNodeSelectionStrategy;
-                    return PinUntilErrorChannel.of(
+                if (previousNodeSelectionStrategy instanceof PinUntilErrorNodeSelectionStrategyChannel) {
+                    PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
+                            (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
+                    return PinUntilErrorNodeSelectionStrategyChannel.of(
                             Optional.of(previousPinUntilError.getCurrentChannel()),
                             config.nodeSelectionStrategy(),
                             channels,
@@ -185,7 +186,7 @@ public final class DialogueChannel implements Channel {
                             random,
                             channelName);
                 }
-                return PinUntilErrorChannel.of(
+                return PinUntilErrorNodeSelectionStrategyChannel.of(
                         Optional.empty(),
                         config.nodeSelectionStrategy(),
                         channels,
@@ -195,7 +196,8 @@ public final class DialogueChannel implements Channel {
             case ROUND_ROBIN:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return new Balanced(channels, random, tick, config.taggedMetricRegistry(), channelName);
+                return new BalancedNodeSelectionStrategyChannel(
+                        channels, random, tick, config.taggedMetricRegistry(), channelName);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

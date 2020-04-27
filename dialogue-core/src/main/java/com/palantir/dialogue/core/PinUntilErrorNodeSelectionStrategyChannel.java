@@ -57,8 +57,8 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorChannel implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(PinUntilErrorChannel.class);
+final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
@@ -69,7 +69,8 @@ final class PinUntilErrorChannel implements LimitedChannel {
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
-    PinUntilErrorChannel(NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics, String channelName) {
+    PinUntilErrorNodeSelectionStrategyChannel(
+            NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics, String channelName) {
         this.nodeList = nodeList;
         this.currentHost = new AtomicInteger(initialHost);
         this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
@@ -83,7 +84,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
                 SafeArg.of("initialHost", initialHost));
     }
 
-    static PinUntilErrorChannel of(
+    static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<LimitedChannel> initialChannel,
             NodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
@@ -106,10 +107,10 @@ final class PinUntilErrorChannel implements LimitedChannel {
             case PIN_UNTIL_ERROR:
                 NodeList shuffling =
                         ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
-                return new PinUntilErrorChannel(shuffling, initialHost, metrics, channelName);
+                return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialHost, metrics, channelName);
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorChannel(constant, initialHost, metrics, channelName);
+                return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialHost, metrics, channelName);
             case ROUND_ROBIN:
         }
 
@@ -196,7 +197,7 @@ final class PinUntilErrorChannel implements LimitedChannel {
         private final Random random;
         private final long intervalWithJitter;
         private final int channelsSize;
-        private final PinUntilErrorChannel.Instrumentation instrumentation;
+        private final PinUntilErrorNodeSelectionStrategyChannel.Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
         private volatile ImmutableList<LimitedChannel> channels;
