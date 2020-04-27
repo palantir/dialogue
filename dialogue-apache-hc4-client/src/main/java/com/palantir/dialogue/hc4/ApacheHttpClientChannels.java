@@ -24,7 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
-import com.palantir.dialogue.core.WeakReducingGauge;
+import com.palantir.dialogue.core.DialogueInternalWeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -123,19 +123,19 @@ public final class ApacheHttpClientChannels {
             TaggedMetricRegistry taggedMetrics,
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
-        WeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "idle"),
                 pool -> pool.getTotalStats().getAvailable(),
                 LongStream::sum,
                 connectionManager);
-        WeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "leased"),
                 pool -> pool.getTotalStats().getLeased(),
                 LongStream::sum,
                 connectionManager);
-        WeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "pending"),
                 pool -> pool.getTotalStats().getPending(),

@@ -33,9 +33,11 @@ import javax.annotation.concurrent.ThreadSafe;
  * An internally-mutable gauge which computes an integer value by applying a gaugeFunction to 0 or more
  * source elements stored in a WeakHashMap. When source elements are GC'd, they will no longer be represented in
  * the final summary integer.
+ *
+ * Not intended for public usage, but needed in multiple packages.
  */
 @ThreadSafe
-public final class WeakReducingGauge<T> implements Gauge<Number> {
+public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number> {
 
     @GuardedBy("this")
     private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
@@ -44,7 +46,7 @@ public final class WeakReducingGauge<T> implements Gauge<Number> {
     private final Function<LongStream, Number> operator;
 
     @VisibleForTesting
-    WeakReducingGauge(ToLongFunction<T> gaugeFunction, Function<LongStream, Number> reduceFunction) {
+    DialogueInternalWeakReducingGauge(ToLongFunction<T> gaugeFunction, Function<LongStream, Number> reduceFunction) {
         this.gaugeFunction = gaugeFunction;
         this.operator = reduceFunction;
     }
@@ -59,15 +61,15 @@ public final class WeakReducingGauge<T> implements Gauge<Number> {
         return operator.apply(weakSet.stream().mapToLong(gaugeFunction));
     }
 
-    public static <T> WeakReducingGauge<T> getOrCreate(
+    public static <T> DialogueInternalWeakReducingGauge<T> getOrCreate(
             TaggedMetricRegistry taggedMetricRegistry,
             MetricName metricName,
             ToLongFunction<T> toLongFunc,
             Function<LongStream, Number> reducingFunction,
             T initialObject) {
         // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
-        WeakReducingGauge<T> gauge = (WeakReducingGauge<T>)
-                taggedMetricRegistry.gauge(metricName, new WeakReducingGauge<>(toLongFunc, reducingFunction));
+        DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) taggedMetricRegistry.gauge(
+                metricName, new DialogueInternalWeakReducingGauge<>(toLongFunc, reducingFunction));
         gauge.add(initialObject);
         return gauge;
     }

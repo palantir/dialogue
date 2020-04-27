@@ -212,7 +212,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     .build();
             // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
             // Defensive averaging for the possibility that people create multiple channels with the same channelName.
-            WeakReducingGauge.getOrCreate(
+            DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
                     c -> c.computeScore().getScore(),

@@ -21,16 +21,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 
-public class WeakReducingGaugeTest {
+public class DialogueInternalWeakReducingGaugeTest {
     @Test
     public void empty_initially() {
-        WeakReducingGauge<String> gauge = new WeakReducingGauge<>(String::length, LongStream::sum);
+        DialogueInternalWeakReducingGauge<String> gauge =
+                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
         assertThat(gauge.getValue()).isEqualTo(0L);
     }
 
     @Test
     public void sums_correctly() {
-        WeakReducingGauge<String> gauge = new WeakReducingGauge<>(String::length, LongStream::sum);
+        DialogueInternalWeakReducingGauge<String> gauge =
+                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
         gauge.add("Hello");
         gauge.add("World");
         assertThat(gauge.getValue()).isEqualTo(10L);
@@ -38,7 +40,7 @@ public class WeakReducingGaugeTest {
 
     @Test
     public void can_pass_alternative_reducing_functions() {
-        WeakReducingGauge<String> gauge = new WeakReducingGauge<>(
+        DialogueInternalWeakReducingGauge<String> gauge = new DialogueInternalWeakReducingGauge<>(
                 String::length, longStream -> longStream.max().orElse(0));
         gauge.add("Fooooooooooo");
         gauge.add("bar");
@@ -49,7 +51,8 @@ public class WeakReducingGaugeTest {
     public void source_items_deleted_when_no_remaining_references_and_gc() {
         class SomeObject {}
 
-        WeakReducingGauge<SomeObject> gauge = new WeakReducingGauge<>(item -> 1, LongStream::sum);
+        DialogueInternalWeakReducingGauge<SomeObject> gauge =
+                new DialogueInternalWeakReducingGauge<>(item -> 1, LongStream::sum);
         gauge.add(new SomeObject());
         gauge.add(new SomeObject());
         SomeObject preserve = new SomeObject();
