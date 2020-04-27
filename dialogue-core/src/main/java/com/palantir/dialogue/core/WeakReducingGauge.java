@@ -32,7 +32,7 @@ import javax.annotation.concurrent.ThreadSafe;
 /**
  * An internally-mutable gauge which computes an integer value by applying a gaugeFunction to 0 or more
  * source elements stored in a WeakHashMap. When source elements are GC'd, they will no longer be represented in
- * the final summary integer. Similar to <code>WeakSummingGauge</code>.
+ * the final summary integer.
  */
 @ThreadSafe
 public final class WeakReducingGauge<T> implements Gauge<Number> {
