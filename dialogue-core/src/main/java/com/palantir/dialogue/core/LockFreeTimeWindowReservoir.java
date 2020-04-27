@@ -18,9 +18,9 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import java.time.Duration;
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
@@ -31,7 +31,7 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 final class LockFreeTimeWindowReservoir {
-    private final long[] buckets;
+    private final AtomicLongArray buckets;
     private final long bucketSizeNanos;
     private final Ticker clock;
 
@@ -43,7 +43,7 @@ final class LockFreeTimeWindowReservoir {
     private final AtomicLong nextRollover;
 
     LockFreeTimeWindowReservoir(Duration memory, int granularity, Ticker clock) {
-        this.buckets = new long[granularity];
+        this.buckets = new AtomicLongArray(granularity);
         this.clock = clock;
         this.bucketSizeNanos = memory.toNanos() / granularity;
         this.nextRollover = new AtomicLong(clock.read() + bucketSizeNanos);
@@ -51,11 +51,12 @@ final class LockFreeTimeWindowReservoir {
 
     void mark() {
         maybeRoll();
-        buckets[cursor.get()] += 1;
+        buckets.getAndIncrement(cursor.get());
         count.incrementAndGet();
     }
 
     long size() {
+        maybeRoll();
         return count.get();
     }
 
@@ -80,7 +81,7 @@ final class LockFreeTimeWindowReservoir {
 
     private long rolloverTo(long scheduledRollover) {
         int cursorRead = cursor.get();
-        int newCursor = (cursorRead + 1) % buckets.length;
+        int newCursor = (cursorRead + 1) % buckets.length();
 
         // it doesn't matter if this CAS fails, it just means some other thread is doing the work and that's fine
         long newScheduledRollover = scheduledRollover + bucketSizeNanos;
@@ -88,13 +89,13 @@ final class LockFreeTimeWindowReservoir {
 
             while (true) {
                 long oldCount = count.get();
-                long bucketContents = buckets[newCursor];
+                long bucketContents = buckets.get(newCursor);
 
                 // this CAS can fail if another mark() call incremented the count between the oldCount read and this
                 // CAS, so we try again
                 if (count.compareAndSet(oldCount, oldCount - bucketContents)) {
-                    buckets[newCursor] = 0;
-                    // doesn't matter if this fails, it means someone else has advanced the cursor already
+                    // doesn't matter if these fail, it means someone else has made the changes
+                    buckets.compareAndSet(newCursor, bucketContents, 0);
                     cursor.compareAndSet(cursorRead, newCursor);
                     break;
                 }
@@ -113,6 +114,6 @@ final class LockFreeTimeWindowReservoir {
                 + cursor + ", nextRollover="
                 + nextRollover + ", bucketSizeNanos="
                 + bucketSizeNanos + ", buckets="
-                + Arrays.toString(buckets) + '}';
+                + buckets + '}';
     }
 }

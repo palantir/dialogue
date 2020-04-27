@@ -87,6 +87,15 @@ class LockFreeTimeWindowReservoirTest {
         assertThat(reservoir.toString()).contains("count=1").contains("buckets=[0, 0, 1, 0, 0]");
     }
 
+    @Test
+    void size_call_after_long_pause() {
+        reservoir.mark();
+        reservoir.mark();
+        setTime(Duration.ofMillis(1500)); // longer than the entire memory of the reservoir
+
+        assertThat(reservoir.size()).describedAs("Was %s", reservoir).isEqualTo(0);
+    }
+
     private void setTime(Duration duration) {
         when(clock.read()).thenReturn(duration.toNanos());
     }
