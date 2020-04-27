@@ -18,10 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Clock;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import java.util.concurrent.TimeUnit;
 
-@VisibleForTesting
 final class CodahaleClock extends Clock {
     private final Ticker caffeineTicker;
 
