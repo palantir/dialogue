@@ -53,8 +53,8 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorChannel} remains the best choice for these.
  */
-final class BalancedChannel implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(BalancedChannel.class);
+final class Balanced implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(Balanced.class);
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
@@ -67,7 +67,7 @@ final class BalancedChannel implements LimitedChannel {
     private final Random random;
     private final Ticker clock;
 
-    BalancedChannel(
+    Balanced(
             ImmutableList<LimitedChannel> channels,
             Random random,
             Ticker ticker,

@@ -74,7 +74,7 @@ namespaces:
         docs: Marked every time we reshuffle all the nodes.
 
   dialogue.roundrobin:
-    docs: Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel.java).
+    docs: Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel).
     metrics:
       success:
         type: meter
