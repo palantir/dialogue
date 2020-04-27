@@ -147,13 +147,21 @@ final class Balanced implements LimitedChannel {
         ChannelStats immutableSnapshot() {
             return new ChannelStats(inflight.get(), recentFailures.get(), this);
         }
+
+        @Override
+        public String toString() {
+            return "MutableChannelWithStats{inflight="
+                    + inflight + ", recentFailures="
+                    + recentFailures + ", delegate="
+                    + delegate + '}';
+        }
     }
 
     /**
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    static class ChannelStats {
+    static final class ChannelStats {
         private final long inflight;
         private final int recentFailures;
 
