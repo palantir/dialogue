@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -51,20 +50,14 @@ import org.slf4j.LoggerFactory;
 final class Balanced implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(Balanced.class);
 
-    /**
-     * We'd like to remember failures for a long time, but this would increase CPU on a hot codepath as we compute
-     * the number of failures for each channel in order to sort. See {@link ChannelWithStats#score}.
-     */
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
-    /**
-     * This comparator is a little risky because the data can change while we're sorting. In practise the sort
-     * finishes a lot quicker than network requests do, and we don't mind if it's not exactly right.
-     */
     @VisibleForTesting
-    static final Comparator<ChannelWithStats> BY_SCORE = Comparator.comparing(ChannelWithStats::score);
+    static final Comparator<ChannelStats> RANKING_HEURISTIC = Comparator.comparing(channel -> {
+        return channel.inflight + 10 * (long) channel.recentFailures;
+    });
 
-    private final ImmutableList<ChannelWithStats> channels;
+    private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
 
@@ -73,7 +66,7 @@ final class Balanced implements LimitedChannel {
         this.random = random;
         this.clock = ticker;
         this.channels = channels.stream()
-                .map(channel -> new ChannelWithStats(channel, clock))
+                .map(channel -> new MutableChannelWithStats(channel, clock))
                 .collect(ImmutableList.toImmutableList());
 
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
@@ -81,25 +74,18 @@ final class Balanced implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        if (log.isDebugEnabled()) {
-            log.debug(
-                    "Channel scores {}",
-                    SafeArg.of("scores", Lists.transform(channels, ChannelWithStats::score)),
-                    SafeArg.of("inflight", Lists.transform(channels, ChannelWithStats::inflight)));
-        }
-
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
-        List<ChannelWithStats> preShuffled = shuffleImmutableList(channels, random);
+        List<MutableChannelWithStats> preShuffled = shuffleImmutableList(channels, random);
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
-                .sorted(BY_SCORE)
-                .map(channel -> channel.maybeExecute(endpoint, request))
+                .map(MutableChannelWithStats::immutableSnapshot) // necessary for safe sorting
+                .sorted(RANKING_HEURISTIC)
+                .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
-                // we rely heavily on streams being lazy here
                 .findFirst();
     }
 
@@ -110,7 +96,7 @@ final class Balanced implements LimitedChannel {
         return mutableList;
     }
 
-    static final class ChannelWithStats implements LimitedChannel {
+    static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
 
         @VisibleForTesting
@@ -130,25 +116,20 @@ final class Balanced implements LimitedChannel {
             public void onSuccess(Response result) {
                 inflight.decrementAndGet();
                 if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                    recentFailures.update(10);
+                    recentFailures.update(1);
                 }
             }
 
             @Override
             public void onFailure(Throwable _throwable) {
                 inflight.decrementAndGet();
-                recentFailures.update(10);
+                recentFailures.update(1);
             }
         };
 
-        ChannelWithStats(LimitedChannel delegate, Ticker clock) {
+        MutableChannelWithStats(LimitedChannel delegate, Ticker clock) {
             this.delegate = delegate;
             this.recentFailures = new CoarseExponentialDecay(clock::read, FAILURE_MEMORY);
-        }
-
-        /** Low = good. */
-        long score() {
-            return inflight.get() + (long) recentFailures.get();
         }
 
         @Override
@@ -163,8 +144,34 @@ final class Balanced implements LimitedChannel {
             return maybe;
         }
 
-        int inflight() {
-            return inflight.get();
+        ChannelStats immutableSnapshot() {
+            return new ChannelStats(inflight.get(), recentFailures.get(), this);
+        }
+    }
+
+    /**
+     * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
+     * might change mid-sort, leading to undefined behaviour.
+     */
+    static class ChannelStats {
+        private final long inflight;
+        private final int recentFailures;
+
+        @VisibleForTesting
+        final MutableChannelWithStats delegate;
+
+        ChannelStats(long inflight, int recentFailures, MutableChannelWithStats delegate) {
+            this.inflight = inflight;
+            this.recentFailures = recentFailures;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public String toString() {
+            return "ChannelStats{inflight="
+                    + inflight + ", recentFailures="
+                    + recentFailures + ", delegate="
+                    + delegate + '}';
         }
     }
 }
