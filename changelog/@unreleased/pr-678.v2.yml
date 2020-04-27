@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Only count IOExceptions toward failures in the balanced strategy
+  links:
+  - https://github.com/palantir/dialogue/pull/678
