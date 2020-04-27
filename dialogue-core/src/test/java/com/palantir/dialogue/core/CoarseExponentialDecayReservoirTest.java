@@ -22,12 +22,12 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
-class CoarseExponentialDecayTest {
+class CoarseExponentialDecayReservoirTest {
 
     @Test
     void testDecay_toZero() {
         AtomicLong clock = new AtomicLong();
-        CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
+        CoarseExponentialDecayReservoir decay = new CoarseExponentialDecayReservoir(clock::get, Duration.ofNanos(10));
         assertThat(decay.get()).isZero();
         decay.update(1);
         assertThat(decay.get()).isOne();
@@ -38,7 +38,7 @@ class CoarseExponentialDecayTest {
     @Test
     void testDecay_byHalf() {
         AtomicLong clock = new AtomicLong();
-        CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
+        CoarseExponentialDecayReservoir decay = new CoarseExponentialDecayReservoir(clock::get, Duration.ofNanos(10));
         decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(10);
@@ -50,7 +50,7 @@ class CoarseExponentialDecayTest {
     @Test
     void testDecay_toZero_intervalsWithoutInteraction() {
         AtomicLong clock = new AtomicLong();
-        CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
+        CoarseExponentialDecayReservoir decay = new CoarseExponentialDecayReservoir(clock::get, Duration.ofNanos(10));
         decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(20);
@@ -60,7 +60,7 @@ class CoarseExponentialDecayTest {
     @Test
     void testDecay_intermediateDecay() {
         AtomicLong clock = new AtomicLong();
-        CoarseExponentialDecay decay = new CoarseExponentialDecay(clock::get, Duration.ofNanos(10));
+        CoarseExponentialDecayReservoir decay = new CoarseExponentialDecayReservoir(clock::get, Duration.ofNanos(10));
         decay.update(100);
         assertThat(decay.get()).isEqualTo(100);
         clock.set(2);

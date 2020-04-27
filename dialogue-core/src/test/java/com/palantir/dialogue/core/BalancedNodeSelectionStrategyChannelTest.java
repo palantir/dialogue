@@ -41,7 +41,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-class BalancedTest {
+class BalancedNodeSelectionStrategyChannelTest {
     private Random random = new Random(12388544234L);
 
     @Mock
@@ -54,14 +54,14 @@ class BalancedTest {
     Request request;
 
     private Endpoint endpoint = TestEndpoint.GET;
-    private Balanced channel;
+    private BalancedNodeSelectionStrategyChannel channel;
 
     @Mock
     Ticker clock;
 
     @BeforeEach
     public void before() {
-        channel = new Balanced(ImmutableList.of(chan1, chan2), random, clock);
+        channel = new BalancedNodeSelectionStrategyChannel(ImmutableList.of(chan1, chan2), random, clock);
     }
 
     @Test
@@ -101,20 +101,24 @@ class BalancedTest {
 
     @Test
     void sorting() {
-        Balanced.MutableChannelWithStats chan100 = new Balanced.MutableChannelWithStats(chan1, clock);
+        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan100 =
+                new BalancedNodeSelectionStrategyChannel.MutableChannelWithStats(chan1, clock);
         chan100.inflight.set(100);
-        Balanced.MutableChannelWithStats chan100failed = new Balanced.MutableChannelWithStats(chan1, clock);
+        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan100failed =
+                new BalancedNodeSelectionStrategyChannel.MutableChannelWithStats(chan1, clock);
         chan100failed.inflight.set(100);
         chan100failed.recentFailures.update(1);
-        Balanced.MutableChannelWithStats chan50 = new Balanced.MutableChannelWithStats(chan1, clock);
+        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan50 =
+                new BalancedNodeSelectionStrategyChannel.MutableChannelWithStats(chan1, clock);
         chan50.inflight.set(50);
         chan50.recentFailures.update(1);
-        Balanced.MutableChannelWithStats chan101 = new Balanced.MutableChannelWithStats(chan1, clock);
+        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan101 =
+                new BalancedNodeSelectionStrategyChannel.MutableChannelWithStats(chan1, clock);
         chan101.inflight.set(101);
 
         assertThat(Stream.of(chan100failed, chan100, chan50, chan101)
                         .map(c -> c.immutableSnapshot())
-                        .sorted(Balanced.RANKING_HEURISTIC)
+                        .sorted(BalancedNodeSelectionStrategyChannel.RANKING_HEURISTIC)
                         .map(c -> c.delegate))
                 .describedAs("Failures are considered very bad")
                 .containsExactly(chan50, chan100, chan101, chan100failed);
