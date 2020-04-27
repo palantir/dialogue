@@ -118,7 +118,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         assertThat(Stream.of(chan100failed, chan100, chan50, chan101)
                         .map(c -> c.immutableSnapshot())
                         .sorted(Comparator.comparingLong(
-                                BalancedNodeSelectionStrategyChannel.SortableChannel::getHeuristicLong))
+                                BalancedNodeSelectionStrategyChannel.SortableChannel::getScore))
                         .map(c -> c.delegate))
                 .describedAs("Failures are considered very bad")
                 .containsExactly(chan50, chan100, chan101, chan100failed);

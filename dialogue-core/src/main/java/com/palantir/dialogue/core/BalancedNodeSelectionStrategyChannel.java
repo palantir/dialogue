@@ -97,7 +97,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::immutableSnapshot) // necessary for safe sorting
-                .sorted(Comparator.comparingLong(SortableChannel::getHeuristicLong))
+                .sorted(Comparator.comparingLong(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -182,23 +182,23 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     static final class SortableChannel {
-        private final long heuristicLong;
+        private final long score;
 
         @VisibleForTesting
         final MutableChannelWithStats delegate;
 
-        SortableChannel(long heuristicLong, MutableChannelWithStats delegate) {
-            this.heuristicLong = heuristicLong;
+        SortableChannel(long score, MutableChannelWithStats delegate) {
+            this.score = score;
             this.delegate = delegate;
         }
 
-        public long getHeuristicLong() {
-            return heuristicLong;
+        long getScore() {
+            return score;
         }
 
         @Override
         public String toString() {
-            return "SortableChannel{heuristicLong=" + heuristicLong + ", delegate=" + delegate + '}';
+            return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
         }
     }
 
