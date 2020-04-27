@@ -46,7 +46,7 @@ import org.mockito.quality.Strictness;
 
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
-public class PinUntilErrorChannelTest {
+public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @Mock
     private LimitedChannel channel1;
@@ -57,8 +57,8 @@ public class PinUntilErrorChannelTest {
     @Mock
     private Ticker clock;
 
-    private PinUntilErrorChannel pinUntilErrorWithoutReshuffle;
-    private PinUntilErrorChannel pinUntilError;
+    private PinUntilErrorNodeSelectionStrategyChannel pinUntilErrorWithoutReshuffle;
+    private PinUntilErrorNodeSelectionStrategyChannel pinUntilError;
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
     private String channelName = "channelName";
     private Random pseudo = new Random(12893712L);
@@ -67,12 +67,15 @@ public class PinUntilErrorChannelTest {
     public void before() {
         ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
 
-        PinUntilErrorChannel.ConstantNodeList constantList = new PinUntilErrorChannel.ConstantNodeList(channels);
-        PinUntilErrorChannel.ReshufflingNodeList shufflingList =
-                PinUntilErrorChannel.ReshufflingNodeList.of(channels, pseudo, clock, metrics, channelName);
+        PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList constantList =
+                new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(channels);
+        PinUntilErrorNodeSelectionStrategyChannel.ReshufflingNodeList shufflingList =
+                PinUntilErrorNodeSelectionStrategyChannel.ReshufflingNodeList.of(
+                        channels, pseudo, clock, metrics, channelName);
 
-        pinUntilErrorWithoutReshuffle = new PinUntilErrorChannel(constantList, 1, metrics, channelName);
-        pinUntilError = new PinUntilErrorChannel(shufflingList, 1, metrics, channelName);
+        pinUntilErrorWithoutReshuffle =
+                new PinUntilErrorNodeSelectionStrategyChannel(constantList, 1, metrics, channelName);
+        pinUntilError = new PinUntilErrorNodeSelectionStrategyChannel(shufflingList, 1, metrics, channelName);
     }
 
     @Test
@@ -192,7 +195,7 @@ public class PinUntilErrorChannelTest {
 
     @Test
     void handles_reconstruction_from_stale_state() {
-        PinUntilErrorChannel.of(
+        PinUntilErrorNodeSelectionStrategyChannel.of(
                 Optional.empty(),
                 NodeSelectionStrategy.PIN_UNTIL_ERROR,
                 ImmutableList.of(channel1, channel2),
@@ -201,7 +204,7 @@ public class PinUntilErrorChannelTest {
                 channelName);
     }
 
-    private static int getCode(PinUntilErrorChannel channel) {
+    private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
         try {
             ListenableFuture<Response> future = channel.maybeExecute(null, null).get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
