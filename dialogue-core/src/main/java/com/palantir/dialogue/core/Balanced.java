@@ -122,7 +122,7 @@ final class Balanced implements LimitedChannel {
          * <code>SimulationTest.fast_503s_then_revert</code>.
          */
         @VisibleForTesting
-        final LockFreeTimeWindowReservoir recentFailures;
+        final CoarseExponentialDecay recentFailures;
 
         // Saves one allocation on each network call
         private final FutureCallback<Response> updateStats = new FutureCallback<Response>() {
@@ -130,25 +130,25 @@ final class Balanced implements LimitedChannel {
             public void onSuccess(Response result) {
                 inflight.decrementAndGet();
                 if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                    recentFailures.mark();
+                    recentFailures.update(1);
                 }
             }
 
             @Override
             public void onFailure(Throwable _throwable) {
                 inflight.decrementAndGet();
-                recentFailures.mark();
+                recentFailures.update(1);
             }
         };
 
         ChannelWithStats(LimitedChannel delegate, Ticker clock) {
             this.delegate = delegate;
-            this.recentFailures = new LockFreeTimeWindowReservoir(FAILURE_MEMORY, 100, clock);
+            this.recentFailures = new CoarseExponentialDecay(clock::read, FAILURE_MEMORY);
         }
 
         /** Low = good. */
         long score() {
-            return inflight.get() + recentFailures.size();
+            return inflight.get() + (long) recentFailures.get();
         }
 
         @Override
