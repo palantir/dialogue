@@ -31,6 +31,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Stream;
@@ -61,7 +63,8 @@ class BalancedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new BalancedChannel(ImmutableList.of(chan1, chan2), random, clock);
+        channel = new BalancedChannel(
+                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
     }
 
     @Test
@@ -101,20 +104,24 @@ class BalancedChannelTest {
 
     @Test
     void sorting() {
-        BalancedChannel.MutableChannelWithStats chan100 = new BalancedChannel.MutableChannelWithStats(chan1, clock);
+        BalancedChannel.MutableChannelWithStats chan100 =
+                new BalancedChannel.MutableChannelWithStats(chan1, clock, BalancedChannel.NoOp.INSTANCE);
         chan100.inflight.set(100);
-        BalancedChannel.MutableChannelWithStats chan100failed = new BalancedChannel.MutableChannelWithStats(chan1, clock);
+        BalancedChannel.MutableChannelWithStats chan100failed =
+                new BalancedChannel.MutableChannelWithStats(chan1, clock, BalancedChannel.NoOp.INSTANCE);
         chan100failed.inflight.set(100);
         chan100failed.recentFailures.update(1);
-        BalancedChannel.MutableChannelWithStats chan50 = new BalancedChannel.MutableChannelWithStats(chan1, clock);
+        BalancedChannel.MutableChannelWithStats chan50 =
+                new BalancedChannel.MutableChannelWithStats(chan1, clock, BalancedChannel.NoOp.INSTANCE);
         chan50.inflight.set(50);
         chan50.recentFailures.update(1);
-        BalancedChannel.MutableChannelWithStats chan101 = new BalancedChannel.MutableChannelWithStats(chan1, clock);
+        BalancedChannel.MutableChannelWithStats chan101 =
+                new BalancedChannel.MutableChannelWithStats(chan1, clock, BalancedChannel.NoOp.INSTANCE);
         chan101.inflight.set(101);
 
         assertThat(Stream.of(chan100failed, chan100, chan50, chan101)
                         .map(c -> c.immutableSnapshot())
-                        .sorted(BalancedChannel.RANKING_HEURISTIC)
+                        .sorted(Comparator.comparingLong(BalancedChannel.SortableChannel::getHeuristicLong))
                         .map(c -> c.delegate))
                 .describedAs("Failures are considered very bad")
                 .containsExactly(chan50, chan100, chan101, chan100failed);

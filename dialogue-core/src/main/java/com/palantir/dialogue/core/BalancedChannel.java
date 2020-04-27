@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -27,6 +28,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,6 +38,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.ToLongFunction;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,12 +65,20 @@ final class BalancedChannel implements LimitedChannel {
     private final Random random;
     private final Ticker clock;
 
-    BalancedChannel(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
+    BalancedChannel(
+            ImmutableList<LimitedChannel> channels,
+            Random random,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics,
+            String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.channels = channels.stream()
-                .map(channel -> new MutableChannelWithStats(channel, clock))
+        this.channels = IntStream.range(0, channels.size())
+                .mapToObj(index -> new MutableChannelWithStats(
+                        channels.get(index),
+                        clock,
+                        PerHostObservability.create(channels, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
@@ -111,6 +122,8 @@ final class BalancedChannel implements LimitedChannel {
         @VisibleForTesting
         final CoarseExponentialDecay recentFailures;
 
+        private final PerHostObservability observability;
+
         // Saves one allocation on each network call
         private final FutureCallback<Response> updateStats = new FutureCallback<Response>() {
             @Override
@@ -128,9 +141,10 @@ final class BalancedChannel implements LimitedChannel {
             }
         };
 
-        MutableChannelWithStats(LimitedChannel delegate, Ticker clock) {
+        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailures = new CoarseExponentialDecay(clock::read, FAILURE_MEMORY);
+            this.observability = observability;
         }
 
         @Override
@@ -139,6 +153,7 @@ final class BalancedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 DialogueFutures.addDirectCallback(maybe.get(), updateStats);
+                observability.markRequestMade();
             } else {
                 inflight.decrementAndGet(); // quickly undo
             }
@@ -182,5 +197,41 @@ final class BalancedChannel implements LimitedChannel {
         public String toString() {
             return "SortableChannel{heuristicLong=" + heuristicLong + ", delegate=" + delegate + '}';
         }
+    }
+
+    interface PerHostObservability {
+        static PerHostObservability create(
+                ImmutableList<LimitedChannel> channels,
+                TaggedMetricRegistry taggedMetrics,
+                String channelName,
+                int index) {
+            if (channels.size() >= 10) {
+                // hard limit ensures we don't create unbounded tags
+                return NoOp.INSTANCE;
+            }
+
+            // pre-creating meters avoids allocating builders on hot codepaths
+            Meter meter = DialogueRoundrobinMetrics.of(taggedMetrics)
+                    .success()
+                    .channelName(channelName)
+                    .hostIndex(Integer.toString(index))
+                    .build();
+            return new PerHostObservability() {
+                @Override
+                public void markRequestMade() {
+                    meter.mark();
+                }
+            };
+        }
+
+        void markRequestMade();
+    }
+
+    @VisibleForTesting
+    enum NoOp implements PerHostObservability {
+        INSTANCE;
+
+        @Override
+        public void markRequestMade() {}
     }
 }
