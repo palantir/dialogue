@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -110,16 +109,14 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final FutureCallback<Response> updateStats;
         private final PerHostObservability observability;
 
-        @VisibleForTesting
-        final AtomicInteger inflight = new AtomicInteger(0);
+        private final AtomicInteger inflight = new AtomicInteger(0);
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
          * errors much faster than healthy nodes can serve good responses. See
          * <code>SimulationTest.fast_503s_then_revert</code>.
          */
-        @VisibleForTesting
-        final CoarseExponentialDecayReservoir recentFailuresReservoir;
+        private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
