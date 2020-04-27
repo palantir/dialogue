@@ -32,10 +32,8 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.util.Comparator;
 import java.util.Optional;
 import java.util.Random;
-import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -100,33 +98,6 @@ class BalancedNodeSelectionStrategyChannelTest {
         assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
         verify(chan1, times(1)).maybeExecute(any(), any());
         verify(chan2, times(1)).maybeExecute(any(), any());
-    }
-
-    @Test
-    void sorting() {
-        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan100 = newChannel();
-        chan100.inflight.set(100);
-        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan100failed = newChannel();
-        chan100failed.inflight.set(100);
-        chan100failed.recentFailures.update(1);
-        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan50 = newChannel();
-        chan50.inflight.set(50);
-        chan50.recentFailures.update(1);
-        BalancedNodeSelectionStrategyChannel.MutableChannelWithStats chan101 = newChannel();
-        chan101.inflight.set(101);
-
-        assertThat(Stream.of(chan100failed, chan100, chan50, chan101)
-                        .map(c -> c.immutableSnapshot())
-                        .sorted(Comparator.comparingLong(
-                                BalancedNodeSelectionStrategyChannel.SortableChannel::getScore))
-                        .map(c -> c.delegate))
-                .describedAs("Failures are considered very bad")
-                .containsExactly(chan50, chan100, chan101, chan100failed);
-    }
-
-    private BalancedNodeSelectionStrategyChannel.MutableChannelWithStats newChannel() {
-        return new BalancedNodeSelectionStrategyChannel.MutableChannelWithStats(
-                chan1, clock, BalancedNodeSelectionStrategyChannel.NoOp.INSTANCE);
     }
 
     private static void set200(LimitedChannel chan) {

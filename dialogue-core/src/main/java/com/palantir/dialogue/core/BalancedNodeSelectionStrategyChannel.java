@@ -58,8 +58,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
-    @VisibleForTesting
-    static final ToLongFunction<MutableChannelWithStats> RANKING_HEURISTIC = channel -> {
+    private static final ToLongFunction<MutableChannelWithStats> RANKING_HEURISTIC = channel -> {
         return channel.inflight.get() + 10 * (long) channel.recentFailures.get();
     };
 
@@ -111,8 +110,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return mutableList;
     }
 
-    static final class MutableChannelWithStats implements LimitedChannel {
+    private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
+        private final FutureCallback<Response> updateStats;
+        private final PerHostObservability observability;
 
         @VisibleForTesting
         final AtomicInteger inflight = new AtomicInteger(0);
@@ -125,29 +126,28 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @VisibleForTesting
         final CoarseExponentialDecayReservoir recentFailures;
 
-        private final PerHostObservability observability;
-
-        // Saves one allocation on each network call
-        private final FutureCallback<Response> updateStats = new FutureCallback<Response>() {
-            @Override
-            public void onSuccess(Response result) {
-                inflight.decrementAndGet();
-                if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                    recentFailures.update(1);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable _throwable) {
-                inflight.decrementAndGet();
-                recentFailures.update(1);
-            }
-        };
-
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailures = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
+            // Saves one allocation on each network call
+            this.updateStats = new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    inflight.decrementAndGet();
+                    if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                        recentFailures.update(1);
+                        observability.debugLogStatusFailure(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    inflight.decrementAndGet();
+                    recentFailures.update(1);
+                    observability.debugLogThrowableFailure(recentFailures, throwable);
+                }
+            };
         }
 
         @Override
@@ -181,11 +181,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    static final class SortableChannel {
+    private static final class SortableChannel {
         private final long score;
-
-        @VisibleForTesting
-        final MutableChannelWithStats delegate;
+        private final MutableChannelWithStats delegate;
 
         SortableChannel(long score, MutableChannelWithStats delegate) {
             this.score = score;
@@ -196,21 +194,62 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return score;
         }
 
+        @VisibleForTesting
+        MutableChannelWithStats getDelegate() {
+            return delegate;
+        }
+
         @Override
         public String toString() {
             return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
         }
     }
 
-    interface PerHostObservability {
+    private abstract static class PerHostObservability {
+        private final SafeArg<String> channelName;
+        private final SafeArg<Integer> hostIndex;
+
+        PerHostObservability(String channelName, int hostIndex) {
+            this.channelName = SafeArg.of("channelName", channelName);
+            this.hostIndex = SafeArg.of("hostIndex", hostIndex);
+        }
+
+        abstract void markRequestMade();
+
+        void debugLogThrowableFailure(CoarseExponentialDecayReservoir reservoir, Throwable throwable) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (throwable)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("recentFailures", reservoir.get()),
+                        throwable);
+            }
+        }
+
+        void debugLogStatusFailure(Response response) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (status)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("status", response.code()));
+            }
+        }
+
         static PerHostObservability create(
                 ImmutableList<LimitedChannel> channels,
                 TaggedMetricRegistry taggedMetrics,
                 String channelName,
                 int index) {
+            // hard limit ensures we don't create unbounded tags
             if (channels.size() > 10) {
-                // hard limit ensures we don't create unbounded tags
-                return NoOp.INSTANCE;
+                return new PerHostObservability(channelName, index) {
+                    @Override
+                    void markRequestMade() {
+                        // noop
+                    }
+                };
             }
 
             // pre-creating meters avoids allocating builders on hot codepaths
@@ -219,23 +258,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     .channelName(channelName)
                     .hostIndex(Integer.toString(index))
                     .build();
-            return new PerHostObservability() {
+            return new PerHostObservability(channelName, index) {
                 @Override
                 public void markRequestMade() {
                     meter.mark();
                 }
             };
         }
-
-        void markRequestMade();
-    }
-
-    @VisibleForTesting
-    enum NoOp implements PerHostObservability {
-        INSTANCE;
-
-        @Override
-        public void markRequestMade() {}
     }
 
     private static void registerGauges(
