@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.ToLongFunction;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -53,9 +54,9 @@ final class Balanced implements LimitedChannel {
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
     @VisibleForTesting
-    static final Comparator<ChannelStats> RANKING_HEURISTIC = Comparator.comparing(channel -> {
-        return channel.inflight + 10 * (long) channel.recentFailures;
-    });
+    static final ToLongFunction<MutableChannelWithStats> RANKING_HEURISTIC = channel -> {
+        return channel.inflight.get() + 10 * (long) channel.recentFailures.get();
+    };
 
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
@@ -82,7 +83,7 @@ final class Balanced implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::immutableSnapshot) // necessary for safe sorting
-                .sorted(RANKING_HEURISTIC)
+                .sorted(Comparator.comparingLong(SortableChannel::getHeuristicLong))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -144,8 +145,9 @@ final class Balanced implements LimitedChannel {
             return maybe;
         }
 
-        ChannelStats immutableSnapshot() {
-            return new ChannelStats(inflight.get(), recentFailures.get(), this);
+        SortableChannel immutableSnapshot() {
+            long score = RANKING_HEURISTIC.applyAsLong(this);
+            return new SortableChannel(score, this);
         }
 
         @Override
@@ -161,25 +163,24 @@ final class Balanced implements LimitedChannel {
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    static final class ChannelStats {
-        private final long inflight;
-        private final int recentFailures;
+    static final class SortableChannel {
+        private final long heuristicLong;
 
         @VisibleForTesting
         final MutableChannelWithStats delegate;
 
-        ChannelStats(long inflight, int recentFailures, MutableChannelWithStats delegate) {
-            this.inflight = inflight;
-            this.recentFailures = recentFailures;
+        SortableChannel(long heuristicLong, MutableChannelWithStats delegate) {
+            this.heuristicLong = heuristicLong;
             this.delegate = delegate;
+        }
+
+        public long getHeuristicLong() {
+            return heuristicLong;
         }
 
         @Override
         public String toString() {
-            return "ChannelStats{inflight="
-                    + inflight + ", recentFailures="
-                    + recentFailures + ", delegate="
-                    + delegate + '}';
+            return "SortableChannel{heuristicLong=" + heuristicLong + ", delegate=" + delegate + '}';
         }
     }
 }
