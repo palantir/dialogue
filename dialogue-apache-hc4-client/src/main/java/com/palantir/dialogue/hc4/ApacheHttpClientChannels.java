@@ -24,6 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueInternalWeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -47,6 +48,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
@@ -121,21 +123,24 @@ public final class ApacheHttpClientChannels {
             TaggedMetricRegistry taggedMetrics,
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
-        WeakSummingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.getOrCreate(
+                taggedMetrics,
+                clientPoolSizeMetricName(clientName, "idle"),
                 pool -> pool.getTotalStats().getAvailable(),
-                connectionManager,
+                LongStream::sum,
+                connectionManager);
+        DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "idle"));
-        WeakSummingGauge.getOrCreate(
+                clientPoolSizeMetricName(clientName, "leased"),
                 pool -> pool.getTotalStats().getLeased(),
-                connectionManager,
+                LongStream::sum,
+                connectionManager);
+        DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "leased"));
-        WeakSummingGauge.getOrCreate(
+                clientPoolSizeMetricName(clientName, "pending"),
                 pool -> pool.getTotalStats().getPending(),
-                connectionManager,
-                taggedMetrics,
-                clientPoolSizeMetricName(clientName, "pending"));
+                LongStream::sum,
+                connectionManager);
     }
 
     private static MetricName clientPoolSizeMetricName(String clientName, String state) {

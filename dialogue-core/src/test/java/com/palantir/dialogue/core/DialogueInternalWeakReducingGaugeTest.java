@@ -14,40 +14,53 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 
-public class WeakSummingGaugeTest {
+public class DialogueInternalWeakReducingGaugeTest {
     @Test
     public void empty_initially() {
-        WeakSummingGauge<String> gauge = new WeakSummingGauge<>(String::length);
-        assertThat(gauge.getValue()).isEqualTo(0);
+        DialogueInternalWeakReducingGauge<String> gauge =
+                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
+        assertThat(gauge.getValue()).isEqualTo(0L);
     }
 
     @Test
     public void sums_correctly() {
-        WeakSummingGauge<String> gauge = new WeakSummingGauge<>(String::length);
+        DialogueInternalWeakReducingGauge<String> gauge =
+                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
         gauge.add("Hello");
         gauge.add("World");
-        assertThat(gauge.getValue()).isEqualTo(10);
+        assertThat(gauge.getValue()).isEqualTo(10L);
+    }
+
+    @Test
+    public void can_pass_alternative_reducing_functions() {
+        DialogueInternalWeakReducingGauge<String> gauge = new DialogueInternalWeakReducingGauge<>(
+                String::length, longStream -> longStream.max().orElse(0));
+        gauge.add("Fooooooooooo");
+        gauge.add("bar");
+        assertThat(gauge.getValue()).isEqualTo(12L);
     }
 
     @Test
     public void source_items_deleted_when_no_remaining_references_and_gc() {
         class SomeObject {}
 
-        WeakSummingGauge<SomeObject> gauge = new WeakSummingGauge<>(item -> 1);
+        DialogueInternalWeakReducingGauge<SomeObject> gauge =
+                new DialogueInternalWeakReducingGauge<>(item -> 1, LongStream::sum);
         gauge.add(new SomeObject());
         gauge.add(new SomeObject());
         SomeObject preserve = new SomeObject();
         gauge.add(preserve);
-        assertThat(gauge.getValue()).isEqualTo(3);
+        assertThat(gauge.getValue()).isEqualTo(3L);
 
         System.gc();
 
-        assertThat(gauge.getValue()).isEqualTo(1);
+        assertThat(gauge.getValue()).isEqualTo(1L);
     }
 }

@@ -196,7 +196,8 @@ public final class DialogueChannel implements Channel {
             case ROUND_ROBIN:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return new BalancedNodeSelectionStrategyChannel(channels, random, tick);
+                return new BalancedNodeSelectionStrategyChannel(
+                        channels, random, tick, config.taggedMetricRegistry(), channelName);
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));

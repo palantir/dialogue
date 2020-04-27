@@ -91,7 +91,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                         .isZero();
                 assertThat(poolGaugeValue(metrics, "testClient", "leased"))
                         .describedAs("leased")
-                        .isEqualTo(1);
+                        .isEqualTo(1L);
             }
 
             assertThat(poolGaugeValue(metrics, "testClient", "idle"))
@@ -103,7 +103,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         }
     }
 
-    private int poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
+    private long poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
         Metric gauge = metrics.getMetrics().entrySet().stream()
                 .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))
                 .filter(entry -> clientName.equals(entry.getKey().safeTags().get("client-name")))
@@ -112,7 +112,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 .collect(MoreCollectors.onlyElement());
         assertThat(gauge).isInstanceOf(Gauge.class);
         Object value = ((Gauge<?>) gauge).getValue();
-        assertThat(value).isInstanceOf(Integer.class);
-        return (int) value;
+        assertThat(value).isInstanceOf(Long.class);
+        return (long) value;
     }
 }

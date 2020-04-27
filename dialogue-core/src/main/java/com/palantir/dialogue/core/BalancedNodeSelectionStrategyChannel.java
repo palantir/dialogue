@@ -16,8 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -27,14 +27,18 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,23 +56,27 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
 
-    @VisibleForTesting
-    static final Comparator<ChannelStats> RANKING_HEURISTIC = Comparator.comparing(channel -> {
-        return channel.inflight + 10 * (long) channel.recentFailures;
-    });
-
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
 
-    BalancedNodeSelectionStrategyChannel(ImmutableList<LimitedChannel> channels, Random random, Ticker ticker) {
+    BalancedNodeSelectionStrategyChannel(
+            ImmutableList<LimitedChannel> channels,
+            Random random,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics,
+            String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.channels = channels.stream()
-                .map(channel -> new MutableChannelWithStats(channel, clock))
+        this.channels = IntStream.range(0, channels.size())
+                .mapToObj(index -> new MutableChannelWithStats(
+                        channels.get(index),
+                        clock,
+                        PerHostObservability.create(channels, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
+        registerGauges(taggedMetrics, channelName, this.channels);
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
 
@@ -81,8 +89,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
-                .map(MutableChannelWithStats::immutableSnapshot) // necessary for safe sorting
-                .sorted(RANKING_HEURISTIC)
+                .map(MutableChannelWithStats::computeScore)
+                .sorted(Comparator.comparingInt(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -96,40 +104,42 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return mutableList;
     }
 
-    static final class MutableChannelWithStats implements LimitedChannel {
+    private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
+        private final FutureCallback<Response> updateStats;
+        private final PerHostObservability observability;
 
-        @VisibleForTesting
-        final AtomicInteger inflight = new AtomicInteger(0);
+        private final AtomicInteger inflight = new AtomicInteger(0);
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
          * errors much faster than healthy nodes can serve good responses. See
          * <code>SimulationTest.fast_503s_then_revert</code>.
          */
-        @VisibleForTesting
-        final CoarseExponentialDecayReservoir recentFailures;
+        private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        // Saves one allocation on each network call
-        private final FutureCallback<Response> updateStats = new FutureCallback<Response>() {
-            @Override
-            public void onSuccess(Response result) {
-                inflight.decrementAndGet();
-                if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                    recentFailures.update(1);
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable _throwable) {
-                inflight.decrementAndGet();
-                recentFailures.update(1);
-            }
-        };
-
-        MutableChannelWithStats(LimitedChannel delegate, Ticker clock) {
+        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
-            this.recentFailures = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
+            this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
+            this.observability = observability;
+            // Saves one allocation on each network call
+            this.updateStats = new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    inflight.decrementAndGet();
+                    if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                        recentFailuresReservoir.update(1);
+                        observability.debugLogStatusFailure(response);
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    inflight.decrementAndGet();
+                    recentFailuresReservoir.update(1);
+                    observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
+                }
+            };
         }
 
         @Override
@@ -138,21 +148,28 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 DialogueFutures.addDirectCallback(maybe.get(), updateStats);
+                observability.markRequestMade();
             } else {
                 inflight.decrementAndGet(); // quickly undo
             }
             return maybe;
         }
 
-        ChannelStats immutableSnapshot() {
-            return new ChannelStats(inflight.get(), recentFailures.get(), this);
+        SortableChannel computeScore() {
+            int requestsInflight = inflight.get();
+            int recentFailures = recentFailuresReservoir.get();
+
+            int score = requestsInflight + 10 * recentFailures;
+
+            observability.debugLogComputedScore(requestsInflight, recentFailures, score);
+            return new SortableChannel(score, this);
         }
 
         @Override
         public String toString() {
             return "MutableChannelWithStats{inflight="
                     + inflight + ", recentFailures="
-                    + recentFailures + ", delegate="
+                    + recentFailuresReservoir + ", delegate="
                     + delegate + '}';
         }
     }
@@ -161,25 +178,130 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    static final class ChannelStats {
-        private final long inflight;
-        private final int recentFailures;
+    private static final class SortableChannel {
+        private final int score;
+        private final MutableChannelWithStats delegate;
 
-        @VisibleForTesting
-        final MutableChannelWithStats delegate;
-
-        ChannelStats(long inflight, int recentFailures, MutableChannelWithStats delegate) {
-            this.inflight = inflight;
-            this.recentFailures = recentFailures;
+        SortableChannel(int score, MutableChannelWithStats delegate) {
+            this.score = score;
             this.delegate = delegate;
+        }
+
+        int getScore() {
+            return score;
         }
 
         @Override
         public String toString() {
-            return "ChannelStats{inflight="
-                    + inflight + ", recentFailures="
-                    + recentFailures + ", delegate="
-                    + delegate + '}';
+            return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
+        }
+    }
+
+    private static void registerGauges(
+            TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableChannelWithStats> channels) {
+        if (channels.size() > 10) {
+            log.info("Not registering gauges as there are too many nodes", SafeArg.of("count", channels.size()));
+            return;
+        }
+
+        for (int hostIndex = 0; hostIndex < channels.size(); hostIndex++) {
+            MetricName metricName = MetricName.builder()
+                    .safeName("dialogue.balanced.score")
+                    .putSafeTags("channel-name", channelName)
+                    .putSafeTags("hostIndex", Integer.toString(hostIndex))
+                    .build();
+            // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
+            // Defensive averaging for the possibility that people create multiple channels with the same channelName.
+            DialogueInternalWeakReducingGauge.getOrCreate(
+                    taggedMetrics,
+                    metricName,
+                    c -> c.computeScore().getScore(),
+                    longStream -> {
+                        long[] longs = longStream.toArray();
+                        if (longs.length > 1) {
+                            log.warn(
+                                    "Multiple objects contribute to the same gauge, taking the average "
+                                            + "(beware this may be misleading)",
+                                    SafeArg.of("metricName", metricName),
+                                    SafeArg.of("values", Arrays.toString(longs)));
+                        }
+                        return Arrays.stream(longs).average().orElse(0);
+                    },
+                    channels.get(hostIndex));
+        }
+    }
+
+    private abstract static class PerHostObservability {
+        private final SafeArg<String> channelName;
+        private final SafeArg<Integer> hostIndex;
+
+        PerHostObservability(String channelName, int hostIndex) {
+            this.channelName = SafeArg.of("channelName", channelName);
+            this.hostIndex = SafeArg.of("hostIndex", hostIndex);
+        }
+
+        abstract void markRequestMade();
+
+        void debugLogThrowableFailure(CoarseExponentialDecayReservoir reservoir, Throwable throwable) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (throwable)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("recentFailures", reservoir.get()),
+                        throwable);
+            }
+        }
+
+        void debugLogStatusFailure(Response response) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (status)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("status", response.code()));
+            }
+        }
+
+        void debugLogComputedScore(int inflight, int failures, int score) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Computed score",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("score", score),
+                        SafeArg.of("inflight", inflight),
+                        SafeArg.of("failures", failures));
+            }
+        }
+
+        static PerHostObservability create(
+                ImmutableList<LimitedChannel> channels,
+                TaggedMetricRegistry taggedMetrics,
+                String channelName,
+                int index) {
+            // hard limit ensures we don't create unbounded tags
+            if (channels.size() > 10) {
+                return new PerHostObservability(channelName, index) {
+                    @Override
+                    void markRequestMade() {
+                        // noop
+                    }
+                };
+            }
+
+            // pre-creating meters avoids allocating builders on hot codepaths
+            Meter meter = DialogueRoundrobinMetrics.of(taggedMetrics)
+                    .success()
+                    .channelName(channelName)
+                    .hostIndex(Integer.toString(index))
+                    .build();
+            return new PerHostObservability(channelName, index) {
+                @Override
+                public void markRequestMade() {
+                    meter.mark();
+                }
+            };
         }
     }
 }

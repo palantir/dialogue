@@ -63,7 +63,7 @@ namespaces:
       success:
         type: meter
         tags: [channel-name, hostIndex]
-        docs: Meter of the requests that were successfully, tagged by the index of the inner channel. (Note if there are >10 nodes this metric will not be recorded).
+        docs: Meter of the requests that were successfully made, tagged by the index of the inner channel. (Note if there are >10 nodes this metric will not be recorded).
       nextNode:
         type: meter
         tags: [channel-name, reason]
@@ -72,3 +72,22 @@ namespaces:
         tags: [channel-name]
         type: meter
         docs: Marked every time we reshuffle all the nodes.
+
+  dialogue.roundrobin:
+    docs: Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel).
+    metrics:
+      success:
+        type: meter
+        tags: [channel-name, hostIndex]
+        docs: Meter of the requests that were successfully made, tagged by the index of the host. (Note if there are >10
+          nodes this metric will not be recorded).
+
+  dialogue.balanced:
+    docs: Instrumentation for BalancedChannel internals.
+    metrics:
+      score:
+        type: gauge
+        tags: [channel-name, hostIndex]
+        docs: The score that the BalancedChannel currently assigns to each host (computed based on inflight requests and
+          recent failures). Requests are routed to the channel with the lowest score. (Note if there are >10 nodes this
+          metric will not be recorded).
