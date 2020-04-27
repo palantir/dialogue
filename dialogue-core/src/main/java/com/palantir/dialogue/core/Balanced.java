@@ -27,6 +27,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -121,9 +122,13 @@ final class Balanced implements LimitedChannel {
             }
 
             @Override
-            public void onFailure(Throwable _throwable) {
-                inflight.decrementAndGet();
-                recentFailures.update(1);
+            public void onFailure(Throwable throwable) {
+                // Only count IOExceptions toward failures to avoid limiting channel use based on
+                // programming errors (e.g. GET with a request body).
+                if (throwable instanceof IOException) {
+                    inflight.decrementAndGet();
+                    recentFailures.update(1);
+                }
             }
         };
 
