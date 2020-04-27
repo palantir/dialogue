@@ -92,6 +92,7 @@ class RunningTimersTest {
             this.ticker = ticker;
         }
 
+        @Override
         public RunningTimer start() {
             long currentNanos = ticker.read();
             Timer newTimer = new Timer(currentNanos);
@@ -99,6 +100,7 @@ class RunningTimersTest {
             return newTimer;
         }
 
+        @Override
         public long getRunningNanos() {
             long now = ticker.read();
             return timers.stream().mapToLong(timer -> now - timer.startTime).sum();

@@ -18,13 +18,23 @@ package com.palantir.dialogue.core;
 
 interface RunningTimers {
 
+    /**
+     * Starts a new conceptual 'timer', whose running time will be immediately reflected in the
+     * {@link #getRunningNanos()} function.
+     */
     RunningTimer start();
 
+    /** Returns the elapsed time summed across all running timers. */
     long getRunningNanos();
 
+    /** The number of running timers active right now. */
     int getCount();
 
     interface RunningTimer {
+        /**
+         * Call this exactly once to declare that we are done with this timer and it should no longer be reflected in
+         * the {@link #getRunningNanos()} sum.
+         */
         void stop();
     }
 }
