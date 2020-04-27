@@ -24,6 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.WeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -121,21 +122,24 @@ public final class ApacheHttpClientChannels {
             TaggedMetricRegistry taggedMetrics,
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
-        WeakSummingGauge.getOrCreate(
+        WeakReducingGauge.getOrCreate(
+                taggedMetrics,
+                clientPoolSizeMetricName(clientName, "idle"),
                 pool -> pool.getTotalStats().getAvailable(),
-                connectionManager,
+                Integer::sum,
+                connectionManager);
+        WeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "idle"));
-        WeakSummingGauge.getOrCreate(
+                clientPoolSizeMetricName(clientName, "leased"),
                 pool -> pool.getTotalStats().getLeased(),
-                connectionManager,
+                Integer::sum,
+                connectionManager);
+        WeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "leased"));
-        WeakSummingGauge.getOrCreate(
+                clientPoolSizeMetricName(clientName, "pending"),
                 pool -> pool.getTotalStats().getPending(),
-                connectionManager,
-                taggedMetrics,
-                clientPoolSizeMetricName(clientName, "pending"));
+                Integer::sum,
+                connectionManager);
     }
 
     private static MetricName clientPoolSizeMetricName(String clientName, String state) {

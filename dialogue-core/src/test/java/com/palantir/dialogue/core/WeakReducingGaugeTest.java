@@ -14,22 +14,23 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-public class WeakSummingGaugeTest {
+public class WeakReducingGaugeTest {
     @Test
     public void empty_initially() {
-        WeakSummingGauge<String> gauge = new WeakSummingGauge<>(String::length);
+        WeakReducingGauge<String> gauge = new WeakReducingGauge<>(String::length, Integer::sum);
         assertThat(gauge.getValue()).isEqualTo(0);
     }
 
     @Test
     public void sums_correctly() {
-        WeakSummingGauge<String> gauge = new WeakSummingGauge<>(String::length);
+        WeakReducingGauge<String> gauge = new WeakReducingGauge<>(String::length, Integer::sum);
         gauge.add("Hello");
         gauge.add("World");
         assertThat(gauge.getValue()).isEqualTo(10);
@@ -39,7 +40,7 @@ public class WeakSummingGaugeTest {
     public void source_items_deleted_when_no_remaining_references_and_gc() {
         class SomeObject {}
 
-        WeakSummingGauge<SomeObject> gauge = new WeakSummingGauge<>(item -> 1);
+        WeakReducingGauge<SomeObject> gauge = new WeakReducingGauge<>(item -> 1, Integer::sum);
         gauge.add(new SomeObject());
         gauge.add(new SomeObject());
         SomeObject preserve = new SomeObject();
@@ -51,3 +52,4 @@ public class WeakSummingGaugeTest {
         assertThat(gauge.getValue()).isEqualTo(1);
     }
 }
+
