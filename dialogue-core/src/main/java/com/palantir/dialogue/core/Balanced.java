@@ -117,9 +117,9 @@ final class Balanced implements LimitedChannel {
         final AtomicInteger inflight = new AtomicInteger(0);
 
         /**
-         * We keep track of failures within a time window to do well in scenaios where an unhealthy server returns
+         * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
          * errors much faster than healthy nodes can serve good responses. See
-         * {@link SimulationTest#fast_503s_then_revert}.
+         * <code>SimulationTest.fast_503s_then_revert</code>.
          */
         @VisibleForTesting
         final LockFreeTimeWindowReservoir recentFailures;
