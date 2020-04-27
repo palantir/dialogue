@@ -111,6 +111,26 @@ For example, the [UserAgentChannel](https://github.com/palantir/dialogue/blob/de
 
 _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
 
+## Behaviour
+
+### Concurrency Limits
+Each host has an [AIMD](https://en.wikipedia.org/wiki/Additive_increase/multiplicative_decrease) concurrency limit. This protects
+servers by stopping requests getting out the door on the client-side. Permits are multiplicatively decreased after
+receiving any 5xx, 429 or 308 response. Otherwise, they are additively increased.
+
+### NodeSelectionStrategy.ROUND_ROBIN
+Used to balance requests across many servers better than the
+default PIN_UNTIL_ERROR. The actual algorithm has evolved from naive Round Robin, then to Random Selection and now
+makes smarter decisions based on stats about each host (see
+[Balanced.java](dialogue-core/src/main/java/com/palantir/dialogue/core/Balanced.java)). This fixes a dramatic failure
+mode when a single server is very slow (this can be seen empirically in the simulations). Note that unlike concurrency limiters, this node selection strategy never *prevents* a request getting out the door,
+it just *ranks* hosts to try to deliver the best possive client-perceived response time (and success rate).
+
+Specifically, it keeps track of the number of in flight requests for each host, and also records every failure it sees for each host. A
+request is then routed to the the host with the lowest `inflight + 10*recent_failures`.
+
+The ROUND_ROBIN strategy is _not_ appropriate for transactional use cases where successive requests must land on the
+same node, and it's also not optimal for use-cases where there are many nodes and cache affinity is very important.
 
 ## Alternative HTTP clients
 
