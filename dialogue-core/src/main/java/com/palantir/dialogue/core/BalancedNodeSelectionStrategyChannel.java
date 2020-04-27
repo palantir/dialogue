@@ -37,7 +37,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -90,7 +89,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingInt(SortableChannel::getScore))
+                .sorted(Comparator.comparingLong(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -106,10 +105,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
-        private final FutureCallback<Response> updateStats;
         private final PerHostObservability observability;
 
-        private final AtomicInteger inflight = new AtomicInteger(0);
+        private final RunningTimers inflight;
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -120,48 +118,60 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
+            this.inflight = new RunningTimersLongImpl(clock);
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
-            // Saves one allocation on each network call
-            this.updateStats = new FutureCallback<Response>() {
-                @Override
-                public void onSuccess(Response response) {
-                    inflight.decrementAndGet();
-                    if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                        recentFailuresReservoir.update(1);
-                        observability.debugLogStatusFailure(response);
-                    }
-                }
-
-                @Override
-                public void onFailure(Throwable throwable) {
-                    inflight.decrementAndGet();
-                    recentFailuresReservoir.update(1);
-                    observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
-                }
-            };
         }
 
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            inflight.incrementAndGet();
+            RunningTimers.RunningTimer timer = inflight.start();
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                DialogueFutures.addDirectCallback(maybe.get(), updateStats);
+                DialogueFutures.addDirectCallback(maybe.get(), new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        timer.stop();
+                        if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                            recentFailuresReservoir.update(1);
+                            observability.debugLogStatusFailure(response);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        timer.stop();
+                        recentFailuresReservoir.update(1);
+                        observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
+                    }
+                });
                 observability.markRequestMade();
             } else {
-                inflight.decrementAndGet(); // quickly undo
+                timer.stop(); // quickly undo
             }
             return maybe;
         }
 
+        /**
+         * The gist of this heuristic is that we should be a lot more scared of a channel that has
+         * had a single request in flight for 10 minutes vs a channel with a single request in flight for 10ms.
+         *
+         * The {@link RunningTimers} class gives us an efficient way of keeping track of this (rather than just
+         * storing a set of codahale timers)! This gives us a value in nanoseconds, representing how much are we
+         * currently 'invested' in this channel.
+         */
         SortableChannel computeScore() {
-            int requestsInflight = inflight.get();
+            long nanosInflight = inflight.getRunningNanos();
             int recentFailures = recentFailuresReservoir.get();
 
-            int score = requestsInflight + 10 * recentFailures;
+            // To make the units make sense, the failure count has to be multiplied by some nanos. We can use the actual
+            // current observed inflight request time (which is probably an underestimate.
+            int countInflight = inflight.getCount();
+            long avgNanos = countInflight == 0 ? Duration.ofMillis(100).toNanos() : nanosInflight / countInflight;
 
-            observability.debugLogComputedScore(requestsInflight, recentFailures, score);
+            long score = nanosInflight + 10 * recentFailures * avgNanos;
+
+            observability.debugLogComputedScore(score, nanosInflight, countInflight, recentFailures);
             return new SortableChannel(score, this);
         }
 
@@ -179,15 +189,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     private static final class SortableChannel {
-        private final int score;
+        private final long score;
         private final MutableChannelWithStats delegate;
 
-        SortableChannel(int score, MutableChannelWithStats delegate) {
+        SortableChannel(long score, MutableChannelWithStats delegate) {
             this.score = score;
             this.delegate = delegate;
         }
 
-        int getScore() {
+        long getScore() {
             return score;
         }
 
@@ -263,14 +273,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, int failures, int score) {
+        void debugLogComputedScore(long score, long nanosInflight, int countInflight, int failures) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",
                         channelName,
                         hostIndex,
                         SafeArg.of("score", score),
-                        SafeArg.of("inflight", inflight),
+                        SafeArg.of("countInflight", countInflight),
+                        SafeArg.of("nanosInflight", nanosInflight),
                         SafeArg.of("failures", failures));
             }
         }
