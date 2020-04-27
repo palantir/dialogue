@@ -28,9 +28,11 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -81,6 +83,7 @@ final class BalancedChannel implements LimitedChannel {
                         PerHostObservability.create(channels, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
+        registerGauges(taggedMetrics, channelName, this.channels);
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
 
@@ -205,7 +208,7 @@ final class BalancedChannel implements LimitedChannel {
                 TaggedMetricRegistry taggedMetrics,
                 String channelName,
                 int index) {
-            if (channels.size() >= 10) {
+            if (channels.size() > 10) {
                 // hard limit ensures we don't create unbounded tags
                 return NoOp.INSTANCE;
             }
@@ -233,5 +236,39 @@ final class BalancedChannel implements LimitedChannel {
 
         @Override
         public void markRequestMade() {}
+    }
+
+    private static void registerGauges(
+            TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableChannelWithStats> channels) {
+        if (channels.size() > 10) {
+            log.info("Not registering gauges as there are too many nodes", SafeArg.of("count", channels.size()));
+            return;
+        }
+
+        for (int hostIndex = 0; hostIndex < channels.size(); hostIndex++) {
+            MetricName metricName = MetricName.builder()
+                    .safeName("dialogue.balanced.score")
+                    .putSafeTags("channel-name", channelName)
+                    .putSafeTags("hostIndex", Integer.toString(hostIndex))
+                    .build();
+            // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
+            // Defensive averaging for the possibility that people create multiple channels with the same channelName.
+            WeakReducingGauge.getOrCreate(
+                    taggedMetrics,
+                    metricName,
+                    RANKING_HEURISTIC,
+                    longStream -> {
+                        long[] longs = longStream.toArray();
+                        if (longs.length > 1) {
+                            log.warn(
+                                    "Multiple objects contribute to the same gauge, taking the average "
+                                            + "(beware this may be misleading)",
+                                    SafeArg.of("metricName", metricName),
+                                    SafeArg.of("values", Arrays.toString(longs)));
+                        }
+                        return Arrays.stream(longs).average().orElse(0);
+                    },
+                    channels.get(hostIndex));
+        }
     }
 }

@@ -23,8 +23,9 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
-import java.util.function.IntBinaryOperator;
-import java.util.function.ToIntFunction;
+import java.util.function.Function;
+import java.util.function.ToLongFunction;
+import java.util.stream.LongStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -34,16 +35,16 @@ import javax.annotation.concurrent.ThreadSafe;
  * the final summary integer. Similar to <code>WeakSummingGauge</code>.
  */
 @ThreadSafe
-public final class WeakReducingGauge<T> implements Gauge<Integer> {
-    private final ToIntFunction<T> gaugeFunction;
+public final class WeakReducingGauge<T> implements Gauge<Number> {
 
     @GuardedBy("this")
     private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
 
-    private final IntBinaryOperator operator;
+    private final ToLongFunction<T> gaugeFunction;
+    private final Function<LongStream, Number> operator;
 
     @VisibleForTesting
-    WeakReducingGauge(ToIntFunction<T> gaugeFunction, IntBinaryOperator reduceFunction) {
+    WeakReducingGauge(ToLongFunction<T> gaugeFunction, Function<LongStream, Number> reduceFunction) {
         this.gaugeFunction = gaugeFunction;
         this.operator = reduceFunction;
     }
@@ -54,19 +55,19 @@ public final class WeakReducingGauge<T> implements Gauge<Integer> {
     }
 
     @Override
-    public synchronized Integer getValue() {
-        return weakSet.stream().mapToInt(gaugeFunction).reduce(operator).orElse(0);
+    public synchronized Number getValue() {
+        return operator.apply(weakSet.stream().mapToLong(gaugeFunction));
     }
 
     public static <T> WeakReducingGauge<T> getOrCreate(
             TaggedMetricRegistry taggedMetricRegistry,
             MetricName metricName,
-            ToIntFunction<T> toIntFunction,
-            IntBinaryOperator reducingFunction,
+            ToLongFunction<T> toLongFunc,
+            Function<LongStream, Number> reducingFunction,
             T initialObject) {
         // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
         WeakReducingGauge<T> gauge = (WeakReducingGauge<T>)
-                taggedMetricRegistry.gauge(metricName, new WeakReducingGauge<>(toIntFunction, reducingFunction));
+                taggedMetricRegistry.gauge(metricName, new WeakReducingGauge<>(toLongFunc, reducingFunction));
         gauge.add(initialObject);
         return gauge;
     }

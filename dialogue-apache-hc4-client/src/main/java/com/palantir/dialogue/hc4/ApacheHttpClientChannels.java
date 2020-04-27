@@ -48,6 +48,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
 import org.apache.http.Header;
@@ -126,19 +127,19 @@ public final class ApacheHttpClientChannels {
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "idle"),
                 pool -> pool.getTotalStats().getAvailable(),
-                Integer::sum,
+                LongStream::sum,
                 connectionManager);
         WeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "leased"),
                 pool -> pool.getTotalStats().getLeased(),
-                Integer::sum,
+                LongStream::sum,
                 connectionManager);
         WeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "pending"),
                 pool -> pool.getTotalStats().getPending(),
-                Integer::sum,
+                LongStream::sum,
                 connectionManager);
     }
 
