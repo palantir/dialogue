@@ -91,7 +91,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingLong(SortableChannel::getScore))
+                .sorted(Comparator.comparingInt(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -162,7 +162,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int requestsInflight = inflight.get();
             int recentFailures = recentFailuresReservoir.get();
 
-            long score = requestsInflight + 10 * recentFailures;
+            int score = requestsInflight + 10 * recentFailures;
 
             observability.debugLogComputedScore(requestsInflight, recentFailures, score);
             return new SortableChannel(score, this);
@@ -182,15 +182,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     private static final class SortableChannel {
-        private final long score;
+        private final int score;
         private final MutableChannelWithStats delegate;
 
-        SortableChannel(long score, MutableChannelWithStats delegate) {
+        SortableChannel(int score, MutableChannelWithStats delegate) {
             this.score = score;
             this.delegate = delegate;
         }
 
-        long getScore() {
+        int getScore() {
             return score;
         }
 
@@ -266,7 +266,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, int failures, long score) {
+        void debugLogComputedScore(int inflight, int failures, int score) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",
