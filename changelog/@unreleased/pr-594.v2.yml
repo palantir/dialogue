@@ -1,0 +1,9 @@
+type: improvement
+improvement:
+  description: Promote smile encoding to be preferred over json response encoding for more efficient and compat serialization.
+  While our existing infrastructure applies gzip content-compression to responses, the smile format removes the need for
+  CPU-expensive gzip compression in many cases, and allows the compressor to focus on the dynamic data (patterns in the values)
+  in responses that still exceed the compression threshold.
+  In practice we've seen SMILE encoding offer 50% increases in end-to-end performance when large structured objects are involved.
+  links:
+  - https://github.com/palantir/dialogue/pull/594
