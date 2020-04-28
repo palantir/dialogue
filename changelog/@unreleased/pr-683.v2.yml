@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: The Round Robin node selection strategy is now slightly more CPU efficient
+    because it employs a 'power of 2 choices' comparison rather than sorting the entire
+    list of nodes.
+  links:
+  - https://github.com/palantir/dialogue/pull/683
