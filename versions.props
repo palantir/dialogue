@@ -14,7 +14,7 @@ com.palantir.tracing:* = 4.4.0
 com.palantir.tritium:* = 0.16.8
 com.uber.nullaway:nullaway = 0.7.9
 io.dropwizard.metrics:metrics-core = 3.2.6
-org.immutables:* = 2.8.3
+org.immutables:* = 2.8.6
 org.slf4j:* = 1.7.30
 org.apache.httpcomponents:httpclient = 4.5.12
 
