@@ -50,6 +50,11 @@ final class RunningTimersLongImpl implements RunningTimers {
         return count;
     }
 
+    @Override
+    public String toString() {
+        return "RunningTimersLongImpl{" + "count=" + count + ", runningNanos=" + getRunningNanos() + '}';
+    }
+
     private class Timer implements RunningTimer {
         private final long creationTime;
 

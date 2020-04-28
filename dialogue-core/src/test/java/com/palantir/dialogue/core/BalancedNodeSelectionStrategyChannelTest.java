@@ -32,6 +32,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
@@ -72,6 +73,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         when(chan2.maybeExecute(any(), any())).thenReturn(Optional.of(settableFuture));
 
         for (int i = 0; i < 200; i++) {
+            when(clock.read()).thenReturn(Duration.ofMillis(i).toNanos());
             channel.maybeExecute(endpoint, request);
         }
         verify(chan1, times(199)).maybeExecute(any(), any());
