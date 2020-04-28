@@ -16,12 +16,13 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
+import java.util.List;
 
-public interface SelectionStrategySelector {
-    DialogueNodeSelectionStrategy get();
+public interface NodeSelectionStrategySelector {
+    DialogueNodeSelectionStrategy getCurrentStrategy();
 
-    DialogueNodeSelectionStrategy updateAndGet(LimitedChannel channel, String strategyUpdate);
+    DialogueNodeSelectionStrategy updateChannelStrategy(
+            LimitedChannel channel, List<DialogueNodeSelectionStrategy> updatedStrategies);
 
-    DialogueNodeSelectionStrategy updateAndGet(ImmutableList<LimitedChannel> channels);
+    DialogueNodeSelectionStrategy setActiveChannels(List<LimitedChannel> channels);
 }

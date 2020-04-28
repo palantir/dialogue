@@ -16,13 +16,32 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.util.List;
 
 public enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,
     UNKNOWN;
+
+    static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
+        return Splitter.on(";").splitToList(header).stream()
+                .map(DialogueNodeSelectionStrategy::safeValueOf)
+                .collect(ImmutableList.toImmutableList());
+    }
+
+    private static DialogueNodeSelectionStrategy safeValueOf(String value) {
+        try {
+            return valueOf(value.trim().toUpperCase());
+        } catch (Exception e) {
+            return UNKNOWN;
+        }
+    }
 
     static DialogueNodeSelectionStrategy of(NodeSelectionStrategy strategy) {
         switch (strategy) {
@@ -33,6 +52,6 @@ public enum DialogueNodeSelectionStrategy {
             case ROUND_ROBIN:
                 return BALANCED;
         }
-        return UNKNOWN;
+        throw new SafeIllegalStateException("Unknown node selection strategy", SafeArg.of("strategy", strategy));
     }
 }

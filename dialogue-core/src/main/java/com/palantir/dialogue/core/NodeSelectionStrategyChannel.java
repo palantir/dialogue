@@ -23,6 +23,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -38,12 +39,11 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     private final AtomicReference<ChannelWithStrategy> nodeSelectionStrategy;
     private final AtomicReference<ImmutableList<LimitedChannel>> nodeChannels;
-
     private final String channelName;
     private final Random random;
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
-    private final SelectionStrategySelector strategySelector;
+    private final NodeSelectionStrategySelector strategySelector;
     private final LimitedChannel delegate;
 
     public NodeSelectionStrategyChannel(
@@ -51,7 +51,7 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             TaggedMetricRegistry metrics,
-            SelectionStrategySelector strategySelector) {
+            NodeSelectionStrategySelector strategySelector) {
         this.channelName = channelName;
         this.random = random;
         this.tick = tick;
@@ -59,8 +59,10 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.strategySelector = strategySelector;
         this.nodeChannels = new AtomicReference<>(ImmutableList.of());
         this.nodeSelectionStrategy = new AtomicReference<>(getUpdatedNodeSelectionStrategy(
-                null, nodeChannels.get(), strategySelector.get(), metrics, random, tick, channelName));
-        this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
+                null, nodeChannels.get(), strategySelector.getCurrentStrategy(), metrics, random, tick, channelName));
+        this.delegate = new SupplierChannel(() -> Preconditions.checkNotNull(
+                        nodeSelectionStrategy.get(), "node selection strategy must not be null")
+                .channel());
     }
 
     @Override
@@ -69,41 +71,43 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     public void updateChannels(List<LimitedChannel> newChannels) {
+        DialogueNodeSelectionStrategy updatedStrategy = strategySelector.setActiveChannels(newChannels);
         ImmutableList<LimitedChannel> wrappedChannels =
                 newChannels.stream().map(WrapperChannel::new).collect(ImmutableList.toImmutableList());
         nodeChannels.set(wrappedChannels);
         nodeSelectionStrategy.getAndUpdate(previousChannel -> getUpdatedNodeSelectionStrategy(
-                previousChannel, wrappedChannels, previousChannel.strategy(), metrics, random, tick, channelName));
+                previousChannel.channel(), wrappedChannels, updatedStrategy, metrics, random, tick, channelName));
     }
 
-    private void updateStrategy(LimitedChannel channel, String strategy) {
-        DialogueNodeSelectionStrategy updatedStrategy = strategySelector.updateAndGet(channel, strategy);
+    private void updateRequestedStrategies(LimitedChannel channel, List<DialogueNodeSelectionStrategy> strategies) {
+        DialogueNodeSelectionStrategy updatedStrategy = strategySelector.updateChannelStrategy(channel, strategies);
         nodeSelectionStrategy.getAndUpdate(currentStrategy -> {
             if (updatedStrategy.equals(currentStrategy.strategy())) {
                 return currentStrategy;
             }
             return getUpdatedNodeSelectionStrategy(
-                    currentStrategy, nodeChannels.get(), updatedStrategy, metrics, random, tick, channelName);
+                    currentStrategy.channel(), nodeChannels.get(), updatedStrategy, metrics, random, tick, channelName);
         });
     }
 
     private static ChannelWithStrategy getUpdatedNodeSelectionStrategy(
-            @Nullable ChannelWithStrategy previousChannel,
-            @Nullable ImmutableList<LimitedChannel> channels,
+            @Nullable LimitedChannel previousNodeSelectionStrategy,
+            @Nullable ImmutableList<LimitedChannel> nullableChannels,
             DialogueNodeSelectionStrategy updatedStrategy,
             TaggedMetricRegistry metrics,
             Random random,
             Ticker tick,
             String channelName) {
+
+        ImmutableList<LimitedChannel> channels =
+                Preconditions.checkNotNull(nullableChannels, "channels must not be null");
         if (channels.isEmpty()) {
-            return ChannelWithStrategy.of(DialogueNodeSelectionStrategy.UNKNOWN, new ZeroUriChannel(channelName));
+            return ChannelWithStrategy.of(updatedStrategy, new ZeroUriChannel(channelName));
         }
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
-            return ChannelWithStrategy.of(DialogueNodeSelectionStrategy.UNKNOWN, channels.get(0));
+            return ChannelWithStrategy.of(updatedStrategy, channels.get(0));
         }
-
-        LimitedChannel previousNodeSelectionStrategy = previousChannel.channel();
 
         switch (updatedStrategy) {
             case PIN_UNTIL_ERROR:
@@ -138,11 +142,11 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
                 return ChannelWithStrategy.of(
                         updatedStrategy,
                         new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName));
+            case UNKNOWN:
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", updatedStrategy));
     }
 
-    // TODO(forozco): really you'd want an union
     @Value.Immutable
     interface ChannelWithStrategy {
         DialogueNodeSelectionStrategy strategy();
@@ -165,9 +169,10 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
             this.delegate = delegate;
             this.callback = new FutureCallback<Response>() {
                 @Override
-                public void onSuccess(@Nullable Response result) {
+                public void onSuccess(Response result) {
                     result.getFirstHeader(NODE_SELECTION_HEADER)
-                            .ifPresent(strategy -> updateStrategy(delegate, strategy));
+                            .ifPresent(strategy -> updateRequestedStrategies(
+                                    delegate, DialogueNodeSelectionStrategy.fromHeader(strategy)));
                 }
 
                 @Override

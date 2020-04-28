@@ -16,52 +16,59 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Sets;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-public final class DefaultSelectionStrategySelector implements SelectionStrategySelector {
+@SuppressWarnings("NullAway")
+public final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
     private final DialogueNodeSelectionStrategy clientStrategy;
     private final AtomicReference<DialogueNodeSelectionStrategy> currentStrategy;
-    private final ConcurrentHashMap<LimitedChannel, DialogueNodeSelectionStrategy> strategyPerChannel =
+    private final ConcurrentHashMap<LimitedChannel, List<DialogueNodeSelectionStrategy>> strategyPerChannel =
             new ConcurrentHashMap<>();
 
-    public DefaultSelectionStrategySelector(NodeSelectionStrategy clientStrategy) {
+    public DefaultNodeSelectionStrategySelector(NodeSelectionStrategy clientStrategy) {
         this.clientStrategy = DialogueNodeSelectionStrategy.of(clientStrategy);
         this.currentStrategy = new AtomicReference<>(this.clientStrategy);
     }
 
     @Override
-    public DialogueNodeSelectionStrategy get() {
+    public DialogueNodeSelectionStrategy getCurrentStrategy() {
         return currentStrategy.get();
     }
 
     @Override
-    public DialogueNodeSelectionStrategy updateAndGet(LimitedChannel channel, String strategyUpdate) {
-        DialogueNodeSelectionStrategy strategy = DialogueNodeSelectionStrategy.valueOf(strategyUpdate);
-        if (strategyPerChannel.getOrDefault(channel, strategy).equals(strategy)) {
+    public DialogueNodeSelectionStrategy updateChannelStrategy(
+            LimitedChannel channel, List<DialogueNodeSelectionStrategy> updatedStrategies) {
+        List<DialogueNodeSelectionStrategy> previousStrategies = strategyPerChannel.put(channel, updatedStrategies);
+        if (updatedStrategies.isEmpty() || updatedStrategies.equals(previousStrategies)) {
             return currentStrategy.get();
         }
-
-        strategyPerChannel.put(channel, strategy);
         return updateAndGetStrategy();
     }
 
     @Override
-    public DialogueNodeSelectionStrategy updateAndGet(ImmutableList<LimitedChannel> channels) {
-        channels.forEach(strategyPerChannel::remove);
+    public DialogueNodeSelectionStrategy setActiveChannels(List<LimitedChannel> channels) {
+        Sets.difference(strategyPerChannel.keySet(), ImmutableSet.copyOf(channels))
+                .forEach(strategyPerChannel::remove);
         return updateAndGetStrategy();
     }
 
     private DialogueNodeSelectionStrategy updateAndGetStrategy() {
         return currentStrategy.updateAndGet(_strategy -> {
-            Set<DialogueNodeSelectionStrategy> strategies = new HashSet<>(strategyPerChannel.values());
-            if (strategies.size() == 1) {
-                return Iterables.getOnlyElement(strategies);
+            // TODO(forozco): improve strategy selection process to find the common intersection
+            Collection<List<DialogueNodeSelectionStrategy>> requestedStrategies = strategyPerChannel.values();
+            Set<DialogueNodeSelectionStrategy> firstChoiceStrategies = requestedStrategies.stream()
+                    .map(strategies -> strategies.get(0))
+                    .collect(ImmutableSet.toImmutableSet());
+            if (firstChoiceStrategies.size() == 1) {
+                return Iterables.getOnlyElement(firstChoiceStrategies);
             }
             return clientStrategy;
         });

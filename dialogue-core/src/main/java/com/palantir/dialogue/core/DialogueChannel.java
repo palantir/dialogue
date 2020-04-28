@@ -78,9 +78,9 @@ public final class DialogueChannel implements Channel {
                 random,
                 ticker,
                 clientConfiguration.taggedMetricRegistry(),
-                new DefaultSelectionStrategySelector(clientConfiguration.nodeSelectionStrategy()));
-        updateUrisInner(clientConfiguration.uris(), true);
+                new DefaultNodeSelectionStrategySelector(clientConfiguration.nodeSelectionStrategy()));
         this.queuedChannel = new QueuedChannel(nodeSelectionStrategy, channelName, dialogueClientMetrics, maxQueueSize);
+        updateUrisInner(clientConfiguration.uris(), true);
         this.delegate = wrap(
                 queuedChannel,
                 channelName,

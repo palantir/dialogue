@@ -102,14 +102,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 .map(limitedChannel -> Math.max(0, initialShuffle.indexOf(limitedChannel)))
                 .orElse(0);
 
-        switch (strategy) {
-            case PIN_UNTIL_ERROR:
-                NodeList shuffling =
-                        ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
-                return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialHost, metrics, channelName);
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialHost, metrics, channelName);
+        if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
+            NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialHost, metrics, channelName);
+        } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
+            NodeList constant = new ConstantNodeList(initialShuffle);
+            return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialHost, metrics, channelName);
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
