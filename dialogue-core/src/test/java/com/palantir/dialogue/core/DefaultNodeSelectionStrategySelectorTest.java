@@ -67,6 +67,16 @@ class DefaultNodeSelectionStrategySelectorTest {
     }
 
     @Test
+    void ignores_unknown_strategy() {
+        strategySelector.updateChannelStrategy(
+                channelA,
+                ImmutableList.of(DialogueNodeSelectionStrategy.UNKNOWN, DialogueNodeSelectionStrategy.BALANCED));
+        DialogueNodeSelectionStrategy strategy = strategySelector.updateChannelStrategy(
+                channelB, ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED));
+        assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.BALANCED);
+    }
+
+    @Test
     void only_considers_active_channels() {
         strategySelector.updateChannelStrategy(channelA, ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED));
         DialogueNodeSelectionStrategy strategy = strategySelector.setActiveChannels(ImmutableList.of());

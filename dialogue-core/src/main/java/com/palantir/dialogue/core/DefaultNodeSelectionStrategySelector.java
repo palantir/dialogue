@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 @SuppressWarnings("NullAway")
 public final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
@@ -65,7 +66,11 @@ public final class DefaultNodeSelectionStrategySelector implements NodeSelection
             // TODO(forozco): improve strategy selection process to find the common intersection
             Collection<List<DialogueNodeSelectionStrategy>> requestedStrategies = strategyPerChannel.values();
             Set<DialogueNodeSelectionStrategy> firstChoiceStrategies = requestedStrategies.stream()
-                    .map(strategies -> strategies.get(0))
+                    .flatMap(strategies -> strategies.stream()
+                            .filter(strategy -> strategy != DialogueNodeSelectionStrategy.UNKNOWN)
+                            .findFirst()
+                            .map(Stream::of)
+                            .orElseGet(Stream::empty))
                     .collect(ImmutableSet.toImmutableSet());
             if (firstChoiceStrategies.size() == 1) {
                 return Iterables.getOnlyElement(firstChoiceStrategies);
