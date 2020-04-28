@@ -55,6 +55,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
+    private static final int FAILURE_WEIGHT = 10;
 
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
@@ -128,7 +129,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 public void onSuccess(Response response) {
                     inflight.decrementAndGet();
                     if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                        recentFailuresReservoir.update(1);
+                        recentFailuresReservoir.update(FAILURE_WEIGHT);
                         observability.debugLogStatusFailure(response);
                     }
                 }
@@ -136,7 +137,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 @Override
                 public void onFailure(Throwable throwable) {
                     inflight.decrementAndGet();
-                    recentFailuresReservoir.update(1);
+                    recentFailuresReservoir.update(FAILURE_WEIGHT);
                     observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
                 }
             };
@@ -159,7 +160,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int requestsInflight = inflight.get();
             int recentFailures = recentFailuresReservoir.get();
 
-            int score = requestsInflight + 10 * recentFailures;
+            int score = requestsInflight + recentFailures;
 
             observability.debugLogComputedScore(requestsInflight, recentFailures, score);
             return new SortableChannel(score, this);
