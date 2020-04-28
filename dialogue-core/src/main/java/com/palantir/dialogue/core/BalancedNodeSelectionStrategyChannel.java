@@ -30,10 +30,7 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -81,7 +78,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        MutableChannelWithStats[] array = channels.toArray(new MutableChannelWithStats[] {});
+        MutableChannelWithStats[] array = channels.toArray(new MutableChannelWithStats[channels.size()]);
 
         int destIndex = 0;
         SortableChannel choice1 = randomSwapToFront(array, destIndex++).computeScore();
@@ -113,13 +110,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         array[dest] = array[dest + index];
         array[dest + index] = temp;
         return array[dest];
-    }
-
-    /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
-    private static <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList, Random random) {
-        List<T> mutableList = new ArrayList<>(sourceList);
-        Collections.shuffle(mutableList, random);
-        return mutableList;
     }
 
     private static final class MutableChannelWithStats implements LimitedChannel {
