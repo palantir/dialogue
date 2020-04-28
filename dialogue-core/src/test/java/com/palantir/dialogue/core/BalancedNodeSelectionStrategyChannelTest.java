@@ -18,6 +18,8 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,6 +27,7 @@ import static org.mockito.Mockito.when;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -75,7 +78,27 @@ class BalancedNodeSelectionStrategyChannelTest {
             channel.maybeExecute(endpoint, request);
         }
         verify(chan1, times(199)).maybeExecute(any(), any());
-        verify(chan2, times(1)).maybeExecute(any(), any());
+    }
+
+    @Test
+    void able_to_find_one_usable_channel_in_a_longer_list() {
+        LimitedChannel bad1 = makeLimitedChannel();
+        LimitedChannel bad2 = makeLimitedChannel();
+        LimitedChannel bad3 = makeLimitedChannel();
+        LimitedChannel good4 = mock(LimitedChannel.class);
+        set200(good4);
+        LimitedChannel bad5 = makeLimitedChannel();
+
+        channel = new BalancedNodeSelectionStrategyChannel(
+                ImmutableList.of(bad1, bad2, bad3, good4, bad5),
+                random,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                "channelName");
+
+        Optional<ListenableFuture<Response>> response = channel.maybeExecute(endpoint, request);
+        assertThat(response).isPresent();
+        verify(good4, times(1)).maybeExecute(any(), any());
     }
 
     @Test
@@ -86,8 +109,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(99)).maybeExecute(any(), any());
-        verify(chan2, times(101)).maybeExecute(any(), any());
+        verify(chan1, times(101)).maybeExecute(any(), any());
+        verify(chan2, times(99)).maybeExecute(any(), any());
     }
 
     @Test
@@ -98,6 +121,12 @@ class BalancedNodeSelectionStrategyChannelTest {
         assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
         verify(chan1, times(1)).maybeExecute(any(), any());
         verify(chan2, times(1)).maybeExecute(any(), any());
+    }
+
+    private LimitedChannel makeLimitedChannel() {
+        LimitedChannel chan = mock(LimitedChannel.class);
+        lenient().when(chan.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        return chan;
     }
 
     private static void set200(LimitedChannel chan) {

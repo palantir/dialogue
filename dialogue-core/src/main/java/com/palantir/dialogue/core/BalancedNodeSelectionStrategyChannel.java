@@ -33,7 +33,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -82,19 +81,38 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
-        // *always* prefer the first channel of the list, leading to a higher overall load.
-        List<MutableChannelWithStats> preShuffled = shuffleImmutableList(channels, random);
+        MutableChannelWithStats[] array = channels.toArray(new MutableChannelWithStats[] {});
 
-        // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
-        // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        return preShuffled.stream()
-                .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingInt(SortableChannel::getScore))
-                .map(channel -> channel.delegate.maybeExecute(endpoint, request))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
+        int destIndex = 0;
+        SortableChannel choice1 = randomSwapToFront(array, destIndex++).computeScore();
+
+        // Power of 2 choices (http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf)
+        // It's not necessary to sort the entire array, we just need to pick a second channel at random each time
+        // and we'll get a close-enough approximation to full sorting, without spending the CPU.
+        while (destIndex < array.length) {
+            SortableChannel choice2 = randomSwapToFront(array, destIndex++).computeScore();
+
+            // low scores = good
+            SortableChannel best = choice1.score <= choice2.score ? choice1 : choice2;
+            SortableChannel notBest = best == choice1 ? choice2 : choice1;
+
+            Optional<ListenableFuture<Response>> maybe = best.delegate.maybeExecute(endpoint, request);
+            if (maybe.isPresent()) {
+                return maybe;
+            }
+
+            choice1 = notBest; // keep this channel around for the next iteration as we haven't tried it yet!
+        }
+
+        return choice1.delegate.maybeExecute(endpoint, request);
+    }
+
+    private <T> T randomSwapToFront(T[] array, int dest) {
+        int index = random.nextInt(array.length - dest);
+        T temp = array[dest];
+        array[dest] = array[dest + index];
+        array[dest + index] = temp;
+        return array[dest];
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
