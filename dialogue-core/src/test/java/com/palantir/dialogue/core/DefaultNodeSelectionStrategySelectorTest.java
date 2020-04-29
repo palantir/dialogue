@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +40,9 @@ class DefaultNodeSelectionStrategySelectorTest {
 
     @BeforeEach
     void beforeEach() {
-        strategySelector = new DefaultNodeSelectionStrategySelector(NodeSelectionStrategy.PIN_UNTIL_ERROR);
+        strategySelector = new DefaultNodeSelectionStrategySelector(
+                NodeSelectionStrategy.PIN_UNTIL_ERROR,
+                DialogueNodeselectionMetrics.of(new DefaultTaggedMetricRegistry()));
     }
 
     @Test

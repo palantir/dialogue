@@ -71,14 +71,16 @@ public final class DialogueChannel implements Channel {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
-        clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
-        dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
+        this.clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
+        this.dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.nodeSelectionStrategy = new NodeSelectionStrategyChannel(
                 channelName,
                 random,
                 ticker,
                 clientConfiguration.taggedMetricRegistry(),
-                new DefaultNodeSelectionStrategySelector(clientConfiguration.nodeSelectionStrategy()));
+                new DefaultNodeSelectionStrategySelector(
+                        clientConfiguration.nodeSelectionStrategy(),
+                        DialogueNodeselectionMetrics.of(clientConfiguration.taggedMetricRegistry())));
         this.queuedChannel = new QueuedChannel(nodeSelectionStrategy, channelName, dialogueClientMetrics, maxQueueSize);
         updateUrisInner(clientConfiguration.uris(), true);
         this.delegate = wrap(

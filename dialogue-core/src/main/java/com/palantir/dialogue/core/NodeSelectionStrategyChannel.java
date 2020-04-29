@@ -23,7 +23,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -34,6 +33,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.immutables.value.Value;
 
+@SuppressWarnings("NullAway")
 final class NodeSelectionStrategyChannel implements LimitedChannel {
     private static final String NODE_SELECTION_HEADER = "Node-Selection-Strategy";
 
@@ -60,9 +60,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeChannels = new AtomicReference<>(ImmutableList.of());
         this.nodeSelectionStrategy = new AtomicReference<>(getUpdatedNodeSelectionStrategy(
                 null, nodeChannels.get(), strategySelector.getCurrentStrategy(), metrics, random, tick, channelName));
-        this.delegate = new SupplierChannel(() -> Preconditions.checkNotNull(
-                        nodeSelectionStrategy.get(), "node selection strategy must not be null")
-                .channel());
+        this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
     }
 
     @Override
@@ -70,22 +68,22 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         return delegate.maybeExecute(endpoint, request);
     }
 
-    public void updateChannels(ImmutableList<LimitedChannel> newChannels) {
-        DialogueNodeSelectionStrategy updatedStrategy = strategySelector.setActiveChannels(newChannels);
+    void updateChannels(ImmutableList<LimitedChannel> newChannels) {
         nodeChannels.set(newChannels);
-        nodeSelectionStrategy.getAndUpdate(previousChannel -> getUpdatedNodeSelectionStrategy(
-                previousChannel.channel(), newChannels, updatedStrategy, metrics, random, tick, channelName));
+        maybeUpdateNodeSelectionStrategy(strategySelector.setActiveChannels(newChannels));
     }
 
     private void updateRequestedStrategies(LimitedChannel channel, List<DialogueNodeSelectionStrategy> strategies) {
-        DialogueNodeSelectionStrategy updatedStrategy = strategySelector.updateChannelStrategy(channel, strategies);
-        nodeSelectionStrategy.getAndUpdate(currentStrategy -> {
-            if (updatedStrategy.equals(currentStrategy.strategy())) {
-                return currentStrategy;
-            }
-            return getUpdatedNodeSelectionStrategy(
-                    currentStrategy.channel(), nodeChannels.get(), updatedStrategy, metrics, random, tick, channelName);
-        });
+        maybeUpdateNodeSelectionStrategy(strategySelector.updateChannelStrategy(channel, strategies));
+    }
+
+    private void maybeUpdateNodeSelectionStrategy(DialogueNodeSelectionStrategy updatedStrategy) {
+        // Quick check to avoid expensive CAS
+        if (updatedStrategy.equals(nodeSelectionStrategy.get().strategy())) {
+            return;
+        }
+        nodeSelectionStrategy.getAndUpdate(currentStrategy -> getUpdatedNodeSelectionStrategy(
+                currentStrategy.channel(), nodeChannels.get(), updatedStrategy, metrics, random, tick, channelName));
     }
 
     LimitedChannel wrap(LimitedChannel channel) {
@@ -94,15 +92,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     private static ChannelWithStrategy getUpdatedNodeSelectionStrategy(
             @Nullable LimitedChannel previousNodeSelectionStrategy,
-            @Nullable ImmutableList<LimitedChannel> nullableChannels,
+            ImmutableList<LimitedChannel> channels,
             DialogueNodeSelectionStrategy updatedStrategy,
             TaggedMetricRegistry metrics,
             Random random,
             Ticker tick,
             String channelName) {
 
-        ImmutableList<LimitedChannel> channels =
-                Preconditions.checkNotNull(nullableChannels, "channels must not be null");
         if (channels.isEmpty()) {
             return ChannelWithStrategy.of(updatedStrategy, new ZeroUriChannel(channelName));
         }

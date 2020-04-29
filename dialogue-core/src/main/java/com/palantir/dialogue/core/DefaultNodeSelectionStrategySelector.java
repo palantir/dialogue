@@ -34,11 +34,13 @@ import java.util.stream.Collectors;
 @SuppressWarnings("NullAway")
 final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
     private final AtomicReference<DialogueNodeSelectionStrategy> currentStrategy;
+    private final DialogueNodeselectionMetrics metrics;
     private final ConcurrentHashMap<LimitedChannel, List<DialogueNodeSelectionStrategy>> strategyPerChannel =
             new ConcurrentHashMap<>();
 
-    DefaultNodeSelectionStrategySelector(NodeSelectionStrategy initialStrategy) {
+    DefaultNodeSelectionStrategySelector(NodeSelectionStrategy initialStrategy, DialogueNodeselectionMetrics metrics) {
         this.currentStrategy = new AtomicReference<>(DialogueNodeSelectionStrategy.of(initialStrategy));
+        this.metrics = metrics;
     }
 
     @Override
@@ -88,7 +90,11 @@ final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrateg
                     .map(Map.Entry::getKey)
                     .collect(Collectors.toSet());
             if (minScoreStrategies.size() == 1) {
-                return Iterables.getOnlyElement(minScoreStrategies);
+                DialogueNodeSelectionStrategy proposedStrategy = Iterables.getOnlyElement(minScoreStrategies);
+                if (!proposedStrategy.equals(previousStrategy)) {
+                    metrics.strategy(proposedStrategy.name()).mark();
+                    return proposedStrategy;
+                }
             }
 
             return previousStrategy;

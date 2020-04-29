@@ -43,8 +43,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NodeSelectionStrategyChannelTest {
 
     @Spy
-    private NodeSelectionStrategySelector strategySelector =
-            new DefaultNodeSelectionStrategySelector(NodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE);
+    private NodeSelectionStrategySelector strategySelector = new DefaultNodeSelectionStrategySelector(
+            NodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
+            DialogueNodeselectionMetrics.of(new DefaultTaggedMetricRegistry()));
 
     @Mock
     private LimitedChannel channel1;
