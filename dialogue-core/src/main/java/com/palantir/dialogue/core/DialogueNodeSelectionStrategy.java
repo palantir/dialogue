@@ -25,7 +25,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public enum DialogueNodeSelectionStrategy {
+enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,

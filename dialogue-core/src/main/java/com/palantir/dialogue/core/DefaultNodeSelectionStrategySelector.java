@@ -32,12 +32,12 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @SuppressWarnings("NullAway")
-public final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
+final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
     private final AtomicReference<DialogueNodeSelectionStrategy> currentStrategy;
     private final ConcurrentHashMap<LimitedChannel, List<DialogueNodeSelectionStrategy>> strategyPerChannel =
             new ConcurrentHashMap<>();
 
-    public DefaultNodeSelectionStrategySelector(NodeSelectionStrategy initialStrategy) {
+    DefaultNodeSelectionStrategySelector(NodeSelectionStrategy initialStrategy) {
         this.currentStrategy = new AtomicReference<>(DialogueNodeSelectionStrategy.of(initialStrategy));
     }
 

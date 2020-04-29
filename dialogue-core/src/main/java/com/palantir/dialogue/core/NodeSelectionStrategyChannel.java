@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.immutables.value.Value;
 
-public final class NodeSelectionStrategyChannel implements LimitedChannel {
+final class NodeSelectionStrategyChannel implements LimitedChannel {
     private static final String NODE_SELECTION_HEADER = "Node-Selection-Strategy";
 
     private final AtomicReference<ChannelWithStrategy> nodeSelectionStrategy;
@@ -46,7 +46,7 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final NodeSelectionStrategySelector strategySelector;
     private final LimitedChannel delegate;
 
-    public NodeSelectionStrategyChannel(
+    NodeSelectionStrategyChannel(
             String channelName,
             Random random,
             Ticker tick,
