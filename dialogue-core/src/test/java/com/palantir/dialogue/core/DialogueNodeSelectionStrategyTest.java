@@ -30,13 +30,13 @@ class DialogueNodeSelectionStrategyTest {
 
     @Test
     void parses_multiple_strategies() {
-        assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED; PIN_UNTIL_ERROR"))
+        assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED, PIN_UNTIL_ERROR"))
                 .containsExactly(DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
     }
 
     @Test
     void case_insensitive() {
-        assertThat(DialogueNodeSelectionStrategy.fromHeader("balanced; PIN_UNTIL_ERROR"))
+        assertThat(DialogueNodeSelectionStrategy.fromHeader("balanced, PIN_UNTIL_ERROR"))
                 .containsExactly(DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
     }
 }

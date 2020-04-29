@@ -86,8 +86,8 @@ class NodeSelectionStrategyChannelTest {
 
     @Test
     void tracks_per_host_strategy() {
-        channel.updateChannels(ImmutableList.of(channel1));
-        setResponse(channel1, Optional.of(DialogueNodeSelectionStrategy.BALANCED.toString()));
+        channel.updateChannels(ImmutableList.of(channel.wrap(channel1)));
+        setResponse(channel1, Optional.of("BALANCED"));
         channel.maybeExecute(null, null).get();
 
         verify(strategySelector, times(1))
