@@ -19,9 +19,13 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
@@ -40,6 +44,19 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final LimitedChannel delegate;
     private final AimdConcurrencyLimiter limiter;
 
+    static LimitedChannel create(Config cf, LimitedChannel channel, int uriIndex) {
+        ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
+        switch (clientQoS) {
+            case ENABLED:
+                TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
+                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
+            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
+                return channel;
+        }
+        throw new SafeIllegalStateException(
+                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    }
+
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
             AimdConcurrencyLimiter limiter,
@@ -53,7 +70,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .reason(getClass().getSimpleName())
                 .build();
         this.limiter = limiter;
-
+        Preconditions.checkArgument(
+                uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
         weakGauge(
                 taggedMetrics,
                 MetricName.builder()

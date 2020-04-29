@@ -66,8 +66,7 @@ public class QueuedChannelTest {
 
     @BeforeEach
     public void before() {
-        queuedChannel = new QueuedChannel(
-                delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 100_000);
+        queuedChannel = new QueuedChannel(delegate, "my-channel", new DefaultTaggedMetricRegistry(), 100_000);
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
 
@@ -171,8 +170,7 @@ public class QueuedChannelTest {
 
     @Test
     public void testQueueFullReturnsLimited() {
-        queuedChannel = new QueuedChannel(
-                delegate, "my-channel", DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), 1);
+        queuedChannel = new QueuedChannel(delegate, "my-channel", new DefaultTaggedMetricRegistry(), 1);
 
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);
@@ -183,25 +181,26 @@ public class QueuedChannelTest {
     @Test
     public void testQueueSizeMetric() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
         String channelName = "my-channel";
 
-        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+        queuedChannel = new QueuedChannel(delegate, "my-channel", registry, 1);
 
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);
 
         assertThat(queuedChannel.maybeExecute(endpoint, request)).isEmpty();
-        assertThat(metrics.requestsQueued(channelName).getCount()).isOne();
+        assertThat(DialogueClientMetrics.of(registry)
+                        .requestsQueued(channelName)
+                        .getCount())
+                .isOne();
     }
 
     @Test
     public void testQueueTimeMetric_success() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
         String channelName = "my-channel";
 
-        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+        queuedChannel = new QueuedChannel(delegate, "my-channel", registry, 1);
 
         mockNoCapacity();
         assertThat(queuedChannel.maybeExecute(endpoint, request))
@@ -210,7 +209,7 @@ public class QueuedChannelTest {
         queuedChannel.schedule();
         futureResponse.set(mockResponse);
 
-        Timer timer = metrics.requestQueuedTime(channelName);
+        Timer timer = DialogueClientMetrics.of(registry).requestQueuedTime(channelName);
         assertThat(timer.getCount()).isOne();
         assertThat(timer.getSnapshot().getMax()).isPositive();
     }
@@ -218,10 +217,9 @@ public class QueuedChannelTest {
     @Test
     public void testQueueTimeMetric_cancel() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
         String channelName = "my-channel";
 
-        queuedChannel = new QueuedChannel(delegate, "my-channel", metrics, 1);
+        queuedChannel = new QueuedChannel(delegate, "my-channel", registry, 1);
 
         mockNoCapacity();
         Optional<ListenableFuture<Response>> result = queuedChannel.maybeExecute(endpoint, request);
@@ -229,7 +227,7 @@ public class QueuedChannelTest {
         result.get().cancel(true);
         queuedChannel.schedule();
 
-        Timer timer = metrics.requestQueuedTime(channelName);
+        Timer timer = DialogueClientMetrics.of(registry).requestQueuedTime(channelName);
         assertThat(timer.getCount()).isOne();
         assertThat(timer.getSnapshot().getMax()).isPositive();
     }

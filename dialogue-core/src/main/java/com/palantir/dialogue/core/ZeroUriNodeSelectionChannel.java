@@ -26,12 +26,11 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
 
-/** When we literally have zero URIs, no request can get out the door. */
-final class ZeroUriChannel implements LimitedChannel {
-
+/** When we have zero URIs, no request can get out the door. */
+final class ZeroUriNodeSelectionChannel implements LimitedChannel {
     private final String channelName;
 
-    ZeroUriChannel(String channelName) {
+    ZeroUriNodeSelectionChannel(String channelName) {
         this.channelName = Preconditions.checkNotNull(channelName, "Channel name is required");
     }
 

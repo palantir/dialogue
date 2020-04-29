@@ -24,6 +24,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -45,9 +46,9 @@ final class DeprecationWarningChannel implements Channel {
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(Channel delegate, ClientMetrics metrics) {
+    DeprecationWarningChannel(Channel delegate, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
-        this.metrics = metrics;
+        this.metrics = ClientMetrics.of(metrics);
     }
 
     @Override
