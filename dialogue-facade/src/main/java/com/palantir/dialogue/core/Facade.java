@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.dialogue.core.BasicBuilder;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -26,6 +27,8 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 
 /**
@@ -33,8 +36,8 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
  */
 public final class Facade {
 
-    private static final ConjureRuntime DIALOGUE_RUNTIME =
-            DefaultConjureRuntime.builder().build();
+    private final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+    private final Supplier<ScheduledExecutorService> executor = RetryingChannel.sharedScheduler;
 
     public Facade() {}
 
@@ -65,19 +68,21 @@ public final class Facade {
                 .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, client))
+                .scheduler(executor.get())
                 .build();
 
-        return callStaticFactoryMethod(clazz, channel);
+        return callStaticFactoryMethod(clazz, channel, runtime);
     }
 
-    private static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel) {
+    private static <T> T callStaticFactoryMethod(
+            Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
         try {
             Method method = getStaticOfMethod(dialogueInterface)
                     .orElseThrow(() -> new SafeIllegalStateException(
                             "A static of(Channel, ConjureRuntime) method on Dialogue interface is required",
                             SafeArg.of("dialogueInterface", dialogueInterface)));
 
-            return dialogueInterface.cast(method.invoke(null, channel, DIALOGUE_RUNTIME));
+            return dialogueInterface.cast(method.invoke(null, channel, conjureRuntime));
 
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new SafeIllegalArgumentException(
