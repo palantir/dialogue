@@ -29,7 +29,8 @@ import java.util.concurrent.ScheduledExecutorService;
 public final class BasicBuilder {
     private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
-    BasicBuilder() {}
+    // TODO(dfox): expose this in a less dumb way
+    public BasicBuilder() {}
 
     /**
      * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value

@@ -1,0 +1,6 @@
+dependencies {
+  implementation project(':dialogue-apache-hc4-client')
+  implementation project(':dialogue-core')
+  implementation project(':dialogue-serde')
+  implementation project(':dialogue-target')
+}
