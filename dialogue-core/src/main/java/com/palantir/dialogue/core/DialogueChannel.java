@@ -172,7 +172,7 @@ public final class DialogueChannel implements Channel {
 
         /** This does _not_ allow live-reloading uris or other config. */
         @CheckReturnValue
-        public Channel buildBasic() {
+        Channel buildBasic() {
             Config config = builder.build();
             return Channels.createBasicChannel(config);
         }
