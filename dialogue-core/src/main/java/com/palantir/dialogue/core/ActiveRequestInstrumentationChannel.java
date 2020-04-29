@@ -23,6 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
 final class ActiveRequestInstrumentationChannel implements Channel {
 
@@ -35,13 +36,13 @@ final class ActiveRequestInstrumentationChannel implements Channel {
             Channel delegate,
             String channelName,
             final @CompileTimeConstant String stage,
-            DialogueClientMetrics metrics) {
+            TaggedMetricRegistry metrics) {
         // The delegate must never be allowed to throw, otherwise the counter may be incremented without
         // being decremented.
         this.delegate = new NeverThrowChannel(delegate);
         this.channelName = channelName;
         this.stage = stage;
-        this.metrics = metrics;
+        this.metrics = DialogueClientMetrics.of(metrics);
     }
 
     @Override

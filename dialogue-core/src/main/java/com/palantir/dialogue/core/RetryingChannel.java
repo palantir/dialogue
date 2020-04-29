@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -102,6 +103,28 @@ final class RetryingChannel implements Channel {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
+    static Channel create(
+            Channel channel,
+            String channelName,
+            ClientConfiguration conf,
+            ScheduledExecutorService scheduler,
+            Random random) {
+        if (conf.maxNumRetries() == 0) {
+            return channel;
+        }
+
+        return new RetryingChannel(
+                channel,
+                channelName,
+                conf.taggedMetricRegistry(),
+                conf.maxNumRetries(),
+                conf.backoffSlotSize(),
+                conf.serverQoS(),
+                conf.retryOnTimeout(),
+                scheduler,
+                random::nextDouble);
+    }
+
     @VisibleForTesting
     RetryingChannel(
             Channel delegate,
@@ -122,7 +145,7 @@ final class RetryingChannel implements Channel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
-    RetryingChannel(
+    private RetryingChannel(
             Channel delegate,
             String channelName,
             TaggedMetricRegistry metrics,

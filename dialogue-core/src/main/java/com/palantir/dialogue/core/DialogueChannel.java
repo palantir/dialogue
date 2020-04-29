@@ -30,14 +30,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.random.SafeThreadLocalRandom;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -51,24 +47,23 @@ import org.slf4j.LoggerFactory;
 public final class DialogueChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
 
-    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
-    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
+    private final Channel delegate;
 
-    private final String channelName;
+    // we keep around internals purely for live-reloading
     private final ClientConfiguration clientConfiguration;
     private final ChannelFactory channelFactory;
-    private final Channel delegate;
-    private final ClientMetrics clientMetrics;
-    private final DialogueClientMetrics dialogueClientMetrics;
+    private final String channelName;
     private final Random random;
-    private Ticker ticker;
+    private final Ticker ticker;
+    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
 
-    // TODO(forozco): you really want a refreshable of uri separate from the client config
+    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
+    private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
+
     private DialogueChannel(
-            String channelName,
             ClientConfiguration clientConfiguration,
             ChannelFactory channelFactory,
+            String channelName,
             Random random,
             Supplier<ScheduledExecutorService> scheduler,
             int maxQueueSize,
@@ -76,21 +71,27 @@ public final class DialogueChannel implements Channel {
         this.channelName = channelName;
         this.clientConfiguration = clientConfiguration;
         this.channelFactory = channelFactory;
-        clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
-        dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.random = random;
         this.ticker = ticker;
         this.queuedChannel = new QueuedChannel(
-                new SupplierChannel(nodeSelectionStrategy::get), channelName, dialogueClientMetrics, maxQueueSize);
-        updateUris(clientConfiguration.uris());
-        this.delegate = wrap(
-                queuedChannel,
+                new SupplierChannel(nodeSelectionStrategy::get),
                 channelName,
-                clientConfiguration,
-                scheduler,
-                random,
-                clientMetrics,
-                dialogueClientMetrics);
+                clientConfiguration.taggedMetricRegistry(),
+                maxQueueSize);
+        updateUris(clientConfiguration.uris());
+
+        Channel channel = queuedChannel;
+        channel = new TracedChannel(channel, "Dialogue-request-attempt");
+        channel = RetryingChannel.create(channel, channelName, clientConfiguration, scheduler.get(), random);
+        channel = new UserAgentChannel(channel, clientConfiguration.userAgent().get());
+        channel = new DeprecationWarningChannel(channel, clientConfiguration.taggedMetricRegistry());
+        channel = new ContentDecodingChannel(channel);
+        channel = new NeverThrowChannel(channel);
+        channel = new DialogueTracedRequestChannel(channel);
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, channelName, "processing", clientConfiguration.taggedMetricRegistry());
+
+        this.delegate = channel;
     }
 
     @Override
@@ -106,6 +107,51 @@ public final class DialogueChannel implements Channel {
             return;
         }
 
+        infoLogUriUpdate(uris, firstTime);
+
+        Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
+        Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
+
+        staleUris.forEach(limitedChannelByUri::remove);
+        ImmutableList<String> allUris = ImmutableList.<String>builder()
+                .addAll(limitedChannelByUri.keySet())
+                .addAll(newUris)
+                .build();
+        newUris.forEach(uri -> {
+            Channel channel = channelFactory.create(uri);
+            // Instrument inner-most channel with instrumentation channels so that we measure only the
+            // over-the-wire-time
+            channel = new InstrumentedChannel(channel, channelName, clientConfiguration.taggedMetricRegistry());
+            channel = new ActiveRequestInstrumentationChannel(
+                    channel, channelName, "running", clientConfiguration.taggedMetricRegistry());
+            // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+            channel = new TraceEnrichingChannel(channel);
+
+            LimitedChannel limitedChannel = ConcurrencyLimitedChannel.create(
+                    new ChannelToLimitedChannelAdapter(channel),
+                    clientConfiguration.clientQoS(),
+                    clientConfiguration.taggedMetricRegistry(),
+                    channelName,
+                    allUris.indexOf(uri));
+            limitedChannelByUri.put(uri, limitedChannel);
+        });
+
+        nodeSelectionStrategy.getAndUpdate(previous -> {
+            return NodeSelectionStrategies.create(
+                    ImmutableList.copyOf(limitedChannelByUri.values()),
+                    clientConfiguration.nodeSelectionStrategy(),
+                    previous,
+                    ticker,
+                    random,
+                    clientConfiguration.taggedMetricRegistry(),
+                    channelName);
+        });
+
+        // some queued requests might be able to make progress on a new uri now
+        queuedChannel.schedule();
+    }
+
+    private void infoLogUriUpdate(Collection<String> uris, boolean firstTime) {
         if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
             log.info(
                     "Updated to zero uris",
@@ -118,150 +164,6 @@ public final class DialogueChannel implements Channel {
                     SafeArg.of("channelName", channelName),
                     SafeArg.of("numUris", uris.size()));
         }
-
-        Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
-        Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
-
-        staleUris.forEach(limitedChannelByUri::remove);
-        ImmutableList<String> allUris = ImmutableList.<String>builder()
-                .addAll(limitedChannelByUri.keySet())
-                .addAll(newUris)
-                .build();
-        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri, allUris.indexOf(uri))));
-
-        nodeSelectionStrategy.getAndUpdate(previous -> getUpdatedNodeSelectionStrategy(
-                previous,
-                clientConfiguration,
-                ImmutableList.copyOf(limitedChannelByUri.values()),
-                random,
-                ticker,
-                channelName));
-
-        // some queued requests might be able to make progress on a new uri now
-        queuedChannel.schedule();
-    }
-
-    private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
-        Channel channel = channelFactory.create(uri);
-        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
-        channel = new InstrumentedChannel(channel, channelName, clientMetrics);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", dialogueClientMetrics);
-        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-        channel = new TraceEnrichingChannel(channel);
-
-        LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), channelName, uriIndex);
-    }
-
-    private static LimitedChannel getUpdatedNodeSelectionStrategy(
-            @Nullable LimitedChannel previousNodeSelectionStrategy,
-            ClientConfiguration config,
-            ImmutableList<LimitedChannel> channels,
-            Random random,
-            Ticker tick,
-            String channelName) {
-        if (channels.isEmpty()) {
-            return new ZeroUriChannel(channelName);
-        }
-        if (channels.size() == 1) {
-            // no fancy node selection heuristic can save us if our one node goes down
-            return channels.get(0);
-        }
-
-        switch (config.nodeSelectionStrategy()) {
-            case PIN_UNTIL_ERROR:
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
-                        DialoguePinuntilerrorMetrics.of(config.taggedMetricRegistry());
-                // Previously pin until error, so we should preserve our previous location
-                if (previousNodeSelectionStrategy instanceof PinUntilErrorNodeSelectionStrategyChannel) {
-                    PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
-                            (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
-                    return PinUntilErrorNodeSelectionStrategyChannel.of(
-                            Optional.of(previousPinUntilError.getCurrentChannel()),
-                            config.nodeSelectionStrategy(),
-                            channels,
-                            pinuntilerrorMetrics,
-                            random,
-                            channelName);
-                }
-                return PinUntilErrorNodeSelectionStrategyChannel.of(
-                        Optional.empty(),
-                        config.nodeSelectionStrategy(),
-                        channels,
-                        pinuntilerrorMetrics,
-                        random,
-                        channelName);
-            case ROUND_ROBIN:
-                // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
-                // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return new BalancedNodeSelectionStrategyChannel(
-                        channels, random, tick, config.taggedMetricRegistry(), channelName);
-        }
-        throw new SafeRuntimeException(
-                "Unknown NodeSelectionStrategy", SafeArg.of("unknown", config.nodeSelectionStrategy()));
-    }
-
-    private static LimitedChannel concurrencyLimiter(
-            ClientConfiguration config,
-            LimitedChannel channel,
-            TaggedMetricRegistry metrics,
-            String channelName,
-            int uriIndex) {
-        ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
-        switch (clientQoS) {
-            case ENABLED:
-                return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(), channelName, uriIndex, metrics);
-            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return channel;
-        }
-        throw new SafeIllegalStateException(
-                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
-    }
-
-    private static Channel retryingChannel(
-            Channel channel,
-            String channelName,
-            ClientConfiguration conf,
-            Supplier<ScheduledExecutorService> scheduler,
-            Random random) {
-        if (conf.maxNumRetries() == 0) {
-            return channel;
-        }
-
-        return new RetryingChannel(
-                channel,
-                channelName,
-                conf.taggedMetricRegistry(),
-                conf.maxNumRetries(),
-                conf.backoffSlotSize(),
-                conf.serverQoS(),
-                conf.retryOnTimeout(),
-                scheduler.get(),
-                random::nextDouble);
-    }
-
-    private static Channel wrap(
-            QueuedChannel queuedChannel,
-            String channelName,
-            ClientConfiguration conf,
-            Supplier<ScheduledExecutorService> scheduler,
-            Random random,
-            ClientMetrics clientMetrics,
-            DialogueClientMetrics dialogueClientMetrics) {
-        Channel channel = queuedChannel;
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        channel = retryingChannel(channel, channelName, conf, scheduler, random);
-        channel = new UserAgentChannel(channel, conf.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, clientMetrics);
-        channel = new ContentDecodingChannel(channel);
-        channel = new NeverThrowChannel(channel);
-        channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", dialogueClientMetrics);
-
-        return channel;
     }
 
     public static Builder builder() {
@@ -339,7 +241,7 @@ public final class DialogueChannel implements Channel {
                     .from(conf)
                     .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
                     .build();
-            return new DialogueChannel(name, cleanedConf, factory, random, scheduler, maxQueueSize, ticker);
+            return new DialogueChannel(cleanedConf, factory, name, random, scheduler, maxQueueSize, ticker);
         }
 
         private void preconditions(ClientConfiguration conf) {
@@ -347,20 +249,6 @@ public final class DialogueChannel implements Channel {
             Preconditions.checkArgument(
                     conf.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                     "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
-        }
-    }
-
-    private static final class SupplierChannel implements LimitedChannel {
-        private final Supplier<LimitedChannel> channelSupplier;
-
-        SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
-            this.channelSupplier = channelSupplier;
-        }
-
-        @Override
-        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            LimitedChannel delegate = channelSupplier.get();
-            return delegate.maybeExecute(endpoint, request);
         }
     }
 }
