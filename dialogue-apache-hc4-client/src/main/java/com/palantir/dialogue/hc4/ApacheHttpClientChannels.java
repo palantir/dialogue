@@ -17,10 +17,14 @@ package com.palantir.dialogue.hc4;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
@@ -87,14 +91,36 @@ public final class ApacheHttpClientChannels {
 
     private ApacheHttpClientChannels() {}
 
+    /**
+     * Prefer {@link #create(String, ClientConfiguration)}
+     *
+     * @deprecated leaks underlying client
+     */
+    @Deprecated
     public static Channel create(ClientConfiguration conf) {
         String channelName = "apache-channel";
+        return create(channelName, conf);
+    }
+
+    public static CloseableChannel create(String channelName, ClientConfiguration conf) {
         CloseableClient client = createCloseableHttpClient(conf, channelName);
-        return DialogueChannel.builder()
+        DialogueChannel channel = DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> createSingleUri(uri, client))
                 .build();
+
+        return new CloseableChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                return channel.execute(endpoint, request);
+            }
+
+            @Override
+            public void close() throws IOException {
+                client.close();
+            }
+        };
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
