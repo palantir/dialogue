@@ -38,13 +38,11 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
-
     private final Channel delegate;
 
     // we keep around internals purely for live-reloading
@@ -52,17 +50,20 @@ public final class DialogueChannel implements Channel {
 
     private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final AtomicReference<LimitedChannel> nodeSelectionChannel = new AtomicReference<>();
+    private final NodeSelectionStrategyChannel nodeSelectionChannel;
 
     private DialogueChannel(Config cf) {
         this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
-        this.queuedChannel = new QueuedChannel(
-                new SupplierChannel(nodeSelectionChannel::get),
+        this.nodeSelectionChannel = new NodeSelectionStrategyChannel(
+                cf.clientConf().nodeSelectionStrategy(),
                 cf.channelName(),
-                cf.clientConf().taggedMetricRegistry(),
-                cf.maxQueueSize());
+                cf.random(),
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry());
+        this.queuedChannel = new QueuedChannel(
+                nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
         this.delegate = wrapQueuedChannel(cf, queuedChannel);
-        updateUris(cf.clientConf().uris());
+        updateUrisInner(cf.clientConf().uris(), true);
     }
 
     private static ImmutableConfig withUris(Config cf, List<String> elements) {
@@ -109,7 +110,10 @@ public final class DialogueChannel implements Channel {
     }
 
     public void updateUris(Collection<String> uris) {
-        boolean firstTime = nodeSelectionChannel.get() == null;
+        updateUrisInner(uris, false);
+    }
+
+    private void updateUrisInner(Collection<String> uris, boolean firstTime) {
         Set<String> uniqueUris = new HashSet<>(uris);
         // Uris didn't really change so nothing to do
         if (limitedChannelByUri.keySet().equals(uniqueUris) && !firstTime) {
@@ -132,11 +136,7 @@ public final class DialogueChannel implements Channel {
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
-        nodeSelectionChannel.getAndUpdate(previous -> {
-            ImmutableList<LimitedChannel> channels = ImmutableList.copyOf(limitedChannelByUri.values());
-            return NodeSelectionStrategies.create(cf, channels, previous);
-        });
-
+        nodeSelectionChannel.updateChannels(ImmutableList.copyOf(limitedChannelByUri.values()));
         // some queued requests might be able to make progress on a new uri now
         queuedChannel.schedule();
     }
