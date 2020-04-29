@@ -1,0 +1,5 @@
+type: feature
+feature:
+  description: Clients respect `Node-Selection-Strategy` response header
+  links:
+  - https://github.com/palantir/dialogue/pull/688
