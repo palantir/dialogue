@@ -63,7 +63,7 @@ public final class DialogueChannel implements Channel {
         this.queuedChannel = new QueuedChannel(
                 nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
         this.delegate = wrapQueuedChannel(cf, queuedChannel);
-        updateUris(cf.clientConf().uris());
+        updateUrisInner(cf.clientConf().uris(), true);
     }
 
     private static ImmutableConfig withUris(Config cf, List<String> elements) {
