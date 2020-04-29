@@ -41,12 +41,17 @@ enum DialogueNodeSelectionStrategy {
     }
 
     private static DialogueNodeSelectionStrategy safeValueOf(String value) {
-        try {
-            return valueOf(value.toUpperCase());
-        } catch (Exception e) {
-            log.info("Received unknown selection strategy", SafeArg.of("strategy", value));
-            return UNKNOWN;
+        String normalizedValue = value.toUpperCase();
+        if (PIN_UNTIL_ERROR.name().equals(normalizedValue)) {
+            return PIN_UNTIL_ERROR;
+        } else if (PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE.name().equals(normalizedValue)) {
+            return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+        } else if (BALANCED.name().equals(normalizedValue)) {
+            return BALANCED;
         }
+
+        log.info("Received unknown selection strategy", SafeArg.of("strategy", value));
+        return UNKNOWN;
     }
 
     static DialogueNodeSelectionStrategy of(NodeSelectionStrategy strategy) {
