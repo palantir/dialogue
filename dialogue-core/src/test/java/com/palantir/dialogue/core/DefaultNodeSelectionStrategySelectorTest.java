@@ -55,15 +55,17 @@ class DefaultNodeSelectionStrategySelectorTest {
     }
 
     @Test
-    void falls_back_to_client_default_on_conflict() {
-        DialogueNodeSelectionStrategy strategy = strategySelector.updateChannelStrategy(
+    void falls_back_to_previous_on_conflict() {
+        DialogueNodeSelectionStrategy strategy;
+
+        strategy = strategySelector.updateChannelStrategy(
                 channelA, ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED));
         assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.BALANCED);
 
         strategy = strategySelector.updateChannelStrategy(
                 channelB, ImmutableList.of(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE));
 
-        assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
+        assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.BALANCED);
     }
 
     @Test
@@ -78,9 +80,21 @@ class DefaultNodeSelectionStrategySelectorTest {
 
     @Test
     void only_considers_active_channels() {
-        strategySelector.updateChannelStrategy(channelA, ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED));
-        DialogueNodeSelectionStrategy strategy = strategySelector.setActiveChannels(ImmutableList.of());
+        DialogueNodeSelectionStrategy strategy;
+        // Initially prefers PuE
+        strategy = strategySelector.updateChannelStrategy(
+                channelA,
+                ImmutableList.of(
+                        DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR, DialogueNodeSelectionStrategy.BALANCED));
+        assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
 
+        // Switches to Balance upon seeing another node that requests Balance
+        strategy = strategySelector.updateChannelStrategy(
+                channelB, ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED));
+        assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.BALANCED);
+
+        // Switches back to PuE once that node disappears
+        strategy = strategySelector.setActiveChannels(ImmutableList.of(channelA));
         assertThat(strategy).isEqualTo(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
     }
 }

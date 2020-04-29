@@ -20,23 +20,25 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Sets;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Stream;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @SuppressWarnings("NullAway")
 public final class DefaultNodeSelectionStrategySelector implements NodeSelectionStrategySelector {
-    private final DialogueNodeSelectionStrategy clientStrategy;
     private final AtomicReference<DialogueNodeSelectionStrategy> currentStrategy;
     private final ConcurrentHashMap<LimitedChannel, List<DialogueNodeSelectionStrategy>> strategyPerChannel =
             new ConcurrentHashMap<>();
 
-    public DefaultNodeSelectionStrategySelector(NodeSelectionStrategy clientStrategy) {
-        this.clientStrategy = DialogueNodeSelectionStrategy.of(clientStrategy);
-        this.currentStrategy = new AtomicReference<>(this.clientStrategy);
+    public DefaultNodeSelectionStrategySelector(NodeSelectionStrategy initialStrategy) {
+        this.currentStrategy = new AtomicReference<>(DialogueNodeSelectionStrategy.of(initialStrategy));
     }
 
     @Override
@@ -61,21 +63,35 @@ public final class DefaultNodeSelectionStrategySelector implements NodeSelection
         return updateAndGetStrategy();
     }
 
+    /**
+     * returns the requested strategy with the lowest "score", where score is the sum of each strategy's position
+     * in each nodes request list.
+     *
+     * In case of ties, fall back to the previous strategy.
+     */
     private DialogueNodeSelectionStrategy updateAndGetStrategy() {
-        return currentStrategy.updateAndGet(_strategy -> {
-            // TODO(forozco): improve strategy selection process to find the common intersection
-            Collection<List<DialogueNodeSelectionStrategy>> requestedStrategies = strategyPerChannel.values();
-            Set<DialogueNodeSelectionStrategy> firstChoiceStrategies = requestedStrategies.stream()
-                    .flatMap(strategies -> strategies.stream()
-                            .filter(strategy -> strategy != DialogueNodeSelectionStrategy.UNKNOWN)
-                            .findFirst()
-                            .map(Stream::of)
-                            .orElseGet(Stream::empty))
-                    .collect(ImmutableSet.toImmutableSet());
-            if (firstChoiceStrategies.size() == 1) {
-                return Iterables.getOnlyElement(firstChoiceStrategies);
+        return currentStrategy.updateAndGet(previousStrategy -> {
+            Collection<List<DialogueNodeSelectionStrategy>> allRequestedStrategies = strategyPerChannel.values();
+            Map<DialogueNodeSelectionStrategy, Integer> scorePerStrategy = Arrays.stream(
+                            DialogueNodeSelectionStrategy.values())
+                    .filter(strategy -> strategy != DialogueNodeSelectionStrategy.UNKNOWN)
+                    .collect(Collectors.toMap(Function.identity(), strategy -> allRequestedStrategies.stream()
+                            .mapToInt(requestedStrategies -> {
+                                int score = requestedStrategies.indexOf(strategy);
+                                return score == -1 ? DialogueNodeSelectionStrategy.values().length : score;
+                            })
+                            .sum()));
+
+            int minScore = Collections.min(scorePerStrategy.values());
+            Set<DialogueNodeSelectionStrategy> minScoreStrategies = scorePerStrategy.entrySet().stream()
+                    .filter(entry -> entry.getValue() == minScore)
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toSet());
+            if (minScoreStrategies.size() == 1) {
+                return Iterables.getOnlyElement(minScoreStrategies);
             }
-            return clientStrategy;
+
+            return previousStrategy;
         });
     }
 }

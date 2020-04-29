@@ -30,7 +30,7 @@ public enum DialogueNodeSelectionStrategy {
     UNKNOWN;
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
-        return Splitter.on(";").splitToList(header).stream()
+        return Splitter.on(",").splitToList(header).stream()
                 .map(DialogueNodeSelectionStrategy::safeValueOf)
                 .collect(ImmutableList.toImmutableList());
     }
