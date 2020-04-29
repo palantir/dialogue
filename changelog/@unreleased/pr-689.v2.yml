@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: 'Per-host metrics for the PinUntilError node selection strategy (`dialogue.pinuntilerror.success`)
+    were misleading after each 10 minute reshuffle. '
+  links:
+  - https://github.com/palantir/dialogue/pull/689

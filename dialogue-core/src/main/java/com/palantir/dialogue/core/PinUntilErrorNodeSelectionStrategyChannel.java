@@ -41,6 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
+import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -63,25 +64,24 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
 
-    // TODO(dfox): could we make this endpoint-specific?
-    private final AtomicInteger currentHost;
+    private final AtomicInteger currentPin;
     private final NodeList nodeList;
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
     PinUntilErrorNodeSelectionStrategyChannel(
-            NodeList nodeList, int initialHost, DialoguePinuntilerrorMetrics metrics, String channelName) {
+            NodeList nodeList, int initialPin, DialoguePinuntilerrorMetrics metrics, String channelName) {
         this.nodeList = nodeList;
-        this.currentHost = new AtomicInteger(initialHost);
+        this.currentPin = new AtomicInteger(initialPin);
         this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
                         + " Use an always throwing channel or just pick the only channel in the list.");
         Preconditions.checkArgument(
-                0 <= initialHost && initialHost < nodeList.size(),
+                0 <= initialPin && initialPin < nodeList.size(),
                 "initialHost must be a valid index into nodeList",
-                SafeArg.of("initialHost", initialHost));
+                SafeArg.of("initialHost", initialPin));
     }
 
     static PinUntilErrorNodeSelectionStrategyChannel of(
@@ -91,14 +91,22 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             String channelName) {
+        // We preserve the 'stableIndex' so that calls can be attributed to one host even across reshuffles
+        List<PinChannel> pinChannels = IntStream.range(0, channels.size())
+                .mapToObj(index -> ImmutablePinChannel.builder()
+                        .delegate(channels.get(index))
+                        .stableIndex(index)
+                        .build())
+                .collect(ImmutableList.toImmutableList());
+
         /**
          * The *initial* list is shuffled to ensure that clients across the fleet don't all traverse the in the
          * same order.  If they did, then restarting one upstream node n would shift all its traffic (from all
          * servers) to upstream n+1. When n+1 restarts, it would all shift to n+2. This results in the disastrous
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
-        ImmutableList<LimitedChannel> initialShuffle = shuffleImmutableList(channels, random);
-        int initialHost = initialChannel
+        ImmutableList<PinChannel> initialShuffle = shuffleImmutableList(pinChannels, random);
+        int initialPin = initialChannel
                 // indexOf relies on reference equality since we expect LimitedChannels to be reused across updates
                 .map(limitedChannel -> Math.max(0, initialShuffle.indexOf(limitedChannel)))
                 .orElse(0);
@@ -107,10 +115,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             case PIN_UNTIL_ERROR:
                 NodeList shuffling =
                         ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
-                return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialHost, metrics, channelName);
+                return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialHost, metrics, channelName);
+                return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
             case ROUND_ROBIN:
         }
 
@@ -118,13 +126,13 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     LimitedChannel getCurrentChannel() {
-        return nodeList.get(currentHost.get());
+        return nodeList.get(currentPin.get());
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        int currentIndex = currentHost.get();
-        LimitedChannel channel = nodeList.get(currentIndex);
+        int pin = currentPin.get();
+        PinChannel channel = nodeList.get(pin);
 
         return channel.maybeExecute(endpoint, request)
                 .map(future -> DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
@@ -135,17 +143,17 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                         // even if a couple of them get rate limited in the middle.
                         if (Responses.isServerError(response)
                                 || (Responses.isQosStatus(response) && !Responses.isTooManyRequests(response))) {
-                            OptionalInt next = incrementHostIfNecessary(currentIndex);
-                            instrumentation.receivedErrorStatus(currentIndex, channel, response, next);
+                            OptionalInt next = incrementHostIfNecessary(pin);
+                            instrumentation.receivedErrorStatus(pin, channel, response, next);
                         } else {
-                            instrumentation.successfulResponse(currentIndex);
+                            instrumentation.successfulResponse(channel.stableIndex());
                         }
                     }
 
                     @Override
                     public void onFailure(Throwable throwable) {
-                        OptionalInt next = incrementHostIfNecessary(currentIndex);
-                        instrumentation.receivedThrowable(currentIndex, channel, throwable, next);
+                        OptionalInt next = incrementHostIfNecessary(pin);
+                        instrumentation.receivedThrowable(pin, channel, throwable, next);
                     }
                 }));
     }
@@ -155,28 +163,41 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
      * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
      * us off a good one.
      */
-    private OptionalInt incrementHostIfNecessary(int currentIndex) {
-        int nextIndex = (currentIndex + 1) % nodeList.size();
-        boolean saved = currentHost.compareAndSet(currentIndex, nextIndex);
+    private OptionalInt incrementHostIfNecessary(int pin) {
+        int nextIndex = (pin + 1) % nodeList.size();
+        boolean saved = currentPin.compareAndSet(pin, nextIndex);
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
     }
 
     interface NodeList {
-        LimitedChannel get(int index);
+        PinChannel get(int index);
 
         int size();
     }
 
+    @Value.Immutable
+    interface PinChannel extends LimitedChannel {
+        LimitedChannel delegate();
+
+        @Value.Auxiliary
+        int stableIndex();
+
+        @Override
+        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            return delegate().maybeExecute(endpoint, request);
+        }
+    }
+
     @VisibleForTesting
     static final class ConstantNodeList implements NodeList {
-        private final List<LimitedChannel> channels;
+        private final List<PinChannel> channels;
 
-        ConstantNodeList(List<LimitedChannel> channels) {
+        ConstantNodeList(List<PinChannel> channels) {
             this.channels = channels;
         }
 
         @Override
-        public LimitedChannel get(int index) {
+        public PinChannel get(int index) {
             return channels.get(index);
         }
 
@@ -200,10 +221,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         private final PinUntilErrorNodeSelectionStrategyChannel.Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
-        private volatile ImmutableList<LimitedChannel> channels;
+        private volatile ImmutableList<PinChannel> channels;
 
         static ReshufflingNodeList of(
-                ImmutableList<LimitedChannel> channels,
+                ImmutableList<PinChannel> channels,
                 Random random,
                 Ticker clock,
                 DialoguePinuntilerrorMetrics metrics,
@@ -217,7 +238,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         }
 
         private ReshufflingNodeList(
-                ImmutableList<LimitedChannel> channels,
+                ImmutableList<PinChannel> channels,
                 Random random,
                 Ticker clock,
                 DialoguePinuntilerrorMetrics metrics,
@@ -234,7 +255,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         }
 
         @Override
-        public LimitedChannel get(int index) {
+        public PinChannel get(int index) {
             reshuffleChannelsIfNecessary();
             return channels.get(index);
         }
@@ -251,7 +272,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
 
             if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
-                ImmutableList<LimitedChannel> newList = shuffleImmutableList(channels, random);
+                ImmutableList<PinChannel> newList = shuffleImmutableList(channels, random);
                 instrumentation.reshuffled(newList, intervalWithJitter);
                 channels = newList;
             }
@@ -306,7 +327,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
         }
 
-        private void reshuffled(ImmutableList<LimitedChannel> newList, long intervalWithJitter) {
+        private void reshuffled(ImmutableList<PinChannel> newList, long intervalWithJitter) {
             reshuffleMeter.mark();
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -316,8 +337,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
         }
 
-        private void receivedErrorStatus(
-                int currentIndex, LimitedChannel channel, Response response, OptionalInt next) {
+        private void receivedErrorStatus(int pin, PinChannel channel, Response response, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseResponseCode.mark();
             }
@@ -326,21 +346,22 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                     log.debug(
                             "Received error status code, switching to next channel",
                             SafeArg.of("status", response.code()),
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
+                            SafeArg.of("stableIndex", channel.stableIndex()),
+                            SafeArg.of("pin", pin),
+                            UnsafeArg.of("channel", channel),
                             SafeArg.of("nextIndex", next.getAsInt()));
                 } else {
                     log.debug(
                             "Received error status code, but we've already switched",
                             SafeArg.of("status", response.code()),
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel));
+                            SafeArg.of("stableIndex", channel.stableIndex()),
+                            SafeArg.of("pin", pin),
+                            UnsafeArg.of("channel", channel));
                 }
             }
         }
 
-        private void receivedThrowable(
-                int currentIndex, LimitedChannel channel, Throwable throwable, OptionalInt next) {
+        private void receivedThrowable(int pin, PinChannel channel, Throwable throwable, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseThrowable.mark();
             }
@@ -348,15 +369,17 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 if (next.isPresent()) {
                     log.debug(
                             "Received throwable, switching to next channel",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
+                            SafeArg.of("pin", pin),
+                            SafeArg.of("stableIndex", channel.stableIndex()),
+                            UnsafeArg.of("channel", channel),
                             SafeArg.of("nextIndex", next.getAsInt()),
                             throwable);
                 } else {
                     log.debug(
                             "Received throwable, but already switched",
-                            SafeArg.of("currentIndex", currentIndex),
-                            UnsafeArg.of("current", channel),
+                            SafeArg.of("pin", pin),
+                            SafeArg.of("stableIndex", channel.stableIndex()),
+                            UnsafeArg.of("channel", channel),
                             throwable);
                 }
             }
