@@ -23,23 +23,22 @@ final class Channels {
 
     private Channels() {}
 
-    static Channel createBasicChannel(Config c) {
-        ImmutableList<LimitedChannel> perUriChannels = c.clientConf().uris().stream()
-                .map(uri -> createPerUriChannel(c, uri))
+    static Channel createBasicChannel(Config cf) {
+        ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()
+                .map(uri -> createPerUriChannel(cf, uri))
                 .collect(ImmutableList.toImmutableList());
 
-        LimitedChannel nodeSelectionChannel = NodeSelectionStrategies.create(c, perUriChannels, null);
+        LimitedChannel nodeSelectionChannel = NodeSelectionStrategies.create(cf, perUriChannels, null);
 
         Channel channel = new QueuedChannel(
-                nodeSelectionChannel, c.channelName(), c.clientConf().taggedMetricRegistry(), c.maxQueueSize());
+                nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
 
-        return wrapQueuedChannel(c, channel);
+        return wrapQueuedChannel(cf, channel);
     }
 
     static LimitedChannel createPerUriChannel(Config cf, String uri) {
         Channel channel = cf.channelFactory().create(uri);
-        // Instrument inner-most channel with instrumentation channels so that we measure only the
-        // over-the-wire-time
+        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(
                 channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
         channel = new ActiveRequestInstrumentationChannel(
@@ -55,17 +54,17 @@ final class Channels {
                 cf.clientConf().uris().indexOf(uri));
     }
 
-    static Channel wrapQueuedChannel(Config cf, Channel channel) {
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
+    static Channel wrapQueuedChannel(Config cf, Channel queuedChannel) {
+        Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
         channel = RetryingChannel.create(
                 channel, cf.channelName(), cf.clientConf(), cf.scheduler().get(), cf.random());
         channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
         channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
         channel = new ContentDecodingChannel(channel);
-        channel = new NeverThrowChannel(channel);
         channel = new DialogueTracedRequestChannel(channel);
         channel = new ActiveRequestInstrumentationChannel(
                 channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
+        channel = new NeverThrowChannel(channel); // this must come last as a defensive backstop
         return channel;
     }
 }

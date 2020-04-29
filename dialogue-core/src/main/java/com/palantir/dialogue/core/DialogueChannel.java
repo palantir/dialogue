@@ -46,22 +46,21 @@ public final class DialogueChannel implements Channel {
     private final Channel delegate;
 
     // we keep around internals purely for live-reloading
-    private final Config c;
+    private final Config cf;
 
     private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final AtomicReference<LimitedChannel> nodeSelectionStrategy = new AtomicReference<>();
+    private final AtomicReference<LimitedChannel> nodeSelectionChannel = new AtomicReference<>();
 
-    private DialogueChannel(Config c) {
-        this.c = c;
+    private DialogueChannel(Config cf) {
+        this.cf = cf;
         this.queuedChannel = new QueuedChannel(
-                new SupplierChannel(nodeSelectionStrategy::get),
-                c.channelName(),
-                c.clientConf().taggedMetricRegistry(),
-                c.maxQueueSize());
-        updateUris(c.clientConf().uris());
-
-        this.delegate = Channels.wrapQueuedChannel(c, queuedChannel);
+                new SupplierChannel(nodeSelectionChannel::get),
+                cf.channelName(),
+                cf.clientConf().taggedMetricRegistry(),
+                cf.maxQueueSize());
+        this.delegate = Channels.wrapQueuedChannel(cf, queuedChannel);
+        updateUris(cf.clientConf().uris());
     }
 
     @Override
@@ -70,7 +69,7 @@ public final class DialogueChannel implements Channel {
     }
 
     public void updateUris(Collection<String> uris) {
-        boolean firstTime = nodeSelectionStrategy.get() == null;
+        boolean firstTime = nodeSelectionChannel.get() == null;
         Set<String> uniqueUris = new HashSet<>(uris);
         // Uris didn't really change so nothing to do
         if (limitedChannelByUri.keySet().equals(uniqueUris) && !firstTime) {
@@ -84,13 +83,13 @@ public final class DialogueChannel implements Channel {
 
         staleUris.forEach(limitedChannelByUri::remove);
         newUris.forEach(uri -> {
-            LimitedChannel singleUriChannel = Channels.createPerUriChannel(c, uri);
+            LimitedChannel singleUriChannel = Channels.createPerUriChannel(cf, uri);
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
-        nodeSelectionStrategy.getAndUpdate(previous -> {
+        nodeSelectionChannel.getAndUpdate(previous -> {
             ImmutableList<LimitedChannel> channels = ImmutableList.copyOf(limitedChannelByUri.values());
-            return NodeSelectionStrategies.create(c, channels, previous);
+            return NodeSelectionStrategies.create(cf, channels, previous);
         });
 
         // some queued requests might be able to make progress on a new uri now
@@ -101,13 +100,13 @@ public final class DialogueChannel implements Channel {
         if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
             log.info(
                     "Updated to zero uris",
-                    SafeArg.of("channelName", c.channelName()),
+                    SafeArg.of("channelName", cf.channelName()),
                     SafeArg.of("prevNumUris", limitedChannelByUri.size()));
         }
         if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
             log.info(
                     "Updated from zero uris",
-                    SafeArg.of("channelName", c.channelName()),
+                    SafeArg.of("channelName", cf.channelName()),
                     SafeArg.of("numUris", uris.size()));
         }
     }
@@ -171,11 +170,11 @@ public final class DialogueChannel implements Channel {
             return new DialogueChannel(config);
         }
 
-        /** This does _not_ offer a way to live reload uris. */
+        /** This does _not_ allow live-reloading uris or other config. */
         @CheckReturnValue
         public Channel buildBasic() {
-            Config c = builder.build();
-            return Channels.createBasicChannel(c);
+            Config config = builder.build();
+            return Channels.createBasicChannel(config);
         }
     }
 }
