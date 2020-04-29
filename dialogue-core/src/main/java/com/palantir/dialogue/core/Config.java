@@ -22,7 +22,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.random.SafeThreadLocalRandom;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
@@ -49,8 +48,8 @@ interface Config {
     }
 
     @Value.Default
-    default Supplier<ScheduledExecutorService> scheduler() {
-        return RetryingChannel.sharedScheduler;
+    default ScheduledExecutorService scheduler() {
+        return RetryingChannel.sharedScheduler.get();
     }
 
     @Value.Default

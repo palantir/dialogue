@@ -193,7 +193,7 @@ public final class DialogueChannel implements Channel {
 
         @VisibleForTesting
         Builder scheduler(ScheduledExecutorService value) {
-            builder.scheduler(() -> value);
+            builder.scheduler(value);
             return this;
         }
 

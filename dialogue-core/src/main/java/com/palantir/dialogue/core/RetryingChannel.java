@@ -116,7 +116,7 @@ final class RetryingChannel implements Channel {
                 clientConf.backoffSlotSize(),
                 clientConf.serverQoS(),
                 clientConf.retryOnTimeout(),
-                cf.scheduler().get(),
+                cf.scheduler(),
                 cf.random()::nextDouble);
     }
 
