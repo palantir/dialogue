@@ -170,22 +170,28 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
         WrapperChannel(LimitedChannel delegate) {
             this.delegate = delegate;
             this.callback = new FutureCallback<Response>() {
+
                 @Override
                 public void onSuccess(Response result) {
-                    result.getFirstHeader(NODE_SELECTION_HEADER)
-                            .ifPresent(strategy -> updateRequestedStrategies(
-                                    delegate, DialogueNodeSelectionStrategy.fromHeader(strategy)));
+                    result.getFirstHeader(NODE_SELECTION_HEADER).ifPresent(this::consumeStrategy);
                 }
 
                 @Override
                 public void onFailure(Throwable _unused) {}
+
+                private void consumeStrategy(String strategy) {
+                    updateRequestedStrategies(delegate, DialogueNodeSelectionStrategy.fromHeader(strategy));
+                }
             };
         }
 
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            return delegate.maybeExecute(endpoint, request)
-                    .map(response -> DialogueFutures.addDirectCallback(response, this.callback));
+            return delegate.maybeExecute(endpoint, request).map(this::wrap);
+        }
+
+        private ListenableFuture<Response> wrap(ListenableFuture<Response> response) {
+            return DialogueFutures.addDirectCallback(response, callback);
         }
     }
 }
