@@ -41,8 +41,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     private final FutureCallback<Response> callback = new NodeSelectionCallback();
 
-    private final AtomicReference<ChannelWithStrategy> nodeSelectionStrategy;
-    private final AtomicReference<ImmutableList<LimitedChannel>> nodeChannels;
+    private final AtomicReference<NodeSelectionChannel> nodeSelectionStrategy;
     private final NodeSelectionStrategySelector strategySelector;
 
     private final String channelName;
@@ -79,9 +78,10 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.random = random;
         this.tick = tick;
         this.metrics = metrics;
-        this.nodeChannels = new AtomicReference<>(ImmutableList.of());
-        this.nodeSelectionStrategy = new AtomicReference<>(
-                ChannelWithStrategy.of(initialStrategy, new ZeroUriNodeSelectionChannel(channelName)));
+        this.nodeSelectionStrategy = new AtomicReference<>(NodeSelectionChannel.builder()
+                .strategy(initialStrategy)
+                .channel(new ZeroUriNodeSelectionChannel(channelName))
+                .build());
         this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
     }
 
@@ -95,9 +95,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     void updateChannels(ImmutableList<LimitedChannel> updatedChannels) {
-        nodeChannels.set(updatedChannels);
-        nodeSelectionStrategy.getAndUpdate(strat -> getUpdatedNodeSelectionStrategy(
-                strat.channel(), updatedChannels, strat.strategy(), metrics, random, tick, channelName));
+        nodeSelectionStrategy.getAndUpdate(prevChannel -> getUpdatedSelectedChannel(
+                prevChannel.channel(), updatedChannels, prevChannel.strategy(), metrics, random, tick, channelName));
     }
 
     private void updateRequestedStrategies(List<DialogueNodeSelectionStrategy> strategies) {
@@ -108,12 +107,12 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             if (strategy.equals(nodeSelectionStrategy.get().strategy())) {
                 return;
             }
-            nodeSelectionStrategy.getAndUpdate(currentStrategy -> getUpdatedNodeSelectionStrategy(
-                    currentStrategy.channel(), nodeChannels.get(), strategy, metrics, random, tick, channelName));
+            nodeSelectionStrategy.getAndUpdate(prevChannel -> getUpdatedSelectedChannel(
+                    prevChannel.channel(), prevChannel.hostChannels(), strategy, metrics, random, tick, channelName));
         }
     }
 
-    private static ChannelWithStrategy getUpdatedNodeSelectionStrategy(
+    private static NodeSelectionChannel getUpdatedSelectedChannel(
             @Nullable LimitedChannel previousNodeSelectionStrategy,
             ImmutableList<LimitedChannel> channels,
             DialogueNodeSelectionStrategy updatedStrategy,
@@ -121,13 +120,16 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             String channelName) {
-
+        NodeSelectionChannel.Builder channelBuilder =
+                NodeSelectionChannel.builder().strategy(updatedStrategy).hostChannels(channels);
         if (channels.isEmpty()) {
-            return ChannelWithStrategy.of(updatedStrategy, new ZeroUriNodeSelectionChannel(channelName));
+            return channelBuilder
+                    .channel(new ZeroUriNodeSelectionChannel(channelName))
+                    .build();
         }
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down
-            return ChannelWithStrategy.of(updatedStrategy, channels.get(0));
+            return channelBuilder.channel(channels.get(0)).build();
         }
 
         switch (updatedStrategy) {
@@ -138,31 +140,26 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 if (previousNodeSelectionStrategy instanceof PinUntilErrorNodeSelectionStrategyChannel) {
                     PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
                             (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
-                    return ChannelWithStrategy.of(
-                            updatedStrategy,
-                            PinUntilErrorNodeSelectionStrategyChannel.of(
+                    return channelBuilder
+                            .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
                                     Optional.of(previousPinUntilError.getCurrentChannel()),
                                     updatedStrategy,
                                     channels,
                                     pinuntilerrorMetrics,
                                     random,
-                                    channelName));
+                                    channelName))
+                            .build();
                 }
-                return ChannelWithStrategy.of(
-                        updatedStrategy,
-                        PinUntilErrorNodeSelectionStrategyChannel.of(
-                                Optional.empty(),
-                                updatedStrategy,
-                                channels,
-                                pinuntilerrorMetrics,
-                                random,
-                                channelName));
+                return channelBuilder
+                        .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
+                                Optional.empty(), updatedStrategy, channels, pinuntilerrorMetrics, random, channelName))
+                        .build();
             case BALANCED:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return ChannelWithStrategy.of(
-                        updatedStrategy,
-                        new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName));
+                return channelBuilder
+                        .channel(new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName))
+                        .build();
             case UNKNOWN:
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", updatedStrategy));
@@ -180,16 +177,17 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @Value.Immutable
-    interface ChannelWithStrategy {
+    interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
         LimitedChannel channel();
 
-        static ChannelWithStrategy of(DialogueNodeSelectionStrategy strategy, LimitedChannel channel) {
-            return ImmutableChannelWithStrategy.builder()
-                    .strategy(strategy)
-                    .channel(channel)
-                    .build();
+        ImmutableList<LimitedChannel> hostChannels();
+
+        class Builder extends ImmutableNodeSelectionChannel.Builder {}
+
+        static Builder builder() {
+            return new Builder();
         }
     }
 
