@@ -39,7 +39,7 @@ interface Config {
         return ClientConfiguration.builder()
                 .from(rawConfig())
                 .taggedMetricRegistry(
-                        new VersionedTaggedMetricRegistry(rawConfig().taggedMetricRegistry()))
+                        VersionedTaggedMetricRegistry.create(rawConfig().taggedMetricRegistry()))
                 .build();
     }
 
