@@ -171,6 +171,7 @@ public final class DialogueChannel implements Channel {
             return new DialogueChannel(config);
         }
 
+        /** This does _not_ offer a way to live reload uris. */
         @CheckReturnValue
         public Channel buildBasic() {
             Config c = builder.build();
