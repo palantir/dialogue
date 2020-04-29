@@ -24,39 +24,38 @@ final class Dialogue {
     private Dialogue() {}
 
     static Channel createBasicChannel(Config c) {
-        ImmutableList<String> uris = ImmutableList.copyOf(c.clientConf().uris());
-        ImmutableList<LimitedChannel> perUriChannels = uris.stream()
-                .map(uri -> {
-                    Channel channel = c.channelFactory().create(uri);
-                    // Instrument inner-most channel with instrumentation channels so that we measure only the
-                    // over-the-wire-time
-                    channel = new InstrumentedChannel(
-                            channel, c.channelName(), c.clientConf().taggedMetricRegistry());
-                    channel = new ActiveRequestInstrumentationChannel(
-                            channel, c.channelName(), "running", c.clientConf().taggedMetricRegistry());
-                    // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-                    channel = new TraceEnrichingChannel(channel);
-
-                    return ConcurrencyLimitedChannel.create(
-                            new ChannelToLimitedChannelAdapter(channel),
-                            c.clientConf().clientQoS(),
-                            c.clientConf().taggedMetricRegistry(),
-                            c.channelName(),
-                            uris.indexOf(uri));
-                })
+        ImmutableList<LimitedChannel> perUriChannels = c.clientConf().uris().stream()
+                .map(uri -> createPerUriChannel(c, uri))
                 .collect(ImmutableList.toImmutableList());
 
-        LimitedChannel nodeSelectionChannel = NodeSelectionStrategies.create(
-                perUriChannels,
-                c.clientConf().nodeSelectionStrategy(),
-                null,
-                c.ticker(),
-                c.random(),
-                c.clientConf().taggedMetricRegistry(),
-                c.channelName());
+        LimitedChannel nodeSelectionChannel = NodeSelectionStrategies.create(c, perUriChannels, null);
 
         Channel channel = new QueuedChannel(
                 nodeSelectionChannel, c.channelName(), c.clientConf().taggedMetricRegistry(), c.maxQueueSize());
+
+        return wrapQueuedChannel(c, channel);
+    }
+
+    static LimitedChannel createPerUriChannel(Config c, String uri) {
+        Channel channel = c.channelFactory().create(uri);
+        // Instrument inner-most channel with instrumentation channels so that we measure only the
+        // over-the-wire-time
+        channel =
+                new InstrumentedChannel(channel, c.channelName(), c.clientConf().taggedMetricRegistry());
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, c.channelName(), "running", c.clientConf().taggedMetricRegistry());
+        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+        channel = new TraceEnrichingChannel(channel);
+
+        return ConcurrencyLimitedChannel.create(
+                new ChannelToLimitedChannelAdapter(channel),
+                c.clientConf().clientQoS(),
+                c.clientConf().taggedMetricRegistry(),
+                c.channelName(),
+                c.clientConf().uris().indexOf(uri));
+    }
+
+    static Channel wrapQueuedChannel(Config c, Channel channel) {
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = RetryingChannel.create(
                 channel, c.channelName(), c.clientConf(), c.scheduler().get(), c.random());

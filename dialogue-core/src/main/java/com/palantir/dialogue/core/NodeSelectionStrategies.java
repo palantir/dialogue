@@ -16,29 +16,20 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
-import java.util.Random;
 import javax.annotation.Nullable;
 
 final class NodeSelectionStrategies {
 
     static LimitedChannel create(
-            ImmutableList<LimitedChannel> channels,
-            NodeSelectionStrategy nodeSelectionStrategy,
-            @Nullable LimitedChannel previousChannel,
-            Ticker tick,
-            Random random,
-            TaggedMetricRegistry registry,
-            String channelName) {
+            Config c, ImmutableList<LimitedChannel> channels, @Nullable LimitedChannel previousChannel) {
 
         if (channels.isEmpty()) {
-            return new ZeroUriNodeSelectionChannel(channelName);
+            return new ZeroUriNodeSelectionChannel(c.channelName());
         }
 
         if (channels.size() == 1) {
@@ -46,10 +37,12 @@ final class NodeSelectionStrategies {
             return channels.get(0);
         }
 
+        NodeSelectionStrategy nodeSelectionStrategy = c.clientConf().nodeSelectionStrategy();
         switch (nodeSelectionStrategy) {
             case PIN_UNTIL_ERROR:
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                DialoguePinuntilerrorMetrics pinuntilerrorMetrics = DialoguePinuntilerrorMetrics.of(registry);
+                DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
+                        DialoguePinuntilerrorMetrics.of(c.clientConf().taggedMetricRegistry());
                 // Previously pin until error, so we should preserve our previous location
                 if (previousChannel instanceof PinUntilErrorNodeSelectionStrategyChannel) {
                     PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
@@ -59,15 +52,21 @@ final class NodeSelectionStrategies {
                             nodeSelectionStrategy,
                             channels,
                             pinuntilerrorMetrics,
-                            random,
-                            channelName);
+                            c.random(),
+                            c.channelName());
                 }
                 return PinUntilErrorNodeSelectionStrategyChannel.of(
-                        Optional.empty(), nodeSelectionStrategy, channels, pinuntilerrorMetrics, random, channelName);
+                        Optional.empty(),
+                        nodeSelectionStrategy,
+                        channels,
+                        pinuntilerrorMetrics,
+                        c.random(),
+                        c.channelName());
             case ROUND_ROBIN:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return new BalancedNodeSelectionStrategyChannel(channels, random, tick, registry, channelName);
+                return new BalancedNodeSelectionStrategyChannel(
+                        channels, c.random(), c.ticker(), c.clientConf().taggedMetricRegistry(), c.channelName());
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", nodeSelectionStrategy));
     }
