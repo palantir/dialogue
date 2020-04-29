@@ -43,15 +43,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final LimitedChannel delegate;
     private final AimdConcurrencyLimiter limiter;
 
-    static LimitedChannel create(
-            LimitedChannel channel,
-            ClientConfiguration.ClientQoS clientQoS,
-            TaggedMetricRegistry metrics,
-            String channelName,
-            int uriIndex) {
+    static LimitedChannel create(Config cf, LimitedChannel channel, int uriIndex) {
+        ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
-                return new ConcurrencyLimitedChannel(channel, createLimiter(), channelName, uriIndex, metrics);
+                TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
+                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }

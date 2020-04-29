@@ -23,10 +23,10 @@ import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-public final class SupplierChannel implements LimitedChannel {
+final class SupplierChannel implements LimitedChannel {
     private final Supplier<LimitedChannel> channelSupplier;
 
-    public SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
+    SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
         this.channelSupplier = channelSupplier;
     }
 

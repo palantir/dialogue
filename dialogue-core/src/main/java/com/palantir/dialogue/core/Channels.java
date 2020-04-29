@@ -46,18 +46,14 @@ final class Channels {
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TraceEnrichingChannel(channel);
 
+        ChannelToLimitedChannelAdapter limited = new ChannelToLimitedChannelAdapter(channel);
         return ConcurrencyLimitedChannel.create(
-                new ChannelToLimitedChannelAdapter(channel),
-                cf.clientConf().clientQoS(),
-                cf.clientConf().taggedMetricRegistry(),
-                cf.channelName(),
-                cf.clientConf().uris().indexOf(uri));
+                cf, limited, cf.clientConf().uris().indexOf(uri));
     }
 
     static Channel wrapQueuedChannel(Config cf, Channel queuedChannel) {
         Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
-        channel = RetryingChannel.create(
-                channel, cf.channelName(), cf.clientConf(), cf.scheduler().get(), cf.random());
+        channel = RetryingChannel.create(cf, channel);
         channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
         channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
         channel = new ContentDecodingChannel(channel);
