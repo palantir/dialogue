@@ -38,6 +38,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,21 +49,23 @@ public final class DialogueChannel implements Channel {
     // we keep around internals purely for live-reloading
     private final Config cf;
 
-    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
     private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final NodeSelectionStrategyChannel nodeSelectionChannel;
+    private final Consumer<ImmutableList<LimitedChannel>> onChannelUpdate;
 
     private DialogueChannel(Config cf) {
-        this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
-        this.nodeSelectionChannel = new NodeSelectionStrategyChannel(
+        NodeSelectionStrategyChannel nodeSelectionChannel = new NodeSelectionStrategyChannel(
                 cf.clientConf().nodeSelectionStrategy(),
                 cf.channelName(),
                 cf.random(),
                 cf.ticker(),
                 cf.clientConf().taggedMetricRegistry());
-        this.queuedChannel = new QueuedChannel(
+        QueuedChannel queuedChannel = new QueuedChannel(
                 nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+        this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
         this.delegate = wrapQueuedChannel(cf, queuedChannel);
+        this.onChannelUpdate = ((Consumer<ImmutableList<LimitedChannel>>) nodeSelectionChannel::updateChannels)
+                // some queued requests might be able to make progress on a new uri now
+                .andThen(_unused -> queuedChannel.schedule());
         updateUrisInner(cf.clientConf().uris(), true);
     }
 
@@ -136,9 +139,7 @@ public final class DialogueChannel implements Channel {
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
-        nodeSelectionChannel.updateChannels(ImmutableList.copyOf(limitedChannelByUri.values()));
-        // some queued requests might be able to make progress on a new uri now
-        queuedChannel.schedule();
+        onChannelUpdate.accept(ImmutableList.copyOf(limitedChannelByUri.values()));
     }
 
     private void infoLogUriUpdate(Collection<String> uris, boolean firstTime) {
