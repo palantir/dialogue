@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import java.util.List;
 
-public interface NodeSelectionStrategySelector {
+interface NodeSelectionStrategySelector {
     DialogueNodeSelectionStrategy getCurrentStrategy();
 
     DialogueNodeSelectionStrategy updateChannelStrategy(
