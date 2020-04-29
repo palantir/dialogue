@@ -49,10 +49,10 @@ import org.mockito.quality.Strictness;
 public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @Mock
-    private LimitedChannel channel1;
+    private PinUntilErrorNodeSelectionStrategyChannel.PinChannel channel1;
 
     @Mock
-    private LimitedChannel channel2;
+    private PinUntilErrorNodeSelectionStrategyChannel.PinChannel channel2;
 
     @Mock
     private Ticker clock;
@@ -65,7 +65,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @BeforeEach
     public void before() {
-        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        ImmutableList<PinUntilErrorNodeSelectionStrategyChannel.PinChannel> channels =
+                ImmutableList.of(channel1, channel2);
 
         PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList constantList =
                 new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(channels);
