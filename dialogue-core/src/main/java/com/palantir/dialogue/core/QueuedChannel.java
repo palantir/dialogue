@@ -31,6 +31,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedDeque;
@@ -70,14 +71,14 @@ final class QueuedChannel implements Channel {
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
-    QueuedChannel(LimitedChannel delegate, String channelName, DialogueClientMetrics metrics, int maxQueueSize) {
+    QueuedChannel(LimitedChannel delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
-        this.queueSizeCounter = metrics.requestsQueued(channelName);
-        this.queuedTime = metrics.requestQueuedTime(channelName);
+        this.queueSizeCounter = DialogueClientMetrics.of(metrics).requestsQueued(channelName);
+        this.queuedTime = DialogueClientMetrics.of(metrics).requestQueuedTime(channelName);
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }

@@ -102,6 +102,24 @@ final class RetryingChannel implements Channel {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
+    static Channel create(Config cf, Channel channel) {
+        ClientConfiguration clientConf = cf.clientConf();
+        if (clientConf.maxNumRetries() == 0) {
+            return channel;
+        }
+
+        return new RetryingChannel(
+                channel,
+                cf.channelName(),
+                clientConf.taggedMetricRegistry(),
+                clientConf.maxNumRetries(),
+                clientConf.backoffSlotSize(),
+                clientConf.serverQoS(),
+                clientConf.retryOnTimeout(),
+                cf.scheduler(),
+                cf.random()::nextDouble);
+    }
+
     @VisibleForTesting
     RetryingChannel(
             Channel delegate,
@@ -122,7 +140,7 @@ final class RetryingChannel implements Channel {
                 () -> ThreadLocalRandom.current().nextDouble());
     }
 
-    RetryingChannel(
+    private RetryingChannel(
             Channel delegate,
             String channelName,
             TaggedMetricRegistry metrics,

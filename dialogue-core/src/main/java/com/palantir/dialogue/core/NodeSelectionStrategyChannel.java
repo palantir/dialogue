@@ -80,8 +80,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.tick = tick;
         this.metrics = metrics;
         this.nodeChannels = new AtomicReference<>(ImmutableList.of());
-        this.nodeSelectionStrategy = new AtomicReference<>(getUpdatedNodeSelectionStrategy(
-                null, nodeChannels.get(), initialStrategy, metrics, random, tick, channelName));
+        this.nodeSelectionStrategy = new AtomicReference<>(
+                ChannelWithStrategy.of(initialStrategy, new ZeroUriNodeSelectionChannel(channelName)));
         this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
     }
 
@@ -123,7 +123,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             String channelName) {
 
         if (channels.isEmpty()) {
-            return ChannelWithStrategy.of(updatedStrategy, new ZeroUriChannel(channelName));
+            return ChannelWithStrategy.of(updatedStrategy, new ZeroUriNodeSelectionChannel(channelName));
         }
         if (channels.size() == 1) {
             // no fancy node selection heuristic can save us if our one node goes down

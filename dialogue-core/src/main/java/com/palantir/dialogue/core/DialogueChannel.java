@@ -27,69 +27,81 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.random.SafeThreadLocalRandom;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.function.Supplier;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
-
-    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final NodeSelectionStrategyChannel nodeSelectionStrategy;
-    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
-
-    private final String channelName;
-    private final ClientConfiguration clientConfiguration;
-    private final ChannelFactory channelFactory;
     private final Channel delegate;
-    private final ClientMetrics clientMetrics;
-    private final DialogueClientMetrics dialogueClientMetrics;
 
-    // TODO(forozco): you really want a refreshable of uri separate from the client config
-    private DialogueChannel(
-            String channelName,
-            ClientConfiguration clientConfiguration,
-            ChannelFactory channelFactory,
-            Random random,
-            Supplier<ScheduledExecutorService> scheduler,
-            int maxQueueSize,
-            Ticker ticker) {
-        this.channelName = channelName;
-        this.clientConfiguration = clientConfiguration;
-        this.channelFactory = channelFactory;
-        this.clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
-        this.dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
-        this.nodeSelectionStrategy = new NodeSelectionStrategyChannel(
-                clientConfiguration.nodeSelectionStrategy(),
-                channelName,
-                random,
-                ticker,
-                clientConfiguration.taggedMetricRegistry());
+    // we keep around internals purely for live-reloading
+    private final Config cf;
 
-        this.queuedChannel = new QueuedChannel(nodeSelectionStrategy, channelName, dialogueClientMetrics, maxQueueSize);
-        updateUrisInner(clientConfiguration.uris(), true);
-        this.delegate = wrap(
-                queuedChannel,
-                channelName,
-                clientConfiguration,
-                scheduler,
-                random,
-                clientMetrics,
-                dialogueClientMetrics);
+    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
+    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
+    private final NodeSelectionStrategyChannel nodeSelectionChannel;
+
+    private DialogueChannel(Config cf) {
+        this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
+        this.nodeSelectionChannel = new NodeSelectionStrategyChannel(
+                cf.clientConf().nodeSelectionStrategy(),
+                cf.channelName(),
+                cf.random(),
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry());
+        this.queuedChannel = new QueuedChannel(
+                nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+        this.delegate = wrapQueuedChannel(cf, queuedChannel);
+        updateUrisInner(cf.clientConf().uris(), true);
+    }
+
+    private static ImmutableConfig withUris(Config cf, List<String> elements) {
+        return ImmutableConfig.builder()
+                .from(cf)
+                .rawConfig(ClientConfiguration.builder()
+                        .from(cf.clientConf())
+                        .uris(elements)
+                        .build())
+                .build();
+    }
+
+    private static LimitedChannel createPerUriChannel(Config cf, String uri) {
+        Channel channel = cf.channelFactory().create(uri);
+        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
+        channel = new InstrumentedChannel(
+                channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, cf.channelName(), "running", cf.clientConf().taggedMetricRegistry());
+        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+        channel = new TraceEnrichingChannel(channel);
+
+        ChannelToLimitedChannelAdapter limited = new ChannelToLimitedChannelAdapter(channel);
+        return ConcurrencyLimitedChannel.create(
+                cf, limited, cf.clientConf().uris().indexOf(uri));
+    }
+
+    private static Channel wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
+        Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
+        channel = RetryingChannel.create(cf, channel);
+        channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
+        channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
+        channel = new ContentDecodingChannel(channel);
+        channel = new DialogueTracedRequestChannel(channel);
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
+        channel = new NeverThrowChannel(channel); // this must come last as a defensive backstop
+        return channel;
     }
 
     @Override
@@ -108,18 +120,7 @@ public final class DialogueChannel implements Channel {
             return;
         }
 
-        if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
-            log.info(
-                    "Updated to zero uris",
-                    SafeArg.of("channelName", channelName),
-                    SafeArg.of("prevNumUris", limitedChannelByUri.size()));
-        }
-        if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
-            log.info(
-                    "Updated from zero uris",
-                    SafeArg.of("channelName", channelName),
-                    SafeArg.of("numUris", uris.size()));
-        }
+        infoLogUriUpdate(uris, firstTime);
 
         Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
         Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
@@ -129,85 +130,31 @@ public final class DialogueChannel implements Channel {
                 .addAll(limitedChannelByUri.keySet())
                 .addAll(newUris)
                 .build();
-        newUris.forEach(uri -> limitedChannelByUri.put(uri, createLimitedChannel(uri, allUris.indexOf(uri))));
 
-        nodeSelectionStrategy.updateChannels(ImmutableList.copyOf(limitedChannelByUri.values()));
+        newUris.forEach(uri -> {
+            Config configWithUris = withUris(cf, allUris); // necessary for attribute metrics to the right hostIndex
+            LimitedChannel singleUriChannel = createPerUriChannel(configWithUris, uri);
+            limitedChannelByUri.put(uri, singleUriChannel);
+        });
+
+        nodeSelectionChannel.updateChannels(ImmutableList.copyOf(limitedChannelByUri.values()));
         // some queued requests might be able to make progress on a new uri now
         queuedChannel.schedule();
     }
 
-    private LimitedChannel createLimitedChannel(String uri, int uriIndex) {
-        Channel channel = channelFactory.create(uri);
-        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
-        channel = new InstrumentedChannel(channel, channelName, clientMetrics);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "running", dialogueClientMetrics);
-        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-        channel = new TraceEnrichingChannel(channel);
-
-        LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), channelName, uriIndex);
-    }
-
-    private static LimitedChannel concurrencyLimiter(
-            ClientConfiguration config,
-            LimitedChannel channel,
-            TaggedMetricRegistry metrics,
-            String channelName,
-            int uriIndex) {
-        ClientConfiguration.ClientQoS clientQoS = config.clientQoS();
-        switch (clientQoS) {
-            case ENABLED:
-                return new ConcurrencyLimitedChannel(
-                        channel, ConcurrencyLimitedChannel.createLimiter(), channelName, uriIndex, metrics);
-            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return channel;
+    private void infoLogUriUpdate(Collection<String> uris, boolean firstTime) {
+        if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
+            log.info(
+                    "Updated to zero uris",
+                    SafeArg.of("channelName", cf.channelName()),
+                    SafeArg.of("prevNumUris", limitedChannelByUri.size()));
         }
-        throw new SafeIllegalStateException(
-                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
-    }
-
-    private static Channel retryingChannel(
-            Channel channel,
-            String channelName,
-            ClientConfiguration conf,
-            Supplier<ScheduledExecutorService> scheduler,
-            Random random) {
-        if (conf.maxNumRetries() == 0) {
-            return channel;
+        if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
+            log.info(
+                    "Updated from zero uris",
+                    SafeArg.of("channelName", cf.channelName()),
+                    SafeArg.of("numUris", uris.size()));
         }
-
-        return new RetryingChannel(
-                channel,
-                channelName,
-                conf.taggedMetricRegistry(),
-                conf.maxNumRetries(),
-                conf.backoffSlotSize(),
-                conf.serverQoS(),
-                conf.retryOnTimeout(),
-                scheduler.get(),
-                random::nextDouble);
-    }
-
-    private static Channel wrap(
-            QueuedChannel queuedChannel,
-            String channelName,
-            ClientConfiguration conf,
-            Supplier<ScheduledExecutorService> scheduler,
-            Random random,
-            ClientMetrics clientMetrics,
-            DialogueClientMetrics dialogueClientMetrics) {
-        Channel channel = queuedChannel;
-        channel = new TracedChannel(channel, "Dialogue-request-attempt");
-        channel = retryingChannel(channel, channelName, conf, scheduler, random);
-        channel = new UserAgentChannel(channel, conf.userAgent().get());
-        channel = new DeprecationWarningChannel(channel, clientMetrics);
-        channel = new ContentDecodingChannel(channel);
-        channel = new NeverThrowChannel(channel);
-        channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(channel, channelName, "processing", dialogueClientMetrics);
-
-        return channel;
     }
 
     public static Builder builder() {
@@ -215,84 +162,58 @@ public final class DialogueChannel implements Channel {
     }
 
     public static final class Builder {
-        private Random random = SafeThreadLocalRandom.get();
-        private Supplier<ScheduledExecutorService> scheduler = RetryingChannel.sharedScheduler;
-        private Ticker ticker = Ticker.systemTicker();
+        private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
-        @Nullable
-        private String channelName;
-
-        @Nullable
-        private ClientConfiguration config;
-
-        @Nullable
-        private ChannelFactory channelFactory;
-
-        private int maxQueueSize = 100_000;
+        private Builder() {}
 
         /**
          * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
          * does not impact behavior, using a unique value for each channel makes it much easier to monitor and debug
          * the RPC stack.
          */
-        public Builder channelName(@Safe String value) {
-            this.channelName = value;
+        public Builder channelName(@Safe String channelName) {
+            builder.channelName(channelName);
             return this;
         }
 
         public Builder clientConfiguration(ClientConfiguration value) {
-            this.config = value;
+            builder.rawConfig(value);
             return this;
         }
 
         public Builder channelFactory(ChannelFactory value) {
-            this.channelFactory = value;
+            builder.channelFactory(value);
             return this;
         }
 
         @VisibleForTesting
         Builder random(Random value) {
-            this.random = value;
+            builder.random(value);
             return this;
         }
 
         @VisibleForTesting
         Builder scheduler(ScheduledExecutorService value) {
-            this.scheduler = () -> value;
+            builder.scheduler(value);
             return this;
         }
 
         @VisibleForTesting
         Builder maxQueueSize(int value) {
-            Preconditions.checkArgument(value > 0, "maxQueueSize must be positive");
-            this.maxQueueSize = value;
+            builder.maxQueueSize(value);
             return this;
         }
 
         @VisibleForTesting
         Builder ticker(Ticker value) {
-            this.ticker = value;
+            builder.ticker(value);
             return this;
         }
 
         @CheckReturnValue
         public DialogueChannel build() {
-            ClientConfiguration conf = Preconditions.checkNotNull(config, "clientConfiguration is required");
-            ChannelFactory factory = Preconditions.checkNotNull(channelFactory, "channelFactory is required");
-            String name = Preconditions.checkNotNull(channelName, "channelName is required.");
-            preconditions(conf);
-            ClientConfiguration cleanedConf = ClientConfiguration.builder()
-                    .from(conf)
-                    .taggedMetricRegistry(new VersionedTaggedMetricRegistry(conf.taggedMetricRegistry()))
-                    .build();
-            return new DialogueChannel(name, cleanedConf, factory, random, scheduler, maxQueueSize, ticker);
-        }
-
-        private void preconditions(ClientConfiguration conf) {
-            Preconditions.checkArgument(conf.userAgent().isPresent(), "config.userAgent() must be specified");
-            Preconditions.checkArgument(
-                    conf.retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
-                    "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
+            Config config = builder.build();
+            return new DialogueChannel(config);
         }
     }
 }

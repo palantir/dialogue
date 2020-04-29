@@ -168,10 +168,9 @@ public final class Benchmark {
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
-        ClientMetrics clientMetrics = ClientMetrics.of(simulation.taggedMetrics());
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, clientMetrics))
+                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, simulation.taggedMetrics()))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
@@ -240,7 +239,7 @@ public final class Benchmark {
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(clientMetrics
+                            .clientHistogram(ClientMetrics.of(simulation.taggedMetrics())
                                     .response()
                                     .channelName(SimulationUtils.CHANNEL_NAME)
                                     .serviceName(SimulationUtils.SERVICE_NAME)

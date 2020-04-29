@@ -37,8 +37,15 @@ final class VersionedTaggedMetricRegistry implements TaggedMetricRegistry {
 
     private final TaggedMetricRegistry delegate;
 
-    VersionedTaggedMetricRegistry(TaggedMetricRegistry delegate) {
+    private VersionedTaggedMetricRegistry(TaggedMetricRegistry delegate) {
         this.delegate = delegate;
+    }
+
+    static VersionedTaggedMetricRegistry create(TaggedMetricRegistry delegate) {
+        if (delegate instanceof VersionedTaggedMetricRegistry) {
+            return (VersionedTaggedMetricRegistry) delegate;
+        }
+        return new VersionedTaggedMetricRegistry(delegate);
     }
 
     private MetricName augment(MetricName name) {
