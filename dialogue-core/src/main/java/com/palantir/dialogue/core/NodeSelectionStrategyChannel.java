@@ -76,7 +76,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             String channelName) {
 
         if (channels.isEmpty()) {
-            return new ZeroUriChannel(channelName);
+            return new ZeroUriNodeSelectionChannel(channelName);
         }
 
         if (channels.size() == 1) {

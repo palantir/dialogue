@@ -23,6 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 
 /**
@@ -34,10 +35,10 @@ final class InstrumentedChannel implements Channel {
     private final String channelName;
     private final ClientMetrics metrics;
 
-    InstrumentedChannel(Channel delegate, String channelName, ClientMetrics metrics) {
+    InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.channelName = channelName;
-        this.metrics = metrics;
+        this.metrics = ClientMetrics.of(metrics);
     }
 
     @Override

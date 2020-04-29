@@ -32,17 +32,19 @@ import org.junit.jupiter.api.Test;
 final class ActiveRequestInstrumentationChannelTest {
     private static final Endpoint ENDPOINT = TestEndpoint.POST;
 
+    DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+
     @Test
     public void testActiveRequests() {
         SettableFuture<Response> future = SettableFuture.create();
         Channel stub = (_endpoint, _request) -> future;
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         ActiveRequestInstrumentationChannel instrumented =
-                new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", metrics);
+                new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", registry);
         ListenableFuture<Response> result =
                 instrumented.execute(ENDPOINT, Request.builder().build());
         assertThat(result).isNotDone();
-        Counter counter = metrics.requestActive()
+        Counter counter = DialogueClientMetrics.of(registry)
+                .requestActive()
                 .channelName("my-channel")
                 .serviceName(ENDPOINT.serviceName())
                 .stage("stage")
