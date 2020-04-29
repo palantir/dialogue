@@ -35,18 +35,22 @@ import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
  * Guiding principle: Users can't be trusted to close things to prevent OOMs, we must do it automatically for them.
  */
 public final class Facade {
+    private final ConjureRuntime runtime;
+    private final Supplier<ScheduledExecutorService> executor;
 
-    private final ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
-    private final Supplier<ScheduledExecutorService> executor = RetryingChannel.sharedScheduler;
+    private Facade(ConjureRuntime runtime, Supplier<ScheduledExecutorService> executor) {
+        this.runtime = runtime;
+        this.executor = executor;
+    }
 
-    public Facade() {}
+    public static Facade create() {
+        return new Facade(DefaultConjureRuntime.builder().build(), RetryingChannel.sharedScheduler);
+    }
 
     /**
      * LIMITATIONS:
      * <ul>
      *     <li>Users have to build the client configuration themselves, which doesn't have an equals method :(
-     *     <li>Can't pass in an executor
-     *     <li>Can't configure the runtime
      *     <li>Users can't tweak settings like clientQos, maxNumRetries. Also can't pass in an executor.
      *     <li>No live-reloading
      *     <li>No interning, i.e. if people repeatedly ask for the same client over and over again, then
@@ -57,6 +61,7 @@ public final class Facade {
      *     {@link PoolingHttpClientConnectionManager} has a finalize method!)
      *     <li>Makes a new apache http client for every single clazz, even if it talks to the same urls. Maybe this
      *     is actually fine??
+     *     <li>Doesn't support jaxrs/retrofit
      * </ul>
      */
     public <T> T get(Class<T> clazz, ClientConfiguration conf) {
@@ -72,6 +77,18 @@ public final class Facade {
                 .build();
 
         return callStaticFactoryMethod(clazz, channel, runtime);
+    }
+
+    private Facade copy() {
+        return new Facade(runtime, executor);
+    }
+
+    public Facade withExecutor(ScheduledExecutorService override) {
+        return new Facade(runtime, () -> override);
+    }
+
+    public Facade withRuntime(ConjureRuntime override) {
+        return new Facade(override, executor);
     }
 
     private static <T> T callStaticFactoryMethod(
