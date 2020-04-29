@@ -26,9 +26,9 @@ import static org.mockito.Mockito.verify;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,9 +43,13 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NodeSelectionStrategyChannelTest {
 
     @Spy
-    private NodeSelectionStrategySelector strategySelector = new DefaultNodeSelectionStrategySelector(
-            NodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
-            DialogueNodeselectionMetrics.of(new DefaultTaggedMetricRegistry()));
+    private NodeSelectionStrategySelector strategySelector = new NodeSelectionStrategySelector() {
+        @Override
+        public Optional<DialogueNodeSelectionStrategy> updateAndGet(
+                List<DialogueNodeSelectionStrategy> updatedStrategies) {
+            return NodeSelectionStrategyChannel.getFirstKnownStrategy(updatedStrategies);
+        }
+    };
 
     @Mock
     private LimitedChannel channel1;
@@ -63,7 +67,12 @@ class NodeSelectionStrategyChannelTest {
     @BeforeEach
     void beforeEach() {
         channel = new NodeSelectionStrategyChannel(
-                channelName, pseudo, clock, new DefaultTaggedMetricRegistry(), strategySelector);
+                strategySelector,
+                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
+                channelName,
+                pseudo,
+                clock,
+                new DefaultTaggedMetricRegistry());
     }
 
     @Test
@@ -79,20 +88,11 @@ class NodeSelectionStrategyChannelTest {
     }
 
     @Test
-    void updates_strategy_selector_on_uri_update() {
+    void updates_strategy_on_response() {
         channel.updateChannels(ImmutableList.of(channel1));
-
-        verify(strategySelector, times(1)).setActiveChannels(ImmutableList.of(channel1));
-    }
-
-    @Test
-    void tracks_per_host_strategy() {
-        channel.updateChannels(ImmutableList.of(channel.wrap(channel1)));
         setResponse(channel1, Optional.of("BALANCED"));
         channel.maybeExecute(null, null).get();
-
-        verify(strategySelector, times(1))
-                .updateChannelStrategy(eq(channel1), eq(ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED)));
+        verify(strategySelector, times(1)).updateAndGet(eq(ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED)));
     }
 
     private static void setResponse(LimitedChannel mockChannel, Optional<String> header) {

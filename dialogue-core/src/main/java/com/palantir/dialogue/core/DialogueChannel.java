@@ -74,13 +74,12 @@ public final class DialogueChannel implements Channel {
         this.clientMetrics = ClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.dialogueClientMetrics = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
         this.nodeSelectionStrategy = new NodeSelectionStrategyChannel(
+                clientConfiguration.nodeSelectionStrategy(),
                 channelName,
                 random,
                 ticker,
-                clientConfiguration.taggedMetricRegistry(),
-                new DefaultNodeSelectionStrategySelector(
-                        clientConfiguration.nodeSelectionStrategy(),
-                        DialogueNodeselectionMetrics.of(clientConfiguration.taggedMetricRegistry())));
+                clientConfiguration.taggedMetricRegistry());
+
         this.queuedChannel = new QueuedChannel(nodeSelectionStrategy, channelName, dialogueClientMetrics, maxQueueSize);
         updateUrisInner(clientConfiguration.uris(), true);
         this.delegate = wrap(
@@ -146,12 +145,8 @@ public final class DialogueChannel implements Channel {
         channel = new TraceEnrichingChannel(channel);
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return nodeSelectionStrategy.wrap(concurrencyLimiter(
-                clientConfiguration,
-                limitedChannel,
-                clientConfiguration.taggedMetricRegistry(),
-                channelName,
-                uriIndex));
+        return concurrencyLimiter(
+                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), channelName, uriIndex);
     }
 
     private static LimitedChannel concurrencyLimiter(
