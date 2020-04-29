@@ -61,7 +61,7 @@ public final class DialogueChannel implements Channel {
                 cf.channelName(),
                 cf.clientConf().taggedMetricRegistry(),
                 cf.maxQueueSize());
-        this.delegate = Channels.wrapQueuedChannel(cf, queuedChannel);
+        this.delegate = wrapQueuedChannel(cf, queuedChannel);
         updateUris(cf.clientConf().uris());
     }
 
@@ -73,6 +73,34 @@ public final class DialogueChannel implements Channel {
                         .uris(elements)
                         .build())
                 .build();
+    }
+
+    private static LimitedChannel createPerUriChannel(Config cf, String uri) {
+        Channel channel = cf.channelFactory().create(uri);
+        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
+        channel = new InstrumentedChannel(
+                channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, cf.channelName(), "running", cf.clientConf().taggedMetricRegistry());
+        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
+        channel = new TraceEnrichingChannel(channel);
+
+        ChannelToLimitedChannelAdapter limited = new ChannelToLimitedChannelAdapter(channel);
+        return ConcurrencyLimitedChannel.create(
+                cf, limited, cf.clientConf().uris().indexOf(uri));
+    }
+
+    private static Channel wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
+        Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
+        channel = RetryingChannel.create(cf, channel);
+        channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
+        channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
+        channel = new ContentDecodingChannel(channel);
+        channel = new DialogueTracedRequestChannel(channel);
+        channel = new ActiveRequestInstrumentationChannel(
+                channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
+        channel = new NeverThrowChannel(channel); // this must come last as a defensive backstop
+        return channel;
     }
 
     @Override
@@ -100,7 +128,7 @@ public final class DialogueChannel implements Channel {
                 .build();
         newUris.forEach(uri -> {
             Config configWithUris = withUris(cf, allUris); // necessary for attribute metrics to the right hostIndex
-            LimitedChannel singleUriChannel = Channels.createPerUriChannel(configWithUris, uri);
+            LimitedChannel singleUriChannel = createPerUriChannel(configWithUris, uri);
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
@@ -185,13 +213,6 @@ public final class DialogueChannel implements Channel {
         public DialogueChannel build() {
             Config config = builder.build();
             return new DialogueChannel(config);
-        }
-
-        /** This does _not_ allow live-reloading uris or other config. */
-        @CheckReturnValue
-        Channel buildBasic() {
-            Config config = builder.build();
-            return Channels.createBasicChannel(config);
         }
     }
 }
