@@ -22,6 +22,8 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
@@ -29,16 +31,20 @@ public enum DialogueNodeSelectionStrategy {
     BALANCED,
     UNKNOWN;
 
+    private static final Logger log = LoggerFactory.getLogger(DialogueNodeSelectionStrategy.class);
+    private static final Splitter SPLITTER = Splitter.on(",").trimResults().omitEmptyStrings();
+
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
-        return Splitter.on(",").splitToList(header).stream()
+        return SPLITTER.splitToStream(header)
                 .map(DialogueNodeSelectionStrategy::safeValueOf)
                 .collect(ImmutableList.toImmutableList());
     }
 
     private static DialogueNodeSelectionStrategy safeValueOf(String value) {
         try {
-            return valueOf(value.trim().toUpperCase());
+            return valueOf(value.toUpperCase());
         } catch (Exception e) {
+            log.info("Received unknown selection strategy", SafeArg.of("strategy", value));
             return UNKNOWN;
         }
     }
