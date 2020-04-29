@@ -54,14 +54,8 @@ public final class DialogueChannel implements Channel {
 
     private DialogueChannel(Config cf) {
         this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
-        this.nodeSelectionChannel = new NodeSelectionStrategyChannel(
-                cf.clientConf().nodeSelectionStrategy(),
-                cf.channelName(),
-                cf.random(),
-                cf.ticker(),
-                cf.clientConf().taggedMetricRegistry());
-        this.queuedChannel = new QueuedChannel(
-                nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+        this.nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf);
+        this.queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
         this.delegate = wrapQueuedChannel(cf, queuedChannel);
         updateUrisInner(cf.clientConf().uris(), true);
     }
@@ -76,7 +70,7 @@ public final class DialogueChannel implements Channel {
                 .build();
     }
 
-    private static LimitedChannel createPerUriChannel(Config cf, String uri) {
+    static LimitedChannel createPerUriChannel(Config cf, String uri) {
         Channel channel = cf.channelFactory().create(uri);
         // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(
@@ -91,7 +85,7 @@ public final class DialogueChannel implements Channel {
                 cf, limited, cf.clientConf().uris().indexOf(uri));
     }
 
-    private static Channel wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
+    static Channel wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
         Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
         channel = RetryingChannel.create(cf, channel);
         channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());

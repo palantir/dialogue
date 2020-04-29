@@ -83,6 +83,10 @@ final class QueuedChannel implements Channel {
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
+    static QueuedChannel create(Config cf, LimitedChannel delegate) {
+        return new QueuedChannel(delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+    }
+
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);

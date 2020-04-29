@@ -56,6 +56,15 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.delegate = new SupplierChannel(nodeSelectionStrategy::get);
     }
 
+    static NodeSelectionStrategyChannel create(Config cf) {
+        return new NodeSelectionStrategyChannel(
+                cf.clientConf().nodeSelectionStrategy(),
+                cf.channelName(),
+                cf.random(),
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry());
+    }
+
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         return delegate.maybeExecute(endpoint, request);
