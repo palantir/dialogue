@@ -23,6 +23,7 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.MetricName;
@@ -69,7 +70,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 .reason(getClass().getSimpleName())
                 .build();
         this.limiter = limiter;
-
+        Preconditions.checkArgument(
+                uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
         weakGauge(
                 taggedMetrics,
                 MetricName.builder()

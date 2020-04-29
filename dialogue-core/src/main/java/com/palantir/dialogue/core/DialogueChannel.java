@@ -30,7 +30,9 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -53,7 +55,7 @@ public final class DialogueChannel implements Channel {
     private final AtomicReference<LimitedChannel> nodeSelectionChannel = new AtomicReference<>();
 
     private DialogueChannel(Config cf) {
-        this.cf = cf;
+        this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
         this.queuedChannel = new QueuedChannel(
                 new SupplierChannel(nodeSelectionChannel::get),
                 cf.channelName(),
@@ -61,6 +63,16 @@ public final class DialogueChannel implements Channel {
                 cf.maxQueueSize());
         this.delegate = Channels.wrapQueuedChannel(cf, queuedChannel);
         updateUris(cf.clientConf().uris());
+    }
+
+    private static ImmutableConfig withUris(Config cf, List<String> elements) {
+        return ImmutableConfig.builder()
+                .from(cf)
+                .rawConfig(ClientConfiguration.builder()
+                        .from(cf.clientConf())
+                        .uris(elements)
+                        .build())
+                .build();
     }
 
     @Override
@@ -82,8 +94,13 @@ public final class DialogueChannel implements Channel {
         Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
 
         staleUris.forEach(limitedChannelByUri::remove);
+        ImmutableList<String> allUris = ImmutableList.<String>builder()
+                .addAll(limitedChannelByUri.keySet())
+                .addAll(newUris)
+                .build();
         newUris.forEach(uri -> {
-            LimitedChannel singleUriChannel = Channels.createPerUriChannel(cf, uri);
+            Config configWithUris = withUris(cf, allUris); // necessary for attribute metrics to the right hostIndex
+            LimitedChannel singleUriChannel = Channels.createPerUriChannel(configWithUris, uri);
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
