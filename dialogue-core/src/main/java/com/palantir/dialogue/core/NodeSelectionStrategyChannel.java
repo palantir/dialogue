@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
@@ -27,7 +26,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
@@ -110,16 +108,5 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 return new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName);
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", updatedStrategy));
-    }
-
-    @VisibleForTesting
-    static Optional<DialogueNodeSelectionStrategy> getFirstKnownStrategy(
-            List<DialogueNodeSelectionStrategy> strategies) {
-        for (DialogueNodeSelectionStrategy strategy : strategies) {
-            if (!strategy.equals(DialogueNodeSelectionStrategy.UNKNOWN)) {
-                return Optional.of(strategy);
-            }
-        }
-        return Optional.empty();
     }
 }
