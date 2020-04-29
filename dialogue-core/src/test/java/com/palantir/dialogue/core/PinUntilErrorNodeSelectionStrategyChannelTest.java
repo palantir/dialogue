@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
@@ -196,7 +197,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     void handles_reconstruction_from_stale_state() {
         PinUntilErrorNodeSelectionStrategyChannel.of(
                 Optional.empty(),
-                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                NodeSelectionStrategy.PIN_UNTIL_ERROR,
                 ImmutableList.of(channel1, channel2),
                 metrics,
                 pseudo,
