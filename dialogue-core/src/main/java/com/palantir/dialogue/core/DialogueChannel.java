@@ -61,7 +61,7 @@ public final class DialogueChannel implements Channel {
                 c.maxQueueSize());
         updateUris(c.clientConf().uris());
 
-        this.delegate = Dialogue.wrapQueuedChannel(c, queuedChannel);
+        this.delegate = Channels.wrapQueuedChannel(c, queuedChannel);
     }
 
     @Override
@@ -84,7 +84,7 @@ public final class DialogueChannel implements Channel {
 
         staleUris.forEach(limitedChannelByUri::remove);
         newUris.forEach(uri -> {
-            LimitedChannel singleUriChannel = Dialogue.createPerUriChannel(c, uri);
+            LimitedChannel singleUriChannel = Channels.createPerUriChannel(c, uri);
             limitedChannelByUri.put(uri, singleUriChannel);
         });
 
@@ -174,7 +174,7 @@ public final class DialogueChannel implements Channel {
         @CheckReturnValue
         public Channel buildBasic() {
             Config c = builder.build();
-            return Dialogue.createBasicChannel(c);
+            return Channels.createBasicChannel(c);
         }
     }
 }

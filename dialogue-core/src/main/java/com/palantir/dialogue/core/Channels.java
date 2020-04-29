@@ -19,9 +19,9 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ImmutableList;
 import com.palantir.dialogue.Channel;
 
-final class Dialogue {
+final class Channels {
 
-    private Dialogue() {}
+    private Channels() {}
 
     static Channel createBasicChannel(Config c) {
         ImmutableList<LimitedChannel> perUriChannels = c.clientConf().uris().stream()
@@ -36,36 +36,36 @@ final class Dialogue {
         return wrapQueuedChannel(c, channel);
     }
 
-    static LimitedChannel createPerUriChannel(Config c, String uri) {
-        Channel channel = c.channelFactory().create(uri);
+    static LimitedChannel createPerUriChannel(Config cf, String uri) {
+        Channel channel = cf.channelFactory().create(uri);
         // Instrument inner-most channel with instrumentation channels so that we measure only the
         // over-the-wire-time
-        channel =
-                new InstrumentedChannel(channel, c.channelName(), c.clientConf().taggedMetricRegistry());
+        channel = new InstrumentedChannel(
+                channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
         channel = new ActiveRequestInstrumentationChannel(
-                channel, c.channelName(), "running", c.clientConf().taggedMetricRegistry());
+                channel, cf.channelName(), "running", cf.clientConf().taggedMetricRegistry());
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
         channel = new TraceEnrichingChannel(channel);
 
         return ConcurrencyLimitedChannel.create(
                 new ChannelToLimitedChannelAdapter(channel),
-                c.clientConf().clientQoS(),
-                c.clientConf().taggedMetricRegistry(),
-                c.channelName(),
-                c.clientConf().uris().indexOf(uri));
+                cf.clientConf().clientQoS(),
+                cf.clientConf().taggedMetricRegistry(),
+                cf.channelName(),
+                cf.clientConf().uris().indexOf(uri));
     }
 
-    static Channel wrapQueuedChannel(Config c, Channel channel) {
+    static Channel wrapQueuedChannel(Config cf, Channel channel) {
         channel = new TracedChannel(channel, "Dialogue-request-attempt");
         channel = RetryingChannel.create(
-                channel, c.channelName(), c.clientConf(), c.scheduler().get(), c.random());
-        channel = new UserAgentChannel(channel, c.clientConf().userAgent().get());
-        channel = new DeprecationWarningChannel(channel, c.clientConf().taggedMetricRegistry());
+                channel, cf.channelName(), cf.clientConf(), cf.scheduler().get(), cf.random());
+        channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
+        channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
         channel = new ContentDecodingChannel(channel);
         channel = new NeverThrowChannel(channel);
         channel = new DialogueTracedRequestChannel(channel);
         channel = new ActiveRequestInstrumentationChannel(
-                channel, c.channelName(), "processing", c.clientConf().taggedMetricRegistry());
+                channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
         return channel;
     }
 }

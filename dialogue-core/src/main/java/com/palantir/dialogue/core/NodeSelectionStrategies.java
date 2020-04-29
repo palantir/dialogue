@@ -26,10 +26,10 @@ import javax.annotation.Nullable;
 final class NodeSelectionStrategies {
 
     static LimitedChannel create(
-            Config c, ImmutableList<LimitedChannel> channels, @Nullable LimitedChannel previousChannel) {
+            Config cf, ImmutableList<LimitedChannel> channels, @Nullable LimitedChannel previousChannel) {
 
         if (channels.isEmpty()) {
-            return new ZeroUriNodeSelectionChannel(c.channelName());
+            return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
 
         if (channels.size() == 1) {
@@ -37,12 +37,12 @@ final class NodeSelectionStrategies {
             return channels.get(0);
         }
 
-        NodeSelectionStrategy nodeSelectionStrategy = c.clientConf().nodeSelectionStrategy();
+        NodeSelectionStrategy nodeSelectionStrategy = cf.clientConf().nodeSelectionStrategy();
         switch (nodeSelectionStrategy) {
             case PIN_UNTIL_ERROR:
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
-                        DialoguePinuntilerrorMetrics.of(c.clientConf().taggedMetricRegistry());
+                        DialoguePinuntilerrorMetrics.of(cf.clientConf().taggedMetricRegistry());
                 // Previously pin until error, so we should preserve our previous location
                 if (previousChannel instanceof PinUntilErrorNodeSelectionStrategyChannel) {
                     PinUntilErrorNodeSelectionStrategyChannel previousPinUntilError =
@@ -52,21 +52,21 @@ final class NodeSelectionStrategies {
                             nodeSelectionStrategy,
                             channels,
                             pinuntilerrorMetrics,
-                            c.random(),
-                            c.channelName());
+                            cf.random(),
+                            cf.channelName());
                 }
                 return PinUntilErrorNodeSelectionStrategyChannel.of(
                         Optional.empty(),
                         nodeSelectionStrategy,
                         channels,
                         pinuntilerrorMetrics,
-                        c.random(),
-                        c.channelName());
+                        cf.random(),
+                        cf.channelName());
             case ROUND_ROBIN:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
                 return new BalancedNodeSelectionStrategyChannel(
-                        channels, c.random(), c.ticker(), c.clientConf().taggedMetricRegistry(), c.channelName());
+                        channels, cf.random(), cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName());
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", nodeSelectionStrategy));
     }

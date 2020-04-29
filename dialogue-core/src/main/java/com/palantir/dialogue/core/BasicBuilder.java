@@ -77,6 +77,6 @@ public final class BasicBuilder {
     @CheckReturnValue
     public Channel build() {
         Config config = builder.build();
-        return Dialogue.createBasicChannel(config);
+        return Channels.createBasicChannel(config);
     }
 }
