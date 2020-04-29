@@ -70,13 +70,11 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
         return delegate.maybeExecute(endpoint, request);
     }
 
-    public void updateChannels(List<LimitedChannel> newChannels) {
+    public void updateChannels(ImmutableList<LimitedChannel> newChannels) {
         DialogueNodeSelectionStrategy updatedStrategy = strategySelector.setActiveChannels(newChannels);
-        ImmutableList<LimitedChannel> wrappedChannels =
-                newChannels.stream().map(WrapperChannel::new).collect(ImmutableList.toImmutableList());
-        nodeChannels.set(wrappedChannels);
+        nodeChannels.set(newChannels);
         nodeSelectionStrategy.getAndUpdate(previousChannel -> getUpdatedNodeSelectionStrategy(
-                previousChannel.channel(), wrappedChannels, updatedStrategy, metrics, random, tick, channelName));
+                previousChannel.channel(), newChannels, updatedStrategy, metrics, random, tick, channelName));
     }
 
     private void updateRequestedStrategies(LimitedChannel channel, List<DialogueNodeSelectionStrategy> strategies) {
@@ -88,6 +86,10 @@ public final class NodeSelectionStrategyChannel implements LimitedChannel {
             return getUpdatedNodeSelectionStrategy(
                     currentStrategy.channel(), nodeChannels.get(), updatedStrategy, metrics, random, tick, channelName);
         });
+    }
+
+    LimitedChannel wrap(LimitedChannel channel) {
+        return new WrapperChannel(channel);
     }
 
     private static ChannelWithStrategy getUpdatedNodeSelectionStrategy(

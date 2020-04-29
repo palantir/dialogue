@@ -144,8 +144,12 @@ public final class DialogueChannel implements Channel {
         channel = new TraceEnrichingChannel(channel);
 
         LimitedChannel limitedChannel = new ChannelToLimitedChannelAdapter(channel);
-        return concurrencyLimiter(
-                clientConfiguration, limitedChannel, clientConfiguration.taggedMetricRegistry(), channelName, uriIndex);
+        return nodeSelectionStrategy.wrap(concurrencyLimiter(
+                clientConfiguration,
+                limitedChannel,
+                clientConfiguration.taggedMetricRegistry(),
+                channelName,
+                uriIndex));
     }
 
     private static LimitedChannel concurrencyLimiter(
