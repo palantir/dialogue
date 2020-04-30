@@ -21,7 +21,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -50,21 +49,6 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final TaggedMetricRegistry metrics;
     private final LimitedChannel delegate;
 
-    NodeSelectionStrategyChannel(
-            NodeSelectionStrategy initialStrategy,
-            String channelName,
-            Random random,
-            Ticker tick,
-            TaggedMetricRegistry metrics) {
-        this(
-                NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                DialogueNodeSelectionStrategy.of(initialStrategy),
-                channelName,
-                random,
-                tick,
-                metrics);
-    }
-
     @VisibleForTesting
     NodeSelectionStrategyChannel(
             NodeSelectionStrategySelector strategySelector,
@@ -83,6 +67,16 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 .channel(new ZeroUriNodeSelectionChannel(channelName))
                 .build());
         this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
+    }
+
+    static NodeSelectionStrategyChannel create(Config cf) {
+        return new NodeSelectionStrategyChannel(
+                NodeSelectionStrategyChannel::getFirstKnownStrategy,
+                DialogueNodeSelectionStrategy.of(cf.clientConf().nodeSelectionStrategy()),
+                cf.channelName(),
+                cf.random(),
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry());
     }
 
     @Override

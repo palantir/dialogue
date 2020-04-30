@@ -54,14 +54,8 @@ public final class DialogueChannel implements Channel {
 
     private DialogueChannel(Config cf) {
         this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
-        this.nodeSelectionChannel = new NodeSelectionStrategyChannel(
-                cf.clientConf().nodeSelectionStrategy(),
-                cf.channelName(),
-                cf.random(),
-                cf.ticker(),
-                cf.clientConf().taggedMetricRegistry());
-        this.queuedChannel = new QueuedChannel(
-                nodeSelectionChannel, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+        this.nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf);
+        this.queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
         this.delegate = wrapQueuedChannel(cf, queuedChannel);
         updateUrisInner(cf.clientConf().uris(), true);
     }
