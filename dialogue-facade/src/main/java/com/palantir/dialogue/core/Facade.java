@@ -16,19 +16,28 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import javax.annotation.concurrent.ThreadSafe;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 
 /**
@@ -65,16 +74,63 @@ public final class Facade {
      * </ul>
      */
     public <T> T get(Class<T> clazz, ClientConfiguration conf) {
-        String channelName = "facade-" + clazz.getSimpleName();
+        Channel channel = getChannel("facade-basic-" + clazz.getSimpleName(), conf);
+
+        return callStaticFactoryMethod(clazz, channel, runtime);
+    }
+
+    private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
         ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, channelName);
 
-        Channel channel = new BasicBuilder()
+        return new BasicBuilder()
                 .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, client))
                 .scheduler(executor.get())
                 .build();
+    }
+
+    /** Live-reloading version. */
+    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> refreshable) {
+        ScheduledExecutorService scheduled = executor.get();
+
+        ClientConfiguration initialConf = refreshable.get();
+        Channel initialChannel = getChannel("facade-reloading-", initialConf);
+
+        AtomicReference<ClientConfiguration> atomicConf = new AtomicReference<>(initialConf);
+        AtomicReference<Channel> atomicChannel = new AtomicReference<>(initialChannel);
+
+        AtomicChannel channel = new AtomicChannel(atomicChannel);
+
+        WeakReference<Object> weakRef = new WeakReference<>(channel);
+
+        AtomicReference<Runnable> cancelFunction = new AtomicReference<>();
+        ScheduledFuture<?> future = scheduled.scheduleWithFixedDelay(
+                () -> {
+                    if (weakRef.get() != null) {
+                        cancelFunction.get().run();
+                        return;
+                    }
+
+                    // TODO auto-unregister
+                    // TODO(dfox): try-catches
+                    ClientConfiguration existingConf = atomicConf.get();
+                    ClientConfiguration newConf = refreshable.get();
+
+                    if (existingConf.equals(newConf)) {
+                        return;
+                    }
+
+                    if (atomicConf.compareAndSet(existingConf, newConf)) {
+                        Channel newChannel = getChannel("facade-reloading-", newConf);
+                        atomicChannel.set(newChannel);
+                    }
+                },
+                1,
+                1,
+                TimeUnit.SECONDS);
+        cancelFunction.set(() -> future.cancel(true));
 
         return callStaticFactoryMethod(clazz, channel, runtime);
     }
@@ -115,6 +171,21 @@ public final class Facade {
             return Optional.ofNullable(dialogueInterface.getMethod("of", Channel.class, ConjureRuntime.class));
         } catch (NoSuchMethodException e) {
             return Optional.empty();
+        }
+    }
+
+    @ThreadSafe
+    static final class AtomicChannel implements Channel {
+        private final AtomicReference<Channel> ref;
+
+        AtomicChannel(AtomicReference<Channel> ref) {
+            this.ref = ref;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            Channel delegate = ref.get();
+            return delegate.execute(endpoint, request);
         }
     }
 }
