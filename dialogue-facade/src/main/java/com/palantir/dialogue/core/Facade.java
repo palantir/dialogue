@@ -36,21 +36,20 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.immutables.value.Value;
 
 /**
  * Guiding principle: Users can't be trusted to close things to prevent OOMs, we must do it automatically for them.
  */
 public final class Facade {
-    private final ConjureRuntime runtime;
-    private final Supplier<ScheduledExecutorService> executor;
+    private final ImmutableParams params;
 
-    private Facade(ConjureRuntime runtime, Supplier<ScheduledExecutorService> executor) {
-        this.runtime = runtime;
-        this.executor = executor;
+    private Facade(ImmutableParams params) {
+        this.params = params;
     }
 
     public static Facade create() {
-        return new Facade(DefaultConjureRuntime.builder().build(), RetryingChannel.sharedScheduler);
+        return new Facade(ImmutableParams.builder().build());
     }
 
     /**
@@ -72,18 +71,18 @@ public final class Facade {
     public <T> T get(Class<T> clazz, ClientConfiguration conf) {
         Channel channel = getChannel("facade-basic-" + clazz.getSimpleName(), conf);
 
-        return callStaticFactoryMethod(clazz, channel, runtime);
+        return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
     /** Live-reloading version. Polls the supplier every second. */
     public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
-        AtomicReference<Channel> atomicRef = PollingRefreshable.map(clientConfig, executor.get(), conf -> {
+        AtomicReference<Channel> atomicRef = PollingRefreshable.map(clientConfig, params.executor(), conf -> {
             return getChannel("facade-reloading-", conf);
         });
 
         AtomicChannel channel = new AtomicChannel(atomicRef);
 
-        return callStaticFactoryMethod(clazz, channel, runtime);
+        return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
     private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
@@ -94,20 +93,16 @@ public final class Facade {
                 .channelName(channelName)
                 .clientConfiguration(conf)
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, client))
-                .scheduler(executor.get())
+                .scheduler(params.executor())
                 .build();
     }
 
-    private Facade copy() {
-        return new Facade(runtime, executor);
+    public Facade withExecutor(ScheduledExecutorService executor) {
+        return new Facade(params.withExecutor(executor));
     }
 
-    public Facade withExecutor(ScheduledExecutorService override) {
-        return new Facade(runtime, () -> override);
-    }
-
-    public Facade withRuntime(ConjureRuntime override) {
-        return new Facade(override, executor);
+    public Facade withRuntime(ConjureRuntime runtime) {
+        return new Facade(params.withRuntime(runtime));
     }
 
     private static <T> T callStaticFactoryMethod(
@@ -149,6 +144,20 @@ public final class Facade {
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
             Channel delegate = supplier.get();
             return delegate.execute(endpoint, request);
+        }
+    }
+
+    @Value.Immutable
+    interface Params {
+
+        @Value.Default
+        default ConjureRuntime runtime() {
+            return DefaultConjureRuntime.builder().build();
+        }
+
+        @Value.Default
+        default ScheduledExecutorService executor() {
+            return RetryingChannel.sharedScheduler.get();
         }
     }
 }

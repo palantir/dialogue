@@ -4,6 +4,9 @@ dependencies {
   implementation project(':dialogue-serde')
   implementation project(':dialogue-target')
 
+  annotationProcessor 'org.immutables:value'
+  compile 'org.immutables:value::annotations'
+
   testImplementation 'org.junit.jupiter:junit-jupiter'
   testImplementation 'org.assertj:assertj-core'
   testImplementation 'org.mockito:mockito-core'
