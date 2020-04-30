@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Leak detection can be enabled at 100% by enabling trace logging, and
+    1% by enabling debug logging.
+  links:
+  - https://github.com/palantir/dialogue/pull/696
