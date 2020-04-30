@@ -43,7 +43,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class NodeSelectionStrategyChannelTest {
 
     @Spy
-    private NodeSelectionStrategySelector strategySelector = new NodeSelectionStrategySelector() {
+    private NodeSelectionStrategyChooser strategySelector = new NodeSelectionStrategyChooser() {
         @Override
         public Optional<DialogueNodeSelectionStrategy> updateAndGet(
                 List<DialogueNodeSelectionStrategy> updatedStrategies) {

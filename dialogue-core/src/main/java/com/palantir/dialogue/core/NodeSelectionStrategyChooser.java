@@ -19,6 +19,6 @@ package com.palantir.dialogue.core;
 import java.util.List;
 import java.util.Optional;
 
-interface NodeSelectionStrategySelector {
+interface NodeSelectionStrategyChooser {
     Optional<DialogueNodeSelectionStrategy> updateAndGet(List<DialogueNodeSelectionStrategy> updatedStrategies);
 }

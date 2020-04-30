@@ -41,7 +41,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final FutureCallback<Response> callback = new NodeSelectionCallback();
 
     private final AtomicReference<NodeSelectionChannel> nodeSelectionStrategy;
-    private final NodeSelectionStrategySelector strategySelector;
+    private final NodeSelectionStrategyChooser strategySelector;
 
     private final String channelName;
     private final Random random;
@@ -51,7 +51,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     NodeSelectionStrategyChannel(
-            NodeSelectionStrategySelector strategySelector,
+            NodeSelectionStrategyChooser strategySelector,
             DialogueNodeSelectionStrategy initialStrategy,
             String channelName,
             Random random,
