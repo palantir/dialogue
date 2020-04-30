@@ -1,5 +1,6 @@
 type: feature
 feature:
-  description: Clients respect `Node-Selection-Strategy` response header
+  description: |
+    Clients respect the optional `Node-Selection-Strategy` response header, which takes precedence over user-selected strategies.
   links:
   - https://github.com/palantir/dialogue/pull/688

@@ -118,6 +118,22 @@ Each host has an [AIMD](https://en.wikipedia.org/wiki/Additive_increase/multipli
 servers by stopping requests getting out the door on the client-side. Permits are multiplicatively decreased after
 receiving any 5xx, 429 or 308 response. Otherwise, they are additively increased.
 
+### Node Selection Strategies
+When configured with multiple uris, Dialogue has several strategies for choosing which upstream to route requests to.
+The default strategy is `PIN_UNTIL_ERROR`, although users can choose alternatives such as `ROUND_ROBIN` when building a ClientConfiguration
+object. Note that the choice of an appropriate strategy usually depends on the _upstream_ server's behaviour, i.e. if its
+performance relies heavily on warm caches, or if successive requests must land on the same node to successfully complete
+a transaction. To solve this problem without needing code changes in all clients, servers can recommend a
+NodeSelectionStrategy (see below).
+
+### Server-recommended NodeSelectionStrategy
+Servers can inform clients of their recommended strategies by including the
+`Node-Selection-Strategy` response header. Values are separated by commas and are ordered by preference. See [available strategies](dialogue-core/src/main/java/com/palantir/dialogue/core/DialogueNodeSelectionStrategy.java).
+```
+Node-Selection-Strategy: BALANCED,PIN_UNTIL_ERROR
+```
+When the header is present, it takes precedence over user-selected strategies. Servers are free to omit this value.
+
 ### NodeSelectionStrategy.ROUND_ROBIN
 Used to balance requests across many servers better than the
 default PIN_UNTIL_ERROR. The actual algorithm has evolved from naive Round Robin, then to Random Selection and now
