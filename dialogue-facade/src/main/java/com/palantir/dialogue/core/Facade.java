@@ -17,8 +17,13 @@
 package com.palantir.dialogue.core;
 
 import com.google.errorprone.annotations.Immutable;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
@@ -26,8 +31,12 @@ import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.security.Provider;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -65,6 +74,14 @@ public final class Facade {
         return new Facade(params.withRuntime(runtime));
     }
 
+    public Facade withUserAgent(UserAgent agent) {
+        return new Facade(params.withUserAgent(agent));
+    }
+
+    public Facade withTaggedMetrics(TaggedMetricRegistry metrics) {
+        return new Facade(params.withTaggedMetrics(metrics));
+    }
+
     /**
      * LIMITATIONS.
      * <ul>
@@ -85,6 +102,11 @@ public final class Facade {
         return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
+    public <T> T get(Class<T> clazz, ServiceConfiguration serviceConf) {
+        ClientConfiguration clientConfig = mix(serviceConf, params);
+        return get(clazz, clientConfig);
+    }
+
     /** Live-reloading version. Polls the supplier every second. */
     public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
 
@@ -100,12 +122,14 @@ public final class Facade {
     }
 
     private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
+        ClientConfiguration clientConf = mix(conf, params);
+
         ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf, channelName);
+                ApacheHttpClientChannels.createCloseableHttpClient(clientConf, channelName);
 
         return new BasicBuilder()
                 .channelName(channelName)
-                .clientConfiguration(conf)
+                .clientConfiguration(clientConf)
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, client))
                 .scheduler(params.executor())
                 .build();
@@ -137,7 +161,37 @@ public final class Facade {
         }
     }
 
-    interface BaseParams {
+    static ClientConfiguration mix(ServiceConfiguration serviceConfig, AugmentClientConfig ps) {
+        ClientConfiguration.Builder builder =
+                ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig));
+
+        if (!serviceConfig.maxNumRetries().isPresent()) {
+            ps.maxNumRetries().ifPresent(builder::maxNumRetries);
+        }
+
+        ps.securityProvider()
+                .ifPresent(provider -> builder.sslSocketFactory(
+                        SslSocketFactories.createSslSocketFactory(serviceConfig.security(), provider)));
+
+        return mix(builder.build(), ps);
+    }
+
+    private static ClientConfiguration mix(ClientConfiguration clientConfig, AugmentClientConfig ps) {
+        ClientConfiguration.Builder builder = ClientConfiguration.builder()
+                .from(clientConfig)
+                .userAgent(ps.userAgent())
+                .taggedMetricRegistry(ps.taggedMetrics());
+
+        ps.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
+        ps.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
+        ps.clientQoS().ifPresent(builder::clientQoS);
+        ps.serverQoS().ifPresent(builder::serverQoS);
+        ps.retryOnTimeout().ifPresent(builder::retryOnTimeout);
+
+        return builder.build();
+    }
+
+    interface BaseParams extends AugmentClientConfig {
         @Value.Default
         default ConjureRuntime runtime() {
             return DefaultConjureRuntime.builder().build();
@@ -147,12 +201,38 @@ public final class Facade {
         default ScheduledExecutorService executor() {
             return RetryingChannel.sharedScheduler.get();
         }
+    }
 
-        // TODO(dfox): include useragent & taggedMetrics?
+    interface AugmentClientConfig {
+
+        @Value.Default
+        default TaggedMetricRegistry taggedMetrics() {
+            return SharedTaggedMetricRegistries.getSingleton();
+        }
+
+        Optional<UserAgent> userAgent();
+
+        Optional<NodeSelectionStrategy> nodeSelectionStrategy();
+
+        Optional<Duration> failedUrlCooldown();
+
+        Optional<ClientConfiguration.ClientQoS> clientQoS();
+
+        Optional<ClientConfiguration.ServerQoS> serverQoS();
+
+        Optional<ClientConfiguration.RetryOnTimeout> retryOnTimeout();
+
+        Optional<Provider> securityProvider();
+
+        /**
+         * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration}
+         * is absent.
+         */
+        Optional<Integer> maxNumRetries();
     }
 
     @Immutable
     @Value.Style(passAnnotations = Immutable.class)
     @Value.Immutable
-    interface Params extends BaseParams {}
+    interface Params extends BaseParams, AugmentClientConfig {}
 }

@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.TestConfigurations;
@@ -43,15 +44,30 @@ class FacadeTest {
 
     @Test
     void one_off() {
-        SampleServiceBlocking blocking = Facade.create().get(SampleServiceBlocking.class, localhost);
+        SampleServiceBlocking blocking =
+                Facade.create().withUserAgent(TestConfigurations.AGENT).get(SampleServiceBlocking.class, localhost);
         assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("Connect to localhost");
+    }
+
+    @Test
+    void shorthand() {
+        SampleServiceBlocking blocking = Facade.create()
+                .withUserAgent(TestConfigurations.AGENT)
+                .get(
+                        SampleServiceBlocking.class,
+                        ServiceConfiguration.builder()
+                                .security(TestConfigurations.SSL_CONFIG)
+                                .addUris("https://shorthand")
+                                .build());
+        assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("shorthand");
     }
 
     @Test
     void reloading() {
         when(mockSupplier.get()).thenReturn(localhost).thenReturn(other);
 
-        SampleServiceBlocking blocking = Facade.create().get(SampleServiceBlocking.class, mockSupplier);
+        SampleServiceBlocking blocking =
+                Facade.create().withUserAgent(TestConfigurations.AGENT).get(SampleServiceBlocking.class, mockSupplier);
         assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("Connect to localhost");
 
         Awaitility.await("Polling should eventually notice the reloaded config")

@@ -18,8 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import java.io.IOException;
@@ -41,7 +39,7 @@ final class ApacheCache {
             return cacheEntry.get();
         }
 
-        ClientConfiguration clientConf = getClientConfig(request.serviceConf(), request.params());
+        ClientConfiguration clientConf = Facade.mix(request.serviceConf(), request.params());
         ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(clientConf, request.serviceName());
 
@@ -63,27 +61,6 @@ final class ApacheCache {
         return newEntry;
     }
 
-    private static ClientConfiguration getClientConfig(ServiceConfiguration clientConfig, ScbFacade.Params2 ps) {
-        ClientConfiguration.Builder builder = ClientConfiguration.builder()
-                .from(ClientConfigurations.of(clientConfig))
-                .userAgent(ps.userAgent())
-                .taggedMetricRegistry(ps.taggedMetrics());
-
-        ps.securityProvider()
-                .ifPresent(provider -> builder.sslSocketFactory(
-                        SslSocketFactories.createSslSocketFactory(clientConfig.security(), provider)));
-        ps.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
-        ps.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
-        ps.clientQoS().ifPresent(builder::clientQoS);
-        ps.serverQoS().ifPresent(builder::serverQoS);
-        ps.retryOnTimeout().ifPresent(builder::retryOnTimeout);
-
-        if (!clientConfig.maxNumRetries().isPresent()) {
-            ps.maxNumRetries().ifPresent(builder::maxNumRetries);
-        }
-        return builder.build();
-    }
-
     @Value.Immutable
     interface CacheEntry {
         GetApacheClient key();
@@ -99,7 +76,7 @@ final class ApacheCache {
 
         ServiceConfiguration serviceConf();
 
-        ScbFacade.Params2 params();
+        Facade.AugmentClientConfig params();
 
         @Value.Check
         default void check() {

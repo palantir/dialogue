@@ -63,8 +63,9 @@ final class PollingRefreshable<A, B> implements Runnable {
     static <A, B> AtomicReference<B> map(
             Supplier<A> inputSupplier, ScheduledExecutorService executor, Function<A, B> mapFunction) {
         AtomicReference<B> sink = new AtomicReference<>();
-        Runnable runnable = new PollingRefreshable<>(inputSupplier, mapFunction, executor, new WeakReference<>(sink));
-        runnable.run(); // first run on the calling thread
+        PollingRefreshable<A, B> runnable =
+                new PollingRefreshable<>(inputSupplier, mapFunction, executor, new WeakReference<>(sink));
+        runnable.update(sink); // first run on the calling thread
         return sink;
     }
 
@@ -82,20 +83,24 @@ final class PollingRefreshable<A, B> implements Runnable {
             return;
         }
 
-        A current = atomicInput.get();
         try {
-            A newInput = inputSupplier.get();
-            if (Objects.equals(current, newInput)) {
-                // short-circuit if the input hasn't changed, no need to run the mapFunction
-                return;
-            }
-
-            B newValue = mapFunction.apply(newInput);
-            if (atomicInput.compareAndSet(current, newInput)) {
-                atomicSink.set(newValue);
-            }
+            update(atomicSink);
         } catch (RuntimeException e) {
             log.warn("Failed to poll supplier and run mapFunction", e);
+        }
+    }
+
+    private void update(AtomicReference<B> atomicSink) {
+        A current = atomicInput.get();
+        A newInput = inputSupplier.get();
+        if (Objects.equals(current, newInput)) {
+            // short-circuit if the input hasn't changed, no need to run the mapFunction
+            return;
+        }
+
+        B newValue = mapFunction.apply(newInput);
+        if (atomicInput.compareAndSet(current, newInput)) {
+            atomicSink.set(newValue);
         }
     }
 }

@@ -21,17 +21,11 @@ import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.security.Provider;
-import java.time.Duration;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
@@ -108,30 +102,5 @@ public final class ScbFacade {
     interface Params2 extends Facade.BaseParams {
 
         Supplier<ServicesConfigBlock> scb();
-
-        @Value.Default
-        default TaggedMetricRegistry taggedMetrics() {
-            return SharedTaggedMetricRegistries.getSingleton();
-        }
-
-        Optional<UserAgent> userAgent();
-
-        Optional<NodeSelectionStrategy> nodeSelectionStrategy();
-
-        Optional<Duration> failedUrlCooldown();
-
-        Optional<ClientConfiguration.ClientQoS> clientQoS();
-
-        Optional<ClientConfiguration.ServerQoS> serverQoS();
-
-        Optional<ClientConfiguration.RetryOnTimeout> retryOnTimeout();
-
-        Optional<Provider> securityProvider();
-
-        /**
-         * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration}
-         * is absent.
-         */
-        Optional<Integer> maxNumRetries();
     }
 }
