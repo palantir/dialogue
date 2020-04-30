@@ -25,12 +25,14 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
@@ -39,22 +41,35 @@ import org.immutables.value.Value;
 public final class ScbFacade {
 
     private final ImmutableParams2 params;
+    private final ApacheCache cache;
 
     ScbFacade(Params2 params) {
         this.params = ImmutableParams2.builder().from(params).build();
+        this.cache = new ApacheCache();
+    }
+
+    private ScbFacade(Params2 params, ApacheCache cache) {
+        this.params = ImmutableParams2.builder().from(params).build();
+        this.cache = cache;
     }
 
     ScbFacade withUserAgent(UserAgent userAgent) {
-        return new ScbFacade(params.withUserAgent(userAgent));
+        return new ScbFacade(params.withUserAgent(userAgent), cache);
     }
 
     ScbFacade withMaxNumRetries(int value) {
-        return new ScbFacade(params.withMaxNumRetries(value));
+        return new ScbFacade(params.withMaxNumRetries(value), cache);
     }
 
     // TODO(dfox): expose more 'with' functions
 
-    <T> T get(Class<T> serviceClass, String serviceName) {
+    /**
+     * LIMITATIONS:
+     * <ul>
+     *     <li>Doesn't do fancy granular live-reload, i.e. throw away all the old concurrency limiter state
+     * </ul>
+     */
+    public <T> T get(Class<T> serviceClass, String serviceName) {
         AtomicReference<Channel> atomic = PollingRefreshable.map(params.scb(), params.executor(), block -> {
             if (!block.services().containsKey(serviceName)) {
                 return new AlwaysThrowing(() -> new SafeIllegalStateException(
@@ -65,10 +80,26 @@ public final class ScbFacade {
 
             ServiceConfigurationFactory configFactory = ServiceConfigurationFactory.of(block);
             ServiceConfiguration serviceConf = configFactory.get(serviceName);
-            ClientConfiguration clientConf = getClientConfig(serviceConf);
+            ServiceConfiguration stripUris = ServiceConfiguration.builder()
+                    .from(serviceConf)
+                    .uris(Collections.emptyList())
+                    .build();
+            ApacheCache.CacheEntry entry = cache.get(ImmutableGetApacheClient.builder()
+                    .serviceName(serviceName)
+                    .params(params)
+                    .serviceConf(stripUris)
+                    .build());
 
-            Facade facade = new Facade(params);
-            return facade.getChannel("facade2-reloading-" + serviceName, clientConf);
+            ClientConfiguration restoreUris = ClientConfiguration.builder()
+                    .from(entry.conf())
+                    .uris(serviceConf.uris())
+                    .build();
+            return new BasicBuilder()
+                    .channelName("scb-facade-" + serviceName) // TODO(dfox): append more
+                    .clientConfiguration(restoreUris)
+                    .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, entry.client()))
+                    .scheduler(params.executor())
+                    .build();
         });
         AtomicChannel channel = new AtomicChannel(atomic);
         return Facade.callStaticFactoryMethod(serviceClass, channel, params.runtime());
@@ -104,23 +135,23 @@ public final class ScbFacade {
         Optional<Integer> maxNumRetries();
     }
 
-    private ClientConfiguration getClientConfig(ServiceConfiguration clientConfig) {
+    static ClientConfiguration getClientConfig(ServiceConfiguration clientConfig, Params2 ps) {
         ClientConfiguration.Builder builder = ClientConfiguration.builder()
                 .from(ClientConfigurations.of(clientConfig))
-                .userAgent(params.userAgent())
-                .taggedMetricRegistry(params.taggedMetrics());
+                .userAgent(ps.userAgent())
+                .taggedMetricRegistry(ps.taggedMetrics());
 
-        params.securityProvider()
+        ps.securityProvider()
                 .ifPresent(provider -> builder.sslSocketFactory(
                         SslSocketFactories.createSslSocketFactory(clientConfig.security(), provider)));
-        params.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
-        params.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
-        params.clientQoS().ifPresent(builder::clientQoS);
-        params.serverQoS().ifPresent(builder::serverQoS);
-        params.retryOnTimeout().ifPresent(builder::retryOnTimeout);
+        ps.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
+        ps.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
+        ps.clientQoS().ifPresent(builder::clientQoS);
+        ps.serverQoS().ifPresent(builder::serverQoS);
+        ps.retryOnTimeout().ifPresent(builder::retryOnTimeout);
 
         if (!clientConfig.maxNumRetries().isPresent()) {
-            params.maxNumRetries().ifPresent(builder::maxNumRetries);
+            ps.maxNumRetries().ifPresent(builder::maxNumRetries);
         }
         return builder.build();
     }

@@ -83,6 +83,16 @@ class FacadeTest {
                 .hasCauseInstanceOf(UnknownHostException.class)
                 .hasMessageContaining("multipass");
 
+        SampleServiceBlocking blocking2 = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
+        assertThatThrownBy(blocking2::voidToVoid)
+                .hasCauseInstanceOf(UnknownHostException.class)
+                .hasMessageContaining("multipass");
+
+        SampleServiceBlocking blocking3 = facade.withMaxNumRetries(3).get(SampleServiceBlocking.class, "multipass");
+        assertThatThrownBy(blocking3::voidToVoid)
+                .hasCauseInstanceOf(UnknownHostException.class)
+                .hasMessageContaining("multipass");
+
         SampleServiceBlocking unknown = facade.get(SampleServiceBlocking.class, "unknown");
         assertThatThrownBy(unknown::voidToVoid).hasMessageContaining("Service not configured");
     }

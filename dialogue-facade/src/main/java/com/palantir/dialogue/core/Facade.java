@@ -37,12 +37,13 @@ import org.immutables.value.Value;
 
 /**
  * Guiding principle: Users can't be trusted to close things to prevent OOMs, we must do it automatically for them.
+ * It should be impossible to leak threads or memory by calling methods of this class.
  */
 @Immutable
 public final class Facade {
     private final ImmutableParams params;
 
-    Facade(BaseParams params) {
+    private Facade(BaseParams params) {
         this.params = ImmutableParams.builder().from(params).build();
     }
 
@@ -50,6 +51,7 @@ public final class Facade {
         return new Facade(ImmutableParams.builder().build());
     }
 
+    /** This re-uses underlying apache clients (one per service in the service config block). */
     public ScbFacade withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
         return new ScbFacade(ImmutableParams2.builder().from(params).scb(scb).build());
     }
@@ -71,7 +73,7 @@ public final class Facade {
      *     which probably leads to more overhead idle connections than necessary
      *     <li>Doesn't close the apache client at any point (this is actually fine because the
      *     {@link PoolingHttpClientConnectionManager} has a finalize method!)
-     *     <li>Makes a new apache http client for every single clazz, even if it talks to the same urls. Maybe this
+     *     <li>Makes a new apache http client for every single call, even if it talks to the same urls. Maybe this
      *     is actually fine??
      *     <li>Doesn't support jaxrs/retrofit
      * </ul>
@@ -96,7 +98,7 @@ public final class Facade {
         return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
-    <T> Channel getChannel(String channelName, ClientConfiguration conf) {
+    private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
         ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, channelName);
 
@@ -144,6 +146,8 @@ public final class Facade {
         default ScheduledExecutorService executor() {
             return RetryingChannel.sharedScheduler.get();
         }
+
+        // TODO(dfox): include useragent & taggedMetrics?
     }
 
     @Immutable

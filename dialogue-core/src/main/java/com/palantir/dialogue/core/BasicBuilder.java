@@ -30,7 +30,7 @@ public final class BasicBuilder {
     private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 
     // TODO(dfox): expose this in a less dumb way
-    public BasicBuilder() {}
+    BasicBuilder() {}
 
     /**
      * {@link Safe} loggable name to identify this channel for instrumentation and debugging. While this value
