@@ -56,7 +56,7 @@ public class ResponseLeakDetectorTest {
 
     @Test
     public void testLeakMetric() {
-        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), () -> 1);
         // Result is intentionally ignored to cause a leak
         detector.wrap(response, mockEndpoint);
         Meter leaks = metrics.responseLeak()
@@ -73,7 +73,7 @@ public class ResponseLeakDetectorTest {
 
     @Test
     public void testNotLeaked_streamReferenceHeld() throws Exception {
-        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), 1);
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), () -> 1);
         // Result is intentionally ignored to cause a leak
         try (InputStream ignored = detector.wrap(response, mockEndpoint).body()) {
             Meter leaks = metrics.responseLeak()
