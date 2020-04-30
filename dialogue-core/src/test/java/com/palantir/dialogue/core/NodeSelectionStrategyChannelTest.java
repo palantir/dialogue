@@ -90,9 +90,11 @@ class NodeSelectionStrategyChannelTest {
     @Test
     void updates_strategy_on_response() {
         channel.updateChannels(ImmutableList.of(channel1));
-        setResponse(channel1, Optional.of("BALANCED"));
+        setResponse(channel1, Optional.of("BALANCED,FOO"));
         channel.maybeExecute(null, null).get();
-        verify(strategySelector, times(1)).updateAndGet(eq(ImmutableList.of(DialogueNodeSelectionStrategy.BALANCED)));
+        verify(strategySelector, times(1))
+                .updateAndGet(eq(ImmutableList.of(
+                        DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
     }
 
     private static void setResponse(LimitedChannel mockChannel, Optional<String> header) {
