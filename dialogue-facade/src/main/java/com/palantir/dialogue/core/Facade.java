@@ -16,14 +16,12 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.Immutable;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -34,22 +32,34 @@ import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import javax.annotation.concurrent.ThreadSafe;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.immutables.value.Value;
 
 /**
  * Guiding principle: Users can't be trusted to close things to prevent OOMs, we must do it automatically for them.
  */
+@Immutable
 public final class Facade {
     private final ImmutableParams params;
 
-    private Facade(ImmutableParams params) {
-        this.params = params;
+    Facade(BaseParams params) {
+        this.params = ImmutableParams.builder().from(params).build();
     }
 
     public static Facade create() {
         return new Facade(ImmutableParams.builder().build());
+    }
+
+    public Facade2 withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
+        return new Facade2(params, scb);
+    }
+
+    public Facade withExecutor(ScheduledExecutorService executor) {
+        return new Facade(params.withExecutor(executor));
+    }
+
+    public Facade withRuntime(ConjureRuntime runtime) {
+        return new Facade(params.withRuntime(runtime));
     }
 
     /**
@@ -85,7 +95,7 @@ public final class Facade {
         return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
-    private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
+    <T> Channel getChannel(String channelName, ClientConfiguration conf) {
         ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, channelName);
 
@@ -97,15 +107,7 @@ public final class Facade {
                 .build();
     }
 
-    public Facade withExecutor(ScheduledExecutorService executor) {
-        return new Facade(params.withExecutor(executor));
-    }
-
-    public Facade withRuntime(ConjureRuntime runtime) {
-        return new Facade(params.withRuntime(runtime));
-    }
-
-    private static <T> T callStaticFactoryMethod(
+    static <T> T callStaticFactoryMethod(
             Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
         try {
             Method method = getStaticOfMethod(dialogueInterface)
@@ -132,24 +134,7 @@ public final class Facade {
         }
     }
 
-    @ThreadSafe
-    static final class AtomicChannel implements Channel {
-        private final AtomicReference<Channel> supplier;
-
-        AtomicChannel(AtomicReference<Channel> supplier) {
-            this.supplier = supplier;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            Channel delegate = supplier.get();
-            return delegate.execute(endpoint, request);
-        }
-    }
-
-    @Value.Immutable
-    interface Params {
-
+    interface BaseParams {
         @Value.Default
         default ConjureRuntime runtime() {
             return DefaultConjureRuntime.builder().build();
@@ -160,4 +145,9 @@ public final class Facade {
             return RetryingChannel.sharedScheduler.get();
         }
     }
+
+    @Immutable
+    @Value.Style(passAnnotations = Immutable.class)
+    @Value.Immutable
+    interface Params extends BaseParams {}
 }

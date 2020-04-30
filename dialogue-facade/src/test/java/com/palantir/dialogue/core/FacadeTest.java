@@ -19,9 +19,12 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
+import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import java.net.UnknownHostException;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.awaitility.Awaitility;
@@ -56,5 +59,31 @@ class FacadeTest {
                 .untilAsserted(() -> {
                     assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("other");
                 });
+    }
+
+    @Test
+    void facade2() {
+        ServicesConfigBlock scb = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                .putServices(
+                        "multipass",
+                        PartialServiceConfiguration.builder()
+                                .addUris("https://multipass")
+                                .build())
+                .putServices(
+                        "email-service",
+                        PartialServiceConfiguration.builder()
+                                .addUris("https://email-service")
+                                .build())
+                .build();
+        Facade2 facade = Facade.create().withServiceConfigBlock(() -> scb).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking blocking = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
+        assertThatThrownBy(blocking::voidToVoid)
+                .hasCauseInstanceOf(UnknownHostException.class)
+                .hasMessageContaining("multipass");
+
+        SampleServiceBlocking unknown = facade.get(SampleServiceBlocking.class, "unknown");
+        assertThatThrownBy(unknown::voidToVoid).hasMessageContaining("Service not configured");
     }
 }

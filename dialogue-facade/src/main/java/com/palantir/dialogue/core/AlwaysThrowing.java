@@ -22,8 +22,6 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.function.Supplier;
 
 final class AlwaysThrowing implements Channel {
@@ -31,11 +29,6 @@ final class AlwaysThrowing implements Channel {
 
     AlwaysThrowing(Supplier<? extends Throwable> exceptionSupplier) {
         this.exceptionSupplier = exceptionSupplier;
-    }
-
-    static AlwaysThrowing serviceNotConfigured(String serviceName) {
-        return new AlwaysThrowing(
-                () -> new SafeIllegalStateException("Service not configured", SafeArg.of("serviceName", serviceName)));
     }
 
     @Override

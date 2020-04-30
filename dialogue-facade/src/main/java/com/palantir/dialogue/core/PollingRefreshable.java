@@ -85,7 +85,7 @@ final class PollingRefreshable<A, B> implements Runnable {
         A current = atomicInput.get();
         try {
             A newInput = inputSupplier.get();
-            if (Objects.equals(atomicInput, newInput)) {
+            if (Objects.equals(current, newInput)) {
                 // short-circuit if the input hasn't changed, no need to run the mapFunction
                 return;
             }
