@@ -28,13 +28,10 @@ import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
@@ -92,45 +89,11 @@ public final class Facade {
     }
 
     /** Live-reloading version. */
-    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> refreshable) {
-        ScheduledExecutorService scheduled = executor.get();
+    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
+        AtomicReference<Channel> atomicRef =
+                PollingRefreshable.map(clientConfig, conf -> getChannel("facade-reloading-", conf), executor.get());
 
-        ClientConfiguration initialConf = refreshable.get();
-        Channel initialChannel = getChannel("facade-reloading-", initialConf);
-
-        AtomicReference<ClientConfiguration> atomicConf = new AtomicReference<>(initialConf);
-        AtomicReference<Channel> atomicChannel = new AtomicReference<>(initialChannel);
-
-        AtomicChannel channel = new AtomicChannel(atomicChannel);
-
-        WeakReference<Object> weakRef = new WeakReference<>(channel);
-
-        AtomicReference<Runnable> cancelFunction = new AtomicReference<>();
-        ScheduledFuture<?> future = scheduled.scheduleWithFixedDelay(
-                () -> {
-                    if (weakRef.get() != null) {
-                        cancelFunction.get().run();
-                        return;
-                    }
-
-                    // TODO auto-unregister
-                    // TODO(dfox): try-catches
-                    ClientConfiguration existingConf = atomicConf.get();
-                    ClientConfiguration newConf = refreshable.get();
-
-                    if (existingConf.equals(newConf)) {
-                        return;
-                    }
-
-                    if (atomicConf.compareAndSet(existingConf, newConf)) {
-                        Channel newChannel = getChannel("facade-reloading-", newConf);
-                        atomicChannel.set(newChannel);
-                    }
-                },
-                1,
-                1,
-                TimeUnit.SECONDS);
-        cancelFunction.set(() -> future.cancel(true));
+        AtomicChannel channel = new AtomicChannel(atomicRef);
 
         return callStaticFactoryMethod(clazz, channel, runtime);
     }
@@ -176,15 +139,15 @@ public final class Facade {
 
     @ThreadSafe
     static final class AtomicChannel implements Channel {
-        private final AtomicReference<Channel> ref;
+        private final AtomicReference<Channel> supplier;
 
-        AtomicChannel(AtomicReference<Channel> ref) {
-            this.ref = ref;
+        AtomicChannel(AtomicReference<Channel> supplier) {
+            this.supplier = supplier;
         }
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            Channel delegate = ref.get();
+            Channel delegate = supplier.get();
             return delegate.execute(endpoint, request);
         }
     }

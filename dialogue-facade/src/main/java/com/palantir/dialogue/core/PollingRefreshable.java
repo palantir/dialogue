@@ -29,7 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Derives a Supplier&lt;B&gt; from a Supplier&lt;A&gt; by eagerly applying a {@code mapFunction} every second.
+ * Updates an AtomicReference from a Supplier&lt;A&gt; by eagerly applying a {@code mapFunction}
+ * every second.
  *
  * This is optimized for situations where there are vastly more reads than changes to the supplier, and
  * where a 1 second propagation delay is acceptable.
@@ -37,65 +38,73 @@ import org.slf4j.LoggerFactory;
  * Automatically stops polling when the given {@code derivedObject} has been GC'd.
  */
 @ThreadSafe
-final class MappedSupplier<A, B> implements Supplier<B> {
-    private static final Logger log = LoggerFactory.getLogger(MappedSupplier.class);
+final class PollingRefreshable<A, B> implements Runnable {
+    private static final Logger log = LoggerFactory.getLogger(PollingRefreshable.class);
 
+    private final Supplier<A> inputSupplier;
     private final AtomicReference<A> atomicInput;
-    private volatile B mapped;
+    private final Function<A, B> mapFunction;
+    private final WeakReference<AtomicReference<B>> sink;
 
     private ScheduledFuture<?> future;
 
-    /** When the {@code derivedObject} is GC'd, polling will stop and this supplier will return null. */
-    MappedSupplier(
+    private PollingRefreshable(
             Supplier<A> inputSupplier,
             Function<A, B> mapFunction,
             ScheduledExecutorService executor,
-            WeakReference<Object> derivedObject) {
+            WeakReference<AtomicReference<B>> sink) {
+        this.inputSupplier = inputSupplier;
+        this.mapFunction = mapFunction;
+        this.sink = sink;
 
         A initialInput = inputSupplier.get();
         this.atomicInput = new AtomicReference<>(initialInput);
-        this.mapped = mapFunction.apply(initialInput);
 
-        this.future = executor.scheduleWithFixedDelay(
-                () -> {
-                    if (derivedObject.get() != null) {
-                        // when the derived weakreference has been GC'd we no longer need to update mapped
-                        stopPolling();
-                        return;
-                    }
-
-                    A current = atomicInput.get();
-                    try {
-                        A newInput = inputSupplier.get();
-                        if (Objects.equals(atomicInput, newInput)) {
-                            // short-circuit if the input hasn't changed, no need to run the mapFunction
-                            return;
-                        }
-
-                        B newValue = mapFunction.apply(newInput);
-                        if (atomicInput.compareAndSet(current, newInput)) {
-                            mapped = newValue;
-                        }
-
-                    } catch (RuntimeException e) {
-                        log.warn("Failed to poll supplier and run mapFunction", e);
-                    }
-                },
-                1,
-                1,
-                TimeUnit.SECONDS);
+        run(); // first run on the calling thread
+        this.future = executor.scheduleWithFixedDelay(this, 1, 1, TimeUnit.SECONDS);
     }
 
-    public B get() {
-        return mapped;
+    /** When the {@code derivedObject} is GC'd, polling will stop and this supplier will return null. */
+    static <A, B> AtomicReference<B> map(
+            Supplier<A> inputSupplier, Function<A, B> mapFunction, ScheduledExecutorService executor) {
+        AtomicReference<B> sink = new AtomicReference<>();
+        new PollingRefreshable<>(inputSupplier, mapFunction, executor, new WeakReference<>(sink));
+        return sink;
     }
 
     private void stopPolling() {
-        future.cancel(true);
+        if (future != null) {
+            future.cancel(true);
 
-        // null everything out so anything we held references to can be GC'd
-        future = null;
-        atomicInput.set(null);
-        mapped = null;
+            // null out so anything we held references to can be GC'd
+            future = null;
+        }
+    }
+
+    @Override
+    public void run() {
+        AtomicReference<B> atomicSink = sink.get();
+        if (atomicSink == null) {
+            // when the derived weakreference has been GC'd we no longer need to update mapped
+            log.warn("AtomicReference sink has been GC'd, stopping polling");
+            stopPolling();
+            return;
+        }
+
+        A current = atomicInput.get();
+        try {
+            A newInput = inputSupplier.get();
+            if (Objects.equals(atomicInput, newInput)) {
+                // short-circuit if the input hasn't changed, no need to run the mapFunction
+                return;
+            }
+
+            B newValue = mapFunction.apply(newInput);
+            if (atomicInput.compareAndSet(current, newInput)) {
+                atomicSink.set(newValue);
+            }
+        } catch (RuntimeException e) {
+            log.warn("Failed to poll supplier and run mapFunction", e);
+        }
     }
 }
