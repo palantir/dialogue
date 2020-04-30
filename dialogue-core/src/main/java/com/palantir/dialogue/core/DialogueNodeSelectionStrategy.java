@@ -25,6 +25,11 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Supported node selection strategies which can either be user provided or received over the wire from servers.
+ * Separate from {@link NodeSelectionStrategy} to allow us to more easily iterate on strategies and support unknown
+ * strategies coming in over the wire.
+ */
 enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
