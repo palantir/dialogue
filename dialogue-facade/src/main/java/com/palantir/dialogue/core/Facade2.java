@@ -39,23 +39,21 @@ import org.immutables.value.Value;
 public final class Facade2 {
 
     private final ImmutableParams2 params;
-    private final Supplier<ServicesConfigBlock> scb;
 
-    Facade2(Facade.BaseParams params, Supplier<ServicesConfigBlock> scb) {
+    Facade2(Params2 params) {
         this.params = ImmutableParams2.builder().from(params).build();
-        this.scb = scb;
     }
 
     Facade2 withUserAgent(UserAgent userAgent) {
-        return new Facade2(params.withUserAgent(userAgent), scb);
+        return new Facade2(params.withUserAgent(userAgent));
     }
 
     Facade2 withMaxNumRetries(int value) {
-        return new Facade2(params.withMaxNumRetries(value), scb);
+        return new Facade2(params.withMaxNumRetries(value));
     }
 
     <T> T get(Class<T> serviceClass, String serviceName) {
-        AtomicReference<Channel> atomic = PollingRefreshable.map(scb, params.executor(), block -> {
+        AtomicReference<Channel> atomic = PollingRefreshable.map(params.scb(), params.executor(), block -> {
             if (!block.services().containsKey(serviceName)) {
                 return new AlwaysThrowing(() -> new SafeIllegalStateException(
                         "Service not configured",
@@ -77,6 +75,8 @@ public final class Facade2 {
     // TODO(dfox): expose these as 'with' functions
     @Value.Immutable
     interface Params2 extends Facade.BaseParams {
+
+        Supplier<ServicesConfigBlock> scb();
 
         @Value.Default
         default TaggedMetricRegistry taggedMetrics() {

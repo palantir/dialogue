@@ -51,7 +51,7 @@ public final class Facade {
     }
 
     public Facade2 withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
-        return new Facade2(params, scb);
+        return new Facade2(ImmutableParams2.builder().from(params).scb(scb).build());
     }
 
     public Facade withExecutor(ScheduledExecutorService executor) {
@@ -86,6 +86,9 @@ public final class Facade {
 
     /** Live-reloading version. Polls the supplier every second. */
     public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
+
+        // this is the naive version of live-reloading, it doesn't try to do clever mutation under the hood, just
+        // forgets about the old instance and makes a new one.
         AtomicReference<Channel> atomicRef = PollingRefreshable.map(clientConfig, params.executor(), conf -> {
             return getChannel("facade-reloading-", conf);
         });
@@ -107,8 +110,7 @@ public final class Facade {
                 .build();
     }
 
-    static <T> T callStaticFactoryMethod(
-            Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
+    static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
         try {
             Method method = getStaticOfMethod(dialogueInterface)
                     .orElseThrow(() -> new SafeIllegalStateException(
