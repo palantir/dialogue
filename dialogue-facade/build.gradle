@@ -3,4 +3,10 @@ dependencies {
   implementation project(':dialogue-core')
   implementation project(':dialogue-serde')
   implementation project(':dialogue-target')
+
+  testImplementation 'org.junit.jupiter:junit-jupiter'
+  testImplementation 'org.assertj:assertj-core'
+  testImplementation 'org.mockito:mockito-core'
+  testImplementation 'org.mockito:mockito-junit-jupiter'
+  testImplementation 'org.awaitility:awaitility'
 }

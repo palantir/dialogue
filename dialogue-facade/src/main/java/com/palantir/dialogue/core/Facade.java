@@ -58,7 +58,6 @@ public final class Facade {
      * <ul>
      *     <li>Users have to build the client configuration themselves, which doesn't have an equals method :(
      *     <li>Users can't tweak settings like clientQos, maxNumRetries. Also can't pass in an executor.
-     *     <li>No live-reloading
      *     <li>No interning, i.e. if people repeatedly ask for the same client over and over again, then
      *     requests will count against *independent* concurrency limiters (maybe this is fine???)
      *     <li>Doesn't re-use any possible existing connection pool (e.g. if basicClients are created in a hot loop),
@@ -76,6 +75,17 @@ public final class Facade {
         return callStaticFactoryMethod(clazz, channel, runtime);
     }
 
+    /** Live-reloading version. Polls the supplier every second. */
+    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
+        AtomicReference<Channel> atomicRef = PollingRefreshable.map(clientConfig, executor.get(), conf -> {
+            return getChannel("facade-reloading-", conf);
+        });
+
+        AtomicChannel channel = new AtomicChannel(atomicRef);
+
+        return callStaticFactoryMethod(clazz, channel, runtime);
+    }
+
     private <T> Channel getChannel(String channelName, ClientConfiguration conf) {
         ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, channelName);
@@ -86,16 +96,6 @@ public final class Facade {
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, client))
                 .scheduler(executor.get())
                 .build();
-    }
-
-    /** Live-reloading version. */
-    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
-        AtomicReference<Channel> atomicRef =
-                PollingRefreshable.map(clientConfig, conf -> getChannel("facade-reloading-", conf), executor.get());
-
-        AtomicChannel channel = new AtomicChannel(atomicRef);
-
-        return callStaticFactoryMethod(clazz, channel, runtime);
     }
 
     private Facade copy() {
