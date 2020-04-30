@@ -38,4 +38,9 @@ final class AtomicChannel implements Channel {
         Channel delegate = Preconditions.checkNotNull(supplier.get(), "AtomicReference must not return null");
         return delegate.execute(endpoint, request);
     }
+
+    @Override
+    public String toString() {
+        return "AtomicChannel{" + supplier.get() + '}';
+    }
 }
