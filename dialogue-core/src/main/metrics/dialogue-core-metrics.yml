@@ -97,6 +97,6 @@ namespaces:
     metrics:
       strategy:
         type: meter
-        tags: [strategy]
+        tags: [channel-name, strategy]
         docs: Marked every time the node selection strategy changes
 

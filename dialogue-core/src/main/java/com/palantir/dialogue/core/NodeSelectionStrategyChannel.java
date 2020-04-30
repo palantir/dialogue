@@ -48,6 +48,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
     private final LimitedChannel delegate;
+    private final DialogueNodeselectionMetrics nodeSelectionMetrics;
 
     @VisibleForTesting
     NodeSelectionStrategyChannel(
@@ -62,6 +63,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.random = random;
         this.tick = tick;
         this.metrics = metrics;
+        this.nodeSelectionMetrics = DialogueNodeselectionMetrics.of(metrics);
         this.nodeSelectionStrategy = new AtomicReference<>(NodeSelectionChannel.builder()
                 .strategy(initialStrategy)
                 .channel(new ZeroUriNodeSelectionChannel(channelName))
@@ -101,6 +103,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             if (strategy.equals(nodeSelectionStrategy.get().strategy())) {
                 return;
             }
+
+            this.nodeSelectionMetrics
+                    .strategy()
+                    .channelName(channelName)
+                    .strategy(strategy.toString())
+                    .build()
+                    .mark();
             nodeSelectionStrategy.getAndUpdate(prevChannel -> getUpdatedSelectedChannel(
                     prevChannel.channel(), prevChannel.hostChannels(), strategy, metrics, random, tick, channelName));
         }
