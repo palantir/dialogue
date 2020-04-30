@@ -21,9 +21,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
-import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
@@ -38,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
 
+// TODO(dfox): better name
 public final class ScbFacade {
 
     private final ImmutableParams2 params;
@@ -64,7 +63,7 @@ public final class ScbFacade {
     // TODO(dfox): expose more 'with' functions
 
     /**
-     * LIMITATIONS:
+     * LIMITATIONS.
      * <ul>
      *     <li>Doesn't do fancy granular live-reload, i.e. throw away all the old concurrency limiter state
      * </ul>
@@ -130,29 +129,9 @@ public final class ScbFacade {
         Optional<Provider> securityProvider();
 
         /**
-         * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration} is absent.
+         * The provided value will only be respected if the corresponding field in {@link ServiceConfiguration}
+         * is absent.
          */
         Optional<Integer> maxNumRetries();
-    }
-
-    static ClientConfiguration getClientConfig(ServiceConfiguration clientConfig, Params2 ps) {
-        ClientConfiguration.Builder builder = ClientConfiguration.builder()
-                .from(ClientConfigurations.of(clientConfig))
-                .userAgent(ps.userAgent())
-                .taggedMetricRegistry(ps.taggedMetrics());
-
-        ps.securityProvider()
-                .ifPresent(provider -> builder.sslSocketFactory(
-                        SslSocketFactories.createSslSocketFactory(clientConfig.security(), provider)));
-        ps.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
-        ps.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
-        ps.clientQoS().ifPresent(builder::clientQoS);
-        ps.serverQoS().ifPresent(builder::serverQoS);
-        ps.retryOnTimeout().ifPresent(builder::retryOnTimeout);
-
-        if (!clientConfig.maxNumRetries().isPresent()) {
-            ps.maxNumRetries().ifPresent(builder::maxNumRetries);
-        }
-        return builder.build();
     }
 }

@@ -39,6 +39,7 @@ import org.immutables.value.Value;
  * Guiding principle: Users can't be trusted to close things to prevent OOMs, we must do it automatically for them.
  * It should be impossible to leak threads or memory by calling methods of this class.
  */
+// TODO(dfox): come up with a better name
 @Immutable
 public final class Facade {
     private final ImmutableParams params;
@@ -65,7 +66,7 @@ public final class Facade {
     }
 
     /**
-     * LIMITATIONS:
+     * LIMITATIONS.
      * <ul>
      *     <li>No interning, i.e. if people repeatedly ask for the same client over and over again, then
      *     requests will count against *independent* concurrency limiters (maybe this is fine???)
