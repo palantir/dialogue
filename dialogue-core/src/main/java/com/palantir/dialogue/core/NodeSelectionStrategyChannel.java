@@ -41,7 +41,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final TaggedMetricRegistry metrics;
     private final LimitedChannel delegate;
 
-    NodeSelectionStrategyChannel(
+    private NodeSelectionStrategyChannel(
             NodeSelectionStrategy strategy,
             String channelName,
             Random random,
@@ -54,6 +54,15 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.metrics = metrics;
         this.nodeSelectionStrategy = new AtomicReference<>();
         this.delegate = new SupplierChannel(nodeSelectionStrategy::get);
+    }
+
+    static NodeSelectionStrategyChannel create(Config cf) {
+        return new NodeSelectionStrategyChannel(
+                cf.clientConf().nodeSelectionStrategy(),
+                cf.channelName(),
+                cf.random(),
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry());
     }
 
     @Override
