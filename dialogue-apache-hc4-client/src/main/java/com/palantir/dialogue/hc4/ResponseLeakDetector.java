@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.Random;
+import java.util.function.DoubleSupplier;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -39,19 +40,25 @@ public final class ResponseLeakDetector {
     private final String clientName;
     private final DialogueClientMetrics metrics;
     private final Random random;
-    private final float leakDetectionProbability;
+    private final DoubleSupplier leakDetectionProbabilitySupplier;
 
     public static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
         return new ResponseLeakDetector(
-                clientName, DialogueClientMetrics.of(metrics), SafeThreadLocalRandom.get(), .01f);
+                clientName,
+                DialogueClientMetrics.of(metrics),
+                SafeThreadLocalRandom.get(),
+                DefaultLeakDetectionProbabilitySupplier.INSTANCE);
     }
 
     ResponseLeakDetector(
-            String clientName, DialogueClientMetrics metrics, Random random, float leakDetectionProbability) {
+            String clientName,
+            DialogueClientMetrics metrics,
+            Random random,
+            DoubleSupplier leakDetectionProbabilitySupplier) {
         this.clientName = clientName;
         this.metrics = metrics;
         this.random = random;
-        this.leakDetectionProbability = leakDetectionProbability;
+        this.leakDetectionProbabilitySupplier = leakDetectionProbabilitySupplier;
     }
 
     public Response wrap(Response input, Endpoint endpoint) {
@@ -62,6 +69,7 @@ public final class ResponseLeakDetector {
     }
 
     private boolean shouldApplyLeakDetection() {
+        double leakDetectionProbability = leakDetectionProbabilitySupplier.getAsDouble();
         if (leakDetectionProbability >= 1) {
             return true;
         }
@@ -75,8 +83,8 @@ public final class ResponseLeakDetector {
     public String toString() {
         return "ResponseLeakDetector{clientName='"
                 + clientName
-                + "', leakDetectionProbability="
-                + leakDetectionProbability
+                + "', leakDetectionProbabilitySupplier="
+                + leakDetectionProbabilitySupplier
                 + '}';
     }
 
@@ -206,6 +214,21 @@ public final class ResponseLeakDetector {
         @Override
         public String toString() {
             return "LeakDetectingResponse{delegate=" + delegate + ", leakDetector=" + leakDetector + '}';
+        }
+    }
+
+    private enum DefaultLeakDetectionProbabilitySupplier implements DoubleSupplier {
+        INSTANCE;
+
+        @Override
+        public double getAsDouble() {
+            if (log.isDebugEnabled()) {
+                if (log.isTraceEnabled()) {
+                    return 1D;
+                }
+                return .01D;
+            }
+            return 0D;
         }
     }
 }
