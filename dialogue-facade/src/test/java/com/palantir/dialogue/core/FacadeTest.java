@@ -76,7 +76,7 @@ class FacadeTest {
                                 .addUris("https://email-service")
                                 .build())
                 .build();
-        Facade2 facade = Facade.create().withServiceConfigBlock(() -> scb).withUserAgent(TestConfigurations.AGENT);
+        ScbFacade facade = Facade.create().withServiceConfigBlock(() -> scb).withUserAgent(TestConfigurations.AGENT);
 
         SampleServiceBlocking blocking = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
         assertThatThrownBy(blocking::voidToVoid)

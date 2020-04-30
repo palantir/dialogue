@@ -36,21 +36,23 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
 
-public final class Facade2 {
+public final class ScbFacade {
 
     private final ImmutableParams2 params;
 
-    Facade2(Params2 params) {
+    ScbFacade(Params2 params) {
         this.params = ImmutableParams2.builder().from(params).build();
     }
 
-    Facade2 withUserAgent(UserAgent userAgent) {
-        return new Facade2(params.withUserAgent(userAgent));
+    ScbFacade withUserAgent(UserAgent userAgent) {
+        return new ScbFacade(params.withUserAgent(userAgent));
     }
 
-    Facade2 withMaxNumRetries(int value) {
-        return new Facade2(params.withMaxNumRetries(value));
+    ScbFacade withMaxNumRetries(int value) {
+        return new ScbFacade(params.withMaxNumRetries(value));
     }
+
+    // TODO(dfox): expose more 'with' functions
 
     <T> T get(Class<T> serviceClass, String serviceName) {
         AtomicReference<Channel> atomic = PollingRefreshable.map(params.scb(), params.executor(), block -> {
@@ -72,7 +74,6 @@ public final class Facade2 {
         return Facade.callStaticFactoryMethod(serviceClass, channel, params.runtime());
     }
 
-    // TODO(dfox): expose these as 'with' functions
     @Value.Immutable
     interface Params2 extends Facade.BaseParams {
 

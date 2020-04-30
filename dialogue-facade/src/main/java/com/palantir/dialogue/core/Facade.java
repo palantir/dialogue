@@ -50,8 +50,8 @@ public final class Facade {
         return new Facade(ImmutableParams.builder().build());
     }
 
-    public Facade2 withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
-        return new Facade2(ImmutableParams2.builder().from(params).scb(scb).build());
+    public ScbFacade withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
+        return new ScbFacade(ImmutableParams2.builder().from(params).scb(scb).build());
     }
 
     public Facade withExecutor(ScheduledExecutorService executor) {
@@ -65,8 +65,6 @@ public final class Facade {
     /**
      * LIMITATIONS:
      * <ul>
-     *     <li>Users have to build the client configuration themselves, which doesn't have an equals method :(
-     *     <li>Users can't tweak settings like clientQos, maxNumRetries. Also can't pass in an executor.
      *     <li>No interning, i.e. if people repeatedly ask for the same client over and over again, then
      *     requests will count against *independent* concurrency limiters (maybe this is fine???)
      *     <li>Doesn't re-use any possible existing connection pool (e.g. if basicClients are created in a hot loop),
