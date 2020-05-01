@@ -25,9 +25,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.refreshable.Refreshable;
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 // TODO(dfox): better name
@@ -63,7 +62,8 @@ public final class ScbFacade {
      * </ul>
      */
     public <T> T get(Class<T> serviceClass, String serviceName) {
-        AtomicReference<Channel> atomic = PollingRefreshable.map(params.scb(), params.executor(), block -> {
+
+        Refreshable<Channel> mapped = params.scb().map(block -> {
             if (!block.services().containsKey(serviceName)) {
                 return new AlwaysThrowing(() -> new SafeIllegalStateException(
                         "Service not configured",
@@ -94,13 +94,14 @@ public final class ScbFacade {
                     .scheduler(params.executor())
                     .build();
         });
-        AtomicChannel channel = new AtomicChannel(atomic);
+
+        SupplierChannel channel = new SupplierChannel(mapped);
         return Facade.callStaticFactoryMethod(serviceClass, channel, params.runtime());
     }
 
     @Value.Immutable
     interface Params2 extends Facade.BaseParams {
 
-        Supplier<ServicesConfigBlock> scb();
+        Refreshable<ServicesConfigBlock> scb();
     }
 }

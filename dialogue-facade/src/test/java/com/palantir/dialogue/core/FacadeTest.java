@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.when;
 
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -25,22 +24,14 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.refreshable.DefaultRefreshable;
+import com.palantir.refreshable.Refreshable;
 import java.net.UnknownHostException;
-import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
-import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 class FacadeTest {
     ClientConfiguration localhost = TestConfigurations.create("https://localhost:8080");
     ClientConfiguration other = TestConfigurations.create("https://other:8080");
-
-    @Mock
-    Supplier<ClientConfiguration> mockSupplier;
 
     @Test
     void one_off() {
@@ -64,17 +55,15 @@ class FacadeTest {
 
     @Test
     void reloading() {
-        when(mockSupplier.get()).thenReturn(localhost).thenReturn(other);
+        DefaultRefreshable<ClientConfiguration> clientConfig = new DefaultRefreshable<>(localhost);
 
         SampleServiceBlocking blocking =
-                Facade.create().withUserAgent(TestConfigurations.AGENT).get(SampleServiceBlocking.class, mockSupplier);
+                Facade.create().withUserAgent(TestConfigurations.AGENT).get(SampleServiceBlocking.class, clientConfig);
         assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("Connect to localhost");
 
-        Awaitility.await("Polling should eventually notice the reloaded config")
-                .atMost(3, TimeUnit.SECONDS)
-                .untilAsserted(() -> {
-                    assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("other");
-                });
+        clientConfig.update(other);
+
+        assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("other");
     }
 
     @Test
@@ -92,7 +81,8 @@ class FacadeTest {
                                 .addUris("https://email-service")
                                 .build())
                 .build();
-        ScbFacade facade = Facade.create().withServiceConfigBlock(() -> scb).withUserAgent(TestConfigurations.AGENT);
+        ScbFacade facade =
+                Facade.create().withServiceConfigBlock(Refreshable.only(scb)).withUserAgent(TestConfigurations.AGENT);
 
         SampleServiceBlocking blocking = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
         assertThatThrownBy(blocking::voidToVoid)

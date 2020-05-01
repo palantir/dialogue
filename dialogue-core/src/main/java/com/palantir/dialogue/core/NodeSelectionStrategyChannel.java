@@ -68,7 +68,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 .strategy(initialStrategy)
                 .channel(new ZeroUriNodeSelectionChannel(channelName))
                 .build());
-        this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
+        this.delegate =
+                new SupplierLimitedChannel(() -> nodeSelectionStrategy.get().channel());
     }
 
     static NodeSelectionStrategyChannel create(Config cf) {

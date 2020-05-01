@@ -21,26 +21,22 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.annotation.concurrent.ThreadSafe;
+import java.util.function.Supplier;
 
-@ThreadSafe
-final class AtomicChannel implements Channel {
-    private final AtomicReference<Channel> supplier;
+final class SupplierChannel implements Channel {
+    private final Supplier<Channel> supplier;
 
-    AtomicChannel(AtomicReference<Channel> supplier) {
+    SupplierChannel(Supplier<Channel> supplier) {
         this.supplier = supplier;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Channel delegate = Preconditions.checkNotNull(supplier.get(), "AtomicReference must not return null");
-        return delegate.execute(endpoint, request);
+        return supplier.get().execute(endpoint, request);
     }
 
     @Override
     public String toString() {
-        return "AtomicChannel{" + supplier.get() + '}';
+        return "SupplierChannel{" + supplier.get() + '}';
     }
 }

@@ -31,6 +31,7 @@ import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.reflect.InvocationTargetException;
@@ -39,7 +40,6 @@ import java.security.Provider;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.immutables.value.Value;
@@ -62,7 +62,7 @@ public final class Facade {
     }
 
     /** This re-uses underlying apache clients (one per service in the service config block). */
-    public ScbFacade withServiceConfigBlock(Supplier<ServicesConfigBlock> scb) {
+    public ScbFacade withServiceConfigBlock(Refreshable<ServicesConfigBlock> scb) {
         return new ScbFacade(ImmutableParams2.builder().from(params).scb(scb).build());
     }
 
@@ -108,15 +108,15 @@ public final class Facade {
     }
 
     /** Live-reloading version. Polls the supplier every second. */
-    public <T> T get(Class<T> clazz, Supplier<ClientConfiguration> clientConfig) {
+    public <T> T get(Class<T> clazz, Refreshable<ClientConfiguration> clientConfig) {
 
         // this is the naive version of live-reloading, it doesn't try to do clever mutation under the hood, just
         // forgets about the old instance and makes a new one.
-        AtomicReference<Channel> atomicRef = PollingRefreshable.map(clientConfig, params.executor(), conf -> {
+        Supplier<Channel> channels = clientConfig.map(conf -> {
             return getChannel("facade-reloading-", conf);
         });
 
-        AtomicChannel channel = new AtomicChannel(atomicRef);
+        SupplierChannel channel = new SupplierChannel(channels);
 
         return callStaticFactoryMethod(clazz, channel, params.runtime());
     }
