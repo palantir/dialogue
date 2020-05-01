@@ -39,6 +39,6 @@ final class ChannelToLimitedChannelAdapter implements LimitedChannel {
 
     @Override
     public String toString() {
-        return "ChannelToLimitedChannelAdapter{delegate=" + delegate + '}';
+        return "ChannelToLimitedChannelAdapter{" + delegate + '}';
     }
 }

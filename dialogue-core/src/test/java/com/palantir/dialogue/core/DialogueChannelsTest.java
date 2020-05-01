@@ -69,7 +69,7 @@ public final class DialogueChannelsTest {
             .build();
 
     @Mock
-    private Channel delegate;
+    private Channel mockChannel;
 
     private Endpoint endpoint = TestEndpoint.POST;
 
@@ -84,11 +84,11 @@ public final class DialogueChannelsTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> delegate)
+                .channelFactory(_uri -> mockChannel)
                 .build();
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        lenient().when(delegate.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+        lenient().when(mockChannel.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
@@ -143,12 +143,12 @@ public final class DialogueChannelsTest {
     @Test
     @SuppressWarnings("FutureReturnValueIgnored") // intentionally spawning a bunch of throwaway requests
     void live_reloading_an_extra_uri_allows_queued_requests_to_make_progress() {
-        when(delegate.execute(any(), any())).thenReturn(SettableFuture.create());
+        when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
 
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(uri -> delegate)
+                .channelFactory(uri -> mockChannel)
                 .random(new Random(123456L))
                 .build();
 
@@ -158,24 +158,24 @@ public final class DialogueChannelsTest {
         }
 
         // stubConfig has 1 uri and ConcurrencyLimitedChannel initialLimit is 20
-        verify(delegate, times(ConcurrencyLimitedChannel.INITIAL_LIMIT)).execute(any(), any());
+        verify(mockChannel, times(ConcurrencyLimitedChannel.INITIAL_LIMIT)).execute(any(), any());
 
         // live-reload from 1 -> 2 uris
         ImmutableList<String> reloadedUris = ImmutableList.of(stubConfig.uris().get(0), "https://some-other-uri");
         channel.updateUris(reloadedUris);
 
         // Now that we have two uris, another batch of 20 requests can get out the door
-        verify(delegate, times(reloadedUris.size() * ConcurrencyLimitedChannel.INITIAL_LIMIT))
+        verify(mockChannel, times(reloadedUris.size() * ConcurrencyLimitedChannel.INITIAL_LIMIT))
                 .execute(any(), any());
     }
 
     @Test
     void test_queue_rejection_is_not_retried() {
-        when(delegate.execute(any(), any())).thenReturn(SettableFuture.create());
+        when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(uri -> delegate)
+                .channelFactory(uri -> mockChannel)
                 .random(new Random(123456L))
                 .maxQueueSize(1)
                 .build();
@@ -204,10 +204,29 @@ public final class DialogueChannelsTest {
                         .from(stubConfig)
                         .uris(Collections.emptyList())
                         .build())
-                .channelFactory(uri -> delegate)
+                .channelFactory(uri -> mockChannel)
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
+    }
+
+    @Test
+    void nice_tostring() {
+        ChannelFactory factory = uri -> mockChannel;
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(factory)
+                .build();
+        DialogueChannel channel2 = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(factory)
+                .build();
+        System.out.println(channel);
+        assertThat(channel.toString())
+                .describedAs("It's important we can differentiate two instances built from the same config!")
+                .isNotEqualTo(channel2.toString());
     }
 
     @Test

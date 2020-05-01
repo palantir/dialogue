@@ -58,6 +58,6 @@ final class ActiveRequestInstrumentationChannel implements Channel {
 
     @Override
     public String toString() {
-        return "ActiveRequestInstrumentationChannel{" + "delegate=" + delegate + ", stage=" + stage + '}';
+        return "ActiveRequestInstrumentationChannel{stage=" + stage + ", delegate=" + delegate + '}';
     }
 }
