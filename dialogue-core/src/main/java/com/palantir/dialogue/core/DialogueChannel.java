@@ -155,6 +155,12 @@ public final class DialogueChannel implements Channel {
         return new Builder();
     }
 
+    @Override
+    public String toString() {
+        return "DialogueChannel@" + Integer.toHexString(System.identityHashCode(this)) + "{channelName="
+                + cf.channelName() + ", delegate=" + delegate + '}';
+    }
+
     public static final class Builder {
         private final ImmutableConfig.Builder builder = ImmutableConfig.builder();
 

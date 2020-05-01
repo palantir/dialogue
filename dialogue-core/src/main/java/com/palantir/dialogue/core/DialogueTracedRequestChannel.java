@@ -23,10 +23,10 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-public final class DialogueTracedRequestChannel implements Channel {
+final class DialogueTracedRequestChannel implements Channel {
     private final Channel delegate;
 
-    public DialogueTracedRequestChannel(Channel delegate) {
+    DialogueTracedRequestChannel(Channel delegate) {
         this.delegate = delegate;
     }
 
@@ -34,5 +34,10 @@ public final class DialogueTracedRequestChannel implements Channel {
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
+    }
+
+    @Override
+    public String toString() {
+        return "DialogueTracedRequestChannel{" + delegate + '}';
     }
 }

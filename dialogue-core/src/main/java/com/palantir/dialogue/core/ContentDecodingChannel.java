@@ -89,6 +89,11 @@ final class ContentDecodingChannel implements Channel {
         return input;
     }
 
+    @Override
+    public String toString() {
+        return "ContentDecodingChannel{" + delegate + '}';
+    }
+
     private static final class ContentDecodingResponse implements Response {
 
         private final Response delegate;

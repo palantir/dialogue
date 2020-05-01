@@ -89,4 +89,9 @@ final class DeprecationWarningChannel implements Channel {
         }
         return false;
     }
+
+    @Override
+    public String toString() {
+        return "DeprecationWarningChannel{" + delegate + '}';
+    }
 }

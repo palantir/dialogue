@@ -192,6 +192,11 @@ final class RetryingChannel implements Channel {
         return !maybeBody.isPresent() || maybeBody.get().repeatable();
     }
 
+    @Override
+    public String toString() {
+        return "RetryingChannel{maxRetries=" + maxRetries + ", serverQoS=" + serverQoS + " delegate=" + delegate + '}';
+    }
+
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;

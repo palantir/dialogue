@@ -39,6 +39,6 @@ final class TracedChannel implements Channel {
 
     @Override
     public String toString() {
-        return "TracedChannel{delegate=" + delegate + ", operationName='" + operationName + "\'}";
+        return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
     }
 }

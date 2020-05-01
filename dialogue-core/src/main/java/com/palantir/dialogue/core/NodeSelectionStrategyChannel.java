@@ -179,6 +179,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
+    @Override
+    public String toString() {
+        return "NodeSelectionStrategyChannel{" + nodeSelectionStrategy + '}';
+    }
+
     @Value.Immutable
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
