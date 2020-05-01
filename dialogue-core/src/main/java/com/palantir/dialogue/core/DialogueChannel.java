@@ -124,6 +124,7 @@ public final class DialogueChannel implements Channel {
                 .addAll(limitedChannelByUri.keySet())
                 .addAll(newUris)
                 .build();
+
         newUris.forEach(uri -> {
             Config configWithUris = withUris(cf, allUris); // necessary for attribute metrics to the right hostIndex
             LimitedChannel singleUriChannel = createPerUriChannel(configWithUris, uri);

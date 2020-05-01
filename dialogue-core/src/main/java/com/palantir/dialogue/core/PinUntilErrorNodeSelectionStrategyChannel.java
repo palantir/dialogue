@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -86,7 +85,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
     static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<LimitedChannel> initialChannel,
-            NodeSelectionStrategy strategy,
+            DialogueNodeSelectionStrategy strategy,
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
@@ -111,15 +110,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 .map(limitedChannel -> Math.max(0, initialShuffle.indexOf(limitedChannel)))
                 .orElse(0);
 
-        switch (strategy) {
-            case PIN_UNTIL_ERROR:
-                NodeList shuffling =
-                        ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
-                return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                NodeList constant = new ConstantNodeList(initialShuffle);
-                return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
-            case ROUND_ROBIN:
+        if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
+            NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
+        } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
+            NodeList constant = new ConstantNodeList(initialShuffle);
+            return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));

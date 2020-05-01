@@ -91,3 +91,12 @@ namespaces:
         docs: The score that the BalancedChannel currently assigns to each host (computed based on inflight requests and
           recent failures). Requests are routed to the channel with the lowest score. (Note if there are >10 nodes this
           metric will not be recorded).
+
+  dialogue.nodeselection:
+    docs: Instrumentation for which node selection strategy is used
+    metrics:
+      strategy:
+        type: meter
+        tags: [channel-name, strategy]
+        docs: Marked every time the node selection strategy changes
+
