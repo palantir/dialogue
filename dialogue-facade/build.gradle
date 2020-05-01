@@ -1,10 +1,11 @@
 dependencies {
+    api 'com.palantir.refreshable:refreshable'
+
     implementation project(':dialogue-apache-hc4-client')
     implementation project(':dialogue-core')
     implementation project(':dialogue-serde')
     implementation project(':dialogue-target')
     implementation 'com.palantir.conjure.java.runtime:keystores'
-    implementation 'com.github.ben-manes.caffeine:caffeine'
 
     annotationProcessor 'org.immutables:value'
     compile 'org.immutables:value::annotations'

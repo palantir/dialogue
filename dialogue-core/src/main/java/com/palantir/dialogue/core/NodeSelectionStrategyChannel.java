@@ -81,15 +81,6 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 cf.clientConf().taggedMetricRegistry());
     }
 
-    static NodeSelectionStrategyChannel create(Config cf) {
-        return new NodeSelectionStrategyChannel(
-                cf.clientConf().nodeSelectionStrategy(),
-                cf.channelName(),
-                cf.random(),
-                cf.ticker(),
-                cf.clientConf().taggedMetricRegistry());
-    }
-
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         return delegate.maybeExecute(endpoint, request).map(this::wrapWithCallback);
