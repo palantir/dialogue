@@ -163,3 +163,13 @@ acceptedBreaks:
       old: "method void com.palantir.dialogue.core.DialogueChannel.Builder::<init>()"
       new: "method void com.palantir.dialogue.core.DialogueChannel.Builder::<init>()"
       justification: "Never intended to be public, no known users"
+  "1.32.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.class.visibilityReduced"
+      old: "class com.palantir.dialogue.core.DialogueTracedRequestChannel"
+      new: "class com.palantir.dialogue.core.DialogueTracedRequestChannel"
+      justification: "Never intended to be public, no known users"
+    - code: "java.method.visibilityReduced"
+      old: "method void com.palantir.dialogue.core.DialogueTracedRequestChannel::<init>(com.palantir.dialogue.Channel)"
+      new: "method void com.palantir.dialogue.core.DialogueTracedRequestChannel::<init>(com.palantir.dialogue.Channel)"
+      justification: "Never intended to be public, no known users"

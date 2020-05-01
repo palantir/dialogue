@@ -238,11 +238,10 @@ final class QueuedChannel implements Channel {
 
     @Override
     public String toString() {
-        return "QueuedChannel{" +
-                "queueSizeEstimate=" + queueSizeEstimate +
-                ", maxQueueSize=" + maxQueueSize +
-                ", delegate=" + delegate +
-                '}';
+        return "QueuedChannel{queueSizeEstimate="
+                + queueSizeEstimate + ", maxQueueSize="
+                + maxQueueSize + ", delegate="
+                + delegate + '}';
     }
 
     /**
