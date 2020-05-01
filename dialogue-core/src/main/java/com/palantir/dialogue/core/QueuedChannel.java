@@ -236,6 +236,15 @@ final class QueuedChannel implements Channel {
         }
     }
 
+    @Override
+    public String toString() {
+        return "QueuedChannel{" +
+                "queueSizeEstimate=" + queueSizeEstimate +
+                ", maxQueueSize=" + maxQueueSize +
+                ", delegate=" + delegate +
+                '}';
+    }
+
     /**
      * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
      * This also schedules the next set of requests to be run.
