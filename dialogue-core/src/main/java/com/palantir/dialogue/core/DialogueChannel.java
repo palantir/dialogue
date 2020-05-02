@@ -215,5 +215,22 @@ public final class DialogueChannel implements Channel {
             Config config = builder.build();
             return new DialogueChannel(config);
         }
+
+        /** Does *not* do any clever live-reloading. */
+        @CheckReturnValue
+        Channel buildNonLiveReloading() {
+            Config cf = builder.build();
+
+            ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()
+                    .map(uri -> DialogueChannel.createPerUriChannel(cf, uri))
+                    .collect(ImmutableList.toImmutableList());
+
+            NodeSelectionStrategyChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf);
+            nodeSelectionChannel.updateChannels(perUriChannels);
+
+            QueuedChannel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+
+            return DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+        }
     }
 }

@@ -27,7 +27,7 @@ import java.nio.file.Paths;
 public final class TestConfigurations {
 
     public static final UserAgent AGENT = UserAgent.of(UserAgent.Agent.of("test", "0.0.1"));
-    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
+    public static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("../dialogue-test-common/src/main/resources/trustStore.jks"),
             Paths.get("../dialogue-test-common/src/main/resources/keyStore.jks"),
             "keystore");
