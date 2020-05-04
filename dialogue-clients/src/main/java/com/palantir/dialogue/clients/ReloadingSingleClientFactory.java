@@ -17,12 +17,20 @@
 package com.palantir.dialogue.clients;
 
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.security.Provider;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledExecutorService;
 import org.immutables.value.Value;
 
 final class ReloadingSingleClientFactory implements DialogueClients.SingleReloadingFactory {
@@ -72,5 +80,60 @@ final class ReloadingSingleClientFactory implements DialogueClients.SingleReload
     @Override
     public DialogueClients.SingleReloadingFactory withServiceName(String serviceName) {
         return new ReloadingSingleClientFactory(params.withServiceName(serviceName), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withTaggedMetrics(TaggedMetricRegistry metrics) {
+        return new ReloadingSingleClientFactory(params.withTaggedMetrics(metrics), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withUserAgent(UserAgent agent) {
+        return new ReloadingSingleClientFactory(params.withUserAgent(agent), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withNodeSelectionStrategy(NodeSelectionStrategy strategy) {
+        return new ReloadingSingleClientFactory(params.withNodeSelectionStrategy(strategy), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withClientQoS(ClientConfiguration.ClientQoS value) {
+        return new ReloadingSingleClientFactory(params.withClientQoS(value), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withServerQoS(ClientConfiguration.ServerQoS value) {
+        return new ReloadingSingleClientFactory(params.withServerQoS(value), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withRetryOnTimeout(ClientConfiguration.RetryOnTimeout value) {
+        return new ReloadingSingleClientFactory(params.withRetryOnTimeout(value), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withSecurityProvider(Provider securityProvider) {
+        return new ReloadingSingleClientFactory(params.withSecurityProvider(securityProvider), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withMaxNumRetries(int maxNumRetries) {
+        return new ReloadingSingleClientFactory(params.withMaxNumRetries(maxNumRetries), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withRuntime(ConjureRuntime runtime) {
+        return new ReloadingSingleClientFactory(params.withRuntime(runtime), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withRetryExecutor(ScheduledExecutorService executor) {
+        return new ReloadingSingleClientFactory(params.withRetryExecutor(executor), cache);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withBlockingExecutor(ExecutorService executor) {
+        return new ReloadingSingleClientFactory(params.withBlockingExecutor(executor), cache);
     }
 }

@@ -40,7 +40,7 @@ public final class DialogueClients {
         return DefaultFactory.create();
     }
 
-    public interface ReloadingClients {
+    public interface ReloadingClientFactory {
         <T> T get(Class<T> serviceClass, String serviceName);
     }
 
@@ -48,13 +48,13 @@ public final class DialogueClients {
         <T> T get(Class<T> serviceClass);
     }
 
-    public interface NonReloadingClients {
+    public interface NonReloadingClientFactory {
         <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf);
     }
 
     /**
      * Allows users to tweak values of {@link AugmentClientConfig} and {@link BaseParams}. Forces us to expose the same
-     * methods on {@link ReloadingClientFactory} and {@link DefaultFactory}.
+     * methods on {@link com.palantir.dialogue.clients.ReloadingClientFactory} and {@link DefaultFactory}.
      */
     @CheckReturnValue
     public interface WithClientBehaviour<T> {
@@ -101,20 +101,25 @@ public final class DialogueClients {
     }
 
     public interface Factory
-            extends NonReloadingClients,
+            extends NonReloadingClientFactory,
                     WithClientBehaviour<Factory>,
                     WithDialogueOptions<Factory>,
                     ToReloadingFactory<ReloadingFactory>,
                     ToSingleReloadingFactory<SingleReloadingFactory> {}
 
     public interface ReloadingFactory
-            extends ReloadingClients,
-                    NonReloadingClients,
+            extends ReloadingClientFactory,
+                    NonReloadingClientFactory,
                     WithClientBehaviour<ReloadingFactory>,
                     WithDialogueOptions<ReloadingFactory>,
-                    ToReloadingFactory<ReloadingFactory> {}
+                    ToReloadingFactory<ReloadingFactory>,
+                    WithServiceName<SingleReloadingFactory> {}
 
-    public interface SingleReloadingFactory extends SingleClientFactory, WithServiceName<SingleReloadingFactory> {}
+    public interface SingleReloadingFactory
+            extends SingleClientFactory,
+                    WithServiceName<SingleReloadingFactory>,
+                    WithClientBehaviour<SingleReloadingFactory>,
+                    WithDialogueOptions<SingleReloadingFactory> {}
 
     private DialogueClients() {}
 }

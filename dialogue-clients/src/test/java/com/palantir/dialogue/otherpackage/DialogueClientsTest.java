@@ -106,17 +106,24 @@ class DialogueClientsTest {
 
     @Test
     void reloading_single() {
-        DialogueClients.SingleReloadingFactory fooFactory = DialogueClients.create()
+        DialogueClients.Factory factory = DialogueClients.create()
                 .withTaggedMetrics(metrics)
                 .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0)
-                .reloadingServiceConfiguration(Refreshable.only(serviceConf))
+                .withMaxNumRetries(0);
+
+        DialogueClients.SingleReloadingFactory fooFactory = factory.reloadingServiceConfiguration(
+                        Refreshable.only(serviceConf))
                 .withServiceName("foo");
 
         SampleServiceBlocking client = fooFactory.get(SampleServiceBlocking.class);
 
         assertThatThrownBy(client::voidToVoid).hasMessageContaining("multipass");
         assertThat(metrics.getMetrics().keySet().toString()).contains("dialogue-reloading-foo");
+
+        SampleServiceBlocking client2 = factory.reloading(Refreshable.only(scb))
+                .withServiceName("email-service")
+                .get(SampleServiceBlocking.class);
+        assertThatThrownBy(client2::voidToVoid).hasMessageContaining("email-service");
     }
 
     @Test
@@ -168,7 +175,7 @@ class DialogueClientsTest {
 
     // this made up library doesn't need live reloading, just a little bit of configurability
     private final class LibraryClassWithMixins<
-            F extends DialogueClients.WithClientBehaviour<F> & DialogueClients.NonReloadingClients> {
+            F extends DialogueClients.WithClientBehaviour<F> & DialogueClients.NonReloadingClientFactory> {
 
         private final SampleServiceBlocking client;
 
@@ -191,7 +198,7 @@ class DialogueClientsTest {
     // sweet baby jesus what have i created. please never do this, just use 'Factory' or 'ReloadingFactory'
     <
                     T extends DialogueClients.WithClientBehaviour<T> & DialogueClients.ToReloadingFactory<U>,
-                    U extends DialogueClients.ReloadingClients>
+                    U extends DialogueClients.ReloadingClientFactory>
             void libraryMethodWithMixins(T factory) {
         factory.withServerQoS(ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER)
                 .reloading(Refreshable.only(scb))
@@ -199,7 +206,7 @@ class DialogueClientsTest {
     }
 
     private static final class Alternative
-            implements DialogueClients.NonReloadingClients, DialogueClients.WithClientBehaviour<Alternative> {
+            implements DialogueClients.NonReloadingClientFactory, DialogueClients.WithClientBehaviour<Alternative> {
 
         @Override
         public <T> T getNonReloading(Class<T> _clazz, ServiceConfiguration _serviceConf) {

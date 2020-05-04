@@ -49,7 +49,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T get(Class<T> serviceClass, String serviceName) {
-        Preconditions.checkNotNull(serviceClass, "serviceClass");
+        return withServiceName(serviceName).get(serviceClass);
+    }
+
+    @Override
+    public DialogueClients.SingleReloadingFactory withServiceName(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
 
         Refreshable<Optional<ServiceConfiguration>> mapped = params.scb().map(block -> {
@@ -62,15 +66,13 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             return Optional.of(ServiceConfigurationFactory.of(block).get(serviceName));
         });
 
-        ReloadingSingleClientFactory factory = new ReloadingSingleClientFactory(
+        return new ReloadingSingleClientFactory(
                 ImmutableParams3.builder()
                         .from(params)
                         .serviceConf(mapped)
                         .serviceName(serviceName)
                         .build(),
                 cache);
-
-        return factory.get(serviceClass);
     }
 
     @Override
