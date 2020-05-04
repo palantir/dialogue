@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.clients;
 
 import com.google.errorprone.annotations.Immutable;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;

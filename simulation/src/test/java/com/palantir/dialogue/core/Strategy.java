@@ -83,7 +83,7 @@ public enum Strategy {
                         .build())
                 .channelFactory(uri -> channelSupplier.get().get(uri))
                 .random(sim.pseudoRandom())
-                .scheduler(sim.scheduler())
+                .retryScheduler(sim.scheduler())
                 .ticker(sim.clock())
                 .build();
 

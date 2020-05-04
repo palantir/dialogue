@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.clients;
 
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.core.DialogueChannel;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
@@ -30,10 +31,7 @@ interface BaseParams extends AugmentClientConfig {
         return DefaultConjureRuntime.builder().build();
     }
 
-    @Value.Default
-    default ScheduledExecutorService retryExecutor() {
-        return RetryingChannel.sharedScheduler.get();
-    }
+    Optional<ScheduledExecutorService> retryExecutor();
 
     Optional<ExecutorService> blockingExecutor();
 }

@@ -186,15 +186,14 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
-        @VisibleForTesting
-        Builder random(Random value) {
-            builder.random(value);
+        public Builder retryScheduler(ScheduledExecutorService value) {
+            builder.scheduler(value);
             return this;
         }
 
         @VisibleForTesting
-        Builder scheduler(ScheduledExecutorService value) {
-            builder.scheduler(value);
+        Builder random(Random value) {
+            builder.random(value);
             return this;
         }
 
@@ -218,7 +217,7 @@ public final class DialogueChannel implements Channel {
 
         /** Does *not* do any clever live-reloading. */
         @CheckReturnValue
-        Channel buildNonLiveReloading() {
+        public Channel buildNonLiveReloading() {
             Config cf = builder.build();
 
             ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()

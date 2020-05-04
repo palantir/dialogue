@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue.clients;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
@@ -56,7 +57,7 @@ final class ChannelCache {
     Channel getNonReloadingChannel(
             ServiceConfiguration serviceConf,
             AugmentClientConfig augment,
-            ScheduledExecutorService executor,
+            Optional<ScheduledExecutorService> retryExecutor,
             Optional<ExecutorService> blockingExecutor,
             @Safe String channelName) {
         long count = channelCache.estimatedSize();
@@ -65,7 +66,7 @@ final class ChannelCache {
         }
         return channelCache.get(ImmutableChannelCacheKey.builder()
                 .from(augment)
-                .executor(executor)
+                .retryExecutor(retryExecutor)
                 .serviceConf(serviceConf)
                 .channelName(channelName)
                 .blockingExecutor(blockingExecutor)
@@ -82,7 +83,7 @@ final class ChannelCache {
 
         ApacheCacheEntry apacheClient = getApacheClient(request);
 
-        return DialogueChannel.builder()
+        DialogueChannel.Builder builder = DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
@@ -90,9 +91,11 @@ final class ChannelCache {
                         .build())
                 .channelFactory(uri -> {
                     return ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client());
-                })
-                .scheduler(channelCacheRequest.executor())
-                .buildNonLiveReloading();
+                });
+
+        channelCacheRequest.retryExecutor().ifPresent(builder::retryScheduler);
+
+        return builder.buildNonLiveReloading();
     }
 
     private ApacheCacheEntry getApacheClient(ApacheClientRequest request) {
@@ -143,7 +146,7 @@ final class ChannelCache {
 
         String channelName();
 
-        ScheduledExecutorService executor();
+        Optional<ScheduledExecutorService> retryExecutor();
 
         Optional<ExecutorService> blockingExecutor();
     }
