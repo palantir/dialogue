@@ -1,3 +1,6 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
+
 dependencies {
     api 'com.palantir.refreshable:refreshable'
     api 'com.palantir.conjure.java.api:service-config'
