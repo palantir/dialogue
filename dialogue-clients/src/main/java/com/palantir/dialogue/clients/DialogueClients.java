@@ -57,12 +57,7 @@ public final class DialogueClients {
      * methods on {@link ReloadingClientFactory} and {@link DefaultFactory}.
      */
     @CheckReturnValue
-    public interface WithMethodsMixin<T> {
-        T withRuntime(ConjureRuntime runtime);
-
-        T withRetryExecutor(ScheduledExecutorService executor);
-
-        T withBlockingExecutor(ExecutorService executor);
+    public interface WithClientBehaviour<T> {
 
         T withTaggedMetrics(TaggedMetricRegistry metrics);
 
@@ -79,6 +74,15 @@ public final class DialogueClients {
         T withSecurityProvider(java.security.Provider securityProvider);
 
         T withMaxNumRetries(int maxNumRetries);
+    }
+
+    @CheckReturnValue
+    public interface WithDialogueOptions<T> {
+        T withRuntime(ConjureRuntime runtime);
+
+        T withRetryExecutor(ScheduledExecutorService executor);
+
+        T withBlockingExecutor(ExecutorService executor);
     }
 
     public interface WithServiceName<T> {
@@ -98,14 +102,16 @@ public final class DialogueClients {
 
     public interface Factory
             extends NonReloadingClients,
-                    WithMethodsMixin<Factory>,
+                    WithClientBehaviour<Factory>,
+                    WithDialogueOptions<Factory>,
                     ToReloadingFactory<ReloadingFactory>,
                     ToSingleReloadingFactory<SingleReloadingFactory> {}
 
     public interface ReloadingFactory
             extends ReloadingClients,
                     NonReloadingClients,
-                    WithMethodsMixin<ReloadingFactory>,
+                    WithClientBehaviour<ReloadingFactory>,
+                    WithDialogueOptions<ReloadingFactory>,
                     ToReloadingFactory<ReloadingFactory> {}
 
     public interface SingleReloadingFactory extends SingleClientFactory, WithServiceName<SingleReloadingFactory> {}

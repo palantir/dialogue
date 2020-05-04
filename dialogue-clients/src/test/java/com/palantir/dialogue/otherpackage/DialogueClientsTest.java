@@ -25,7 +25,6 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
-import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -37,8 +36,6 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.security.Provider;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import org.junit.jupiter.api.Test;
 
 class DialogueClientsTest {
@@ -171,7 +168,7 @@ class DialogueClientsTest {
 
     // this made up library doesn't need live reloading, just a little bit of configurability
     private final class LibraryClassWithMixins<
-            F extends DialogueClients.WithMethodsMixin<F> & DialogueClients.NonReloadingClients> {
+            F extends DialogueClients.WithClientBehaviour<F> & DialogueClients.NonReloadingClients> {
 
         private final SampleServiceBlocking client;
 
@@ -193,7 +190,7 @@ class DialogueClientsTest {
 
     // sweet baby jesus what have i created. please never do this, just use 'Factory' or 'ReloadingFactory'
     <
-                    T extends DialogueClients.WithMethodsMixin<T> & DialogueClients.ToReloadingFactory<U>,
+                    T extends DialogueClients.WithClientBehaviour<T> & DialogueClients.ToReloadingFactory<U>,
                     U extends DialogueClients.ReloadingClients>
             void libraryMethodWithMixins(T factory) {
         factory.withServerQoS(ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER)
@@ -202,25 +199,10 @@ class DialogueClientsTest {
     }
 
     private static final class Alternative
-            implements DialogueClients.NonReloadingClients, DialogueClients.WithMethodsMixin<Alternative> {
+            implements DialogueClients.NonReloadingClients, DialogueClients.WithClientBehaviour<Alternative> {
 
         @Override
         public <T> T getNonReloading(Class<T> _clazz, ServiceConfiguration _serviceConf) {
-            return null;
-        }
-
-        @Override
-        public Alternative withRuntime(ConjureRuntime _runtime) {
-            return this;
-        }
-
-        @Override
-        public Alternative withRetryExecutor(ScheduledExecutorService _executor) {
-            return this;
-        }
-
-        @Override
-        public Alternative withBlockingExecutor(ExecutorService _executor) {
             return null;
         }
 
