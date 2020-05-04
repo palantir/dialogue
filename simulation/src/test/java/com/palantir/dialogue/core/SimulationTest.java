@@ -225,6 +225,33 @@ public class SimulationTest {
     }
 
     @Test
+    public void fast_400s_then_revert() {
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("normal")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("fast_400s_then_revert")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .until(Duration.ofSeconds(3), "fast 400s")
+                        .handler(h -> h.response(400).responseTime(Duration.ofMillis(20)))
+                        .until(Duration.ofSeconds(30), "revert")
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
+                        .build());
+
+        result = Benchmark.builder()
+                .requestsPerSecond(100)
+                .sendUntil(Duration.ofMinutes(1))
+                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofMinutes(10))
+                .run();
+    }
+
+    @Test
     public void drastic_slowdown() {
         int capacity = 60;
         servers = servers(
