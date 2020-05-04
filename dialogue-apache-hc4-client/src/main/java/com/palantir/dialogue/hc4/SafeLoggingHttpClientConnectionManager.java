@@ -22,6 +22,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import org.apache.http.HttpClientConnection;
 import org.apache.http.conn.ConnectionRequest;
 import org.apache.http.conn.HttpClientConnectionManager;
@@ -32,7 +33,7 @@ import org.apache.http.protocol.HttpContext;
 final class SafeLoggingHttpClientConnectionManager implements HttpClientConnectionManager, Closeable {
 
     private final HttpClientConnectionManager delegate;
-    private volatile Throwable closedLocation = null;
+    private final AtomicReference<Throwable> closedLocation = new AtomicReference<>();
 
     SafeLoggingHttpClientConnectionManager(HttpClientConnectionManager delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "HttpClientConnectionManager is required");
@@ -43,9 +44,10 @@ final class SafeLoggingHttpClientConnectionManager implements HttpClientConnecti
         try {
             return delegate.requestConnection(route, state);
         } catch (IllegalStateException e) {
-            if (closedLocation != null) {
+            Throwable closedLocationSnapshot = closedLocation.get();
+            if (closedLocationSnapshot != null) {
                 SafeIllegalStateException exception = new SafeIllegalStateException("Connection pool shut down", e);
-                exception.addSuppressed(closedLocation);
+                exception.addSuppressed(closedLocationSnapshot);
                 throw exception;
             }
             throw e;
@@ -85,16 +87,16 @@ final class SafeLoggingHttpClientConnectionManager implements HttpClientConnecti
 
     @Override
     public void shutdown() {
-        if (closedLocation == null) {
-            closedLocation = new SafeRuntimeException("Connection pool closed here");
+        if (closedLocation.get() == null
+                && closedLocation.compareAndSet(null, new SafeRuntimeException("Connection pool closed here"))) {
             delegate.shutdown();
         }
     }
 
     @Override
     public void close() throws IOException {
-        if (closedLocation == null) {
-            closedLocation = new SafeRuntimeException("Connection pool closed here");
+        if (closedLocation.get() == null
+                && closedLocation.compareAndSet(null, new SafeRuntimeException("Connection pool closed here"))) {
             if (delegate instanceof Closeable) {
                 ((Closeable) delegate).close();
             } else {
