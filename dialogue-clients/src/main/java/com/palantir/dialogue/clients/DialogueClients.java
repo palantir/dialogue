@@ -22,25 +22,24 @@ import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.refreshable.Refreshable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * The {@link ReloadingFactory} abstraction allows users to declaratively construct clients for any of the services
- * named in the given {@link ServicesConfigBlock}.  Users may also choose to create one-off non-live reloading clients.
+ * named in the given {@link ServicesConfigBlock}. Client behaviour can be customized using the fluent methods from
+ * {@link WithClientOptions} or {@link WithDialogueOptions}. Users may also choose to create one-off non-live reloading
+ * clients.
  *
- * Fluent methods from {@link WithClientOptions} or {@link WithDialogueOptions} can be used to customize the
- * behaviour of clients, e.g. by tuning timeouts or max retries.
- *
- * For maximum performance, we take great care to re-use underlying Apache connection pools and avoid unnecessary
- * tls handshakes. To achieve this, it is recommended to call {@link ReloadingFactory#create} once for the lifetime of
+ * For maximum performance, we take great care to re-use underlying Apache connection pools as this avoids unnecessary
+ * TLS handshakes. To achieve this, it is recommended to call {@link ReloadingFactory#create} once for the lifetime of
  * a JVM. There is no need to manually close clients or connection pools, this will be done automatically.
  *
- * Libraries may depend on interfaces from this package and/or interfaces from conjure-java-runtime's
- * {@link ConjureClients}.
- *
- * All other classes in this package are considered package-private implementation details and are subject to change.
+ * Libraries may depend on interfaces contained in this class and/or interfaces from conjure-java-runtime's
+ * {@link ConjureClients}. All other classes in this package are considered package-private implementation details
+ * and are subject to change.
  */
 public final class DialogueClients {
 
@@ -49,18 +48,25 @@ public final class DialogueClients {
                 ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
 
-    /** Low-level API. Most users won't need this, but it is necessary to construct feign-shim clients. */
-    public interface ReloadingChannelFactory {
-        Channel getChannel(String serviceName);
-    }
-
+    /** Parameters necessary for {@link DialogueChannel#builder()} and constructing an actual BlockingFoo instance. */
     @CheckReturnValue
     public interface WithDialogueOptions<T> {
         T withRuntime(ConjureRuntime runtime);
 
+        /** Exponential backoffs are scheduled on this executor. If this is omitted a singleton will be used. */
         T withRetryExecutor(ScheduledExecutorService retryExecutor);
 
+        /**
+         * The Apache http client uses blocking socket operations, so threads from this executor will be used to wait for
+         * responses. It's strongly recommended that custom executors support tracing-java. Cached executors are the best
+         * fit because we use concurrency limiters to bound concurrent requests.
+         */
         T withBlockingExecutor(ExecutorService blockingExecutor);
+    }
+
+    /** Low-level API. Most users won't need this, but it is necessary to construct feign-shim clients. */
+    public interface ReloadingChannelFactory {
+        Channel getChannel(String serviceName);
     }
 
     public interface ReloadingFactory
