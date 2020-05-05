@@ -17,55 +17,51 @@
 package com.palantir.dialogue.clients;
 
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
-import com.palantir.conjure.java.api.config.service.UserAgent;
-import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.security.Provider;
 import java.util.Optional;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import org.immutables.value.Value;
 
-final class ReloadingSingleClientFactory implements DialogueClients.SingleReloadingFactory {
-
-    private final ImmutableParams3 params;
+final class ReloadingSingleClientFactory {
+    private final ImmutableSingleClientParams params;
     private final ChannelCache cache;
 
-    ReloadingSingleClientFactory(ImmutableParams3 params, ChannelCache cache) {
+    ReloadingSingleClientFactory(ImmutableSingleClientParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
     }
 
     @Value.Immutable
-    interface Params3 extends BaseParams {
-        Optional<String> serviceName();
+    interface SingleClientParams extends BaseParams {
+        String serviceName();
 
         Refreshable<Optional<ServiceConfiguration>> serviceConf();
     }
 
-    @Override
-    public <T> T get(Class<T> serviceClass) {
+    <T> T get(Class<T> serviceClass) {
         Preconditions.checkNotNull(serviceClass, "serviceClass");
+
+        LiveReloadingChannel channel = getChannel();
+
+        return Reflection.callStaticFactoryMethod(serviceClass, channel, params.runtime());
+    }
+
+    LiveReloadingChannel getChannel() {
+        String channelName = "dialogue-" + params.serviceName();
 
         Refreshable<Channel> mapped = params.serviceConf().map(serviceConf -> {
             Preconditions.checkNotNull(serviceConf, "Refreshable must not provide a null serviceConf");
-            String channelName = "dialogue-reloading-" + params.serviceName().orElseGet(serviceClass::getSimpleName);
+            SafeArg<String> safeArg = SafeArg.of("service", params.serviceName());
 
             if (!serviceConf.isPresent()) {
-                return new AlwaysThrowing(
-                        () -> new SafeIllegalStateException("No service conf", SafeArg.of("channelName", channelName)));
+                return new AlwaysThrowing(() -> new SafeIllegalStateException("No service conf", safeArg));
             }
 
             if (serviceConf.get().uris().isEmpty()) {
-                return new AlwaysThrowing(
-                        () -> new SafeIllegalStateException("No uris", SafeArg.of("channelName", channelName)));
+                return new AlwaysThrowing(() -> new SafeIllegalStateException("No uris", safeArg));
             }
 
             return cache.getNonReloadingChannel(
@@ -73,67 +69,6 @@ final class ReloadingSingleClientFactory implements DialogueClients.SingleReload
         });
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
-        LiveReloadingChannel reloadingChannel = new LiveReloadingChannel(mapped);
-        return Reflection.callStaticFactoryMethod(serviceClass, reloadingChannel, params.runtime());
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withServiceName(String serviceName) {
-        return new ReloadingSingleClientFactory(params.withServiceName(serviceName), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withTaggedMetrics(TaggedMetricRegistry metrics) {
-        return new ReloadingSingleClientFactory(params.withTaggedMetrics(metrics), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withUserAgent(UserAgent agent) {
-        return new ReloadingSingleClientFactory(params.withUserAgent(agent), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withNodeSelectionStrategy(NodeSelectionStrategy strategy) {
-        return new ReloadingSingleClientFactory(params.withNodeSelectionStrategy(strategy), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withClientQoS(ClientConfiguration.ClientQoS value) {
-        return new ReloadingSingleClientFactory(params.withClientQoS(value), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withServerQoS(ClientConfiguration.ServerQoS value) {
-        return new ReloadingSingleClientFactory(params.withServerQoS(value), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withRetryOnTimeout(ClientConfiguration.RetryOnTimeout value) {
-        return new ReloadingSingleClientFactory(params.withRetryOnTimeout(value), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withSecurityProvider(Provider securityProvider) {
-        return new ReloadingSingleClientFactory(params.withSecurityProvider(securityProvider), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withMaxNumRetries(int maxNumRetries) {
-        return new ReloadingSingleClientFactory(params.withMaxNumRetries(maxNumRetries), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withRuntime(ConjureRuntime runtime) {
-        return new ReloadingSingleClientFactory(params.withRuntime(runtime), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withRetryExecutor(ScheduledExecutorService executor) {
-        return new ReloadingSingleClientFactory(params.withRetryExecutor(executor), cache);
-    }
-
-    @Override
-    public DialogueClients.SingleReloadingFactory withBlockingExecutor(ExecutorService executor) {
-        return new ReloadingSingleClientFactory(params.withBlockingExecutor(executor), cache);
+        return new LiveReloadingChannel(mapped);
     }
 }

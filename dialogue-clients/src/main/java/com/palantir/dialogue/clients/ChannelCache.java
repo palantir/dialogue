@@ -49,9 +49,13 @@ final class ChannelCache {
             .maximumSize(500) // I don't think it's reasonable to need 500 clients at the same time
             .build(this::createNonLiveReloadingChannel);
 
-    ChannelCache() {
+    private ChannelCache() {
         Throwable stacktrace = log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
         log.info("Creating new ChannelCache", stacktrace);
+    }
+
+    static ChannelCache createEmptyCache() {
+        return new ChannelCache();
     }
 
     Channel getNonReloadingChannel(

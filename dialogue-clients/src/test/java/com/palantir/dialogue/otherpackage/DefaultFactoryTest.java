@@ -27,6 +27,7 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.refreshable.Refreshable;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -63,7 +64,8 @@ public class DefaultFactoryTest {
 
     @Test
     void throws_if_user_agent_is_missing() {
-        assertThatThrownBy(() -> DialogueClients.create().getNonReloading(SampleServiceAsync.class, serviceConfig))
+        assertThatThrownBy(() -> DialogueClients.create(Refreshable.only(null))
+                        .getNonReloading(SampleServiceAsync.class, serviceConfig))
                 .hasMessageContaining("userAgent must be specified");
     }
 
@@ -84,7 +86,7 @@ public class DefaultFactoryTest {
                 .maxNumRetries(0)
                 .build();
 
-        DialogueClients.Factory factory = DialogueClients.create()
+        DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withNodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR);
 

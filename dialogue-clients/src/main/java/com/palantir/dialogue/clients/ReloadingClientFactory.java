@@ -22,6 +22,7 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.refreshable.Refreshable;
@@ -53,7 +54,29 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public DialogueClients.SingleReloadingFactory withServiceName(String serviceName) {
+    public Channel getChannel(String serviceName) {
+        Preconditions.checkNotNull("serviceName", serviceName);
+        return withServiceName(serviceName).getChannel();
+    }
+
+    @Override
+    public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
+        Channel channel = cache.getNonReloadingChannel(
+                serviceConf,
+                params,
+                params.retryExecutor(),
+                params.blockingExecutor(),
+                "dialogue-nonreloading-" + clazz.getSimpleName());
+
+        return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
+    }
+
+    @Override
+    public DialogueClients.ReloadingFactory reloading(Refreshable<ServicesConfigBlock> scb) {
+        return new ReloadingClientFactory(params.withScb(scb), cache);
+    }
+
+    private ReloadingSingleClientFactory withServiceName(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
 
         Refreshable<Optional<ServiceConfiguration>> mapped = params.scb().map(block -> {
@@ -67,23 +90,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
 
         return new ReloadingSingleClientFactory(
-                ImmutableParams3.builder()
+                ImmutableSingleClientParams.builder()
                         .from(params)
                         .serviceConf(mapped)
                         .serviceName(serviceName)
                         .build(),
                 cache);
-    }
-
-    @Override
-    public DialogueClients.ReloadingFactory reloading(Refreshable<ServicesConfigBlock> scb) {
-        return new ReloadingClientFactory(params.withScb(scb), cache);
-    }
-
-    @Override
-    public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
-        return new DefaultFactory(ImmutableParams.builder().from(params).build(), cache)
-                .getNonReloading(clazz, serviceConf);
     }
 
     @Override

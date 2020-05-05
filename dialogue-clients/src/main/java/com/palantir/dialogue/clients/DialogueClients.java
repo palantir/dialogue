@@ -17,8 +17,9 @@
 package com.palantir.dialogue.clients;
 
 import com.google.errorprone.annotations.CheckReturnValue;
-import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.clients.ConjureClients;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.refreshable.Refreshable;
 import java.util.concurrent.ExecutorService;
@@ -32,12 +33,14 @@ import java.util.concurrent.ScheduledExecutorService;
  */
 public final class DialogueClients {
 
-    public static Factory create() {
-        return DefaultFactory.create();
+    public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
+        return new ReloadingClientFactory(
+                ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
 
-    public interface SingleClientFactory {
-        <T> T get(Class<T> serviceClass);
+    /** Low-level API. Most users won't need this, but it is necessary to construct feign-shim clients. */
+    public interface ReloadingChannelFactory {
+        Channel getChannel(String serviceName);
     }
 
     @CheckReturnValue
@@ -49,36 +52,13 @@ public final class DialogueClients {
         T withBlockingExecutor(ExecutorService executor);
     }
 
-    public interface WithServiceName<T> {
-        @CheckReturnValue
-        T withServiceName(String serviceName);
-    }
-
-    public interface ToSingleReloadingFactory<U> {
-        @CheckReturnValue
-        U reloadingServiceConfiguration(Refreshable<ServiceConfiguration> refreshable);
-    }
-
-    public interface Factory
-            extends ConjureClients.NonReloadingClientFactory,
-                    ConjureClients.WithClientOptions<Factory>,
-                    WithDialogueOptions<Factory>,
-                    ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ToSingleReloadingFactory<SingleReloadingFactory> {}
-
     public interface ReloadingFactory
             extends ConjureClients.ReloadingClientFactory,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.WithClientOptions<ReloadingFactory>,
-                    WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    WithServiceName<SingleReloadingFactory> {}
-
-    public interface SingleReloadingFactory
-            extends SingleClientFactory,
-                    WithServiceName<SingleReloadingFactory>,
-                    ConjureClients.WithClientOptions<SingleReloadingFactory>,
-                    WithDialogueOptions<SingleReloadingFactory> {}
+                    ReloadingChannelFactory,
+                    WithDialogueOptions<ReloadingFactory> {}
 
     private DialogueClients() {}
 }

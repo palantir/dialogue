@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.otherpackage;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
@@ -63,7 +62,7 @@ class DialogueClientsTest {
 
     @Test
     void shorthand() {
-        SampleServiceBlocking blocking = DialogueClients.create()
+        SampleServiceBlocking blocking = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
                 .getNonReloading(
                         SampleServiceBlocking.class,
@@ -87,9 +86,8 @@ class DialogueClientsTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(oneService);
 
-        SampleServiceBlocking blocking = DialogueClients.create()
+        SampleServiceBlocking blocking = DialogueClients.create(refreshable)
                 .withUserAgent(TestConfigurations.AGENT)
-                .reloading(refreshable)
                 .get(SampleServiceBlocking.class, "multipass");
         assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("Connect to localhost");
 
@@ -106,32 +104,10 @@ class DialogueClientsTest {
     }
 
     @Test
-    void reloading_single() {
-        DialogueClients.Factory factory = DialogueClients.create()
-                .withTaggedMetrics(metrics)
-                .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0);
-
-        DialogueClients.SingleReloadingFactory fooFactory = factory.reloadingServiceConfiguration(
-                        Refreshable.only(serviceConf))
-                .withServiceName("foo");
-
-        SampleServiceBlocking client = fooFactory.get(SampleServiceBlocking.class);
-
-        assertThatThrownBy(client::voidToVoid).hasMessageContaining("multipass");
-        assertThat(metrics.getMetrics().keySet().toString()).contains("dialogue-reloading-foo");
-
-        SampleServiceBlocking client2 = factory.reloading(Refreshable.only(scb))
-                .withServiceName("email-service")
-                .get(SampleServiceBlocking.class);
-        assertThatThrownBy(client2::voidToVoid).hasMessageContaining("email-service");
-    }
-
-    @Test
     void services_config_block() {
         Refreshable<ServicesConfigBlock> refreshable = Refreshable.only(scb);
         DialogueClients.ReloadingFactory facade =
-                DialogueClients.create().reloading(refreshable).withUserAgent(TestConfigurations.AGENT);
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
 
         SampleServiceBlocking blocking = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
         assertThatThrownBy(blocking::voidToVoid)
@@ -150,15 +126,15 @@ class DialogueClientsTest {
 
         SampleServiceBlocking unknown = facade.get(SampleServiceBlocking.class, "borf");
         assertThatThrownBy(unknown::voidToVoid)
-                .hasMessageContaining("No service conf: {channelName=dialogue-reloading-borf}");
+                .hasMessageContaining("No service conf: {service=borf}");
     }
 
     @Test
     void check_that_library_authors_can_depend_on_factory_interfaces() {
-        DialogueClients.Factory factory = DialogueClients.create();
+        DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb));
 
         // just want to see these things compile:
-        simpleLibrary(factory.reloading(Refreshable.only(scb)));
+        simpleLibrary(factory);
         new LibraryClassWithMixins<>(factory).doSomething();
         libraryMethodWithMixins(factory);
 
@@ -196,7 +172,7 @@ class DialogueClientsTest {
         }
     }
 
-    // sweet baby jesus what have i created. please never do this, just use 'Factory' or 'ReloadingFactory'
+    // sweet baby jesus what have i created. please never do this, just use 'ReloadingFactory'
     <
                     T extends ConjureClients.WithClientOptions<T> & ConjureClients.ToReloadingFactory<U>,
                     U extends ConjureClients.ReloadingClientFactory>
