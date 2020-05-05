@@ -55,7 +55,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public Channel getChannel(String serviceName) {
-        Preconditions.checkNotNull("serviceName", serviceName);
         return withServiceName(serviceName).getChannel();
     }
 
