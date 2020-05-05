@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.clients.ConjureClients;
+import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.refreshable.Refreshable;
@@ -26,17 +27,20 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * For maximum performance, care should be taken when constructing clients to re-use the underlying Apache connection
- * pools, so that
+ * The {@link ReloadingFactory} abstraction allows users to declaratively construct clients for any of the services
+ * named in the given {@link ServicesConfigBlock}.  Users may also choose to create one-off non-live reloading clients.
  *
+ * Fluent methods from {@link WithClientOptions} or {@link WithDialogueOptions} can be used to customize the
+ * behaviour of clients, e.g. by tuning timeouts or max retries.
  *
- * The basic client factory mixins are defined in {@link ConjureClients}, this class just defines some
- * additional dialogue-specific chunks.
+ * For maximum performance, we take great care to re-use underlying Apache connection pools and avoid unnecessary
+ * tls handshakes. To achieve this, it is recommended to call {@link ReloadingFactory#create} once for the lifetime of
+ * a JVM. There is no need to manually close clients or connection pools, this will be done automatically.
  *
- * Libraries should depend on only as much as they need.
+ * Libraries may depend on interfaces from this package and/or interfaces from conjure-java-runtime's
+ * {@link ConjureClients}.
  *
- * The entire public API is contained in this class and c-j-r's {@link ConjureClients}.
- * All other classes in this package are implementation details (and are package-private anyway).
+ * All other classes in this package are considered package-private implementation details and are subject to change.
  */
 public final class DialogueClients {
 
@@ -54,14 +58,14 @@ public final class DialogueClients {
     public interface WithDialogueOptions<T> {
         T withRuntime(ConjureRuntime runtime);
 
-        T withRetryExecutor(ScheduledExecutorService executor);
+        T withRetryExecutor(ScheduledExecutorService retryExecutor);
 
-        T withBlockingExecutor(ExecutorService executor);
+        T withBlockingExecutor(ExecutorService blockingExecutor);
     }
 
     public interface ReloadingFactory
             extends ConjureClients.ReloadingClientFactory,
-                    ConjureClients.WithClientOptions<ReloadingFactory>,
+                    WithClientOptions<ReloadingFactory>,
                     WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,

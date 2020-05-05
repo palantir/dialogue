@@ -93,12 +93,8 @@ final class ChannelCache {
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
-                .channelFactory(uri -> {
-                    return ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client());
-                });
-
+                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()));
         channelCacheRequest.retryExecutor().ifPresent(builder::retryScheduler);
-
         return builder.buildNonLiveReloading();
     }
 

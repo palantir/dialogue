@@ -26,12 +26,19 @@ import org.immutables.value.Value;
 
 /** Parameters necessary for {@link DialogueChannel#builder()} and constructing an actual BlockingFoo instance. */
 interface BaseParams extends AugmentClientConfig {
+
     @Value.Default
     default ConjureRuntime runtime() {
         return DefaultConjureRuntime.builder().build();
     }
 
+    /** Exponential backoffs are scheduled on this executor. If this is omitted a singleton will be used. */
     Optional<ScheduledExecutorService> retryExecutor();
 
+    /**
+     * The Apache http client uses blocking socket operations, so threads from this executor will be used to wait for
+     * responses. It's strongly recommended that custom executors support tracing-java. Cached executors are the best
+     * fit because we use concurrency limiters to bound concurrent requests.
+     */
     Optional<ExecutorService> blockingExecutor();
 }
