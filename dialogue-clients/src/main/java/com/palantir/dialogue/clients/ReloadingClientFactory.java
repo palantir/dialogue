@@ -178,6 +178,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return new ReloadingClientFactory(params.withSecurityProvider(securityProvider), cache);
     }
 
+    @Override
+    public String toString() {
+        return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
+    }
+
     private static final class AlwaysThrowingChannel implements Channel {
         private final Supplier<? extends Throwable> exceptionSupplier;
 
