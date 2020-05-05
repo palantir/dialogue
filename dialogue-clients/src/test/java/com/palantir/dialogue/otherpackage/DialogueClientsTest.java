@@ -125,8 +125,7 @@ class DialogueClientsTest {
                 .hasMessageContaining("multipass");
 
         SampleServiceBlocking unknown = facade.get(SampleServiceBlocking.class, "borf");
-        assertThatThrownBy(unknown::voidToVoid)
-                .hasMessageContaining("No service conf: {service=borf}");
+        assertThatThrownBy(unknown::voidToVoid).hasMessageContaining("No service conf: {service=borf}");
     }
 
     @Test
