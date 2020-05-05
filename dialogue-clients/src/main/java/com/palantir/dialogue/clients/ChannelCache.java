@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
@@ -126,7 +127,8 @@ final class ChannelCache {
         return builder.buildNonLiveReloading();
     }
 
-    private ApacheCacheEntry getApacheClient(ImmutableApacheClientRequest request) {
+    @VisibleForTesting
+    ApacheCacheEntry getApacheClient(ImmutableApacheClientRequest request) {
         Optional<ApacheCacheEntry> cacheEntry = Optional.ofNullable(apacheCache.get(request.channelName()));
         if (log.isDebugEnabled()) {
             log.debug(
