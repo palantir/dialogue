@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
@@ -43,19 +45,35 @@ import org.slf4j.LoggerFactory;
 final class ChannelCache {
     private static final Logger log = LoggerFactory.getLogger(ChannelCache.class);
 
-    // TODO(dfox): consider making this caffeine too?
-    private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
+    // Ideally there should only be one ChannelCache per JVM, WeakSet helps us spot more instances.
+    private static final Set<ChannelCache> liveInstances =
+            Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+
+    private static final int MAX_CHANNELS = 1000;
     private final LoadingCache<ChannelCacheKey, Channel> channelCache = Caffeine.newBuilder()
-            .maximumSize(500) // I don't think it's reasonable to need 500 clients at the same time
+            .maximumSize(MAX_CHANNELS) // arbitrary bound to avoid runaway OOM
             .build(this::createNonLiveReloadingChannel);
 
-    private ChannelCache() {
-        Throwable stacktrace = log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
-        log.info("Creating new ChannelCache", stacktrace);
-    }
+    // TODO(dfox): consider making this caffeine too?
+    private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
+
+    private ChannelCache() {}
 
     static ChannelCache createEmptyCache() {
-        return new ChannelCache();
+        ChannelCache newCache = new ChannelCache();
+
+        int numLiveInstances = liveInstances.size();
+        if ((numLiveInstances > 0 && log.isInfoEnabled()) || log.isDebugEnabled()) {
+            log.info(
+                    "Created ChannelCache instance {}: {} {}",
+                    SafeArg.of("numLiveInstances", numLiveInstances),
+                    SafeArg.of("newCache", newCache),
+                    SafeArg.of("existing", liveInstances),
+                    new SafeRuntimeException("ChannelCache constructed here"));
+        }
+
+        liveInstances.add(newCache);
+        return newCache;
     }
 
     Channel getNonReloadingChannel(
@@ -64,10 +82,10 @@ final class ChannelCache {
             Optional<ScheduledExecutorService> retryExecutor,
             Optional<ExecutorService> blockingExecutor,
             @Safe String channelName) {
-        long count = channelCache.estimatedSize();
-        if (count > 400) {
-            log.warn("ChannelCache nearing capacity - possible bug?", SafeArg.of("count", count));
+        if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CHANNELS * 0.75) {
+            log.warn("channelCache nearing capacity - possible bug? {}", SafeArg.of("cache", this));
         }
+
         return channelCache.get(ImmutableChannelCacheKey.builder()
                 .from(augment)
                 .retryExecutor(retryExecutor)
@@ -114,10 +132,11 @@ final class ChannelCache {
                 .clientConfiguration(clientConf)
                 .clientName(request.channelName());
         request.blockingExecutor().ifPresent(clientBuilder::executor);
+        ApacheHttpClientChannels.CloseableClient client = clientBuilder.build();
 
         ImmutableApacheCacheEntry newEntry = ImmutableApacheCacheEntry.builder()
                 .key(request)
-                .client(clientBuilder.build())
+                .client(client)
                 .conf(clientConf)
                 .build();
         ApacheCacheEntry prev = apacheCache.put(request.channelName(), newEntry);
@@ -138,6 +157,13 @@ final class ChannelCache {
                 .from(serviceConf)
                 .uris(Collections.emptyList())
                 .build();
+    }
+
+    @Override
+    public String toString() {
+        return "ChannelCache@" + Integer.toHexString(System.identityHashCode(this)) + "{"
+                + "apacheCache.size=" + apacheCache.size()
+                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CHANNELS + '}';
     }
 
     @Value.Immutable
