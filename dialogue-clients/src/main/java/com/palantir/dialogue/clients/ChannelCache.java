@@ -49,14 +49,19 @@ final class ChannelCache {
     /** Arbitrary bound to avoid runaway OOM. Creating more than this is still allowed, will just cause cache misses. */
     private static final int MAX_CACHED_CHANNELS = 1000;
 
-    /** Ideally there should only be one ChannelCache per JVM, WeakSet helps us spot more instances. */
+    /** Ideally there should only be one ChannelCache per JVM, this AtomicInteger & WeakSet helps us spot extras. */
     private static final AtomicInteger INSTANCE_NUMBER = new AtomicInteger(0);
 
     private static final Set<ChannelCache> LIVE_INSTANCES =
             Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
-    // TODO(dfox): consider making this caffeine too?
+    /**
+     * apacheCache is indexed by channel name so we effectively have a per-service cache of size 1. Slightly
+     * dangerous because we could flip back and forth if params are different, but allows us to close evicted clients
+     * nicely.
+     */
     private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
+
     private final LoadingCache<ChannelCacheKey, Channel> channelCache =
             Caffeine.newBuilder().maximumSize(MAX_CACHED_CHANNELS).build(this::createNonLiveReloadingChannel);
     private final int instanceNumber;
@@ -84,26 +89,24 @@ final class ChannelCache {
     }
 
     Channel getNonReloadingChannel(
+            ReloadingClientFactory.ReloadingParams reloadingParams,
             ServiceConfiguration serviceConf,
-            AugmentClientConfig augment,
-            Optional<ScheduledExecutorService> retryExecutor,
-            Optional<ExecutorService> blockingExecutor,
             @Safe String channelName) {
         if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CACHED_CHANNELS * 0.75) {
             log.warn("channelCache nearing capacity - possible bug? {}", SafeArg.of("cache", this));
         }
 
         return channelCache.get(ImmutableChannelCacheKey.builder()
-                .from(augment)
-                .retryExecutor(retryExecutor)
+                .from(reloadingParams)
+                .retryExecutor(reloadingParams.retryExecutor())
+                .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
                 .channelName(channelName)
-                .blockingExecutor(blockingExecutor)
                 .build());
     }
 
     private Channel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
-        ApacheClientRequest request = ImmutableApacheClientRequest.builder()
+        ImmutableApacheClientRequest request = ImmutableApacheClientRequest.builder()
                 .from(channelCacheRequest)
                 .channelName(channelCacheRequest.channelName())
                 .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
@@ -123,14 +126,24 @@ final class ChannelCache {
         return builder.buildNonLiveReloading();
     }
 
-    private ApacheCacheEntry getApacheClient(ApacheClientRequest request) {
-        // lookup is based on channel name only, so we effectively have a per-service cache of size 1. Slightly
-        // dangerous because we could flip back and forth if params are different, but keeps life simple.
+    private ApacheCacheEntry getApacheClient(ImmutableApacheClientRequest request) {
         Optional<ApacheCacheEntry> cacheEntry = Optional.ofNullable(apacheCache.get(request.channelName()));
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Lookup in apacheCache for {} (size {}) hit {}. apacheCacheKeys: {}",
+                    SafeArg.of("channelName", request.channelName()),
+                    SafeArg.of("size", apacheCache.size()),
+                    SafeArg.of("hit", cacheEntry.isPresent()),
+                    SafeArg.of("apacheCacheKeys", apacheCache.keySet()));
+        }
 
-        Preconditions.checkState(ImmutableApacheClientRequest.copyOf(request).equals(request), "sanity check equality");
-        if (cacheEntry.isPresent() && request.equals(cacheEntry.get().key())) { // real equality not reference equality!
+        // real equality not reference equality!
+        if (cacheEntry.isPresent() && request.equals(cacheEntry.get().originalRequest())) {
             return cacheEntry.get();
+        } else {
+            Preconditions.checkState(
+                    ImmutableApacheClientRequest.copyOf(request).equals(request),
+                    "A sane equals() method is required - this is a likely bug in Dialogue");
         }
 
         ClientConfiguration clientConf = AugmentClientConfig.getClientConf(request.serviceConf(), request);
@@ -142,7 +155,7 @@ final class ChannelCache {
         ApacheHttpClientChannels.CloseableClient client = clientBuilder.build();
 
         ImmutableApacheCacheEntry newEntry = ImmutableApacheCacheEntry.builder()
-                .key(request)
+                .originalRequest(request)
                 .client(client)
                 .conf(clientConf)
                 .build();
@@ -168,9 +181,11 @@ final class ChannelCache {
 
     @Override
     public String toString() {
-        return "ChannelCache@" + instanceNumber + "{"
-                + "apacheCache.size=" + apacheCache.size()
-                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CACHED_CHANNELS + '}';
+        return "ChannelCache{"
+                + "instanceNumber=" + instanceNumber
+                + ", apacheCache.size=" + apacheCache.size()
+                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CACHED_CHANNELS
+                + '}';
     }
 
     @Value.Immutable
@@ -200,7 +215,7 @@ final class ChannelCache {
 
     @Value.Immutable
     interface ApacheCacheEntry {
-        ApacheClientRequest key();
+        ApacheClientRequest originalRequest();
 
         ApacheHttpClientChannels.CloseableClient client();
 

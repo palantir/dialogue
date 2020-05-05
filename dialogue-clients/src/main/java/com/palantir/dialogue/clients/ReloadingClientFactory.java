@@ -26,6 +26,7 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Endpoint;
@@ -38,6 +39,7 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
@@ -53,8 +55,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Value.Immutable
-    interface ReloadingParams extends BaseParams {
+    interface ReloadingParams extends AugmentClientConfig {
         Refreshable<ServicesConfigBlock> scb();
+
+        @Value.Default
+        default ConjureRuntime runtime() {
+            return DefaultConjureRuntime.builder().build();
+        }
+
+        Optional<ScheduledExecutorService> retryExecutor();
+
+        Optional<ExecutorService> blockingExecutor();
     }
 
     @Override
@@ -66,12 +77,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
-        Channel channel = cache.getNonReloadingChannel(
-                serviceConf,
-                params,
-                params.retryExecutor(),
-                params.blockingExecutor(),
-                ChannelNames.nonReloading(clazz, params));
+        Channel channel = cache.getNonReloadingChannel(params, serviceConf, ChannelNames.nonReloading(clazz, params));
 
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
@@ -105,8 +111,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ServiceConfiguration serviceConf =
                     ServiceConfigurationFactory.of(block).get(serviceName);
 
-            return cache.getNonReloadingChannel(
-                    serviceConf, params, params.retryExecutor(), params.blockingExecutor(), channelName);
+            return cache.getNonReloadingChannel(params, serviceConf, channelName);
         });
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
