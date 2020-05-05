@@ -20,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.Iterables;
+import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.TestConfigurations;
@@ -28,10 +30,13 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -39,10 +44,13 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-public class DefaultFactoryTest {
-    ServiceConfiguration serviceConfig;
+public class DialogueClientsIntegrationTest {
+    private ServiceConfiguration serviceConfig;
     private Undertow undertow;
     private HttpHandler undertowHandler;
+    private ServicesConfigBlock scb;
+    private PartialServiceConfiguration foo1;
+    private PartialServiceConfiguration foo2;
 
     @BeforeEach
     public void before() {
@@ -54,6 +62,16 @@ public class DefaultFactoryTest {
         serviceConfig = ServiceConfiguration.builder()
                 .security(TestConfigurations.SSL_CONFIG)
                 .addUris(getUri(undertow))
+                .build();
+        foo1 = PartialServiceConfiguration.builder()
+                .addUris(getUri(undertow) + "/foo1")
+                .build();
+        foo2 = PartialServiceConfiguration.builder()
+                .addUris(getUri(undertow) + "/foo2")
+                .build();
+        scb = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                .putServices("foo", foo1)
                 .build();
     }
 
@@ -67,6 +85,28 @@ public class DefaultFactoryTest {
         assertThatThrownBy(() -> DialogueClients.create(Refreshable.only(null))
                         .getNonReloading(SampleServiceAsync.class, serviceConfig))
                 .hasMessageContaining("userAgent must be specified");
+    }
+
+    @Test
+    void reload_uris_works() {
+        List<String> requestPaths = new ArrayList<>();
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+        client.voidToVoid();
+
+        refreshable.update(
+                ServicesConfigBlock.builder().from(scb).putServices("foo", foo2).build());
+
+        client.voidToVoid();
+        assertThat(requestPaths).containsExactly("/foo1/voidToVoid", "/foo2/voidToVoid");
     }
 
     @Test

@@ -31,16 +31,12 @@ import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.refreshable.Refreshable;
-import com.palantir.refreshable.SettableRefreshable;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.net.UnknownHostException;
 import java.security.Provider;
 import org.junit.jupiter.api.Test;
 
 class DialogueClientsTest {
 
-    DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
     ServiceConfiguration serviceConf = ServiceConfiguration.builder()
             .security(TestConfigurations.SSL_CONFIG)
             .addUris("https://multipass")
@@ -61,70 +57,11 @@ class DialogueClientsTest {
             .build();
 
     @Test
-    void shorthand() {
-        SampleServiceBlocking blocking = DialogueClients.create(Refreshable.only(null))
-                .withUserAgent(TestConfigurations.AGENT)
-                .getNonReloading(
-                        SampleServiceBlocking.class,
-                        ServiceConfiguration.builder()
-                                .security(TestConfigurations.SSL_CONFIG)
-                                .addUris("https://shorthand")
-                                .maxNumRetries(0)
-                                .build());
-        assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("shorthand");
-    }
+    void sensible_errors_if_service_does_not_exist_in_scb() {
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(Refreshable.only(scb)).withUserAgent(TestConfigurations.AGENT);
 
-    @Test
-    void reloading() {
-        ServicesConfigBlock oneService = ServicesConfigBlock.builder()
-                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                .putServices(
-                        "multipass",
-                        PartialServiceConfiguration.builder()
-                                .addUris("https://localhost")
-                                .build())
-                .build();
-        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(oneService);
-
-        SampleServiceBlocking blocking = DialogueClients.create(refreshable)
-                .withUserAgent(TestConfigurations.AGENT)
-                .get(SampleServiceBlocking.class, "multipass");
-        assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("Connect to localhost");
-
-        refreshable.update(ServicesConfigBlock.builder()
-                .from(oneService)
-                .putServices(
-                        "multipass",
-                        PartialServiceConfiguration.builder()
-                                .addUris("https://other")
-                                .build())
-                .build());
-
-        assertThatThrownBy(blocking::voidToVoid).hasMessageContaining("other");
-    }
-
-    @Test
-    void services_config_block() {
-        Refreshable<ServicesConfigBlock> refreshable = Refreshable.only(scb);
-        DialogueClients.ReloadingFactory facade =
-                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
-
-        SampleServiceBlocking blocking = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
-        assertThatThrownBy(blocking::voidToVoid)
-                .hasCauseInstanceOf(UnknownHostException.class)
-                .hasMessageContaining("multipass");
-
-        SampleServiceBlocking blocking2 = facade.withMaxNumRetries(0).get(SampleServiceBlocking.class, "multipass");
-        assertThatThrownBy(blocking2::voidToVoid)
-                .hasCauseInstanceOf(UnknownHostException.class)
-                .hasMessageContaining("multipass");
-
-        SampleServiceBlocking blocking3 = facade.withMaxNumRetries(3).get(SampleServiceBlocking.class, "multipass");
-        assertThatThrownBy(blocking3::voidToVoid)
-                .hasCauseInstanceOf(UnknownHostException.class)
-                .hasMessageContaining("multipass");
-
-        SampleServiceBlocking unknown = facade.get(SampleServiceBlocking.class, "borf");
+        SampleServiceBlocking unknown = factory.get(SampleServiceBlocking.class, "borf");
         assertThatThrownBy(unknown::voidToVoid).hasMessageContaining("No service conf: {service=borf}");
     }
 
