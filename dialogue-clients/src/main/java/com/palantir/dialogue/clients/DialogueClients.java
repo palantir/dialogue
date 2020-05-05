@@ -26,10 +26,17 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
+ * For maximum performance, care should be taken when constructing clients to re-use the underlying Apache connection
+ * pools, so that
+ *
+ *
  * The basic client factory mixins are defined in {@link ConjureClients}, this class just defines some
  * additional dialogue-specific chunks.
  *
  * Libraries should depend on only as much as they need.
+ *
+ * The entire public API is contained in this class and c-j-r's {@link ConjureClients}.
+ * All other classes in this package are implementation details (and are package-private anyway).
  */
 public final class DialogueClients {
 
@@ -54,11 +61,11 @@ public final class DialogueClients {
 
     public interface ReloadingFactory
             extends ConjureClients.ReloadingClientFactory,
-                    ConjureClients.NonReloadingClientFactory,
                     ConjureClients.WithClientOptions<ReloadingFactory>,
+                    WithDialogueOptions<ReloadingFactory>,
+                    ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ReloadingChannelFactory,
-                    WithDialogueOptions<ReloadingFactory> {}
+                    ReloadingChannelFactory {}
 
     private DialogueClients() {}
 }

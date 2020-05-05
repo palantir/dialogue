@@ -16,13 +16,19 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 final class ReloadingSingleClientFactory {
@@ -70,5 +76,42 @@ final class ReloadingSingleClientFactory {
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
         return new LiveReloadingChannel(mapped);
+    }
+
+    static final class AlwaysThrowing implements Channel {
+        private final Supplier<? extends Throwable> exceptionSupplier;
+
+        AlwaysThrowing(Supplier<? extends Throwable> exceptionSupplier) {
+            this.exceptionSupplier = exceptionSupplier;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+            return Futures.immediateFailedFuture(exceptionSupplier.get());
+        }
+
+        @Override
+        public String toString() {
+            return "AlwaysThrowing{exceptionSupplier=" + exceptionSupplier + '}';
+        }
+    }
+
+    static final class LiveReloadingChannel implements Channel {
+        private final Supplier<Channel> supplier;
+
+        LiveReloadingChannel(Supplier<Channel> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            Channel delegate = supplier.get();
+            return delegate.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "LiveReloadingChannel{" + supplier.get() + '}';
+        }
     }
 }
