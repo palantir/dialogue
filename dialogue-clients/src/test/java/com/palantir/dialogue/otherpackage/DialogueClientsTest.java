@@ -25,13 +25,14 @@ import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.refreshable.DefaultRefreshable;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
@@ -84,7 +85,7 @@ class DialogueClientsTest {
                                 .addUris("https://localhost")
                                 .build())
                 .build();
-        DefaultRefreshable<ServicesConfigBlock> refreshable = new DefaultRefreshable<>(oneService);
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(oneService);
 
         SampleServiceBlocking blocking = DialogueClients.create()
                 .withUserAgent(TestConfigurations.AGENT)
@@ -175,7 +176,7 @@ class DialogueClientsTest {
 
     // this made up library doesn't need live reloading, just a little bit of configurability
     private final class LibraryClassWithMixins<
-            F extends DialogueClients.WithClientBehaviour<F> & DialogueClients.NonReloadingClientFactory> {
+            F extends ConjureClients.WithClientOptions<F> & ConjureClients.NonReloadingClientFactory> {
 
         private final SampleServiceBlocking client;
 
@@ -197,8 +198,8 @@ class DialogueClientsTest {
 
     // sweet baby jesus what have i created. please never do this, just use 'Factory' or 'ReloadingFactory'
     <
-                    T extends DialogueClients.WithClientBehaviour<T> & DialogueClients.ToReloadingFactory<U>,
-                    U extends DialogueClients.ReloadingClientFactory>
+                    T extends ConjureClients.WithClientOptions<T> & ConjureClients.ToReloadingFactory<U>,
+                    U extends ConjureClients.ReloadingClientFactory>
             void libraryMethodWithMixins(T factory) {
         factory.withServerQoS(ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER)
                 .reloading(Refreshable.only(scb))
@@ -206,7 +207,7 @@ class DialogueClientsTest {
     }
 
     private static final class Alternative
-            implements DialogueClients.NonReloadingClientFactory, DialogueClients.WithClientBehaviour<Alternative> {
+            implements ConjureClients.NonReloadingClientFactory, ConjureClients.WithClientOptions<Alternative> {
 
         @Override
         public <T> T getNonReloading(Class<T> _clazz, ServiceConfiguration _serviceConf) {
