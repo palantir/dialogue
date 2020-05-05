@@ -56,7 +56,7 @@ final class ReloadingSingleClientFactory {
     }
 
     LiveReloadingChannel getChannel() {
-        String channelName = "dialogue-" + params.serviceName();
+        String channelName = ChannelNames.reloading(params);
 
         Refreshable<Channel> mapped = params.serviceConf().map(serviceConf -> {
             Preconditions.checkNotNull(serviceConf, "Refreshable must not provide a null serviceConf");

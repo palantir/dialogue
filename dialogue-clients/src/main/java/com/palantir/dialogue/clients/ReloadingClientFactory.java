@@ -65,7 +65,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 params,
                 params.retryExecutor(),
                 params.blockingExecutor(),
-                "dialogue-nonreloading-" + clazz.getSimpleName());
+                ChannelNames.nonReloading(clazz, params));
 
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }

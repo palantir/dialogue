@@ -25,7 +25,6 @@ import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
-import java.time.Duration;
 import java.util.Optional;
 import org.immutables.value.Value;
 
@@ -43,8 +42,6 @@ interface AugmentClientConfig {
     Optional<UserAgent> userAgent();
 
     Optional<NodeSelectionStrategy> nodeSelectionStrategy();
-
-    Optional<Duration> failedUrlCooldown();
 
     Optional<ClientConfiguration.ClientQoS> clientQoS();
 
@@ -76,7 +73,6 @@ interface AugmentClientConfig {
         builder.taggedMetricRegistry(augment.taggedMetrics());
 
         augment.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
-        augment.failedUrlCooldown().ifPresent(builder::failedUrlCooldown);
         augment.clientQoS().ifPresent(builder::clientQoS);
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
