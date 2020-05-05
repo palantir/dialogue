@@ -29,7 +29,8 @@ final class ChannelNames {
     private static String summarizeOptions(AugmentClientConfig augment) {
         StringBuilder builder = new StringBuilder();
         augment.nodeSelectionStrategy().ifPresent(value -> builder.append("-").append(value));
-        augment.maxNumRetries().ifPresent(value -> builder.append("-MAX_RETRIES_").append(value));
+        augment.maxNumRetries()
+                .ifPresent(value -> builder.append("-MAX_RETRIES_").append(value));
         augment.clientQoS().ifPresent(value -> builder.append("-").append(value));
         augment.serverQoS().ifPresent(value -> builder.append("-").append(value));
         augment.retryOnTimeout().ifPresent(value -> builder.append("-").append(value));

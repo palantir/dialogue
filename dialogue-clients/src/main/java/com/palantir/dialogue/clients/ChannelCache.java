@@ -36,6 +36,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.ThreadSafe;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
@@ -45,34 +46,40 @@ import org.slf4j.LoggerFactory;
 final class ChannelCache {
     private static final Logger log = LoggerFactory.getLogger(ChannelCache.class);
 
-    // Ideally there should only be one ChannelCache per JVM, WeakSet helps us spot more instances.
-    private static final Set<ChannelCache> liveInstances =
-            Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
+    /** Arbitrary bound to avoid runaway OOM. Creating more than this is still allowed, will just cause cache misses. */
+    private static final int MAX_CACHED_CHANNELS = 1000;
 
-    private static final int MAX_CHANNELS = 1000;
-    private final LoadingCache<ChannelCacheKey, Channel> channelCache = Caffeine.newBuilder()
-            .maximumSize(MAX_CHANNELS) // arbitrary bound to avoid runaway OOM
-            .build(this::createNonLiveReloadingChannel);
+    /** Ideally there should only be one ChannelCache per JVM, WeakSet helps us spot more instances. */
+    private static final AtomicInteger INSTANCE_NUMBER = new AtomicInteger(0);
+
+    private static final Set<ChannelCache> LIVE_INSTANCES =
+            Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>()));
 
     // TODO(dfox): consider making this caffeine too?
     private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
+    private final LoadingCache<ChannelCacheKey, Channel> channelCache =
+            Caffeine.newBuilder().maximumSize(MAX_CACHED_CHANNELS).build(this::createNonLiveReloadingChannel);
+    private final int instanceNumber;
 
-    private ChannelCache() {}
+    private ChannelCache() {
+        this.instanceNumber = INSTANCE_NUMBER.incrementAndGet(); // 1 indexed for human readability
+    }
 
     static ChannelCache createEmptyCache() {
         ChannelCache newCache = new ChannelCache();
+        LIVE_INSTANCES.add(newCache);
 
-        int numLiveInstances = liveInstances.size();
-        if ((numLiveInstances > 0 && log.isInfoEnabled()) || log.isDebugEnabled()) {
+        int numLiveInstances = LIVE_INSTANCES.size();
+        if ((numLiveInstances > 1 && log.isInfoEnabled()) || log.isDebugEnabled()) {
             log.info(
-                    "Created ChannelCache instance {}: {} {}",
-                    SafeArg.of("numLiveInstances", numLiveInstances),
+                    "Created ChannelCache instance #{} ({} alive): {} {}",
+                    SafeArg.of("instanceNumber", newCache.instanceNumber),
+                    SafeArg.of("totalAliveNow", numLiveInstances),
                     SafeArg.of("newCache", newCache),
-                    SafeArg.of("existing", liveInstances),
+                    SafeArg.of("existing", LIVE_INSTANCES),
                     new SafeRuntimeException("ChannelCache constructed here"));
         }
 
-        liveInstances.add(newCache);
         return newCache;
     }
 
@@ -82,7 +89,7 @@ final class ChannelCache {
             Optional<ScheduledExecutorService> retryExecutor,
             Optional<ExecutorService> blockingExecutor,
             @Safe String channelName) {
-        if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CHANNELS * 0.75) {
+        if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CACHED_CHANNELS * 0.75) {
             log.warn("channelCache nearing capacity - possible bug? {}", SafeArg.of("cache", this));
         }
 
@@ -161,9 +168,9 @@ final class ChannelCache {
 
     @Override
     public String toString() {
-        return "ChannelCache@" + Integer.toHexString(System.identityHashCode(this)) + "{"
+        return "ChannelCache@" + instanceNumber + "{"
                 + "apacheCache.size=" + apacheCache.size()
-                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CHANNELS + '}';
+                + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CACHED_CHANNELS + '}';
     }
 
     @Value.Immutable

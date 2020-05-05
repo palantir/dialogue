@@ -57,9 +57,9 @@ public final class DialogueClients {
         T withRetryExecutor(ScheduledExecutorService retryExecutor);
 
         /**
-         * The Apache http client uses blocking socket operations, so threads from this executor will be used to wait for
-         * responses. It's strongly recommended that custom executors support tracing-java. Cached executors are the best
-         * fit because we use concurrency limiters to bound concurrent requests.
+         * The Apache http client uses blocking socket operations, so threads from this executor will be used to wait
+         * for responses. It's strongly recommended that custom executors support tracing-java. Cached executors are
+         * the best fit because we use concurrency limiters to bound concurrent requests.
          */
         T withBlockingExecutor(ExecutorService blockingExecutor);
     }

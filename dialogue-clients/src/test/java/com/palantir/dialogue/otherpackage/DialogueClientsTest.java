@@ -63,8 +63,7 @@ class DialogueClientsTest {
 
         SampleServiceBlocking unknown = factory.get(SampleServiceBlocking.class, "borf");
         assertThatThrownBy(unknown::voidToVoid)
-                .hasMessageContaining(
-                        "Service not configured: {service=borf, available=[multipass, email-service]}");
+                .hasMessageContaining("Service not configured: {service=borf, available=[multipass, email-service]}");
     }
 
     @Test
