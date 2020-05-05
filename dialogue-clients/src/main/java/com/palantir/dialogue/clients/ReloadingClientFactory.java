@@ -16,6 +16,10 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.collect.Maps;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -24,17 +28,22 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
-import java.util.Optional;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
-
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
 
@@ -50,12 +59,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T get(Class<T> serviceClass, String serviceName) {
-        return withServiceName(serviceName).get(serviceClass);
-    }
-
-    @Override
-    public Channel getChannel(String serviceName) {
-        return withServiceName(serviceName).getChannel();
+        Channel channel = getChannel(serviceName);
+        ConjureRuntime runtime = params.runtime();
+        return Reflection.callStaticFactoryMethod(serviceClass, channel, runtime);
     }
 
     @Override
@@ -71,30 +77,45 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public DialogueClients.ReloadingFactory reloading(Refreshable<ServicesConfigBlock> scb) {
-        return new ReloadingClientFactory(params.withScb(scb), cache);
-    }
-
-    private ReloadingSingleClientFactory withServiceName(String serviceName) {
+    public Channel getChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
+        String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<Optional<ServiceConfiguration>> mapped = params.scb().map(block -> {
+        Refreshable<Channel> mapped = params.scb().map(block -> {
             Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
             if (!block.services().containsKey(serviceName)) {
-                return Optional.empty();
+                return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured",
+                        SafeArg.of("service", serviceName),
+                        SafeArg.of("available", block.services().keySet())));
             }
 
-            return Optional.of(ServiceConfigurationFactory.of(block).get(serviceName));
-        });
+            if (block.services().get(serviceName).uris().isEmpty()) {
+                return new AlwaysThrowingChannel(() -> {
+                    Map<String, PartialServiceConfiguration> servicesWithUris =
+                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
+                    return new SafeIllegalStateException(
+                            "No URIs for service",
+                            SafeArg.of("service", serviceName),
+                            SafeArg.of("available", servicesWithUris.keySet()));
+                });
+            }
 
-        return new ReloadingSingleClientFactory(
-                ImmutableSingleClientParams.builder()
-                        .from(params)
-                        .serviceConf(mapped)
-                        .serviceName(serviceName)
-                        .build(),
-                cache);
+            ServiceConfiguration serviceConf =
+                    ServiceConfigurationFactory.of(block).get(serviceName);
+
+            return cache.getNonReloadingChannel(
+                    serviceConf, params, params.retryExecutor(), params.blockingExecutor(), channelName);
+        });
+        // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
+
+        return new LiveReloadingChannel(mapped);
+    }
+
+    @Override
+    public DialogueClients.ReloadingFactory reloading(Refreshable<ServicesConfigBlock> scb) {
+        return new ReloadingClientFactory(params.withScb(scb), cache);
     }
 
     @Override
@@ -150,5 +171,43 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public DialogueClients.ReloadingFactory withSecurityProvider(Provider securityProvider) {
         return new ReloadingClientFactory(params.withSecurityProvider(securityProvider), cache);
+    }
+
+    private static final class AlwaysThrowingChannel implements Channel {
+        private final Supplier<? extends Throwable> exceptionSupplier;
+
+        AlwaysThrowingChannel(Supplier<? extends Throwable> exceptionSupplier) {
+            this.exceptionSupplier = exceptionSupplier;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+            return Futures.immediateFailedFuture(exceptionSupplier.get());
+        }
+
+        @Override
+        public String toString() {
+            return "AlwaysThrowingChannel{exceptionSupplier="
+                    + exceptionSupplier.get().getMessage() + '}';
+        }
+    }
+
+    private static final class LiveReloadingChannel implements Channel {
+        private final Supplier<Channel> supplier;
+
+        LiveReloadingChannel(Supplier<Channel> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            Channel delegate = supplier.get();
+            return delegate.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "LiveReloadingChannel{" + supplier.get() + '}';
+        }
     }
 }

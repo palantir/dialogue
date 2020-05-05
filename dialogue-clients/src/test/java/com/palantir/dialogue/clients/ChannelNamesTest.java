@@ -21,31 +21,30 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.refreshable.Refreshable;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class ChannelNamesTest {
 
     @Test
     void name_is_concise_by_default() {
-        String channelName = ChannelNames.reloading(ImmutableSingleClientParams.builder()
-                .serviceName("multipass")
-                .serviceConf(Refreshable.only(Optional.empty()))
-                .build());
+        String channelName = ChannelNames.reloading(
+                "multipass",
+                ImmutableReloadingParams.builder().scb(Refreshable.only(null)).build());
         assertThat(channelName).isEqualTo("dialogue-multipass");
     }
 
     @Test
-    void verbose_if_necessaary() {
-        String channelName = ChannelNames.reloading(ImmutableSingleClientParams.builder()
-                .serviceName("multipass")
-                .serviceConf(Refreshable.only(Optional.empty()))
-                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
-                .serverQoS(ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER)
-                .retryOnTimeout(ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS)
-                .maxNumRetries(37)
-                .build());
+    void verbose_if_necessary() {
+        String channelName = ChannelNames.reloading(
+                "multipass",
+                ImmutableReloadingParams.builder()
+                        .scb(Refreshable.only(null))
+                        .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                        .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
+                        .serverQoS(ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER)
+                        .retryOnTimeout(ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS)
+                        .maxNumRetries(37)
+                        .build());
         assertThat(channelName)
                 .isEqualTo("dialogue-multipass-ROUND_ROBIN-MAX_RETRIES_37-DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS-"
                         + "PROPAGATE_429_and_503_TO_CALLER-DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS");

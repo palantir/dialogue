@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -29,6 +30,9 @@ final class Reflection {
     private Reflection() {}
 
     static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
+        Preconditions.checkNotNull(dialogueInterface, "dialogueInterface");
+        Preconditions.checkNotNull(channel, "channel");
+
         try {
             Method method = getStaticOfMethod(dialogueInterface)
                     .orElseThrow(() -> new SafeIllegalStateException(

@@ -18,8 +18,8 @@ package com.palantir.dialogue.clients;
 
 final class ChannelNames {
 
-    static String reloading(ReloadingSingleClientFactory.SingleClientParams params) {
-        return "dialogue-" + params.serviceName() + summarizeOptions(params);
+    static String reloading(String serviceName, ImmutableReloadingParams params) {
+        return "dialogue-" + serviceName + summarizeOptions(params);
     }
 
     static String nonReloading(Class<?> clazz, AugmentClientConfig augment) {

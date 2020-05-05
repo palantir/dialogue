@@ -62,7 +62,9 @@ class DialogueClientsTest {
                 DialogueClients.create(Refreshable.only(scb)).withUserAgent(TestConfigurations.AGENT);
 
         SampleServiceBlocking unknown = factory.get(SampleServiceBlocking.class, "borf");
-        assertThatThrownBy(unknown::voidToVoid).hasMessageContaining("No service conf: {service=borf}");
+        assertThatThrownBy(unknown::voidToVoid)
+                .hasMessageContaining(
+                        "Service not configured: {service=borf, available=[multipass, email-service]}");
     }
 
     @Test
