@@ -25,8 +25,12 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class Reflection {
+    private static final Logger log = LoggerFactory.getLogger(Reflection.class);
+
     private Reflection() {}
 
     static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
@@ -54,6 +58,7 @@ final class Reflection {
         try {
             return Optional.ofNullable(dialogueInterface.getMethod("of", Channel.class, ConjureRuntime.class));
         } catch (NoSuchMethodException e) {
+            log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
             return Optional.empty();
         }
     }

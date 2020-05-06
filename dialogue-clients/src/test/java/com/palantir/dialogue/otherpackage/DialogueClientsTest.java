@@ -37,12 +37,12 @@ import org.junit.jupiter.api.Test;
 
 class DialogueClientsTest {
 
-    ServiceConfiguration serviceConf = ServiceConfiguration.builder()
+    private static final ServiceConfiguration serviceConf = ServiceConfiguration.builder()
             .security(TestConfigurations.SSL_CONFIG)
             .addUris("https://multipass")
             .build();
 
-    ServicesConfigBlock scb = ServicesConfigBlock.builder()
+    private static final ServicesConfigBlock scb = ServicesConfigBlock.builder()
             .defaultSecurity(TestConfigurations.SSL_CONFIG)
             .putServices(
                     "multipass",
