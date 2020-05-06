@@ -180,9 +180,9 @@ public final class ApacheHttpClientChannels {
             SafeRuntimeException stacktrace =
                     log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
             log.info(
-                    "Closing Apache client",
+                    "Closing Apache client {} {} {} {} {}",
                     SafeArg.of("name", name),
-                    SafeArg.of("client", System.identityHashCode(client)),
+                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(client))),
                     SafeArg.of("idle", poolStats.getAvailable()),
                     SafeArg.of("leased", poolStats.getLeased()),
                     SafeArg.of("pending", poolStats.getPending()),
@@ -335,9 +335,9 @@ public final class ApacheHttpClientChannels {
 
             CloseableHttpClient client = builder.build();
             log.info(
-                    "Created Apache client",
+                    "Created Apache client {} {} {} {}",
                     SafeArg.of("name", name),
-                    SafeArg.of("client", System.identityHashCode(client)),
+                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(client))),
                     UnsafeArg.of("clientConfiguration", clientConfiguration),
                     UnsafeArg.of("executor", executor));
             return new CloseableClient(

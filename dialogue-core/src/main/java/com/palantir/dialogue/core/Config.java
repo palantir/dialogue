@@ -65,7 +65,7 @@ interface Config {
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
-        Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "rawConfig.userAgent() must be specified");
+        Preconditions.checkArgument(rawConfig().userAgent().isPresent(), "userAgent must be specified");
         Preconditions.checkArgument(
                 rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");

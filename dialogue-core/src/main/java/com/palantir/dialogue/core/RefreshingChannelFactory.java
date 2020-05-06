@@ -36,7 +36,10 @@ import java.util.function.Supplier;
 /**
  * Utility that creates {@link Channel}s that will be automatically recreated any time the given
  * {@link ServicesConfigBlock} changes.
+ *
+ * @deprecated Prefer {@code DialogueClients}
  */
+@Deprecated
 public final class RefreshingChannelFactory {
     private final Supplier<? extends ServicesConfigBlock> conf;
     private final ChannelFactory channelFactory;

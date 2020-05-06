@@ -1,3 +1,2 @@
 **/*.png filter=lfs diff=lfs merge=lfs -text
-versions.props merge=union
 versions.lock merge=union

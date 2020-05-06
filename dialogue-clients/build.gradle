@@ -1,0 +1,35 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
+
+dependencies {
+    api 'com.palantir.refreshable:refreshable'
+    api 'com.palantir.conjure.java.api:service-config'
+    api project(':dialogue-target') // users might want to provide a ConjureRuntime
+    api 'com.palantir.conjure.java.runtime:client-config' // NodeSelectionStrategy etc
+
+    implementation project(':dialogue-apache-hc4-client')
+    implementation project(':dialogue-core')
+    implementation project(':dialogue-serde')
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.runtime:keystores'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.palantir.tritium:tritium-registry'
+    implementation 'org.slf4j:slf4j-api'
+
+    annotationProcessor 'org.immutables:value'
+    compile 'org.immutables:value::annotations'
+
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-example:dialogue-example-dialogue')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
+    testImplementation 'org.awaitility:awaitility'
+    testImplementation 'io.undertow:undertow-core'
+}
