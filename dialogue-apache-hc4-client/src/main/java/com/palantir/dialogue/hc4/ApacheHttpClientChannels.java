@@ -211,17 +211,17 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public void close() throws IOException {
-            PoolStats poolStats = pool.getTotalStats();
-            SafeRuntimeException stacktrace =
-                    log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
-            log.info(
-                    "ApacheHttpClientChannels#close - {} {} {} {} {}",
-                    SafeArg.of("name", clientName),
-                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
-                    SafeArg.of("idle", poolStats.getAvailable()),
-                    SafeArg.of("leased", poolStats.getLeased()),
-                    SafeArg.of("pending", poolStats.getPending()),
-                    stacktrace);
+            if (log.isDebugEnabled()) {
+                PoolStats poolStats = pool.getTotalStats();
+                log.debug(
+                        "ApacheHttpClientChannels#close - {} {} {} {} {}",
+                        SafeArg.of("name", clientName),
+                        SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                        SafeArg.of("idle", poolStats.getAvailable()),
+                        SafeArg.of("leased", poolStats.getLeased()),
+                        SafeArg.of("pending", poolStats.getPending()),
+                        new SafeRuntimeException("Exception for stacktrace"));
+            }
 
             // We intentionally don't close the inner apacheClient here as there might be queued requests which still
             // need to execute on this channel. We rely on finalize() to clean up resources (e.g.

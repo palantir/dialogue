@@ -7,7 +7,7 @@
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
-- `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created. Client-type is always 'apache'.
+- `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 
 ### dialogue.client.pool
