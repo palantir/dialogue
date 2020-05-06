@@ -64,6 +64,7 @@ Executor metrics.
 Java virtual machine garbage collection metrics.
 - `jvm.gc.count` tagged `collector` (gauge): The total number of collections that have occurred since the JVM started.
 - `jvm.gc.time` tagged `collector` (gauge): The accumulated collection elapsed time in milliseconds.
+- `jvm.gc.finalizer.queue.size` (gauge): Estimate of the number of objects pending finalization. Finalizers are executed in serial on a single thread shared across the entire JVM. When a finalizer is slow and blocks execution, or objects which override `Object.finalize` are allocated more quickly than they can be freed, the JVM will run out of memory. Cleaners are recommended over implementing finalize in most scenarios.
 
 ### jvm.memory.pools
 Java virtual machine memory usage metrics by memory pool.
@@ -76,4 +77,4 @@ Java virtual machine memory usage metrics by memory pool.
 
 ### tls
 Transport layer security metrics.
-- `tls.handshake` tagged `context`, `cipher`, `protocol` (meter): Measures the rate of TLS handshake by SSLContext, cipher suite, and TLS protocol. A high rate of handnshake suggests that clients are not properly reusing conections, which results in additional CPU overhead and round trips.
+- `tls.handshake` tagged `context`, `cipher`, `protocol` (meter): Measures the rate of TLS handshake by SSLContext, cipher suite, and TLS protocol. A high rate of handshake suggests that clients are not properly reusing connections, which results in additional CPU overhead and round trips.
