@@ -24,7 +24,10 @@ _Dialogue is a client-side library for HTTP-based RPC, designed to work well wit
 
 ## Usage
 
-Dialogue works best with Conjure-generated client bindings, i.e. for a given Conjure-defined `FooService`, the [conjure-java](https://github.com/palantir/conjure-java) code generator produces two java interfaces: `FooServiceBlocking` and `FooServiceAsync`. See the [conjure-java generated client bindings][] section below for more details.
+Dialogue works best with Conjure-generated client bindings, i.e. for a given Conjure-defined `FooService`, the
+[conjure-java](https://github.com/palantir/conjure-java) code generator produces two java interfaces:
+`FooServiceBlocking` and `FooServiceAsync`. See the [conjure-java generated client bindings][] section below for more
+details.
 
 **Production usage**: your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
 
@@ -45,31 +48,24 @@ ListenableFuture<List<Item>> items = fooService.getItems();
 
 **Under the hood**
 
-If the Witchcraft method above is not available, you must construct a `DialogueChannel` directly using the builder.
+If the Witchcraft method above is not available, you can construct clients manually using a factory provided by
+`com.palantir.dialogue:dialogue-clients`.
 
 ```java
-ApacheHttpClientChannels.CloseableClient apache = ApacheHttpClientChannels.createCloseableHttpClient(conf); // should be closed when no longer needed
+DialogueClients.ReloadingFactory clients = DialogueClients.create(servicesConfigBlockRefreshable).withUserAgent(agent);
 
-Channel channel = DialogueChannel.builder()
-      .channelName("foo-service")
-      .clientConfiguration(conf)
-      .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apache))
-      .build();
-
-FooServiceBlocking fooService = FooServiceBlocking.of(channel, DefaultConjureRuntime.builder().build());
+FooServiceBlocking client = clients.get(FooServiceBlocking.class, "foo-service");
+FooServiceAsync client2 = clients.get(FooServiceAsync.class, "foo-service");
 ```
 
-This sets up all of the smart functionality in Dialogue, and gives you the flexibility to use your preferred HTTP Client for raw requests. As in the example above, we recommend the [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) as a reliable and performant HTTP client. (See alternatives below.)
+It's important to construct the ReloadingFactory _once_ for the lifetime of your JVM, and construct all clients from
+this single clientfactory instance. This ensures that underlying Apache connection pools are reused correctly, and that
+many clients all talking to the same URI will share the same concurrency limiter.
 
-_In this example, `DefaultConjureRuntime` is provided by `com.palantir.dialogue:dialogue-serde` and `ApacheHttpClientChannels` is provided by `com.palantir.dialogue:dialogue-apache-hc4-client`._
+This abstraction uses [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/) under the hood, as it is a reliable and performant HTTP client. (See alternatives below.)
 
-Note: a single DialogueChannel instance should be used for all interactions with a conceptual service (where this service may be comprised of multiple physical servers). For example, if a server provides multiple different Conjure services, `FooService`, `BarService` and `BazService`, the same DialogueChannel should be used to call each of these.
-
-If you don't care about re-using a connection pool and live-reloading uris isn't important (e.g. in tests), you can use the shorthand method:
-
-```groovy
-Channel channel = ApacheHttpClientChannels.create(clientConf);
-```
+_It is possible to construct a `DialogueChannel` manually which allows you to use alternative raw clients such as OkHttp
+instead of Apache._
 
 [conjure-java generated client bindings]: #conjure-java-generated-client-bindings
 ## conjure-java generated client bindings
