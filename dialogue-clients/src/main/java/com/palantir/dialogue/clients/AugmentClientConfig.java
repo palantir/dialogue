@@ -65,9 +65,12 @@ interface AugmentClientConfig {
             augment.maxNumRetries().ifPresent(builder::maxNumRetries);
         }
 
-        augment.securityProvider()
-                .ifPresent(provider -> builder.sslSocketFactory(
-                        SslSocketFactories.createSslSocketFactory(serviceConfig.security(), provider)));
+        if (augment.securityProvider().isPresent()) {
+            builder.sslSocketFactory(SslSocketFactories.createSslSocketFactory(
+                    serviceConfig.security(), augment.securityProvider().get()));
+            // Opt into GCM when custom providers (Conscrypt) is used.
+            builder.enableGcmCipherSuites(true);
+        }
 
         builder.userAgent(augment.userAgent());
         builder.taggedMetricRegistry(augment.taggedMetrics());

@@ -92,8 +92,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             if (!block.services().containsKey(serviceName)) {
                 return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured",
-                        SafeArg.of("service", serviceName),
+                        "Service not configured (config block not present)",
+                        SafeArg.of("serviceName", serviceName),
                         SafeArg.of("available", block.services().keySet())));
             }
 
@@ -102,8 +102,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     Map<String, PartialServiceConfiguration> servicesWithUris =
                             Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
                     return new SafeIllegalStateException(
-                            "No URIs for service",
-                            SafeArg.of("service", serviceName),
+                            "Service not configured (no URIs)",
+                            SafeArg.of("serviceName", serviceName),
                             SafeArg.of("available", servicesWithUris.keySet()));
                 });
             }
