@@ -55,6 +55,11 @@ final class HostMetricsChannel implements Channel {
             return channel;
         }
 
+        if (hostEventsSink.get().getClass().getSimpleName().equals("NoOpHostEventsSink")) {
+            // special-casing for the implementation in conjure-java-runtime
+            return channel;
+        }
+
         try {
             URL parsed = new URL(uri);
             String host = parsed.getHost();
