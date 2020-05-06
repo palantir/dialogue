@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.hc4;
 
+import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
@@ -99,7 +100,7 @@ public final class ApacheHttpClientChannels {
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
         BlockingChannel blockingChannel =
-                new ApacheHttpClientBlockingChannel(client.client, url(uri), client.leakDetector);
+                new ApacheHttpClientBlockingChannel(client.apacheClient, url(uri), client.leakDetector);
         return client.executor == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor);
@@ -153,25 +154,59 @@ public final class ApacheHttpClientChannels {
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
-        private final String name;
-        private final CloseableHttpClient client;
+        private static final String APACHE = "apache";
+
+        private final String clientName;
+        private final CloseableHttpClient apacheClient;
         private final PoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
+        private final Meter closeMeter;
 
         @Nullable
         private final ExecutorService executor;
 
-        CloseableClient(
-                String name,
-                CloseableHttpClient client,
+        private CloseableClient(
+                CloseableHttpClient apacheClient,
+                @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
+                TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
-            this.name = name;
-            this.client = client;
+            this.clientName = clientName;
+            this.apacheClient = apacheClient;
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
+            this.closeMeter = DialogueClientMetrics.of(taggedMetrics)
+                    .close()
+                    .clientName(clientName)
+                    .clientType(APACHE)
+                    .build();
+        }
+
+        static CloseableClient wrap(
+                CloseableHttpClient apacheClient,
+                @Safe String clientName,
+                PoolingHttpClientConnectionManager pool,
+                ClientConfiguration clientConfiguration,
+                @Nullable ExecutorService executor) {
+            ResponseLeakDetector leakDetector =
+                    ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry());
+            CloseableClient newInstance = new CloseableClient(
+                    apacheClient, clientName, pool, clientConfiguration.taggedMetricRegistry(), leakDetector, executor);
+            log.info(
+                    "Created Apache client {} {} {} {}",
+                    SafeArg.of("name", clientName),
+                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                    UnsafeArg.of("clientConfiguration", clientConfiguration),
+                    UnsafeArg.of("executor", executor));
+            Meter createMeter = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
+                    .create()
+                    .clientName(clientName)
+                    .clientType("apache")
+                    .build();
+            createMeter.mark();
+            return newInstance;
         }
 
         @Override
@@ -181,12 +216,15 @@ public final class ApacheHttpClientChannels {
                     log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
             log.info(
                     "Closing Apache client {} {} {} {} {}",
-                    SafeArg.of("name", name),
-                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(client))),
+                    SafeArg.of("name", clientName),
+                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
                     SafeArg.of("idle", poolStats.getAvailable()),
                     SafeArg.of("leased", poolStats.getLeased()),
                     SafeArg.of("pending", poolStats.getPending()),
                     stacktrace);
+            // TODO(dfox): this is a little misleading because we don't actually call apacheClient.close right now
+            closeMeter.mark();
+
             // Terminate all idle connections, note that this does not in fact close the client
             // itself. Eventually the client will be garbage collected and resources will be released.
             // This allows pending requests to execute without causing application level failures.
@@ -195,10 +233,13 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public String toString() {
-            return "CloseableClient{client="
-                    + client + ", leakDetector="
-                    + leakDetector + ", executor="
-                    + executor + '}';
+            return "CloseableClient@" + Integer.toHexString(System.identityHashCode(this)) + "{"
+                    + "clientName='" + clientName + '\''
+                    + ", client=" + apacheClient
+                    + ", pool=" + pool
+                    + ", leakDetector=" + leakDetector
+                    + ", executor=" + executor
+                    + '}';
         }
     }
 
@@ -248,7 +289,7 @@ public final class ApacheHttpClientChannels {
 
         public CloseableClient build() {
             ClientConfiguration conf =
-                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is " + "required");
+                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
             String name = Preconditions.checkNotNull(clientName, "Client name is required");
             Preconditions.checkArgument(
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
@@ -333,19 +374,8 @@ public final class ApacheHttpClientChannels {
                                 .build());
             });
 
-            CloseableHttpClient client = builder.build();
-            log.info(
-                    "Created Apache client {} {} {} {}",
-                    SafeArg.of("name", name),
-                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(client))),
-                    UnsafeArg.of("clientConfiguration", clientConfiguration),
-                    UnsafeArg.of("executor", executor));
-            return new CloseableClient(
-                    name,
-                    client,
-                    connectionManager,
-                    ResponseLeakDetector.of(name, conf.taggedMetricRegistry()),
-                    executor);
+            CloseableHttpClient apacheClient = builder.build();
+            return CloseableClient.wrap(apacheClient, name, connectionManager, conf, executor);
         }
     }
 
