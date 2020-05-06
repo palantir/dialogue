@@ -29,13 +29,14 @@ Instrumentation for BalancedChannel internals.
 - `dialogue.balanced.score` tagged `channel-name`, `hostIndex` (gauge): The score that the BalancedChannel currently assigns to each host (computed based on inflight requests and recent failures). Requests are routed to the channel with the lowest score. (Note if there are >10 nodes this metric will not be recorded).
 
 ### dialogue.client
-Dialogue client response metrics.
+Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.request.active` tagged `channel-name`, `service-name`, `stage` (counter): Number of requests that are actively running. The `stage` may refer to `running` requests actively executing over the wire or `processing` which may be awaiting a client or backing off for a retry. Note that running requests are also counted as processing.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
 - `dialogue.client.limited` tagged `channel-name`, `reason` (meter): Rate that client-side requests are deferred to be retried later.
+- `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 
 ### dialogue.concurrencylimiter
 Instrumentation for the ConcurrencyLimitedChannel
