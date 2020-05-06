@@ -76,6 +76,7 @@ public final class DialogueChannel implements Channel {
         // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(
                 channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+        channel = HostMetricsChannel.create(channel, cf, uri);
         channel = new ActiveRequestInstrumentationChannel(
                 channel, cf.channelName(), "running", cf.clientConf().taggedMetricRegistry());
         // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
