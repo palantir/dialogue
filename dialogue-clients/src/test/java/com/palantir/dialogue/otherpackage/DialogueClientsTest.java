@@ -89,7 +89,7 @@ class DialogueClientsTest {
     }
 
     // this made up library doesn't need live reloading, just a little bit of configurability
-    private final class LibraryClassWithMixins<
+    private static final class LibraryClassWithMixins<
             F extends ConjureClients.WithClientOptions<F> & ConjureClients.NonReloadingClientFactory> {
 
         private final SampleServiceBlocking client;

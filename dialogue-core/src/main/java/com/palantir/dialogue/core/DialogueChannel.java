@@ -186,14 +186,15 @@ public final class DialogueChannel implements Channel {
             return this;
         }
 
-        public Builder retryScheduler(ScheduledExecutorService value) {
-            builder.scheduler(value);
+        @VisibleForTesting
+        Builder random(Random value) {
+            builder.random(value);
             return this;
         }
 
         @VisibleForTesting
-        Builder random(Random value) {
-            builder.random(value);
+        Builder scheduler(ScheduledExecutorService value) {
+            builder.scheduler(value);
             return this;
         }
 

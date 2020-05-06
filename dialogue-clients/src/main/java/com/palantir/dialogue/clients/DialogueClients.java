@@ -25,7 +25,6 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.refreshable.Refreshable;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 
 /**
  * The {@link ReloadingFactory} abstraction allows users to declaratively construct clients for any of the services
@@ -52,9 +51,6 @@ public final class DialogueClients {
     @CheckReturnValue
     public interface WithDialogueOptions<T> {
         T withRuntime(ConjureRuntime runtime);
-
-        /** Exponential backoffs are scheduled on this executor. If this is omitted a singleton will be used. */
-        T withRetryExecutor(ScheduledExecutorService retryExecutor);
 
         /**
          * The Apache http client uses blocking socket operations, so threads from this executor will be used to wait

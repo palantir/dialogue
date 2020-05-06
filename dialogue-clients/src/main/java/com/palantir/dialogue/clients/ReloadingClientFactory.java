@@ -41,7 +41,6 @@ import java.security.Provider;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
 
@@ -62,8 +61,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         default ConjureRuntime runtime() {
             return DefaultConjureRuntime.builder().build();
         }
-
-        Optional<ScheduledExecutorService> retryExecutor();
 
         Optional<ExecutorService> blockingExecutor();
     }
@@ -136,11 +133,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public DialogueClients.ReloadingFactory withRuntime(ConjureRuntime runtime) {
         return new ReloadingClientFactory(params.withRuntime(runtime), cache);
-    }
-
-    @Override
-    public DialogueClients.ReloadingFactory withRetryExecutor(ScheduledExecutorService executor) {
-        return new ReloadingClientFactory(params.withRetryExecutor(executor), cache);
     }
 
     @Override

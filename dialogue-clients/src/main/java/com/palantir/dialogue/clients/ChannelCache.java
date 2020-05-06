@@ -36,7 +36,6 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.ThreadSafe;
 import org.immutables.value.Value;
@@ -99,7 +98,6 @@ final class ChannelCache {
 
         return channelCache.get(ImmutableChannelCacheKey.builder()
                 .from(reloadingParams)
-                .retryExecutor(reloadingParams.retryExecutor())
                 .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
                 .channelName(channelName)
@@ -116,15 +114,14 @@ final class ChannelCache {
 
         ApacheCacheEntry apacheClient = getApacheClient(request);
 
-        DialogueChannel.Builder builder = DialogueChannel.builder()
+        return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
-                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()));
-        channelCacheRequest.retryExecutor().ifPresent(builder::retryScheduler);
-        return builder.buildNonLiveReloading();
+                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()))
+                .buildNonLiveReloading();
     }
 
     @VisibleForTesting
@@ -195,8 +192,6 @@ final class ChannelCache {
         ServiceConfiguration serviceConf();
 
         String channelName();
-
-        Optional<ScheduledExecutorService> retryExecutor();
 
         Optional<ExecutorService> blockingExecutor();
     }
