@@ -30,6 +30,8 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -65,6 +67,8 @@ public class IntegrationTest {
 
     private Undertow undertow;
     private HttpHandler undertowHandler;
+    private SampleServiceBlocking blocking;
+    private SampleServiceAsync async;
 
     @Before
     public void before() {
@@ -73,12 +77,16 @@ public class IntegrationTest {
                         0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
         undertow.start();
+        Channel dialogueChannel = ApacheHttpClientChannels.create(clientConf(getUri(undertow)));
+        ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
+        blocking = SampleServiceBlocking.of(dialogueChannel, runtime);
+        async = SampleServiceAsync.of(dialogueChannel, runtime);
     }
 
     @Test
     public void alias_of_optional() {
         set204Response();
-        AliasOfOptional myAlias = sampleServiceBlocking().getMyAlias();
+        AliasOfOptional myAlias = blocking.getMyAlias();
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();
     }
@@ -86,7 +94,7 @@ public class IntegrationTest {
     @Test
     public void alias_of_alias_of_optional() {
         set204Response();
-        AliasOfAliasOfOptional myAlias = sampleServiceBlocking().getMyAlias2();
+        AliasOfAliasOfOptional myAlias = blocking.getMyAlias2();
         Optional<String> maybeString = myAlias.get().get();
         assertThat(maybeString).isNotPresent();
     }
@@ -94,7 +102,7 @@ public class IntegrationTest {
     @Test
     public void conjure_generated_async_interface_with_optional_binary_return_type_and_gzip() {
         setBinaryGzipResponse("Hello, world");
-        SampleServiceAsync client = sampleServiceAsync();
+        SampleServiceAsync client = async;
 
         ListenableFuture<Optional<InputStream>> future = client.getOptionalBinary();
         Optional<InputStream> maybeBinary = Futures.getUnchecked(future);
@@ -107,7 +115,7 @@ public class IntegrationTest {
     public void conjure_generated_blocking_interface_with_optional_binary_return_type_and_gzip() {
         setBinaryGzipResponse("Hello, world");
 
-        Optional<InputStream> maybeBinary = sampleServiceBlocking().getOptionalBinary();
+        Optional<InputStream> maybeBinary = blocking.getOptionalBinary();
 
         assertThat(maybeBinary).isPresent();
         assertThat(maybeBinary.get()).hasSameContentAs(asInputStream("Hello, world"));
@@ -131,7 +139,8 @@ public class IntegrationTest {
 
         Stopwatch sw = Stopwatch.createStarted();
 
-        InputStream maybeBinary = sampleServiceBlocking().getOptionalBinary().get();
+        SampleServiceBlocking service = blocking;
+        InputStream maybeBinary = service.getOptionalBinary().get();
         assertThat(ByteStreams.exhaust(maybeBinary))
                 .describedAs("Should receive exactly the number of bytes we sent!")
                 .isEqualTo(limit);
@@ -149,7 +158,7 @@ public class IntegrationTest {
                 exchange.setStatusCode(204);
             }
         };
-        AliasOfOptional myAlias = sampleServiceBlocking().getMyAlias();
+        AliasOfOptional myAlias = blocking.getMyAlias();
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();
         assertThat(requests).hasValue(2);
@@ -169,18 +178,6 @@ public class IntegrationTest {
             exchange.getResponseHeaders().put(Headers.CONTENT_ENCODING, "gzip");
             exchange.getOutputStream().write(gzipCompress(stringToCompress));
         };
-    }
-
-    private SampleServiceBlocking sampleServiceBlocking() {
-        return SampleServiceBlocking.of(
-                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
-                DefaultConjureRuntime.builder().build());
-    }
-
-    private SampleServiceAsync sampleServiceAsync() {
-        return SampleServiceAsync.of(
-                ApacheHttpClientChannels.create(clientConf(getUri(undertow))),
-                DefaultConjureRuntime.builder().build());
     }
 
     @After
