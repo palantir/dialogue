@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -91,7 +92,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingDouble(SortableChannel::getScore))
+                .sorted(Comparator.comparingInt(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -168,7 +169,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int requestsInflight = inflight.get();
             double failureReservoir = recentFailuresReservoir.get();
 
-            double score = requestsInflight + failureReservoir;
+            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
             return new SortableChannel(score, this);
@@ -188,15 +189,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     private static final class SortableChannel {
-        private final double score;
+        private final int score;
         private final MutableChannelWithStats delegate;
 
-        SortableChannel(double score, MutableChannelWithStats delegate) {
+        SortableChannel(int score, MutableChannelWithStats delegate) {
             this.score = score;
             this.delegate = delegate;
         }
 
-        double getScore() {
+        int getScore() {
             return score;
         }
 
@@ -219,22 +220,22 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     .putSafeTags("channel-name", channelName)
                     .putSafeTags("hostIndex", Integer.toString(hostIndex))
                     .build();
-            // Weak gauge ensures this object can be GCd. Otherwise the tagged metric registry could hold the last ref!
+            // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
             // Defensive averaging for the possibility that people create multiple channels with the same channelName.
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    all -> {
-                        double[] scores = all.mapToDouble(c -> c.computeScore().getScore())
-                                .toArray();
-                        if (scores.length > 1) {
+                    c -> c.computeScore().getScore(),
+                    longStream -> {
+                        long[] longs = longStream.toArray();
+                        if (longs.length > 1) {
                             log.warn(
                                     "Multiple objects contribute to the same gauge, taking the average "
-                                            + "(beware this may be misleading) {} {}",
+                                            + "(beware this may be misleading)",
                                     SafeArg.of("metricName", metricName),
-                                    SafeArg.of("values", Arrays.toString(scores)));
+                                    SafeArg.of("values", Arrays.toString(longs)));
                         }
-                        return Arrays.stream(scores).average().orElse(0d);
+                        return Arrays.stream(longs).average().orElse(0);
                     },
                     channels.get(hostIndex));
         }
@@ -272,7 +273,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, double failures, double score) {
+        void debugLogComputedScore(int inflight, double failures, int score) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",

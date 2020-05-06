@@ -25,7 +25,7 @@ import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
-import java.util.stream.Stream;
+import java.util.stream.LongStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -42,11 +42,13 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
     @GuardedBy("this")
     private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
 
-    private final Function<Stream<T>, Number> summarize;
+    private final ToLongFunction<T> gaugeFunction;
+    private final Function<LongStream, Number> operator;
 
     @VisibleForTesting
-    DialogueInternalWeakReducingGauge(Function<Stream<T>, Number> summarize) {
-        this.summarize = summarize;
+    DialogueInternalWeakReducingGauge(ToLongFunction<T> gaugeFunction, Function<LongStream, Number> reduceFunction) {
+        this.gaugeFunction = gaugeFunction;
+        this.operator = reduceFunction;
     }
 
     /** Register a new source element which will be used to compute the future summary integer. */
@@ -56,29 +58,19 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
 
     @Override
     public synchronized Number getValue() {
-        return summarize.apply(weakSet.stream());
+        return operator.apply(weakSet.stream().mapToLong(gaugeFunction));
     }
 
-    public static <T> void summingLong(
+    public static <T> DialogueInternalWeakReducingGauge<T> getOrCreate(
             TaggedMetricRegistry taggedMetricRegistry,
             MetricName metricName,
             ToLongFunction<T> toLongFunc,
+            Function<LongStream, Number> reducingFunction,
             T initialObject) {
         // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
         DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) taggedMetricRegistry.gauge(
-                metricName, new DialogueInternalWeakReducingGauge<T>(stream -> stream.mapToLong(toLongFunc)
-                        .sum()));
+                metricName, new DialogueInternalWeakReducingGauge<>(toLongFunc, reducingFunction));
         gauge.add(initialObject);
-    }
-
-    static <T> void getOrCreate(
-            TaggedMetricRegistry taggedMetricRegistry,
-            MetricName metricName,
-            Function<Stream<T>, Number> summarize,
-            T initialObject) {
-        // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
-        DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>)
-                taggedMetricRegistry.gauge(metricName, new DialogueInternalWeakReducingGauge<T>(summarize));
-        gauge.add(initialObject);
+        return gauge;
     }
 }
