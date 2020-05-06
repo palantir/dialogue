@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: |
+    The new ROUND_ROBIN algorithm now considers the number of recent 4xx responses when computing a per-host 'score', which allows us to route traffic away from buggy nodes that might send excessive 401/403 responses.
+  links:
+  - https://github.com/palantir/dialogue/pull/711
