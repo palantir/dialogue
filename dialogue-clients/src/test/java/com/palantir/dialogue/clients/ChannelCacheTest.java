@@ -91,7 +91,7 @@ class ChannelCacheTest {
     }
 
     @Test
-    void eviction_workflow() {
+    void new_config_evicts_client_but_old_one_is_still_usable() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
                 .serviceConf(serviceConf)
                 .channelName("channelName")
