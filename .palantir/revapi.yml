@@ -173,3 +173,16 @@ acceptedBreaks:
       old: "method void com.palantir.dialogue.core.DialogueTracedRequestChannel::<init>(com.palantir.dialogue.Channel)"
       new: "method void com.palantir.dialogue.core.DialogueTracedRequestChannel::<init>(com.palantir.dialogue.Channel)"
       justification: "Never intended to be public, no known users"
+  "1.38.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.visibilityReduced"
+      old: "method <T> com.palantir.dialogue.core.DialogueInternalWeakReducingGauge<T>\
+        \ com.palantir.dialogue.core.DialogueInternalWeakReducingGauge<T>::getOrCreate(com.palantir.tritium.metrics.registry.TaggedMetricRegistry,\
+        \ com.palantir.tritium.metrics.registry.MetricName, java.util.function.ToLongFunction<T>,\
+        \ java.util.function.Function<java.util.stream.LongStream, java.lang.Number>,\
+        \ T)"
+      new: "method <T> void com.palantir.dialogue.core.DialogueInternalWeakReducingGauge<T>::getOrCreate(com.palantir.tritium.metrics.registry.TaggedMetricRegistry,\
+        \ com.palantir.tritium.metrics.registry.MetricName, java.util.function.Function<java.util.stream.Stream<T>,\
+        \ java.lang.Number>, T)"
+      justification: "Not intended for public-consumption, it says 'DialogueInternal'\
+        \ in the name"
