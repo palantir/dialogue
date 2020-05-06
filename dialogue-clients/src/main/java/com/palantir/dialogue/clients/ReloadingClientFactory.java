@@ -39,6 +39,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -149,6 +150,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public DialogueClients.ReloadingFactory withNodeSelectionStrategy(NodeSelectionStrategy strategy) {
         return new ReloadingClientFactory(params.withNodeSelectionStrategy(strategy), cache);
+    }
+
+    @Override
+    public DialogueClients.ReloadingFactory withFailedUrlCooldown(Duration _duration) {
+        // Dialogue doesn't have a concept of 'failedUrlCooldown' so this is a no-op
+        return this;
     }
 
     @Override

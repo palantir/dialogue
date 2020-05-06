@@ -23,6 +23,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.dialogue.TestConfigurations;
@@ -33,6 +34,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class DialogueClientsTest {
@@ -139,7 +141,17 @@ class DialogueClientsTest {
         }
 
         @Override
+        public Alternative withHostEventsSink(HostEventsSink _hostEventsSink) {
+            return this;
+        }
+
+        @Override
         public Alternative withNodeSelectionStrategy(NodeSelectionStrategy _strategy) {
+            return this;
+        }
+
+        @Override
+        public Alternative withFailedUrlCooldown(Duration _duration) {
             return this;
         }
 
