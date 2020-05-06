@@ -211,38 +211,59 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public void close() throws IOException {
-            PoolStats poolStats = pool.getTotalStats();
-            SafeRuntimeException stacktrace =
-                    log.isDebugEnabled() ? new SafeRuntimeException("Exception for stacktrace") : null;
-            log.info(
-                    "Closing Apache client {} {} {} {} {}",
-                    SafeArg.of("name", clientName),
-                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
-                    SafeArg.of("idle", poolStats.getAvailable()),
-                    SafeArg.of("leased", poolStats.getLeased()),
-                    SafeArg.of("pending", poolStats.getPending()),
-                    stacktrace);
-            // TODO(dfox): this is a little misleading because we don't actually call apacheClient.close right now
-            closeMeter.mark();
+            if (log.isDebugEnabled()) {
+                PoolStats poolStats = pool.getTotalStats();
+                log.debug(
+                        "ApacheHttpClientChannels#close - {} {} {} {} {}",
+                        SafeArg.of("name", clientName),
+                        SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                        SafeArg.of("idle", poolStats.getAvailable()),
+                        SafeArg.of("leased", poolStats.getLeased()),
+                        SafeArg.of("pending", poolStats.getPending()),
+                        new SafeRuntimeException("Exception for stacktrace"));
+            }
 
-            // Terminate all idle connections, note that this does not in fact close the client
-            // itself. Eventually the client will be garbage collected and resources will be released.
-            // This allows pending requests to execute without causing application level failures.
-            // Closing the client itself is deferred until this object is garbage collected.
+            // We intentionally don't close the inner apacheClient here as there might be queued requests which still
+            // need to execute on this channel. We rely on finalize() to clean up resources (e.g.
+            // IdleConnectionEvictor threads) when this CloseableClient is GC'd.
             pool.closeIdleConnections(0, TimeUnit.NANOSECONDS);
         }
 
+        /**
+         * {@link Object#finalize()} gets called when this object is GC'd. Overriding finalize is discouraged
+         * because if objects are created faster than finalizer threads can process the GC'd objects, then
+         * the system OOMs. We think it's safe in this scenario because we expect these Apache clients to be very
+         * infrequently constructed. Tritium 0.16.9 also has instrumentation to measure the size of the finalizer queue
+         * (https://github.com/palantir/tritium/pull/712).
+         */
         @Override
-        @SuppressWarnings("NoFinalizer")
+        @SuppressWarnings({"NoFinalizer", "deprecation"})
         protected void finalize() throws Throwable {
             try {
-                // The client object must eventually be closed to avoid leaking threads, in particular
-                // the idle connection eviction thread from IdleConnectionEvictor, though there may
-                // be additional closeable resources.
-                client.close();
+                finalizeApacheClient();
             } finally {
                 super.finalize();
             }
+        }
+
+        private void finalizeApacheClient() throws IOException {
+            if (log.isInfoEnabled()) {
+                PoolStats poolStats = pool.getTotalStats();
+                log.info(
+                        "ApacheHttpClientChannels#finalize - {} {} {} {} {}",
+                        SafeArg.of("name", clientName),
+                        SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                        SafeArg.of("idle", poolStats.getAvailable()),
+                        SafeArg.of("leased", poolStats.getLeased()),
+                        SafeArg.of("pending", poolStats.getPending()));
+            }
+
+            // It's important to close the apacheClient object to avoid leaking threads, in
+            // particular the idle connection eviction thread from IdleConnectionEvictor, though there may
+            // be additional closeable resources.
+            apacheClient.close();
+
+            closeMeter.mark();
         }
 
         @Override

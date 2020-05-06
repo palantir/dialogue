@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -212,8 +213,17 @@ public final class DialogueChannel implements Channel {
 
         @CheckReturnValue
         public DialogueChannel build() {
-            Config config = builder.build();
-            return new DialogueChannel(config);
+            Config cf = builder.build();
+            DialogueChannel dialogueChannel = new DialogueChannel(cf);
+
+            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                    .create()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel")
+                    .build();
+            createMeter.mark();
+
+            return dialogueChannel;
         }
 
         /** Does *not* do any clever live-reloading. */
@@ -230,7 +240,16 @@ public final class DialogueChannel implements Channel {
 
             QueuedChannel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
-            return DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+            Channel channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+
+            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                    .create()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+            createMeter.mark();
+
+            return channel;
         }
     }
 }

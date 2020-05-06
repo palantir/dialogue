@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: Creating DialogueChannel instances now marks a new `dialogue.client.create`
+    meter so we can detect any services that are creating unexpectedly large numbers
+    of these clients.
+  links:
+  - https://github.com/palantir/dialogue/pull/716
