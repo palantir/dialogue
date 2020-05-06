@@ -187,7 +187,10 @@ public final class ApacheHttpClientChannels {
                     SafeArg.of("leased", poolStats.getLeased()),
                     SafeArg.of("pending", poolStats.getPending()),
                     stacktrace);
-            client.close();
+            // Terminate all idle connections, note that this does not in fact close the client
+            // itself. Eventually the client will be garbage collected and resources will be released.
+            // This allows pending requests to execute without causing application level failures.
+            pool.closeIdleConnections(0, TimeUnit.NANOSECONDS);
         }
 
         @Override
@@ -307,7 +310,7 @@ public final class ApacheHttpClientChannels {
                     .setDefaultSocketConfig(socketConfig)
                     .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                     .setConnectionManagerShared(false) // will be closed when the client is closed
-                    .setConnectionManager(new SafeLoggingHttpClientConnectionManager(connectionManager))
+                    .setConnectionManager(connectionManager)
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
