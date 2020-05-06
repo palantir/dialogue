@@ -119,7 +119,8 @@ class HostMetricsChannelTest {
         SettableFuture<Response> settable = SettableFuture.create();
         when(mockChannel.execute(any(), any())).thenReturn(settable);
 
-        ListenableFuture<Response> future = channel.execute(TestEndpoint.GET, Request.builder().build());
+        ListenableFuture<Response> future =
+                channel.execute(TestEndpoint.GET, Request.builder().build());
         when(ticker.read()).thenReturn(Duration.ofSeconds(3).toNanos());
 
         settable.set(new TestResponse().code(200));
