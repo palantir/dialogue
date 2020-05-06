@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
@@ -71,7 +72,10 @@ public final class DialogueClients {
                     WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ReloadingChannelFactory {}
+                    ReloadingChannelFactory {
+        // TODO(dfox): c-j-r should really define this method in WithClientOptions
+        ReloadingFactory withHostEventsSink(HostEventsSink agent);
+    }
 
     private DialogueClients() {}
 }

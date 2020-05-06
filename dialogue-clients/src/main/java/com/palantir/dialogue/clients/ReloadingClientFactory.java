@@ -25,6 +25,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
@@ -168,6 +169,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public DialogueClients.ReloadingFactory withSecurityProvider(Provider securityProvider) {
         return new ReloadingClientFactory(params.withSecurityProvider(securityProvider), cache);
+    }
+
+    @Override
+    public DialogueClients.ReloadingFactory withHostEventsSink(HostEventsSink value) {
+        return new ReloadingClientFactory(params.withHostEventsSink(value), cache);
     }
 
     @Override

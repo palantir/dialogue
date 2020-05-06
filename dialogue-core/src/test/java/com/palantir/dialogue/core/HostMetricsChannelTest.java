@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
@@ -108,7 +109,7 @@ class HostMetricsChannelTest {
                             }
 
                             @Override
-                            public void recordIoException(String serviceName, String hostname, int port) {
+                            public void recordIoException(String _serviceName, String _hostname, int _port) {
                                 Assertions.fail("no IOExceptions expected");
                             }
                         })
@@ -118,11 +119,12 @@ class HostMetricsChannelTest {
         SettableFuture<Response> settable = SettableFuture.create();
         when(mockChannel.execute(any(), any())).thenReturn(settable);
 
-        channel.execute(TestEndpoint.GET, Request.builder().build());
+        ListenableFuture<Response> future = channel.execute(TestEndpoint.GET, Request.builder().build());
         when(ticker.read()).thenReturn(Duration.ofSeconds(3).toNanos());
 
         settable.set(new TestResponse().code(200));
         assertThat(recorded).isTrue();
+        assertThat(future).isDone();
     }
 
     private ImmutableConfig config(ClientConfiguration rawConfig) {
