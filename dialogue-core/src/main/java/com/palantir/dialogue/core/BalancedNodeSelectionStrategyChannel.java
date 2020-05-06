@@ -128,7 +128,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 @Override
                 public void onSuccess(Response response) {
                     inflight.decrementAndGet();
-                    if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                    if (Responses.isQosStatus(response)
+                            || Responses.isServerError(response)
+                            || Responses.isClientError(response)) {
+                        // we track 4xx responses because programming errors might cause one node to erroneously throw
+                        // 401/403s when another node could actually return 200s.
                         recentFailuresReservoir.update(FAILURE_WEIGHT);
                         observability.debugLogStatusFailure(response);
                     }
