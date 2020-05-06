@@ -1,5 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.metric-schema'
+apply plugin: 'com.palantir.metric-schema-markdown'
 apply plugin: 'com.palantir.revapi'
 
 dependencies {

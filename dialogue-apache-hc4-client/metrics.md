@@ -1,5 +1,19 @@
 # Metrics
 
+## Dialogue Apache Hc4 Client
+
+`com.palantir.dialogue:dialogue-apache-hc4-client`
+
+### dialogue.client
+Dialogue client response metrics provided by the Apache client channel.
+- `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created. Client-type is always 'apache'.
+- `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
+
+### dialogue.client.pool
+Connection pool metrics from the dialogue Apache client.
+- `dialogue.client.pool.size` tagged `client-name`, `state` (gauge): Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+
 ## Dialogue Core
 
 `com.palantir.dialogue:dialogue-core`

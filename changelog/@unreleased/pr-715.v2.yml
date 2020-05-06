@@ -1,0 +1,5 @@
+type: feature
+feature:
+  description: Two new metrics instrument when apache clients are created/closed.
+  links:
+  - https://github.com/palantir/dialogue/pull/715
