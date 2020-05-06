@@ -20,6 +20,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
@@ -57,6 +58,8 @@ interface AugmentClientConfig {
      */
     Optional<Integer> maxNumRetries();
 
+    Optional<HostEventsSink> hostEventsSink();
+
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
         ClientConfiguration.Builder builder =
                 ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig));
@@ -79,6 +82,7 @@ interface AugmentClientConfig {
         augment.clientQoS().ifPresent(builder::clientQoS);
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
+        augment.hostEventsSink().ifPresent(builder::hostEventsSink);
 
         return builder.build();
     }

@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: Dialogue can now record per-host success/failure information to a `HostEventsSink`
+    provided in the `ClientConfiguration`. If none is specified, there is no runtime
+    cost.
+  links:
+  - https://github.com/palantir/dialogue/pull/717
