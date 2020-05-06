@@ -26,6 +26,7 @@ import java.util.WeakHashMap;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import java.util.stream.Stream;
+import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
@@ -38,7 +39,9 @@ import javax.annotation.concurrent.ThreadSafe;
 @ThreadSafe
 public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number> {
 
-    private final Set<T> weakSet = Collections.synchronizedSet(Collections.newSetFromMap(new WeakHashMap<>(2)));
+    @GuardedBy("this")
+    private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
+
     private final Function<Stream<T>, Number> summarize;
 
     @VisibleForTesting
@@ -47,12 +50,12 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
     }
 
     /** Register a new source element which will be used to compute the future summary integer. */
-    public void add(T sourceElement) {
+    public synchronized void add(T sourceElement) {
         weakSet.add(sourceElement);
     }
 
     @Override
-    public Number getValue() {
+    public synchronized Number getValue() {
         return summarize.apply(weakSet.stream());
     }
 
