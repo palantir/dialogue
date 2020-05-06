@@ -108,13 +108,23 @@ class ChannelCacheTest {
         assertThat(cacheResult).isNotSameAs(cacheResult2);
         assertThat(cache.toString()).contains("apacheCache.size=1");
 
-        System.out.println(cacheResult.client());
-        System.out.println(cacheResult2.client());
+        undertowHandler = exchange -> {
+            exchange.setStatusCode(200);
+        };
+
+        // Some clients might still be using this channel even though we're evicting it from the cache, so it's
+        // important that the evicted client is still usable. Otherwise, we get support tickets like PDS-118523
+        // where outgoing requests fail with 'Connection pool shut down'
+        SampleServiceBlocking evictedClient = sampleServiceBlocking(cacheResult.client());
+        evictedClient.voidToVoid();
+
+        SampleServiceBlocking client2 = sampleServiceBlocking(cacheResult2.client());
+        client2.voidToVoid();
     }
 
-    private SampleServiceBlocking sampleServiceBlocking(ChannelCache.ApacheCacheEntry cacheResponse) {
+    private SampleServiceBlocking sampleServiceBlocking(ApacheHttpClientChannels.CloseableClient apache) {
         return SampleServiceBlocking.of(
-                ApacheHttpClientChannels.createSingleUri(uri, cacheResponse.client()),
+                ApacheHttpClientChannels.createSingleUri(uri, apache),
                 DefaultConjureRuntime.builder().build());
     }
 }
