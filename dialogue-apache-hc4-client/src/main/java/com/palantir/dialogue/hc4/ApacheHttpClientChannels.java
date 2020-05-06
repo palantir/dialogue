@@ -228,7 +228,21 @@ public final class ApacheHttpClientChannels {
             // Terminate all idle connections, note that this does not in fact close the client
             // itself. Eventually the client will be garbage collected and resources will be released.
             // This allows pending requests to execute without causing application level failures.
+            // Closing the client itself is deferred until this object is garbage collected.
             pool.closeIdleConnections(0, TimeUnit.NANOSECONDS);
+        }
+
+        @Override
+        @SuppressWarnings("NoFinalizer")
+        protected void finalize() throws Throwable {
+            try {
+                // The client object must eventually be closed to avoid leaking threads, in particular
+                // the idle connection eviction thread from IdleConnectionEvictor, though there may
+                // be additional closeable resources.
+                client.close();
+            } finally {
+                super.finalize();
+            }
         }
 
         @Override
