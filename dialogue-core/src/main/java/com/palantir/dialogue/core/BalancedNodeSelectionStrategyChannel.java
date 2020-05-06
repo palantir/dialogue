@@ -55,7 +55,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
-    private static final int FAILURE_WEIGHT = 10;
+    private static final double FAILURE_WEIGHT = 10;
 
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
@@ -91,7 +91,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
         return preShuffled.stream()
                 .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingInt(SortableChannel::getScore))
+                .sorted(Comparator.comparingDouble(SortableChannel::getScore))
                 .map(channel -> channel.delegate.maybeExecute(endpoint, request))
                 .filter(Optional::isPresent)
                 .map(Optional::get)
@@ -128,12 +128,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 @Override
                 public void onSuccess(Response response) {
                     inflight.decrementAndGet();
-                    if (Responses.isQosStatus(response)
-                            || Responses.isServerError(response)
-                            || Responses.isClientError(response)) {
-                        // we track 4xx responses because programming errors might cause one node to erroneously throw
-                        // 401/403s when another node could actually return 200s.
+
+                    if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                         recentFailuresReservoir.update(FAILURE_WEIGHT);
+                        observability.debugLogStatusFailure(response);
+                    } else if (Responses.isClientError(response)) {
+                        // We track 4xx responses because bugs in the server might cause one node to erroneously
+                        // throw 401/403s when another node could actually return 200s. Empirically, healthy servers
+                        // do actually return a continuous background rate of 4xx responses, so we weight these
+                        // drastically less than 5xx responses.
+                        recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
                         observability.debugLogStatusFailure(response);
                     }
                 }
@@ -162,11 +166,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         SortableChannel computeScore() {
             int requestsInflight = inflight.get();
-            int recentFailures = recentFailuresReservoir.get();
+            double failureReservoir = recentFailuresReservoir.get();
 
-            int score = requestsInflight + recentFailures;
+            double score = requestsInflight + failureReservoir;
 
-            observability.debugLogComputedScore(requestsInflight, recentFailures, score);
+            observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
             return new SortableChannel(score, this);
         }
 
@@ -184,15 +188,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     private static final class SortableChannel {
-        private final int score;
+        private final double score;
         private final MutableChannelWithStats delegate;
 
-        SortableChannel(int score, MutableChannelWithStats delegate) {
+        SortableChannel(double score, MutableChannelWithStats delegate) {
             this.score = score;
             this.delegate = delegate;
         }
 
-        int getScore() {
+        double getScore() {
             return score;
         }
 
@@ -205,7 +209,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static void registerGauges(
             TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableChannelWithStats> channels) {
         if (channels.size() > 10) {
-            log.info("Not registering gauges as there are too many nodes", SafeArg.of("count", channels.size()));
+            log.info("Not registering gauges as there are too many nodes {}", SafeArg.of("count", channels.size()));
             return;
         }
 
@@ -215,22 +219,22 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     .putSafeTags("channel-name", channelName)
                     .putSafeTags("hostIndex", Integer.toString(hostIndex))
                     .build();
-            // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
+            // Weak gauge ensures this object can be GCd. Otherwise the tagged metric registry could hold the last ref!
             // Defensive averaging for the possibility that people create multiple channels with the same channelName.
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.computeScore().getScore(),
-                    longStream -> {
-                        long[] longs = longStream.toArray();
-                        if (longs.length > 1) {
+                    all -> {
+                        double[] scores = all.mapToDouble(c -> c.computeScore().getScore())
+                                .toArray();
+                        if (scores.length > 1) {
                             log.warn(
                                     "Multiple objects contribute to the same gauge, taking the average "
-                                            + "(beware this may be misleading)",
+                                            + "(beware this may be misleading) {} {}",
                                     SafeArg.of("metricName", metricName),
-                                    SafeArg.of("values", Arrays.toString(longs)));
+                                    SafeArg.of("values", Arrays.toString(scores)));
                         }
-                        return Arrays.stream(longs).average().orElse(0);
+                        return Arrays.stream(scores).average().orElse(0d);
                     },
                     channels.get(hostIndex));
         }
@@ -268,7 +272,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, int failures, int score) {
+        void debugLogComputedScore(int inflight, double failures, double score) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",

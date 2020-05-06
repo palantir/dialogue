@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.AtomicDouble;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
@@ -47,20 +46,18 @@ final class CoarseExponentialDecayReservoir {
         lastDecay.set(nanoClock.getAsLong());
     }
 
-    void update(int updates) {
+    void update(double updates) {
         decayIfNecessary();
         value.addAndGet(updates);
     }
 
-    int get() {
+    double get() {
         // Potential optimization if the value is zero
         decayIfNecessary();
-        // Results must be rounded otherwise a single increment will be effectively erased after the first
-        // decay cycle.
-        return Ints.saturatedCast(Math.round(value.get()));
+        return value.get();
     }
 
-    void decayIfNecessary() {
+    private void decayIfNecessary() {
         // Invoke the clock syscall prior to taking a snapshot of lastDecay to minimize time between compare and
         // swap.
         long now = nanoClock.getAsLong();

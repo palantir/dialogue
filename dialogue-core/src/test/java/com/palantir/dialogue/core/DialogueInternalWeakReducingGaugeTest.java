@@ -18,49 +18,48 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 
 public class DialogueInternalWeakReducingGaugeTest {
     @Test
     public void empty_initially() {
-        DialogueInternalWeakReducingGauge<String> gauge =
-                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
-        assertThat(gauge.getValue()).isEqualTo(0L);
+        DialogueInternalWeakReducingGauge<String> gauge = new DialogueInternalWeakReducingGauge<>(
+                strings -> strings.mapToInt(String::length).sum());
+        assertThat(gauge.getValue()).isEqualTo(0);
     }
 
     @Test
     public void sums_correctly() {
-        DialogueInternalWeakReducingGauge<String> gauge =
-                new DialogueInternalWeakReducingGauge<>(String::length, LongStream::sum);
+        DialogueInternalWeakReducingGauge<String> gauge = new DialogueInternalWeakReducingGauge<>(
+                strings -> strings.mapToInt(String::length).sum());
         gauge.add("Hello");
         gauge.add("World");
-        assertThat(gauge.getValue()).isEqualTo(10L);
+        assertThat(gauge.getValue()).isEqualTo(10);
     }
 
     @Test
     public void can_pass_alternative_reducing_functions() {
         DialogueInternalWeakReducingGauge<String> gauge = new DialogueInternalWeakReducingGauge<>(
-                String::length, longStream -> longStream.max().orElse(0));
+                strings -> strings.mapToInt(String::length).max().orElse(0));
         gauge.add("Fooooooooooo");
         gauge.add("bar");
-        assertThat(gauge.getValue()).isEqualTo(12L);
+        assertThat(gauge.getValue()).isEqualTo(12);
     }
 
     @Test
     public void source_items_deleted_when_no_remaining_references_and_gc() {
         class SomeObject {}
 
-        DialogueInternalWeakReducingGauge<SomeObject> gauge =
-                new DialogueInternalWeakReducingGauge<>(item -> 1, LongStream::sum);
+        DialogueInternalWeakReducingGauge<SomeObject> gauge = new DialogueInternalWeakReducingGauge<>(
+                items -> items.mapToInt(item -> 1).sum());
         gauge.add(new SomeObject());
         gauge.add(new SomeObject());
         SomeObject preserve = new SomeObject();
         gauge.add(preserve);
-        assertThat(gauge.getValue()).isEqualTo(3L);
+        assertThat(gauge.getValue()).isEqualTo(3);
 
         System.gc();
 
-        assertThat(gauge.getValue()).isEqualTo(1L);
+        assertThat(gauge.getValue()).isEqualTo(1);
     }
 }
