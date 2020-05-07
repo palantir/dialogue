@@ -37,8 +37,8 @@ interface Config {
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
-                .taggedMetricRegistry(
-                        DialogueInternalVersionedTaggedMetricRegistry.wrap(rawConfig().taggedMetricRegistry()))
+                .taggedMetricRegistry(DialogueInternalVersionedTaggedMetricRegistry.wrap(
+                        rawConfig().taggedMetricRegistry()))
                 .build();
     }
 
