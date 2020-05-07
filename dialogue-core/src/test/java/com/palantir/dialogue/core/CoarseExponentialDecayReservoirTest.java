@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 
 class CoarseExponentialDecayReservoirTest {
@@ -42,9 +43,9 @@ class CoarseExponentialDecayReservoirTest {
         decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(10);
-        assertThat(decay.get()).isBetween(0.9999, 1.0);
+        assertThat(decay.get()).isEqualTo(1.0, Offset.offset(.001));
         clock.set(20);
-        assertThat(decay.get()).isBetween(0.4999, 0.5);
+        assertThat(decay.get()).isEqualTo(0.5, Offset.offset(.001));
     }
 
     @Test
@@ -69,6 +70,6 @@ class CoarseExponentialDecayReservoirTest {
                 .isLessThan(100)
                 .isGreaterThan(50);
         clock.set(10);
-        assertThat(decay.get()).isBetween(49.99, 50.0);
+        assertThat(decay.get()).isEqualTo(50, Offset.offset(.001));
     }
 }
