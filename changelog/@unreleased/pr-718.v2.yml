@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: Clients constructed using the `DialogueClients` fluent factories now
+    have metrics tagged with the proper `dialogueVersion`.
+  links:
+  - https://github.com/palantir/dialogue/pull/718
