@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 
 class CoarseExponentialDecayReservoirTest {
@@ -31,7 +32,7 @@ class CoarseExponentialDecayReservoirTest {
         assertThat(decay.get()).isZero();
         decay.update(1);
         assertThat(decay.get()).isOne();
-        clock.set(10);
+        clock.set(300000);
         assertThat(decay.get()).isZero();
     }
 
@@ -42,9 +43,9 @@ class CoarseExponentialDecayReservoirTest {
         decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
         clock.set(10);
-        assertThat(decay.get()).isOne();
+        assertThat(decay.get()).isEqualTo(1.0, Offset.offset(.001));
         clock.set(20);
-        assertThat(decay.get()).isZero();
+        assertThat(decay.get()).isEqualTo(0.5, Offset.offset(.001));
     }
 
     @Test
@@ -53,7 +54,7 @@ class CoarseExponentialDecayReservoirTest {
         CoarseExponentialDecayReservoir decay = new CoarseExponentialDecayReservoir(clock::get, Duration.ofNanos(10));
         decay.update(2);
         assertThat(decay.get()).isEqualTo(2);
-        clock.set(20);
+        clock.set(300000);
         assertThat(decay.get()).isZero();
     }
 
@@ -69,6 +70,6 @@ class CoarseExponentialDecayReservoirTest {
                 .isLessThan(100)
                 .isGreaterThan(50);
         clock.set(10);
-        assertThat(decay.get()).isEqualTo(50);
+        assertThat(decay.get()).isEqualTo(50, Offset.offset(.001));
     }
 }

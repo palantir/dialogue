@@ -11,8 +11,8 @@
                  drastic_slowdown[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.275952999S 	server_cpu=PT18M23.81199998S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                            drastic_slowdown[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.275952999S 	server_cpu=PT18M23.81199998S	client_received=4000/4000	server_resps=4000	codes={200=4000}
         fast_400s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=82.2%	client_mean=PT0.102233333S 	server_cpu=PT10M13.4S     	client_received=6000/6000	server_resps=6000	codes={200=4934, 400=1066}
-            fast_400s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=71.0%	client_mean=PT0.091S       	server_cpu=PT9M6S         	client_received=6000/6000	server_resps=6000	codes={200=4260, 400=1740}
-                      fast_400s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=71.0%	client_mean=PT0.091S       	server_cpu=PT9M6S         	client_received=6000/6000	server_resps=6000	codes={200=4260, 400=1740}
+            fast_400s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=93.5%	client_mean=PT0.113483333S 	server_cpu=PT11M20.9S     	client_received=6000/6000	server_resps=6000	codes={200=5609, 400=391}
+                      fast_400s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=93.5%	client_mean=PT0.113483333S 	server_cpu=PT11M20.9S     	client_received=6000/6000	server_resps=6000	codes={200=5609, 400=391}
         fast_503s_then_revert[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.120012009S 	server_cpu=PT1H30M0.00000004S	client_received=45000/45000	server_resps=45004	codes={200=45000}
             fast_503s_then_revert[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.120105435S 	server_cpu=PT1H30M0.0000004S	client_received=45000/45000	server_resps=45040	codes={200=45000}
                       fast_503s_then_revert[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.120105435S 	server_cpu=PT1H30M0.0000004S	client_received=45000/45000	server_resps=45040	codes={200=45000}

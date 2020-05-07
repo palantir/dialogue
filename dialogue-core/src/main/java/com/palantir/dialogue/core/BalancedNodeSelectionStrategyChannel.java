@@ -18,7 +18,9 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -55,7 +57,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
-    private static final int FAILURE_WEIGHT = 10;
+    private static final double FAILURE_WEIGHT = 10;
 
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
@@ -105,6 +107,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return mutableList;
     }
 
+    @VisibleForTesting
+    IntStream getScores() {
+        return channels.stream().mapToInt(c -> c.computeScore().score);
+    }
+
+    @Override
+    public String toString() {
+        return "BalancedNodeSelectionStrategyChannel{channels=" + channels + '}';
+    }
+
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
@@ -128,8 +140,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 @Override
                 public void onSuccess(Response response) {
                     inflight.decrementAndGet();
+
                     if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                         recentFailuresReservoir.update(FAILURE_WEIGHT);
+                        observability.debugLogStatusFailure(response);
+                    } else if (Responses.isClientError(response)) {
+                        // We track 4xx responses because bugs in the server might cause one node to erroneously
+                        // throw 401/403s when another node could actually return 200s. Empirically, healthy servers
+                        // do actually return a continuous background rate of 4xx responses, so we weight these
+                        // drastically less than 5xx responses.
+                        recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
                         observability.debugLogStatusFailure(response);
                     }
                 }
@@ -158,20 +178,23 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         SortableChannel computeScore() {
             int requestsInflight = inflight.get();
-            int recentFailures = recentFailuresReservoir.get();
+            double failureReservoir = recentFailuresReservoir.get();
 
-            int score = requestsInflight + recentFailures;
+            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
+            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
+            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
-            observability.debugLogComputedScore(requestsInflight, recentFailures, score);
+            observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
             return new SortableChannel(score, this);
         }
 
         @Override
         public String toString() {
-            return "MutableChannelWithStats{inflight="
-                    + inflight + ", recentFailures="
-                    + recentFailuresReservoir + ", delegate="
-                    + delegate + '}';
+            return "MutableChannelWithStats{score=" + computeScore().score
+                    + ", inflight=" + inflight
+                    + ", recentFailures=" + recentFailuresReservoir
+                    + ", delegate=" + delegate
+                    + '}';
         }
     }
 
@@ -201,7 +224,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static void registerGauges(
             TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableChannelWithStats> channels) {
         if (channels.size() > 10) {
-            log.info("Not registering gauges as there are too many nodes", SafeArg.of("count", channels.size()));
+            log.info("Not registering gauges as there are too many nodes {}", SafeArg.of("count", channels.size()));
             return;
         }
 
@@ -264,7 +287,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, int failures, int score) {
+        void debugLogComputedScore(int inflight, double failures, int score) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",
