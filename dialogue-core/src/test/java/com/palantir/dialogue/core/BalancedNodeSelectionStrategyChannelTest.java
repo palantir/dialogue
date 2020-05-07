@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -32,6 +33,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
@@ -100,8 +102,62 @@ class BalancedNodeSelectionStrategyChannelTest {
         verify(chan2, times(1)).maybeExecute(any(), any());
     }
 
+    @Test
+    void a_single_4xx_doesnt_move_the_needle() {
+        when(chan1.maybeExecute(any(), any())).thenReturn(http(400)).thenReturn(http(200));
+        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+
+        for (long start = clock.read();
+                clock.read() < start + Duration.ofSeconds(10).toNanos();
+                incrementClockBy(Duration.ofMillis(50))) {
+            channel.maybeExecute(endpoint, request);
+            assertThat(channel.getScores())
+                    .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
+                    .containsExactly(0, 0);
+        }
+
+        verify(chan1, times(99)).maybeExecute(any(), any());
+        verify(chan2, times(101)).maybeExecute(any(), any());
+    }
+
+    @Test
+    void constant_4xxs_do_eventually_move_the_needle_but_we_go_back_to_fair_distribution() {
+        when(chan1.maybeExecute(any(), any())).thenReturn(http(400));
+        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+
+        for (int i = 0; i < 11; i++) {
+            channel.maybeExecute(endpoint, request);
+            assertThat(channel.getScores())
+                    .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), channel)
+                    .containsExactly(0, 0);
+            incrementClockBy(Duration.ofMillis(50));
+        }
+        channel.maybeExecute(endpoint, request);
+        assertThat(channel.getScores())
+                .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), channel)
+                .containsExactly(1, 0);
+
+        incrementClockBy(Duration.ofSeconds(5));
+
+        // it's important that scores are integers because if we kept the full double precision, then a single 4xx
+        // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
+        assertThat(channel.getScores())
+                .describedAs(
+                        "%s: We quickly forget about 4xxs and go back to fair shuffling %s",
+                        Duration.ofNanos(clock.read()), channel)
+                .containsExactly(0, 0);
+    }
+
     private static void set200(LimitedChannel chan) {
-        when(chan.maybeExecute(any(), any()))
-                .thenReturn(Optional.of(Futures.immediateFuture(new TestResponse().code(200))));
+        when(chan.maybeExecute(any(), any())).thenReturn(http(200));
+    }
+
+    private static Optional<ListenableFuture<Response>> http(int value) {
+        return Optional.of(Futures.immediateFuture(new TestResponse().code(value)));
+    }
+
+    private void incrementClockBy(Duration duration) {
+        long before = clock.read();
+        when(clock.read()).thenReturn(before + duration.toNanos());
     }
 }

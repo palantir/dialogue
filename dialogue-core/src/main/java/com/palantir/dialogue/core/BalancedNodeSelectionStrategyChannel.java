@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
@@ -106,6 +107,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return mutableList;
     }
 
+    @VisibleForTesting
+    IntStream getScores() {
+        return channels.stream().mapToInt(c -> c.computeScore().score);
+    }
+
+    @Override
+    public String toString() {
+        return "BalancedNodeSelectionStrategyChannel{channels=" + channels + '}';
+    }
+
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
@@ -177,10 +188,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         @Override
         public String toString() {
-            return "MutableChannelWithStats{inflight="
-                    + inflight + ", recentFailures="
-                    + recentFailuresReservoir + ", delegate="
-                    + delegate + '}';
+            return "MutableChannelWithStats{score=" + computeScore().score
+                    + ", inflight=" + inflight
+                    + ", recentFailures=" + recentFailuresReservoir
+                    + ", delegate=" + delegate
+                    + '}';
         }
     }
 
