@@ -22,30 +22,34 @@ import com.codahale.metrics.Histogram;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.codahale.metrics.Timer;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-final class VersionedTaggedMetricRegistry implements TaggedMetricRegistry {
+public final class DialogueInternalVersionedTaggedMetricRegistry implements TaggedMetricRegistry {
     private static final String DIALOGUE_VERSION = Optional.ofNullable(
-                    VersionedTaggedMetricRegistry.class.getPackage().getImplementationVersion())
+                    DialogueInternalVersionedTaggedMetricRegistry.class
+                            .getPackage()
+                            .getImplementationVersion())
             .orElse("dev");
 
     private final TaggedMetricRegistry delegate;
 
-    private VersionedTaggedMetricRegistry(TaggedMetricRegistry delegate) {
-        this.delegate = delegate;
+    private DialogueInternalVersionedTaggedMetricRegistry(TaggedMetricRegistry delegate) {
+        this.delegate = Preconditions.checkNotNull(delegate, "TaggedMetricRegistry");
     }
 
-    static VersionedTaggedMetricRegistry create(TaggedMetricRegistry delegate) {
-        if (delegate instanceof VersionedTaggedMetricRegistry) {
-            return (VersionedTaggedMetricRegistry) delegate;
+    public static DialogueInternalVersionedTaggedMetricRegistry wrap(TaggedMetricRegistry delegate) {
+        if (delegate instanceof DialogueInternalVersionedTaggedMetricRegistry) {
+            return (DialogueInternalVersionedTaggedMetricRegistry) delegate;
         }
-        return new VersionedTaggedMetricRegistry(delegate);
+        return new DialogueInternalVersionedTaggedMetricRegistry(delegate);
     }
 
     private MetricName augment(MetricName name) {
@@ -142,5 +146,22 @@ final class VersionedTaggedMetricRegistry implements TaggedMetricRegistry {
     public boolean removeMetrics(String _safeTagName, String _safeTagValue, TaggedMetricSet _metrics) {
         throw new UnsupportedOperationException(
                 "Removal operations are not implemented as we don't need them in dialogue");
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        DialogueInternalVersionedTaggedMetricRegistry that = (DialogueInternalVersionedTaggedMetricRegistry) obj;
+        return delegate.equals(that.delegate);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(delegate);
     }
 }

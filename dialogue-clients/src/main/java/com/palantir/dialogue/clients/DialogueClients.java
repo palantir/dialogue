@@ -61,6 +61,7 @@ public final class DialogueClients {
     }
 
     /** Low-level API. Most users won't need this, but it is necessary to construct feign-shim clients. */
+    @CheckReturnValue
     public interface ReloadingChannelFactory {
         Channel getChannel(String serviceName);
     }

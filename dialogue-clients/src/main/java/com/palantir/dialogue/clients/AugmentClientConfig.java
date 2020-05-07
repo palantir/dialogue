@@ -23,6 +23,7 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.dialogue.core.DialogueInternalVersionedTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
@@ -36,8 +37,13 @@ import org.immutables.value.Value;
 interface AugmentClientConfig {
     @Value.Default
     @SuppressWarnings("deprecation") // ideally users would wire in a registry, but this works out of the box
-    default TaggedMetricRegistry taggedMetrics() {
+    default TaggedMetricRegistry userProvidedTaggedMetrics() {
         return SharedTaggedMetricRegistries.getSingleton();
+    }
+
+    @Value.Derived
+    default TaggedMetricRegistry taggedMetricRegistry() {
+        return DialogueInternalVersionedTaggedMetricRegistry.wrap(userProvidedTaggedMetrics());
     }
 
     Optional<UserAgent> userAgent();
@@ -76,7 +82,7 @@ interface AugmentClientConfig {
         }
 
         builder.userAgent(augment.userAgent());
-        builder.taggedMetricRegistry(augment.taggedMetrics());
+        builder.taggedMetricRegistry(augment.taggedMetricRegistry());
 
         augment.nodeSelectionStrategy().ifPresent(builder::nodeSelectionStrategy);
         augment.clientQoS().ifPresent(builder::clientQoS);

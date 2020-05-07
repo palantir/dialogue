@@ -144,7 +144,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public DialogueClients.ReloadingFactory withTaggedMetrics(TaggedMetricRegistry metrics) {
-        return new ReloadingClientFactory(params.withTaggedMetrics(metrics), cache);
+        return new ReloadingClientFactory(params.withUserProvidedTaggedMetrics(metrics), cache);
     }
 
     @Override

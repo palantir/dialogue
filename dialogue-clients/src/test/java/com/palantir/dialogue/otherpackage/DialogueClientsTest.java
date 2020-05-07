@@ -16,8 +16,11 @@
 
 package com.palantir.dialogue.otherpackage;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.codahale.metrics.Meter;
+import com.codahale.metrics.Metric;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -26,12 +29,15 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.clients.ConjureClients;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
@@ -80,6 +86,43 @@ class DialogueClientsTest {
 
         Alternative alternativeFactory = new Alternative();
         new LibraryClassWithMixins<>(alternativeFactory).doSomething();
+    }
+
+    @Test
+    void all_metrics_should_have_dialogue_version_tag() {
+        DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        Channel channel = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withTaggedMetrics(registry)
+                .getChannel("multipass");
+        assertThat(channel).isNotNull();
+
+        assertThat(registry.getMetrics().keySet()).allSatisfy(name -> {
+            assertThat(name.safeTags()).containsKey("dialogueVersion");
+        });
+
+        Meter clientsCreated = query(registry, Meter.class, "dialogue.client.create", "client-type", "apache");
+        assertThat(clientsCreated.getCount())
+                .describedAs("number of apache clients created")
+                .isEqualTo(1);
+
+        Meter channelsCreated =
+                query(registry, Meter.class, "dialogue.client.create", "client-type", "dialogue-channel-non-reloading");
+        assertThat(channelsCreated.getCount())
+                .describedAs("number of DialogueChannel#buildNonReloading calls")
+                .isEqualTo(1);
+
+        assertThat(registry.getMetrics()).hasSize(20);
+    }
+
+    private static <T extends Metric> T query(
+            TaggedMetricRegistry registry, Class<T> clazz, String name, String tagKey, String tagValue) {
+        return registry.getMetrics().entrySet().stream()
+                .filter(e -> e.getKey().safeName().equals(name)
+                        && e.getKey().safeTags().get(tagKey).equals(tagValue))
+                .map(e -> clazz.cast(e.getValue()))
+                .findFirst()
+                .orElseThrow(() -> new SafeRuntimeException("Unable to find metric"));
     }
 
     // this is the recommended way to depend on a clientfactory
