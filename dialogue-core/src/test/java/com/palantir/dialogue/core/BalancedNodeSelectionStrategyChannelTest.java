@@ -139,8 +139,6 @@ class BalancedNodeSelectionStrategyChannelTest {
 
         incrementClockBy(Duration.ofSeconds(5));
 
-        // it's important that scores are integers because if we kept the full double precision, then a single 4xx
-        // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
         assertThat(channel.getScores())
                 .describedAs(
                         "%s: We quickly forget about 4xxs and go back to fair shuffling %s",

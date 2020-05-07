@@ -180,6 +180,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int requestsInflight = inflight.get();
             double failureReservoir = recentFailuresReservoir.get();
 
+            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
+            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
