@@ -23,6 +23,7 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -57,7 +58,7 @@ public class ConcurrencyLimitedChannelTest {
 
     @Spy
     private AimdConcurrencyLimiter.Permit permit =
-            new AimdConcurrencyLimiter().acquire().get();
+            new AimdConcurrencyLimiter(Ticker.systemTicker()).acquire().get();
 
     @Mock
     private Response response;
@@ -65,6 +66,10 @@ public class ConcurrencyLimitedChannelTest {
     private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
     private ConcurrencyLimitedChannel channel;
     private SettableFuture<Response> responseFuture;
+
+    static AimdConcurrencyLimiter createLimiter() {
+        return new AimdConcurrencyLimiter(Ticker.systemTicker());
+    }
 
     @BeforeEach
     public void before() {
@@ -122,11 +127,7 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
-                new ChannelToLimitedChannelAdapter(delegate),
-                ConcurrencyLimitedChannel.createLimiter(),
-                "channel",
-                0,
-                metrics);
+                new ChannelToLimitedChannelAdapter(delegate), createLimiter(), "channel", 0, metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }

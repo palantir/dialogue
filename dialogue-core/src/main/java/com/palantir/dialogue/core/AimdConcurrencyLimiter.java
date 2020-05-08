@@ -16,12 +16,16 @@
 
 package com.palantir.dialogue.core;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.IntBinaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,6 +50,18 @@ final class AimdConcurrencyLimiter {
     private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
+    private final Ticker ticker;
+    /** When should we apply the next limit increase. */
+    private final AtomicLong nextIncreaseNanos;
+
+    private final AtomicBoolean shouldIncreaseLimit = new AtomicBoolean(false);
+
+    AimdConcurrencyLimiter(Ticker ticker) {
+        this.ticker = ticker;
+        this.nextIncreaseNanos =
+                new AtomicLong(ticker.read() + Duration.ofSeconds(1).toNanos());
+    }
+
     /**
      * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
@@ -63,10 +79,10 @@ final class AimdConcurrencyLimiter {
         if (currentInFlight >= getLimit()) {
             return Optional.empty();
         }
-        return Optional.of(createToken());
+        return Optional.of(createPermit());
     }
 
-    private Permit createToken() {
+    private Permit createPermit() {
         int inFlightSnapshot = inFlight.incrementAndGet();
         return new Permit(inFlightSnapshot);
     }
@@ -110,8 +126,7 @@ final class AimdConcurrencyLimiter {
          */
         void dropped() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
-            log.info("DOWN {}", SafeArg.of("newLimit", newLimit));
+            down(inFlightSnapshot);
         }
 
         /**
@@ -120,8 +135,32 @@ final class AimdConcurrencyLimiter {
          */
         void success() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
-            log.info("UP {}", SafeArg.of("newLimit", newLimit));
+            up(inFlightSnapshot);
+        }
+    }
+
+    private void down(int inFlightSnapshot) {
+        int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
+        shouldIncreaseLimit.set(false);
+        log.info("DOWN {}", SafeArg.of("newLimit", newLimit));
+    }
+
+    private void up(int inFlightSnapshot) {
+        long now = ticker.read();
+        long nextUpdate = nextIncreaseNanos.get();
+        if (now < nextUpdate) {
+            // store the change for later the next update
+            shouldIncreaseLimit.compareAndSet(false, true);
+        } else {
+            // TODO(dfox): should the getLimit method also possibly apply a stored increase?
+            if (nextIncreaseNanos.compareAndSet(
+                    nextUpdate, now + Duration.ofSeconds(1).toNanos())) {
+                // we managed to advance the window, so we get to increase the limit
+                if (shouldIncreaseLimit.getAndSet(false)) {
+                    int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
+                    log.info("UP {}", SafeArg.of("newLimit", newLimit));
+                }
+            }
         }
     }
 

@@ -20,19 +20,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.dialogue.Response;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 public class AimdConcurrencyLimiterTest {
 
     private AimdConcurrencyLimiter limiter;
 
+    @Mock
+    Ticker ticker;
+
     @BeforeEach
     public void before() {
-        limiter = new AimdConcurrencyLimiter();
+        limiter = new AimdConcurrencyLimiter(ticker);
     }
 
     @Test
@@ -103,6 +112,9 @@ public class AimdConcurrencyLimiterTest {
         }
 
         limiter.acquire().get().success();
+        when(ticker.read()).thenReturn(Duration.ofSeconds(1).toNanos() + 1);
+        limiter.acquire().get().success(); // this one does the update.
+
         assertThat(limiter.getLimit()).isEqualTo(max + 1);
     }
 

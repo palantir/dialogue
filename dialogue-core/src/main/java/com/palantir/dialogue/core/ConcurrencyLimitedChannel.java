@@ -52,7 +52,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
+                return new ConcurrencyLimitedChannel(
+                        channel, new AimdConcurrencyLimiter(cf.ticker()), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return channel;
         }
@@ -84,10 +85,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                         .build(),
                 this,
                 ConcurrencyLimitedChannel::getMax);
-    }
-
-    static AimdConcurrencyLimiter createLimiter() {
-        return new AimdConcurrencyLimiter();
     }
 
     @Override
