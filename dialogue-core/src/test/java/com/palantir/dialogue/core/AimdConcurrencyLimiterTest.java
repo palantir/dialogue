@@ -82,7 +82,7 @@ public class AimdConcurrencyLimiterTest {
     public void dropped_reducesLimit() {
         int max = limiter.getLimit();
         limiter.acquire().get().dropped();
-        assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
+        assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.6));
     }
 
     @Test
@@ -97,7 +97,7 @@ public class AimdConcurrencyLimiterTest {
     @Test
     public void success_increasesLimitOnlyIfSufficientNumberOfRequestsAreInflight() {
         int max = limiter.getLimit();
-        for (int i = 0; i < max / 2; ++i) {
+        for (int i = 0; i < max * 0.95; ++i) {
             limiter.acquire().get();
             assertThat(limiter.getLimit()).isEqualTo(max);
         }
@@ -124,7 +124,7 @@ public class AimdConcurrencyLimiterTest {
 
             int max = limiter.getLimit();
             limiter.acquire().get().onSuccess(response);
-            assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
+            assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.6));
         }
     }
 
@@ -134,7 +134,7 @@ public class AimdConcurrencyLimiterTest {
 
         int max = limiter.getLimit();
         limiter.acquire().get().onFailure(exception);
-        assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
+        assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.6));
     }
 
     @Test
