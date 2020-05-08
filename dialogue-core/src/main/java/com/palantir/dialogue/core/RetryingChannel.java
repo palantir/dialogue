@@ -330,7 +330,7 @@ final class RetryingChannel implements Channel {
             return throwable instanceof IOException;
         }
 
-        private void logRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
+        private void logRetry(long backoffNanoseconds, @Nullable Throwable _throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
@@ -339,8 +339,7 @@ final class RetryingChannel implements Channel {
                         SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
-                        SafeArg.of("endpoint", endpoint.endpointName()),
-                        throwable);
+                        SafeArg.of("endpoint", endpoint.endpointName()));
             }
         }
 

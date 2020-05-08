@@ -31,6 +31,8 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -38,6 +40,7 @@ import java.util.function.Function;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
     static final int INITIAL_LIMIT = 20;
 
     private final Meter limitedMeter;
@@ -91,6 +94,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         Optional<AimdConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
         if (maybePermit.isPresent()) {
+            log.info(
+                    "Sent. {}/{}",
+                    SafeArg.of("inflight", limiter.getInflight()),
+                    SafeArg.of("max", limiter.getLimit()));
             AimdConcurrencyLimiter.Permit permit = maybePermit.get();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
@@ -100,6 +107,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             }
             return result;
         } else {
+            log.info("Limited. {}", SafeArg.of("max", limiter.getLimit()));
             limitedMeter.mark();
             return Optional.empty();
         }
