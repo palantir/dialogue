@@ -11,6 +11,7 @@ dependencies {
     compile 'com.palantir.tracing:tracing'
     compile 'io.dropwizard.metrics:metrics-core'
     compile 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    compile 'com.netflix.concurrency-limits:concurrency-limits-core'
     implementation 'com.palantir.tritium:tritium-metrics'
 
     testImplementation 'com.palantir.tracing:tracing-test-utils'
