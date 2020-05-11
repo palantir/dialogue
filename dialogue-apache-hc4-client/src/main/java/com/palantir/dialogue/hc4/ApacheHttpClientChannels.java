@@ -404,8 +404,6 @@ public final class ApacheHttpClientChannels {
                             // empty path parameters cannot be matched by the server.
                             .setNormalizeUri(false)
                             .build())
-                    .setDefaultSocketConfig(socketConfig)
-                    .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
@@ -418,7 +416,6 @@ public final class ApacheHttpClientChannels {
                     .disableCookieManagement()
                     // Dialogue handles content-compression with ContentDecodingChannel
                     .disableContentCompression()
-                    .setSSLSocketFactory(sslSocketFactory)
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
