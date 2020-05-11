@@ -174,11 +174,13 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(308);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
+        long startTime = System.nanoTime();
+        Duration backoffSlotSize = Duration.ofSeconds(10);
         Channel retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
-                Duration.ZERO,
+                backoffSlotSize,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(TestEndpoint.POST, REQUEST);
@@ -187,6 +189,9 @@ public class RetryingChannelTest {
                 .as("After retries are exhausted the 308 response should be returned")
                 .isSameAs(mockResponse);
         verify(channel, times(4)).execute(TestEndpoint.POST, REQUEST);
+        assertThat(Duration.ofNanos(System.nanoTime() - startTime))
+                .as("308 responses should be immediately retried")
+                .isLessThan(backoffSlotSize);
     }
 
     @Test

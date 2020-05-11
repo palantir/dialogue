@@ -20,7 +20,7 @@ import com.palantir.dialogue.Response;
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
 
-    private static boolean isRetryOther(Response response) {
+    static boolean isRetryOther(Response response) {
         return response.code() == 308;
     }
 

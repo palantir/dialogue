@@ -223,9 +223,10 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> scheduleRetry(@Nullable Throwable throwableToLog, Meter meter) {
+        ListenableFuture<Response> scheduleRetry(
+                @Nullable Throwable throwableToLog, Meter meter, BackoffBehavior backoffBehavior) {
             meter.mark();
-            long backoffNanoseconds = getBackoffNanoseconds();
+            long backoffNanoseconds = backoffBehavior.apply(getBackoffNanoseconds());
             logRetry(backoffNanoseconds, throwableToLog);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
@@ -279,7 +280,10 @@ final class RetryingChannel implements Channel {
             if (++failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
-                return scheduleRetry(throwableToLog, meter);
+                return scheduleRetry(
+                        throwableToLog,
+                        meter,
+                        Responses.isRetryOther(response) ? BackoffBehavior.DISABLED : BackoffBehavior.DEFAULT);
             }
             if (log.isInfoEnabled()) {
                 SafeRuntimeException stacktrace = debugStacktrace.orElse(null);
@@ -301,7 +305,7 @@ final class RetryingChannel implements Channel {
                 if (shouldAttemptToRetry(throwable)) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(throwable);
-                    return scheduleRetry(throwable, retryReason);
+                    return scheduleRetry(throwable, retryReason, BackoffBehavior.DEFAULT);
                 } else if (log.isDebugEnabled()) {
                     debugStacktrace.ifPresent(throwable::addSuppressed);
                     log.debug(
@@ -378,5 +382,22 @@ final class RetryingChannel implements Channel {
             ScheduledExecutorService delegate, TaggedMetricRegistry metrics) {
         return MoreExecutors.listeningDecorator(
                 Tracers.wrap(SCHEDULER_NAME, MetricRegistries.instrument(metrics, delegate, SCHEDULER_NAME)));
+    }
+
+    private enum BackoffBehavior {
+        DEFAULT() {
+            @Override
+            long apply(long original) {
+                return original;
+            }
+        },
+        DISABLED() {
+            @Override
+            long apply(long _original) {
+                return 0L;
+            }
+        };
+
+        abstract long apply(long original);
     }
 }
