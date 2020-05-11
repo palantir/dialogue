@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: 308 retry-other responses don't use exponential backoff
+  links:
+  - https://github.com/palantir/dialogue/pull/729
