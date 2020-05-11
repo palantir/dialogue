@@ -66,7 +66,9 @@ enum ErrorDecoder {
                 if (location.isPresent()) {
                     String locationHeader = location.get();
                     try {
-                        return toRemoteException(code, QosException.retryOther(new URL(locationHeader)));
+                        UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
+                        remoteException.initCause(QosException.retryOther(new URL(locationHeader)));
+                        return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
                                 "Failed to parse location header for QosException.RetryOther",
@@ -114,11 +116,5 @@ enum ErrorDecoder {
         try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
             return CharStreams.toString(reader);
         }
-    }
-
-    private static UnknownRemoteException toRemoteException(int code, QosException qos) {
-        UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
-        remoteException.initCause(qos);
-        return remoteException;
     }
 }
