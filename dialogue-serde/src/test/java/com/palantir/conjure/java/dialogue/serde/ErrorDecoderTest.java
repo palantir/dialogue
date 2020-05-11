@@ -160,10 +160,13 @@ public final class ErrorDecoderTest {
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
-        assertThat(result).isInstanceOfSatisfying(QosException.RetryOther.class, exception -> assertThat(
-                        exception.getRedirectTo())
-                .asString()
-                .isEqualTo(expectedLocation));
+        assertThat(result)
+                .isInstanceOf(UnknownRemoteException.class)
+                .getRootCause()
+                .isInstanceOfSatisfying(
+                        QosException.RetryOther.class,
+                        exception ->
+                                assertThat(exception.getRedirectTo()).asString().isEqualTo(expectedLocation));
     }
 
     @Test
