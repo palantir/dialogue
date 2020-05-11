@@ -36,10 +36,12 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,9 +63,8 @@ public class RetryingChannelTest {
     public void testNoFailures() throws ExecutionException, InterruptedException {
         when(channel.execute(any(), any())).thenReturn(SUCCESS);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -77,9 +78,8 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -97,9 +97,8 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -114,9 +113,8 @@ public class RetryingChannelTest {
     public void testRetriesMax() {
         when(channel.execute(any(), any())).thenReturn(FAILED);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -132,9 +130,8 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -153,9 +150,8 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(503);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -176,9 +172,8 @@ public class RetryingChannelTest {
 
         long startTime = System.nanoTime();
         Duration backoffSlotSize = Duration.ofSeconds(10);
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 backoffSlotSize,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -200,9 +195,8 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(308);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 // This does not apply to 308 responses
@@ -222,9 +216,8 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(429);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -241,9 +234,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -260,9 +252,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -277,9 +268,8 @@ public class RetryingChannelTest {
     public void doesnt_retry_500s_for_post() throws Exception {
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -296,9 +286,8 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(503);
         when(channel.execute(any(), any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
@@ -320,9 +309,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response2))
                 .thenReturn(Futures.immediateFuture(eventualSuccess));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -345,9 +333,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response2))
                 .thenReturn(Futures.immediateFuture(response3));
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 2,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -367,9 +354,8 @@ public class RetryingChannelTest {
     public void testPropagatesCancel() {
         ListenableFuture<Response> delegateResult = SettableFuture.create();
         when(channel.execute(any(), any())).thenReturn(delegateResult);
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 3,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -385,9 +371,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
                 .thenReturn(SUCCESS);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -402,9 +387,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
                 .thenReturn(SUCCESS);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -419,9 +403,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SafeRuntimeException("bug")))
                 .thenReturn(SUCCESS);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -439,9 +422,8 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
                 .thenReturn(SUCCESS);
 
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -455,9 +437,8 @@ public class RetryingChannelTest {
         when(channel.execute(any(), any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        Channel retryer = new RetryingChannel(
+        Channel retryer = createRetryingChannel(
                 channel,
-                "my-channel",
                 1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
@@ -494,5 +475,23 @@ public class RetryingChannelTest {
         Response response = mock(Response.class);
         when(response.code()).thenReturn(status);
         return response;
+    }
+
+    private static RetryingChannel createRetryingChannel(
+            Channel delegate,
+            int maxRetries,
+            Duration backoffSlotSize,
+            ClientConfiguration.ServerQoS serverQoS,
+            ClientConfiguration.RetryOnTimeout retryOnTimeout) {
+        return new RetryingChannel(
+                delegate,
+                "my-channel",
+                new DefaultTaggedMetricRegistry(),
+                maxRetries,
+                backoffSlotSize,
+                serverQoS,
+                retryOnTimeout,
+                RetryingChannel.sharedScheduler.get(),
+                () -> ThreadLocalRandom.current().nextDouble());
     }
 }

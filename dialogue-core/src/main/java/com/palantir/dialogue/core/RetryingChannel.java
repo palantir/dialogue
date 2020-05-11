@@ -38,7 +38,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
@@ -47,7 +46,6 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 import java.util.function.DoubleSupplier;
@@ -122,25 +120,6 @@ final class RetryingChannel implements Channel {
 
     @VisibleForTesting
     RetryingChannel(
-            Channel delegate,
-            String channelName,
-            int maxRetries,
-            Duration backoffSlotSize,
-            ClientConfiguration.ServerQoS serverQoS,
-            ClientConfiguration.RetryOnTimeout retryOnTimeout) {
-        this(
-                delegate,
-                channelName,
-                new DefaultTaggedMetricRegistry(),
-                maxRetries,
-                backoffSlotSize,
-                serverQoS,
-                retryOnTimeout,
-                sharedScheduler.get(),
-                () -> ThreadLocalRandom.current().nextDouble());
-    }
-
-    private RetryingChannel(
             Channel delegate,
             String channelName,
             TaggedMetricRegistry metrics,
