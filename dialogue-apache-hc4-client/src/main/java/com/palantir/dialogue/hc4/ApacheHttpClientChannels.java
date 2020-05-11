@@ -17,7 +17,9 @@ package com.palantir.dialogue.hc4;
 
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -48,6 +50,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
@@ -75,6 +78,7 @@ import org.apache.http.impl.auth.BasicSchemeFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.client.IdleConnectionEvictor;
 import org.apache.http.impl.client.ProxyAuthenticationStrategy;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
@@ -160,15 +164,17 @@ public final class ApacheHttpClientChannels {
         private final CloseableHttpClient apacheClient;
         private final PoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
-        private final Meter closeMeter;
 
         @Nullable
         private final ExecutorService executor;
+
+        private final Closer closer = Closer.create();
 
         private CloseableClient(
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
+                IdleConnectionEvictor connectionEvictor,
                 TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
@@ -177,23 +183,40 @@ public final class ApacheHttpClientChannels {
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
-            this.closeMeter = DialogueClientMetrics.of(taggedMetrics)
+            closer.register(() -> {
+                connectionEvictor.shutdown();
+                try {
+                    connectionEvictor.awaitTermination(1L, TimeUnit.SECONDS);
+                } catch (final InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                }
+            });
+            closer.register(apacheClient);
+            closer.register(pool::shutdown);
+            closer.register(DialogueClientMetrics.of(taggedMetrics)
                     .close()
                     .clientName(clientName)
                     .clientType(APACHE)
-                    .build();
+                    .build()::mark);
         }
 
         static CloseableClient wrap(
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
+                IdleConnectionEvictor connectionEvictor,
                 ClientConfiguration clientConfiguration,
                 @Nullable ExecutorService executor) {
             ResponseLeakDetector leakDetector =
                     ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry());
             CloseableClient newInstance = new CloseableClient(
-                    apacheClient, clientName, pool, clientConfiguration.taggedMetricRegistry(), leakDetector, executor);
+                    apacheClient,
+                    clientName,
+                    pool,
+                    connectionEvictor,
+                    clientConfiguration.taggedMetricRegistry(),
+                    leakDetector,
+                    executor);
             log.info(
                     "Created Apache client {} {} {} {}",
                     SafeArg.of("name", clientName),
@@ -261,9 +284,7 @@ public final class ApacheHttpClientChannels {
             // It's important to close the apacheClient object to avoid leaking threads, in
             // particular the idle connection eviction thread from IdleConnectionEvictor, though there may
             // be additional closeable resources.
-            apacheClient.close();
-
-            closeMeter.mark();
+            closer.close();
         }
 
         @Override
@@ -336,7 +357,7 @@ public final class ApacheHttpClientChannels {
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
             // as clients attempt to use them.
-            long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(55).toMillis(), socketTimeoutMillis);
+            long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(50).toMillis(), socketTimeoutMillis);
             // Increased from two seconds to 40% of the idle connection timeout because we have strong support for
             // retries
             // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
@@ -385,7 +406,9 @@ public final class ApacheHttpClientChannels {
                             .build())
                     .setDefaultSocketConfig(socketConfig)
                     .evictIdleConnections(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
-                    .setConnectionManagerShared(false) // will be closed when the client is closed
+                    // Connection pool lifecycle must be managed separately. This allows us to configure a more
+                    // precise IdleConnectionEvictor.
+                    .setConnectionManagerShared(true)
                     .setConnectionManager(connectionManager)
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
@@ -410,8 +433,29 @@ public final class ApacheHttpClientChannels {
             });
 
             CloseableHttpClient apacheClient = builder.build();
-            return CloseableClient.wrap(apacheClient, name, connectionManager, conf, executor);
+            IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
+                    connectionManager,
+                    idleConnectionEvictorThreadFactory(name, conf.taggedMetricRegistry()),
+                    // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
+                    // stale connections to race the server-side timeout.
+                    Math.min(idleConnectionTimeoutMillis, 5_000),
+                    TimeUnit.MILLISECONDS,
+                    idleConnectionTimeoutMillis,
+                    TimeUnit.MILLISECONDS);
+            return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictor, conf, executor);
         }
+    }
+
+    private static ThreadFactory idleConnectionEvictorThreadFactory(String clientName, TaggedMetricRegistry metrics) {
+        Preconditions.checkNotNull(clientName, "Client name is required");
+        Preconditions.checkNotNull(metrics, "TaggedMetricRegistry is required");
+        return MetricRegistries.instrument(
+                metrics,
+                new ThreadFactoryBuilder()
+                        .setNameFormat(clientName + "-IdleConnectionEvictor-%d")
+                        .setDaemon(true)
+                        .build(),
+                clientName + "-IdleConnectionEvictor");
     }
 
     /**
