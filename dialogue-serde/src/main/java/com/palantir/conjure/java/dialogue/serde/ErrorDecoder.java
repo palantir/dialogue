@@ -66,7 +66,9 @@ enum ErrorDecoder {
                 if (location.isPresent()) {
                     String locationHeader = location.get();
                     try {
-                        return QosException.retryOther(new URL(locationHeader));
+                        UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
+                        remoteException.initCause(QosException.retryOther(new URL(locationHeader)));
+                        return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
                                 "Failed to parse location header for QosException.RetryOther",
