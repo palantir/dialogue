@@ -187,7 +187,7 @@ public final class ApacheHttpClientChannels {
                 connectionEvictor.shutdown();
                 try {
                     connectionEvictor.awaitTermination(1L, TimeUnit.SECONDS);
-                } catch (final InterruptedException interrupted) {
+                } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                 }
             });
