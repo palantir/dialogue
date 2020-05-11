@@ -16,13 +16,15 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntBinaryOperator;
+import java.util.function.DoubleBinaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,13 +39,13 @@ import org.slf4j.LoggerFactory;
 final class AimdConcurrencyLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(AimdConcurrencyLimiter.class);
-    private static final int INITIAL_LIMIT = 20;
-    private static final double BACKOFF_RATIO = .6D;
-    private static final int MIN_LIMIT = 1;
+    private static final double INITIAL_LIMIT = 20;
+    private static final double BACKOFF_RATIO = .9D;
+    private static final double MIN_LIMIT = 1;
     // Effectively unlimited, reduced from MAX_VALUE to prevent overflow
     private static final int MAX_LIMIT = Integer.MAX_VALUE / 2;
 
-    private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
+    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
     /**
@@ -110,7 +112,7 @@ final class AimdConcurrencyLimiter {
          */
         void dropped() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
+            double newLimit = accumulateAndGet(limit, inFlightSnapshot, LimitUpdater.DROPPED);
             log.info("DOWN {}", SafeArg.of("newLimit", newLimit));
         }
 
@@ -120,25 +122,40 @@ final class AimdConcurrencyLimiter {
          */
         void success() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
+            double newLimit = accumulateAndGet(limit, inFlightSnapshot, LimitUpdater.SUCCESS);
             log.info("UP {}", SafeArg.of("newLimit", newLimit));
         }
     }
 
-    enum LimitUpdater implements IntBinaryOperator {
+    private static double accumulateAndGet(
+            AtomicDouble atomicDouble, double argument, DoubleBinaryOperator accumulatorFunction) {
+        double prev = atomicDouble.get();
+        double next = 0;
+        for (boolean haveNext = false; ; ) {
+            if (!haveNext) {
+                next = accumulatorFunction.applyAsDouble(prev, argument);
+            }
+            if (atomicDouble.compareAndSet(prev, next)) {
+                return next;
+            }
+            haveNext = (prev == (prev = atomicDouble.get()));
+        }
+    }
+
+    enum LimitUpdater implements DoubleBinaryOperator {
         SUCCESS() {
             @Override
-            public int applyAsInt(int originalLimit, int inFlightSnapshot) {
-                if (inFlightSnapshot >= originalLimit * 0.95) {
-                    return Math.min(MAX_LIMIT, originalLimit + 1);
+            public double applyAsDouble(double originalLimit, double inFlightSnapshot) {
+                if (inFlightSnapshot >= originalLimit * BACKOFF_RATIO) {
+                    return Math.min(MAX_LIMIT, originalLimit + (1D / originalLimit));
                 }
                 return originalLimit;
             }
         },
         DROPPED() {
             @Override
-            public int applyAsInt(int originalLimit, int _inFlightSnapshot) {
-                return Math.max(MIN_LIMIT, (int) (originalLimit * BACKOFF_RATIO));
+            public double applyAsDouble(double originalLimit, double _inFlightSnapshot) {
+                return Math.max(MIN_LIMIT, originalLimit * BACKOFF_RATIO);
             }
         };
     }
@@ -148,7 +165,7 @@ final class AimdConcurrencyLimiter {
      * permits such that another permit can be {@link #acquire acquired}.
      */
     int getLimit() {
-        return limit.get();
+        return Ints.saturatedCast(Math.round(limit.get()));
     }
 
     /**
