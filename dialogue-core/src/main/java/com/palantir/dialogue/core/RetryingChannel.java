@@ -200,14 +200,15 @@ final class RetryingChannel implements Channel {
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
-        private final Optional<SafeRuntimeException> debugStacktrace;
+        private final Optional<SafeRuntimeException> callsiteStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
-        private RetryingCallback(Endpoint endpoint, Request request, Optional<SafeRuntimeException> debugStacktrace) {
+        private RetryingCallback(
+                Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
-            this.debugStacktrace = debugStacktrace;
+            this.callsiteStacktrace = callsiteStacktrace;
         }
 
         ListenableFuture<Response> execute() {
@@ -223,11 +224,9 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> scheduleRetry(
-                @Nullable Throwable throwableToLog, Meter meter, BackoffBehavior backoffBehavior) {
+        ListenableFuture<Response> scheduleRetry(Meter meter, BackoffBehavior backoffBehavior) {
             meter.mark();
             long backoffNanoseconds = backoffBehavior.apply(getBackoffNanoseconds());
-            logRetry(backoffNanoseconds, throwableToLog);
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -279,14 +278,13 @@ final class RetryingChannel implements Channel {
                 Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
             if (++failures <= maxRetries) {
                 response.close();
-                Throwable throwableToLog = log.isInfoEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                infoLogRetry(throwableToLog);
                 return scheduleRetry(
-                        throwableToLog,
-                        meter,
-                        Responses.isRetryOther(response) ? BackoffBehavior.DISABLED : BackoffBehavior.DEFAULT);
+                        meter, Responses.isRetryOther(response) ? BackoffBehavior.DISABLED : BackoffBehavior.DEFAULT);
             }
             if (log.isInfoEnabled()) {
-                SafeRuntimeException stacktrace = debugStacktrace.orElse(null);
+                SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
                 log.info(
                         "Exhausted {} retries, returning a retryable response with status {}",
                         SafeArg.of("retries", maxRetries),
@@ -300,23 +298,24 @@ final class RetryingChannel implements Channel {
             return Futures.immediateFuture(response);
         }
 
-        ListenableFuture<Response> handleThrowable(Throwable throwable) {
+        ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             if (++failures <= maxRetries) {
-                if (shouldAttemptToRetry(throwable)) {
-                    debugStacktrace.ifPresent(throwable::addSuppressed);
-                    Meter retryReason = retryDueToThrowable.apply(throwable);
-                    return scheduleRetry(throwable, retryReason, BackoffBehavior.DEFAULT);
+                if (shouldAttemptToRetry(clientSideThrowable)) {
+                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
+                    Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
+                    infoLogRetry(clientSideThrowable);
+                    return scheduleRetry(retryReason, BackoffBehavior.DEFAULT);
                 } else if (log.isDebugEnabled()) {
-                    debugStacktrace.ifPresent(throwable::addSuppressed);
+                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     log.debug(
                             "Not attempting to retry failure",
                             SafeArg.of("channelName", channelName),
                             SafeArg.of("serviceName", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
-                            throwable);
+                            clientSideThrowable);
                 }
             }
-            return Futures.immediateFailedFuture(throwable);
+            return Futures.immediateFailedFuture(clientSideThrowable);
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
@@ -334,13 +333,12 @@ final class RetryingChannel implements Channel {
             return throwable instanceof IOException;
         }
 
-        private void logRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
+        private void infoLogRetry(@Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
                         "Retrying call after failure",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
-                        SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
