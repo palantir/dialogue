@@ -112,7 +112,7 @@ final class AimdConcurrencyLimiter {
             inFlight.decrementAndGet();
             int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
-                log.debug("DOWN {}", SafeArg.of("newLimit", newLimit));
+                log.debug("Decreasing limit {}", SafeArg.of("newLimit", newLimit));
             }
         }
 
@@ -124,7 +124,7 @@ final class AimdConcurrencyLimiter {
             inFlight.decrementAndGet();
             int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {
-                log.debug("UP {}", SafeArg.of("newLimit", newLimit));
+                log.debug("Increasing limit {}", SafeArg.of("newLimit", newLimit));
             }
         }
     }

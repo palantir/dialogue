@@ -113,7 +113,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private void logPermitAcquired() {
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Sending. {}/{}",
+                    "Sending {}/{}",
                     SafeArg.of("inflight", limiter.getInflight()),
                     SafeArg.of("max", limiter.getLimit()));
         }
@@ -121,7 +121,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private void logPermitRefused() {
         if (log.isDebugEnabled()) {
-            log.debug("Limited. {}", SafeArg.of("max", limiter.getLimit()));
+            log.debug("Limited {}", SafeArg.of("max", limiter.getLimit()));
         }
     }
 
