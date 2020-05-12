@@ -45,7 +45,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
-    private final AimdConcurrencyLimiter limiter;
+    private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
 
     static LimitedChannel create(Config cf, LimitedChannel channel, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
@@ -62,7 +62,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     ConcurrencyLimitedChannel(
             LimitedChannel delegate,
-            AimdConcurrencyLimiter limiter,
+            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
@@ -86,15 +86,15 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 ConcurrencyLimitedChannel::getMax);
     }
 
-    static AimdConcurrencyLimiter createLimiter() {
-        return new AimdConcurrencyLimiter();
+    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter() {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter();
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<AimdConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
         if (maybePermit.isPresent()) {
-            AimdConcurrencyLimiter.Permit permit = maybePermit.get();
+            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
@@ -130,7 +130,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         return "ConcurrencyLimitedChannel{" + delegate + '}';
     }
 
-    private int getMax() {
+    private double getMax() {
         return limiter.getLimit();
     }
 

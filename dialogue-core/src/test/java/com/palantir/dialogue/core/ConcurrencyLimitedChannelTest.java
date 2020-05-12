@@ -53,11 +53,11 @@ public class ConcurrencyLimitedChannelTest {
     private Channel delegate;
 
     @Mock
-    private AimdConcurrencyLimiter mockLimiter;
+    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter mockLimiter;
 
     @Spy
-    private AimdConcurrencyLimiter.Permit permit =
-            new AimdConcurrencyLimiter().acquire().get();
+    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit =
+            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter().acquire().get();
 
     @Mock
     private Response response;
@@ -133,9 +133,9 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     void testGauges() {
-        when(mockLimiter.getLimit()).thenReturn(21);
+        when(mockLimiter.getLimit()).thenReturn(21D);
 
-        assertThat(getMax()).isEqualTo(21);
+        assertThat(getMax()).isEqualTo(21D);
     }
 
     private void mockResponseCode(int code) {

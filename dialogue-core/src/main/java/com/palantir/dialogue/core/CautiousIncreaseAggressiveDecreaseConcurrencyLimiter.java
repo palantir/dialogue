@@ -16,34 +16,38 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.IntBinaryOperator;
+import java.util.function.DoubleBinaryOperator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Simple lock-free additive increase multiplicative decrease concurrency limiter. Typically, a dispatching
+ * Simple lock-free concurrency limiter. Typically, a dispatching
  * {@link com.palantir.dialogue.Request} tries to {@link #acquire} a new permit and releases it when the
  * corresponding {@link Response} is retrieved.
+ * This limiter uses an algorithm similar to additive increase multiplicative decrease (AIMD) with
+ * greater restriction on the increase component, requiring more successful requests to increase the limit
+ * as the limit grows.
  *
- * This class is a stripped-down version of the
+ * This class loosely based on the
  * <a href="https://github.com/Netflix/concurrency-limits">Netflix AIMD library</a>.
  */
-final class AimdConcurrencyLimiter {
+final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
-    private static final Logger log = LoggerFactory.getLogger(AimdConcurrencyLimiter.class);
-    private static final int INITIAL_LIMIT = 20;
+    private static final Logger log =
+            LoggerFactory.getLogger(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
+    private static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
-    private static final int MIN_LIMIT = 1;
-    // Effectively unlimited, reduced from MAX_VALUE to prevent overflow
-    private static final int MAX_LIMIT = Integer.MAX_VALUE / 2;
+    private static final double MIN_LIMIT = 1;
+    private static final double MAX_LIMIT = 1_000_000D;
 
-    private final AtomicInteger limit = new AtomicInteger(INITIAL_LIMIT);
+    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
     /**
@@ -110,7 +114,7 @@ final class AimdConcurrencyLimiter {
          */
         void dropped() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
+            double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
                 log.debug("Decreasing limit {}", SafeArg.of("newLimit", newLimit));
             }
@@ -122,36 +126,52 @@ final class AimdConcurrencyLimiter {
          */
         void success() {
             inFlight.decrementAndGet();
-            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
+            double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {
                 log.debug("Increasing limit {}", SafeArg.of("newLimit", newLimit));
             }
         }
     }
 
-    enum LimitUpdater implements IntBinaryOperator {
+    enum LimitUpdater implements DoubleBinaryOperator {
         SUCCESS() {
             @Override
-            public int applyAsInt(int originalLimit, int inFlightSnapshot) {
-                if (inFlightSnapshot * 2 >= originalLimit) {
-                    return Math.min(MAX_LIMIT, originalLimit + 1);
+            public double applyAsDouble(double originalLimit, double inFlightSnapshot) {
+                if (inFlightSnapshot >= originalLimit * BACKOFF_RATIO) {
+                    // The limit is raised more easily when the maximum limit is low, and becomes linearly more
+                    // stubborn as the limit increases. Given a fixed rate of traffic this should result in
+                    // linear slope as opposed to the exponential slope expected from a static increment
+                    // value.
+                    double increment = 1D / originalLimit;
+                    return Math.min(MAX_LIMIT, originalLimit + increment);
                 }
                 return originalLimit;
             }
         },
         DROPPED() {
             @Override
-            public int applyAsInt(int originalLimit, int _inFlightSnapshot) {
-                return Math.max(MIN_LIMIT, (int) (originalLimit * BACKOFF_RATIO));
+            public double applyAsDouble(double originalLimit, double _inFlightSnapshot) {
+                return Math.max(MIN_LIMIT, originalLimit * BACKOFF_RATIO);
             }
         };
+    }
+
+    private double accumulateAndGetLimit(int value, DoubleBinaryOperator accumulatorFunction) {
+        AtomicDouble localLimit = limit;
+        while (true) {
+            double limitSnapshot = localLimit.get();
+            double accumulatorResult = accumulatorFunction.applyAsDouble(limitSnapshot, value);
+            if (localLimit.compareAndSet(limitSnapshot, accumulatorResult)) {
+                return accumulatorResult;
+            }
+        }
     }
 
     /**
      * Returns the current concurrency limit, i.e., the maximum number of concurrent {@link #getInflight in-flight}
      * permits such that another permit can be {@link #acquire acquired}.
      */
-    int getLimit() {
+    double getLimit() {
         return limit.get();
     }
 
