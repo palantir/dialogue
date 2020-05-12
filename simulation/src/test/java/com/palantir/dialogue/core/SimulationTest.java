@@ -51,6 +51,8 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.knowm.xchart.XYChart;
@@ -88,7 +90,8 @@ import org.slf4j.LoggerFactory;
  *     <li>Black hole: one node just starts accepting requests but never returning responses
  * </ol>
  */
-public class SimulationTest {
+@Execution(ExecutionMode.CONCURRENT)
+final class SimulationTest {
     private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
     @Inherited
