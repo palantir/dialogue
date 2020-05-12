@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.junit.After;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
@@ -557,6 +558,15 @@ public class SimulationTest {
                 .describedAs("There should be no unclosed responses")
                 .isZero();
         log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
+    }
+
+    @Before
+    public void before() {
+        // purely a perf-optimization
+        simulation
+                .metricsReporter()
+                .onlyRecordMetricsFor(m ->
+                        m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
     }
 
     @AfterClass

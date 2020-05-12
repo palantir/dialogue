@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.knowm.xchart.BitmapEncoder;
@@ -54,6 +55,7 @@ final class SimulationMetricsReporter {
             Caffeine.newBuilder().build(name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
 
     private static final String X_AXIS = "time_sec";
+    private Predicate<MetricName> prefilter = foo -> true;
 
     SimulationMetricsReporter(Simulation simulation) {
         this.simulation = simulation;
@@ -66,6 +68,10 @@ final class SimulationMetricsReporter {
 
     public void report() {
         simulation.taggedMetrics().forEachMetric((metricName, metric) -> {
+            if (!prefilter.test(metricName)) {
+                return;
+            }
+
             String name = asString(metricName);
 
             if (metric instanceof Counting) { // includes meters too!
@@ -170,5 +176,9 @@ final class SimulationMetricsReporter {
         int rows = charts.length;
         int cols = 1;
         BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
+    }
+
+    public void onlyRecordMetricsFor(Predicate<MetricName> predicate) {
+        this.prefilter = predicate;
     }
 }
