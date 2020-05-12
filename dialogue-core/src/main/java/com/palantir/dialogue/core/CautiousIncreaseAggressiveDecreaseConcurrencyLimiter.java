@@ -159,6 +159,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
     }
 
     private double accumulateAndGetLimit(int value, DoubleBinaryOperator accumulatorFunction) {
+        // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
+        // reliably optimize out references to final fields due to the potential for reflective
+        // modification.
         AtomicDouble localLimit = limit;
         while (true) {
             double limitSnapshot = localLimit.get();
