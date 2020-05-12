@@ -23,9 +23,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TraceMetadata;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.SpanType;
 import com.palantir.tracing.api.TraceHttpHeaders;
+import java.util.Optional;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
@@ -47,31 +49,30 @@ final class TraceEnrichingChannel implements Channel {
     }
 
     private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
-        Request newRequest = Tracer.maybeGetTraceMetadata()
-                .map(metadata -> {
-                    Request.Builder requestBuilder = Request.builder()
-                            .from(request)
-                            .putHeaderParams(TraceHttpHeaders.TRACE_ID, Tracer.getTraceId())
-                            .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
-                            .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0");
+        Optional<TraceMetadata> maybeMetadata = Tracer.maybeGetTraceMetadata();
+        if (!maybeMetadata.isPresent()) {
+            return delegate.execute(endpoint, request);
+        }
+        TraceMetadata metadata = maybeMetadata.get();
 
-                    if (metadata.getParentSpanId().isPresent()) {
-                        requestBuilder.putHeaderParams(
-                                TraceHttpHeaders.PARENT_SPAN_ID,
-                                metadata.getParentSpanId().get());
-                    }
+        Request.Builder tracedRequest = Request.builder()
+                .from(request)
+                .putHeaderParams(TraceHttpHeaders.TRACE_ID, Tracer.getTraceId())
+                .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
+                .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0");
 
-                    if (metadata.getOriginatingSpanId().isPresent()) {
-                        requestBuilder.putHeaderParams(
-                                TraceHttpHeaders.ORIGINATING_SPAN_ID,
-                                metadata.getOriginatingSpanId().get());
-                    }
+        if (metadata.getParentSpanId().isPresent()) {
+            tracedRequest.putHeaderParams(
+                    TraceHttpHeaders.PARENT_SPAN_ID, metadata.getParentSpanId().get());
+        }
 
-                    return requestBuilder.build();
-                })
-                .orElse(request);
+        if (metadata.getOriginatingSpanId().isPresent()) {
+            tracedRequest.putHeaderParams(
+                    TraceHttpHeaders.ORIGINATING_SPAN_ID,
+                    metadata.getOriginatingSpanId().get());
+        }
 
-        return delegate.execute(endpoint, newRequest);
+        return delegate.execute(endpoint, tracedRequest.build());
     }
 
     @Override
