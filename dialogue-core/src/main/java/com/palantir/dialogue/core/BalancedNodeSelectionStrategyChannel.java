@@ -242,10 +242,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     c -> c.computeScore().getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
-                        if (longs.length > 1) {
-                            log.warn(
+                        if (log.isDebugEnabled() && longs.length > 1) {
+                            log.debug(
                                     "Multiple objects contribute to the same gauge, taking the average "
-                                            + "(beware this may be misleading)",
+                                            + "(beware this may be misleading) {} {}",
                                     SafeArg.of("metricName", metricName),
                                     SafeArg.of("values", Arrays.toString(longs)));
                         }
