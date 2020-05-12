@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: IdleConnectionEvictor is started properly
+  links:
+  - https://github.com/palantir/dialogue/pull/740
