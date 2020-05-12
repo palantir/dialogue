@@ -130,7 +130,7 @@ public class SimulationTest {
                 .sendUntil(Duration.ofMinutes(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
-                .abortAfter(Duration.ofMinutes(30))
+                .abortAfter(Duration.ofHours(1))
                 .run();
     }
 
