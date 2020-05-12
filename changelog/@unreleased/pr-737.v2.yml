@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: RetryingChannel no longer logs stacktraces at info, as these are primarily
+    useful for dialogue maintainers not users. Dialling up logging to debug will still
+    cause call-site stacktraces to be recorded, although this comes with a performance
+    cost.
+  links:
+  - https://github.com/palantir/dialogue/pull/737
