@@ -2,6 +2,6 @@ apply plugin: 'com.palantir.conjure'
 
 subprojects {
     dependencies {
-        compile project(':dialogue-target')
+        implementation project(':dialogue-target')
     }
 }

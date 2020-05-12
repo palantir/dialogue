@@ -10,9 +10,10 @@ dependencies {
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
 
-    testCompile project(':dialogue-test-common')
-    testCompile project(':dialogue-serde')
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

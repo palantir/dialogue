@@ -8,8 +8,8 @@ dependencies {
     implementation 'com.palantir.tritium:tritium-metrics'
 
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    testCompile 'org.assertj:assertj-core'
-    testCompile 'org.mockito:mockito-core'
-    testCompile 'org.awaitility:awaitility'
-    testCompile project(':dialogue-test-common')
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.awaitility:awaitility'
+    testImplementation project(':dialogue-test-common')
 }

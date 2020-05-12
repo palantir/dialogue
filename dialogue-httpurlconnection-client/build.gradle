@@ -5,6 +5,6 @@ dependencies {
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.safe-logging:preconditions'
 
-    testCompile project(':dialogue-test-common')
-    testCompile project(':dialogue-serde')
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
 }

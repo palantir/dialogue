@@ -1,13 +1,13 @@
 dependencies {
-    compile project(':dialogue-target')
-    compile project(':dialogue-core')
-    compile 'com.google.guava:guava'
-    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
-    compile 'com.palantir.safe-logging:preconditions'
-    compile 'com.squareup.okhttp3:okhttp'
+    implementation project(':dialogue-target')
+    implementation project(':dialogue-core')
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.squareup.okhttp3:okhttp'
 
-    testCompile project(':dialogue-test-common')
-    testCompile project(':dialogue-serde')
-    testCompile project(':dialogue-core')
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
+    testImplementation project(':dialogue-core')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

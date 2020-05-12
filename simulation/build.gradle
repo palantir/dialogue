@@ -5,9 +5,10 @@ versionsLock {
 dependencies {
     implementation project(':dialogue-core')
     implementation project(':dialogue-target')
-    implementation(project(':dialogue-test-common')) { exclude group: 'org.junit.jupiter' }
+    implementation project(':dialogue-test-common')
     implementation 'org.jmock:jmock'
     implementation 'org.knowm.xchart:xchart'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
 
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -19,7 +20,7 @@ dependencies {
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
 
     annotationProcessor 'org.immutables:value'
-    compile 'org.immutables:value::annotations'
+    api 'org.immutables:value::annotations'
 }
 
 tasks.withType(JavaCompile) {
