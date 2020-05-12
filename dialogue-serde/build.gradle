@@ -4,9 +4,20 @@ apply plugin: 'com.palantir.revapi'
 dependencies {
     api project(':dialogue-target')
     api 'com.google.guava:guava' // ListenableFuture
+    api 'com.palantir.ri:resource-identifier'
+    api 'com.palantir.tokens:auth-tokens'
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'org.slf4j:slf4j-api'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'com.fasterxml.jackson.core:jackson-core'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.conjure.java.api:errors'
+    implementation 'com.palantir.conjure.java:conjure-lib'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'jakarta.ws.rs:jakarta.ws.rs-api'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')

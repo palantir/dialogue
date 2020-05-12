@@ -40,7 +40,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -126,7 +125,7 @@ enum DefaultClients implements Clients {
         INSTANCE;
 
         @Override
-        public void onSuccess(@Nullable Object result) {
+        public void onSuccess(Object result) {
             if (result instanceof Closeable) {
                 try {
                     ((Closeable) result).close();

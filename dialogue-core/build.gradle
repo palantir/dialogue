@@ -12,6 +12,12 @@ dependencies {
     implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.conjure.java.api:service-config'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.palantir.tracing:tracing-api'
+    implementation 'org.slf4j:slf4j-api'
 
     testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'

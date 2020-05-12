@@ -83,4 +83,7 @@ subprojects {
             ]
         }
     })
+
+    tasks.check.dependsOn checkImplicitDependencies
+    tasks.checkImplicitDependenciesTest.enabled = false // doesn't impact users
 }

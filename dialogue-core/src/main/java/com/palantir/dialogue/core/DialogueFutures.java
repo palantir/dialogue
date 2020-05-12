@@ -22,7 +22,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.function.Consumer;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 final class DialogueFutures {
     private DialogueFutures() {}
@@ -42,7 +41,7 @@ final class DialogueFutures {
     static <T> FutureCallback<T> onSuccess(Consumer<T> onSuccess) {
         return new FutureCallback<T>() {
             @Override
-            public void onSuccess(@Nullable T result) {
+            public void onSuccess(T result) {
                 onSuccess.accept(result);
             }
 

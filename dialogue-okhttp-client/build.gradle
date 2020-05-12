@@ -11,3 +11,5 @@ dependencies {
     testImplementation project(':dialogue-core')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
+
+tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care

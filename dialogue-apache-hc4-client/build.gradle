@@ -11,6 +11,13 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.api:service-config'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'io.dropwizard.metrics:metrics-core'
+    implementation 'org.apache.httpcomponents:httpcore'
+    implementation 'org.slf4j:slf4j-api'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')

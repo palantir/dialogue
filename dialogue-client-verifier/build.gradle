@@ -47,6 +47,7 @@ subprojects {
     dependencies {
         implementation project(':dialogue-target')
     }
+    tasks.checkImplicitDependenciesMain.enabled = false
 }
 
 task unpackVerifier(type: Sync) {

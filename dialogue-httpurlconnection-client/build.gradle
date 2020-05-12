@@ -8,3 +8,5 @@ dependencies {
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
 }
+
+tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care
