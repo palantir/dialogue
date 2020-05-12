@@ -25,6 +25,9 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import java.io.IOException;
+import java.lang.annotation.Inherited;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -44,14 +47,14 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.junit.After;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.TestName;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.parallel.Execution;
+import org.junit.jupiter.api.parallel.ExecutionMode;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.knowm.xchart.XYChart;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -87,27 +90,24 @@ import org.slf4j.LoggerFactory;
  *     <li>Black hole: one node just starts accepting requests but never returning responses
  * </ol>
  */
-@RunWith(Parameterized.class)
-public class SimulationTest {
+@Execution(ExecutionMode.CONCURRENT)
+final class SimulationTest {
     private static final Logger log = LoggerFactory.getLogger(SimulationTest.class);
 
-    @Parameterized.Parameters(name = "{0}")
-    public static Strategy[] data() {
-        return Strategy.values();
-    }
+    @Inherited
+    @Retention(RetentionPolicy.RUNTIME)
+    @EnumSource(Strategy.class)
+    @ParameterizedTest
+    @interface SimulationCase {}
 
-    @Parameterized.Parameter
-    public Strategy strategy;
-
-    @Rule
-    public final TestName testName = new TestName();
+    private Strategy st;
 
     private final Simulation simulation = new Simulation();
     private Supplier<Map<String, SimulationServer>> servers;
     private Benchmark.BenchmarkResult result;
 
-    @Test
-    public void simplest_possible_case() {
+    @SimulationCase
+    public void simplest_possible_case(Strategy strategy) {
         // real servers don't scale like this - see later tests
         servers = servers(
                 SimulationServer.builder()
@@ -126,6 +126,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(11)
                 .sendUntil(Duration.ofMinutes(20))
@@ -135,8 +136,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void slowdown_and_error_thresholds() {
+    @SimulationCase
+    public void slowdown_and_error_thresholds(Strategy strategy) {
         Endpoint getEndpoint = SimulationUtils.endpoint("endpoint", HttpMethod.GET);
         int errorThreshold = 40;
         int slowdownThreshold = 30;
@@ -160,6 +161,7 @@ public class SimulationTest {
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(500)
                 .simulation(simulation)
@@ -170,8 +172,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void slow_503s_then_revert() {
+    @SimulationCase
+    public void slow_503s_then_revert(Strategy strategy) {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
@@ -189,6 +191,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
@@ -198,8 +201,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void fast_503s_then_revert() {
+    @SimulationCase
+    public void fast_503s_then_revert(Strategy strategy) {
         servers = servers(
                 SimulationServer.builder()
                         .serverName("normal")
@@ -216,6 +219,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(90))
@@ -225,8 +229,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void fast_400s_then_revert() {
+    @SimulationCase
+    public void fast_400s_then_revert(Strategy strategy) {
         servers = servers(
                 SimulationServer.builder()
                         .serverName("normal")
@@ -243,6 +247,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofMinutes(1))
@@ -252,8 +257,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void drastic_slowdown() {
+    @SimulationCase
+    public void drastic_slowdown(Strategy strategy) {
         int capacity = 60;
         servers = servers(
                 SimulationServer.builder()
@@ -271,6 +276,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(20))
@@ -280,8 +286,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void all_nodes_500() {
+    @SimulationCase
+    public void all_nodes_500(Strategy strategy) {
         servers = servers(
                 SimulationServer.builder()
                         .serverName("node1")
@@ -298,6 +304,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
@@ -307,8 +314,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void black_hole() {
+    @SimulationCase
+    public void black_hole(Strategy strategy) {
         servers = servers(
                 SimulationServer.builder()
                         .serverName("node1")
@@ -323,6 +330,7 @@ public class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(200)
@@ -332,8 +340,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void one_endpoint_dies_on_each_server() {
+    @SimulationCase
+    public void one_endpoint_dies_on_each_server(Strategy strategy) {
         Endpoint endpoint1 = SimulationUtils.endpoint("e1", HttpMethod.POST);
         Endpoint endpoint2 = SimulationUtils.endpoint("e2", HttpMethod.POST);
 
@@ -357,6 +365,7 @@ public class SimulationTest {
                         .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(250)
@@ -368,8 +377,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void live_reloading() {
+    @SimulationCase
+    public void live_reloading(Strategy strategy) {
         int capacity = 60;
         servers = liveReloadingServers(
                 beginAt(
@@ -394,6 +403,7 @@ public class SimulationTest {
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()));
 
+        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(250)
@@ -403,8 +413,8 @@ public class SimulationTest {
                 .run();
     }
 
-    @Test
-    public void uncommon_flakes() {
+    @SimulationCase
+    public void uncommon_flakes(Strategy strategy) {
         servers = servers(
                 SimulationServer.builder()
                         .serverName("fast0")
@@ -417,6 +427,7 @@ public class SimulationTest {
                         .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(1000)
                 .sendUntil(Duration.ofSeconds(10))
@@ -431,8 +442,8 @@ public class SimulationTest {
      * response for the user. The goal is 100% client-perceived success here, because building up half the response
      * is no good.
      */
-    @Test
-    public void one_big_spike() {
+    @SimulationCase
+    public void one_big_spike(Strategy strategy) {
         int capacity = 100;
         servers = servers(
                 SimulationServer.builder()
@@ -446,6 +457,7 @@ public class SimulationTest {
                         .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
                         .build());
 
+        st = strategy;
         result = Benchmark.builder()
                 .requestsPerSecond(30_000) // fire off a ton of requests very quickly
                 .numRequests(1000)
@@ -495,8 +507,8 @@ public class SimulationTest {
         };
     }
 
-    @After
-    public void after() throws IOException {
+    @AfterEach
+    public void after(TestInfo testInfo) throws IOException {
         Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
@@ -514,8 +526,10 @@ public class SimulationTest {
                 result.numGlobalResponses(),
                 result.statusCodes());
 
-        Path txt = Paths.get("src/test/resources/txt/" + testName.getMethodName() + ".txt");
-        String pngPath = "src/test/resources/" + testName.getMethodName() + ".png";
+        String methodName = testInfo.getTestMethod().get().getName() + "[" + st + "]";
+
+        Path txt = Paths.get("src/test/resources/txt/" + methodName + ".txt");
+        String pngPath = "src/test/resources/" + methodName + ".png";
         String onDisk = Files.exists(txt) ? new String(Files.readAllBytes(txt), StandardCharsets.UTF_8) : "";
 
         boolean txtChanged = !longSummary.equals(onDisk);
@@ -537,7 +551,7 @@ public class SimulationTest {
             XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests\\.count$"));
             activeRequests.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
-                    strategy, result.successPercentage(), clientMeanMillis, serverCpu));
+                    st, result.successPercentage(), clientMeanMillis, serverCpu));
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
             // on disk to aid local iteration.
@@ -560,7 +574,7 @@ public class SimulationTest {
         log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
     }
 
-    @Before
+    @BeforeEach
     public void before() {
         // purely a perf-optimization
         simulation
@@ -569,7 +583,7 @@ public class SimulationTest {
                         m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
     }
 
-    @AfterClass
+    @AfterAll
     public static void afterClass() throws IOException {
         // squish all txt files together into one markdown report so that github displays diffs
         String txtSection = buildTxtSection();
