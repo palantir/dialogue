@@ -154,7 +154,7 @@ public final class Benchmark {
                                 benchmarkFinished.getFuture().set(null);
                             }
                         },
-                        value.toNanos(),
+                        value.toNanos() - simulation.clock().read(),
                         TimeUnit.NANOSECONDS);
         return this;
     }
@@ -226,7 +226,7 @@ public final class Benchmark {
                                     log.error("Channels shouldn't throw", e);
                                 }
                             },
-                            req.sendTime().toNanos(),
+                            req.sendTime().toNanos() - simulation.clock().read(),
                             TimeUnit.NANOSECONDS);
             simulation.runClockTo(Optional.of(req.sendTime()));
         });
