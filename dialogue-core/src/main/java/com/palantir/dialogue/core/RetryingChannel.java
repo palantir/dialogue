@@ -231,7 +231,7 @@ final class RetryingChannel implements Channel {
             return result;
         }
 
-        ListenableFuture<Response> handleHttpResponse(Response response) {
+        private ListenableFuture<Response> handleHttpResponse(Response response) {
             if (isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
@@ -243,7 +243,7 @@ final class RetryingChannel implements Channel {
             return Futures.immediateFuture(response);
         }
 
-        ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
+        private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             if (++failures <= maxRetries) {
                 if (shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
@@ -279,7 +279,7 @@ final class RetryingChannel implements Channel {
         }
 
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
+        private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
@@ -385,22 +385,5 @@ final class RetryingChannel implements Channel {
             ScheduledExecutorService delegate, TaggedMetricRegistry metrics) {
         return MoreExecutors.listeningDecorator(
                 Tracers.wrap(SCHEDULER_NAME, MetricRegistries.instrument(metrics, delegate, SCHEDULER_NAME)));
-    }
-
-    private enum BackoffBehavior {
-        DEFAULT() {
-            @Override
-            long apply(long original) {
-                return original;
-            }
-        },
-        DISABLED() {
-            @Override
-            long apply(long _original) {
-                return 0L;
-            }
-        };
-
-        abstract long apply(long original);
     }
 }
