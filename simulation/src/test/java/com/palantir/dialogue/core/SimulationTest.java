@@ -496,6 +496,7 @@ public class SimulationTest {
 
     @After
     public void after() throws IOException {
+        Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
         long clientMeanNanos = (long) result.clientHistogram().getMean();
@@ -555,6 +556,7 @@ public class SimulationTest {
         assertThat(result.responsesLeaked())
                 .describedAs("There should be no unclosed responses")
                 .isZero();
+        log.warn("after() ({} ms)", after.elapsed(TimeUnit.MILLISECONDS));
     }
 
     @AfterClass
