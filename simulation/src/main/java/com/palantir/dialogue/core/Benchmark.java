@@ -170,7 +170,8 @@ public final class Benchmark {
     public ListenableFuture<BenchmarkResult> schedule() {
 
         Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, simulation.taggedMetrics()))
+                .map(c -> new InstrumentedChannel(
+                        c, SimulationUtils.CHANNEL_NAME, simulation.taggedMetrics(), simulation.clock()))
                 .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};

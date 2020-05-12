@@ -18,10 +18,12 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -50,7 +52,7 @@ public final class InstrumentedChannelTest {
     @BeforeEach
     public void before() {
         registry = new DefaultTaggedMetricRegistry();
-        channel = new InstrumentedChannel(delegate, "my-channel", registry);
+        channel = new InstrumentedChannel(delegate, "my-channel", registry, mock(Ticker.class));
     }
 
     @Test

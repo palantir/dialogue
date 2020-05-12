@@ -17,6 +17,9 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -25,6 +28,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A channel that observes metrics about the processed requests and responses.
@@ -34,30 +38,38 @@ final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
     private final ClientMetrics metrics;
+    private final Ticker ticker;
 
-    InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry metrics) {
+    /** Cache purely to avoid the object allocation from the builder on a hot codepath, 9k/sec -> 11k/sec. */
+    private final LoadingCache<String, Timer> timersByServiceName;
+
+    InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry registry, Ticker ticker) {
         this.delegate = delegate;
         this.channelName = channelName;
-        this.metrics = ClientMetrics.of(metrics);
+        this.metrics = ClientMetrics.of(registry);
+        this.ticker = ticker;
+        this.timersByServiceName = Caffeine.newBuilder().maximumSize(100).build(serviceName -> metrics.response()
+                .channelName(channelName)
+                .serviceName(serviceName)
+                .build());
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Timer.Context context = metrics.response()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .build()
-                .time();
+        long beforeNanos = ticker.read();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
+
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response _result) {
-                context.stop();
+                Timer timer = timersByServiceName.get(endpoint.serviceName());
+                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                context.stop();
+                Timer timer = timersByServiceName.get(endpoint.serviceName());
+                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
                 if (throwable instanceof IOException) {
                     metrics.responseError()
                             .channelName(channelName)
