@@ -24,6 +24,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -50,9 +51,12 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.zip.GZIPOutputStream;
 import org.junit.After;
 import org.junit.Before;
@@ -162,6 +166,36 @@ public class IntegrationTest {
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();
         assertThat(requests).hasValue(2);
+    }
+
+    @Test
+    public void concurrency_limiters_can_effectively_infer_server_side_ratelimits() throws Exception {
+        int permitsPerSecond = 300;
+        RateLimiter rateLimiter = RateLimiter.create(permitsPerSecond);
+
+        undertowHandler = exchange -> {
+            // These thread.sleep times are taken from a prod instance of internal-ski-product.
+            // They're not really crucial to the test, feel free to dial them up or down or omit them entirely.
+            if (rateLimiter.tryAcquire()) {
+                Thread.sleep(7);
+                exchange.setStatusCode(200);
+            } else {
+                Thread.sleep(22);
+                exchange.setStatusCode(429);
+            }
+        };
+
+        // kick off a big spike of requests (so that we actually max out our concurrency limiter).
+        List<ListenableFuture<Void>> futures = IntStream.range(0, permitsPerSecond * 10)
+                .mapToObj(i -> async.voidToVoid())
+                .collect(Collectors.toList());
+
+        // Our ConcurrencyLimiters should be able to figure out a sensible bound (based on the RTT) to send requests
+        // as close to the server's max rate as possible, without stepping over the line too much and getting 429'd.
+        // If we're too aggressive, we run the risk of a single request exhausting all its retries and thereby failing
+        // the entire batch.
+        ListenableFuture<List<Void>> all = Futures.allAsList(futures);
+        all.get();
     }
 
     private void set204Response() {
