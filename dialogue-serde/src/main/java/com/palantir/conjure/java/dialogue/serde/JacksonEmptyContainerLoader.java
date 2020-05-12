@@ -33,7 +33,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import javax.annotation.Nonnull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -135,7 +134,7 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     }
 
     // doesn't attempt to handle multiple @JsonCreator methods on one class
-    private static Optional<Method> getJsonCreatorStaticMethod(@Nonnull Type type) {
+    private static Optional<Method> getJsonCreatorStaticMethod(Type type) {
         if (type instanceof Class) {
             Class<?> clazz = (Class<?>) type;
             return Arrays.stream(clazz.getMethods())

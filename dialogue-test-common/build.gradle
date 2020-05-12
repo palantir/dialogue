@@ -5,22 +5,23 @@ versionsLock {
 }
 
 dependencies {
-    compile project(':dialogue-target')
-    compile project(':dialogue-example:dialogue-example-dialogue')
+    api project(':dialogue-target')
+    api project(':dialogue-example:dialogue-example-dialogue')
 
-    compile 'com.google.guava:guava'
-    compile 'com.palantir.conjure.java.runtime:client-config'
-    compile 'com.palantir.conjure.java.runtime:keystores'
-    compile 'com.palantir.tracing:tracing-test-utils'
-    compile 'com.squareup.okhttp3:mockwebserver'
-    compile 'org.assertj:assertj-core'
-    compile 'org.assertj:assertj-guava'
-    compile 'org.junit.jupiter:junit-jupiter'
-    compile 'org.junit.jupiter:junit-jupiter-migrationsupport'
-    compile 'org.mockito:mockito-core'
-    compile 'org.mockito:mockito-junit-jupiter'
+    api 'com.google.guava:guava'
+    api 'com.palantir.conjure.java.runtime:client-config'
+    api 'com.palantir.conjure.java.runtime:keystores'
+    api 'com.palantir.tracing:tracing-test-utils'
+    api 'com.squareup.okhttp3:mockwebserver'
+    api 'org.assertj:assertj-core'
+    api 'org.assertj:assertj-guava'
+    api 'org.junit.jupiter:junit-jupiter'
+    api 'org.junit.jupiter:junit-jupiter-migrationsupport'
+    api 'org.mockito:mockito-core'
+    api 'org.mockito:mockito-junit-jupiter'
 }
 
 tasks.withType(JavaCompile) {
     options.errorprone.errorproneArgs += '-Xep:NullAway:OFF'
 }
+tasks.checkImplicitDependenciesMain.enabled = false

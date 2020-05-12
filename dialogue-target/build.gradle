@@ -2,20 +2,24 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
 
 dependencies {
-    compile 'com.palantir.conjure.java:conjure-lib'
-    compile 'com.google.guava:guava'
-    compile 'com.palantir.ri:resource-identifier'
-    compile 'com.palantir.safe-logging:preconditions'
-    compile 'com.palantir.tokens:auth-tokens'
-    compile 'org.slf4j:slf4j-api'
+    api 'com.google.guava:guava' // Response headers are a ListMultimap
+    api 'com.palantir.tokens:auth-tokens'
+    api 'com.palantir.ri:resource-identifier'
+    api 'com.palantir.conjure.java:conjure-lib'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'org.slf4j:slf4j-api'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.google.code.findbugs:jsr305'
 
-    testCompile 'jakarta.ws.rs:jakarta.ws.rs-api'
-    testCompile 'org.assertj:assertj-core'
-    testCompile 'org.assertj:assertj-guava'
-    testCompile 'org.immutables:value::annotations'
-    testCompile 'org.mockito:mockito-core'
+    testImplementation 'jakarta.ws.rs:jakarta.ws.rs-api'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.assertj:assertj-guava'
+    testImplementation 'org.immutables:value::annotations'
+    testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
     annotationProcessor 'org.immutables:value'
-    compile 'org.immutables:value::annotations'
+    compileOnly 'org.immutables:value::annotations'
 }

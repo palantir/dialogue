@@ -1,14 +1,16 @@
 sourceCompatibility = 11
 
 dependencies {
-    compile project(':dialogue-core')
-    compile project(':dialogue-target')
-    compile 'com.google.guava:guava'
-    compile 'com.palantir.conjure.java.runtime:client-config'
-    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
-    compile 'com.palantir.safe-logging:preconditions'
+    implementation project(':dialogue-core')
+    implementation project(':dialogue-target')
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.runtime:client-config'
+    implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.palantir.safe-logging:preconditions'
 
-    testCompile project(':dialogue-test-common')
-    testCompile project(':dialogue-serde')
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
+
+tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care

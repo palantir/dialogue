@@ -2,20 +2,31 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
 
 dependencies {
-    compile project(':dialogue-target')
-    compile 'com.google.guava:guava'
-    compile 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
-    compile 'com.palantir.safe-logging:preconditions'
-    compile 'org.slf4j:slf4j-api'
+    api project(':dialogue-target')
+    api 'com.google.guava:guava' // ListenableFuture
+    api 'com.palantir.ri:resource-identifier'
+    api 'com.palantir.tokens:auth-tokens'
+    implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'org.slf4j:slf4j-api'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'com.fasterxml.jackson.core:jackson-core'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.conjure.java.api:errors'
+    implementation 'com.palantir.conjure.java:conjure-lib'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'jakarta.ws.rs:jakarta.ws.rs-api'
 
-    testCompile project(':dialogue-test-common')
+    testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')
     testImplementation 'org.junit.jupiter:junit-jupiter'
-    testCompile 'org.assertj:assertj-core'
-    testCompile 'org.immutables:value::annotations'
-    testCompile 'org.mockito:mockito-core'
-    testCompile 'com.palantir.safe-logging:preconditions-assertj'
-    testCompile 'org.apache.commons:commons-lang3'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.immutables:value::annotations'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'com.palantir.safe-logging:preconditions-assertj'
+    testImplementation 'org.apache.commons:commons-lang3'
 }
 
 configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5

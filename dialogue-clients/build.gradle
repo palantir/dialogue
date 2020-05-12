@@ -22,7 +22,7 @@ dependencies {
     implementation 'org.slf4j:slf4j-api'
 
     annotationProcessor 'org.immutables:value'
-    compile 'org.immutables:value::annotations'
+    compileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
