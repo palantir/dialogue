@@ -151,7 +151,9 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         DROPPED() {
             @Override
             public double applyAsDouble(double originalLimit, double _inFlightSnapshot) {
-                return Math.max(MIN_LIMIT, originalLimit * BACKOFF_RATIO);
+                // Floor the new value to avoid effectively no-op decreases when the limit
+                // close to 1.
+                return Math.max(MIN_LIMIT, Math.floor(originalLimit * BACKOFF_RATIO));
             }
         };
     }
