@@ -191,6 +191,7 @@ public final class ApacheHttpClientChannels {
                     Thread.currentThread().interrupt();
                 }
             });
+            connectionEvictor.start();
             closer.register(apacheClient);
             closer.register(pool::shutdown);
             closer.register(DialogueClientMetrics.of(taggedMetrics)
