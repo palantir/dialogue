@@ -18,9 +18,9 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.time.Duration;
 
 final class TestCaffeineTicker implements Ticker {
-
     private long nanos = 0;
 
     @Override
@@ -32,7 +32,10 @@ final class TestCaffeineTicker implements Ticker {
         if (newNanos < nanos) {
             long difference = nanos - newNanos;
             throw new SafeIllegalStateException(
-                    "Time rewind - this is likely a bug in the test harness", SafeArg.of("difference", difference));
+                    "Time rewind - this is likely a bug in the test harness",
+                    SafeArg.of("prev", Duration.ofNanos(nanos)),
+                    SafeArg.of("new", Duration.ofNanos(newNanos)),
+                    SafeArg.of("difference", difference));
         }
 
         nanos = newNanos;

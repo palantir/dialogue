@@ -134,6 +134,7 @@ public final class Benchmark {
             @Override
             public void update(Duration _time, long _requestsStarted, long responsesReceived) {
                 if (responsesReceived >= numReceived) {
+                    log.warn("Terminated normally after receiving {} responses", responsesReceived);
                     future.set(null);
                 }
             }
@@ -148,21 +149,19 @@ public final class Benchmark {
                 .scheduler()
                 .schedule(
                         () -> {
-                            log.warn(
-                                    "Aborted running benchmark after cutoff reached - strategy might be buggy {}",
-                                    value);
-                            benchmarkFinished.getFuture().set(null);
+                            if (!benchmarkFinished.getFuture().isDone()) {
+                                log.warn("Truncated benchmark at {} to avoid infinite hang", value);
+                                benchmarkFinished.getFuture().set(null);
+                            }
                         },
-                        value.toNanos(),
+                        value.toNanos() - simulation.clock().read(),
                         TimeUnit.NANOSECONDS);
         return this;
     }
 
     public BenchmarkResult run() {
         ListenableFuture<BenchmarkResult> result = schedule();
-        Stopwatch run = Stopwatch.createStarted();
-        simulation.runClockToInfinity(Optional.ofNullable(abortAfter));
-        log.info("Ran clock to infinity ({} ms)", run.elapsed(TimeUnit.MILLISECONDS));
+        simulation.runClockTo(Optional.ofNullable(abortAfter));
         return Futures.getUnchecked(result);
     }
 
@@ -178,7 +177,11 @@ public final class Benchmark {
         Map<String, Integer> statusCodes = new TreeMap<>();
 
         Stopwatch scheduling = Stopwatch.createStarted();
+
+        benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
         requestStream.forEach(req -> {
+            log.debug("Scheduling {}", req.number());
+
             FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
                 @Override
                 public void onSuccess(Response response) {
@@ -223,12 +226,12 @@ public final class Benchmark {
                                     log.error("Channels shouldn't throw", e);
                                 }
                             },
-                            req.sendTime().toNanos(),
+                            req.sendTime().toNanos() - simulation.clock().read(),
                             TimeUnit.NANOSECONDS);
+            simulation.runClockTo(Optional.of(req.sendTime()));
         });
-        log.info("Scheduled all requests ({} ms)", scheduling.elapsed(TimeUnit.MILLISECONDS));
-
-        benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
+        long ms = scheduling.elapsed(TimeUnit.MILLISECONDS);
+        log.warn("Fired off all requests ({} ms, {}req/sec)", ms, (1000 * requestsStarted[0]) / ms);
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),

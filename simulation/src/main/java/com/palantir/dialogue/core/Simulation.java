@@ -69,8 +69,12 @@ final class Simulation {
         return eventMarkers;
     }
 
-    public void runClockToInfinity(Optional<Duration> infinity) {
-        deterministicExecutor.tick(infinity.orElseGet(() -> Duration.ofDays(1)).toNanos(), TimeUnit.NANOSECONDS);
+    public void runClockTo(Optional<Duration> time) {
+        long currentTime = ticker.read();
+        long newNanos = time.orElseGet(() -> Duration.ofDays(1)).toNanos();
+        // note: tick takes a *delta*, not an absolute time
+        deterministicExecutor.tick(newNanos - currentTime, TimeUnit.NANOSECONDS);
+        ticker.advanceTo(newNanos);
     }
 
     // note this is internally mutable
