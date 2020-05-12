@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Concurrency limiters have more backpressure against increasing limits
+  links:
+  - https://github.com/palantir/dialogue/pull/738
