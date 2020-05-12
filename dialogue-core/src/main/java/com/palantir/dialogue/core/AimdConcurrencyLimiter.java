@@ -18,10 +18,13 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntBinaryOperator;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Simple lock-free additive increase multiplicative decrease concurrency limiter. Typically, a dispatching
@@ -33,6 +36,7 @@ import java.util.function.IntBinaryOperator;
  */
 final class AimdConcurrencyLimiter {
 
+    private static final Logger log = LoggerFactory.getLogger(AimdConcurrencyLimiter.class);
     private static final int INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final int MIN_LIMIT = 1;
@@ -106,7 +110,10 @@ final class AimdConcurrencyLimiter {
          */
         void dropped() {
             inFlight.decrementAndGet();
-            limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
+            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.DROPPED);
+            if (log.isDebugEnabled()) {
+                log.debug("DOWN {}", SafeArg.of("newLimit", newLimit));
+            }
         }
 
         /**
@@ -115,7 +122,10 @@ final class AimdConcurrencyLimiter {
          */
         void success() {
             inFlight.decrementAndGet();
-            limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
+            int newLimit = limit.accumulateAndGet(inFlightSnapshot, LimitUpdater.SUCCESS);
+            if (log.isDebugEnabled()) {
+                log.debug("UP {}", SafeArg.of("newLimit", newLimit));
+            }
         }
     }
 

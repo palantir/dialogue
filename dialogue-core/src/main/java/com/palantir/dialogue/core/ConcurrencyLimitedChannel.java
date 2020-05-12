@@ -31,6 +31,8 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.util.Optional;
 import java.util.function.Function;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
@@ -38,6 +40,7 @@ import java.util.function.Function;
  * {@link #maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
+    private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
     static final int INITIAL_LIMIT = 20;
 
     private final Meter limitedMeter;
@@ -92,6 +95,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         Optional<AimdConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
         if (maybePermit.isPresent()) {
             AimdConcurrencyLimiter.Permit permit = maybePermit.get();
+            logPermitAcquired();
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), permit);
@@ -100,8 +104,24 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             }
             return result;
         } else {
+            logPermitRefused();
             limitedMeter.mark();
             return Optional.empty();
+        }
+    }
+
+    private void logPermitAcquired() {
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Sending. {}/{}",
+                    SafeArg.of("inflight", limiter.getInflight()),
+                    SafeArg.of("max", limiter.getLimit()));
+        }
+    }
+
+    private void logPermitRefused() {
+        if (log.isDebugEnabled()) {
+            log.debug("Limited. {}", SafeArg.of("max", limiter.getLimit()));
         }
     }
 

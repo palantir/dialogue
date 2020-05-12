@@ -128,7 +128,11 @@ final class QueuedChannel implements Channel {
             // Should never happen, ConcurrentLinkedDeque has no maximum size
             return Optional.empty();
         }
-        incrementQueueSize();
+        int newSize = incrementQueueSize();
+
+        if (log.isDebugEnabled()) {
+            log.debug("Request queued. {}", SafeArg.of("queueSize", newSize), SafeArg.of("channelName", channelName));
+        }
 
         schedule();
 
@@ -149,13 +153,16 @@ final class QueuedChannel implements Channel {
         }
 
         if (log.isDebugEnabled()) {
-            log.debug("Scheduled {} requests", SafeArg.of("numScheduled", numScheduled));
+            log.debug(
+                    "Scheduled {} requests",
+                    SafeArg.of("numScheduled", numScheduled),
+                    SafeArg.of("channelName", channelName));
         }
     }
 
-    private void incrementQueueSize() {
-        queueSizeEstimate.incrementAndGet();
+    private int incrementQueueSize() {
         queueSizeCounter.inc();
+        return queueSizeEstimate.incrementAndGet();
     }
 
     private void decrementQueueSize() {
