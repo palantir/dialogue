@@ -32,7 +32,8 @@ dependencies {
     testImplementation project(':dialogue-test-common')
 
     annotationProcessor 'org.immutables:value'
-    api 'org.immutables:value::annotations'
+    compileOnly 'org.immutables:value::annotations'
+    testCompileOnly 'org.immutables:value::annotations'
 
     testAnnotationProcessor 'org.immutables:value'
 }

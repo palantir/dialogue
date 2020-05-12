@@ -20,7 +20,8 @@ dependencies {
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
 
     annotationProcessor 'org.immutables:value'
-    api 'org.immutables:value::annotations'
+    compileOnly 'org.immutables:value::annotations'
+    testCompileOnly 'org.immutables:value::annotations'
 }
 
 tasks.withType(JavaCompile) {

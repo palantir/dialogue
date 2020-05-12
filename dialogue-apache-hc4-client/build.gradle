@@ -19,6 +19,9 @@ dependencies {
     implementation 'org.apache.httpcomponents:httpcore'
     implementation 'org.slf4j:slf4j-api'
 
+    compileOnly 'org.immutables:value::annotations'
+    testCompileOnly 'org.immutables:value::annotations'
+
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'

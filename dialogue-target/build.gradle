@@ -21,5 +21,5 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
 
     annotationProcessor 'org.immutables:value'
-    api 'org.immutables:value::annotations'
+    compileOnly 'org.immutables:value::annotations'
 }
