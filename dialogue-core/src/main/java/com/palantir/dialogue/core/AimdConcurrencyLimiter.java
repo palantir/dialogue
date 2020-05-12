@@ -38,7 +38,7 @@ final class AimdConcurrencyLimiter {
 
     private static final Logger log = LoggerFactory.getLogger(AimdConcurrencyLimiter.class);
     private static final int INITIAL_LIMIT = 20;
-    private static final double BACKOFF_RATIO = .6D;
+    private static final double BACKOFF_RATIO = 0.9D;
     private static final int MIN_LIMIT = 1;
     // Effectively unlimited, reduced from MAX_VALUE to prevent overflow
     private static final int MAX_LIMIT = Integer.MAX_VALUE / 2;
@@ -129,7 +129,7 @@ final class AimdConcurrencyLimiter {
         SUCCESS() {
             @Override
             public int applyAsInt(int originalLimit, int inFlightSnapshot) {
-                if (inFlightSnapshot >= originalLimit * 0.95) {
+                if (inFlightSnapshot >= originalLimit * BACKOFF_RATIO) {
                     return Math.min(MAX_LIMIT, originalLimit + 1);
                 }
                 return originalLimit;
