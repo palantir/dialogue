@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Published jars now more precisely declare their dependencies with Gradle's
+    `api` and `implementation`, so that implementation details will appear in the
+    `runtime` POM scope and be unavailable at compile time for consumers by default.
+  links:
+  - https://github.com/palantir/dialogue/pull/741
