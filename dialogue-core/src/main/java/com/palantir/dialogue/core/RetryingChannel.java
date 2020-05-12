@@ -223,10 +223,64 @@ final class RetryingChannel implements Channel {
             return result;
         }
 
+        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
+            ListenableFuture<Response> result = input;
+            result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
+            result = Futures.catchingAsync(
+                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
+            return result;
+        }
+
+        ListenableFuture<Response> handleHttpResponse(Response response) {
+            if (isRetryableQosStatus(response)) {
+                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
+            }
+
+            if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
+                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
+            }
+
+            return Futures.immediateFuture(response);
+        }
+
+        ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
+            if (++failures <= maxRetries) {
+                if (shouldAttemptToRetry(clientSideThrowable)) {
+                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
+                    Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
+                    long backoffNanoseconds = getBackoffNanoseconds();
+                    infoLogRetry(backoffNanoseconds, clientSideThrowable);
+                    return scheduleRetry(retryReason, backoffNanoseconds);
+                } else if (log.isDebugEnabled()) {
+                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
+                    log.debug(
+                            "Not attempting to retry failure",
+                            SafeArg.of("channelName", channelName),
+                            SafeArg.of("serviceName", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()),
+                            clientSideThrowable);
+                }
+            }
+            return Futures.immediateFailedFuture(clientSideThrowable);
+        }
+
+        private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
+                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
+            if (++failures <= maxRetries) {
+                response.close();
+                Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
+                long backoffNanos = Responses.isRetryOther(response) ? 0 : getBackoffNanoseconds();
+                infoLogRetry(backoffNanos, throwableToLog);
+                return scheduleRetry(meter, backoffNanos);
+            }
+            infoLogRetriesExhausted(response);
+            // not closing response because ConjureBodySerde will need to deserialize it
+            return Futures.immediateFuture(response);
+        }
+
         @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
-        ListenableFuture<Response> scheduleRetry(Meter meter, BackoffBehavior backoffBehavior) {
+        ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
-            long backoffNanoseconds = backoffBehavior.apply(getBackoffNanoseconds());
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(endpoint, request));
             }
@@ -249,18 +303,6 @@ final class RetryingChannel implements Channel {
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
-        ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (isRetryableQosStatus(response)) {
-                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
-            }
-
-            if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
-                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
-            }
-
-            return Futures.immediateFuture(response);
-        }
-
         private boolean isRetryableQosStatus(Response response) {
             switch (serverQoS) {
                 case AUTOMATIC_RETRY:
@@ -272,50 +314,6 @@ final class RetryingChannel implements Channel {
             }
             throw new SafeIllegalStateException(
                     "Encountered unknown propagate QoS configuration", SafeArg.of("serverQoS", serverQoS));
-        }
-
-        private ListenableFuture<Response> incrementFailuresAndMaybeRetry(
-                Response response, BiFunction<Endpoint, Response, Throwable> failureSupplier, Meter meter) {
-            if (++failures <= maxRetries) {
-                response.close();
-                Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
-                infoLogRetry(throwableToLog);
-                return scheduleRetry(
-                        meter, Responses.isRetryOther(response) ? BackoffBehavior.DISABLED : BackoffBehavior.DEFAULT);
-            }
-            if (log.isInfoEnabled()) {
-                SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
-                log.info(
-                        "Exhausted {} retries, returning a retryable response with status {}",
-                        SafeArg.of("retries", maxRetries),
-                        SafeArg.of("status", response.code()),
-                        SafeArg.of("channelName", channelName),
-                        SafeArg.of("serviceName", endpoint.serviceName()),
-                        SafeArg.of("endpoint", endpoint.endpointName()),
-                        stacktrace);
-            }
-            // not closing response because ConjureBodySerde will need to deserialize it
-            return Futures.immediateFuture(response);
-        }
-
-        ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
-            if (++failures <= maxRetries) {
-                if (shouldAttemptToRetry(clientSideThrowable)) {
-                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
-                    Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
-                    infoLogRetry(clientSideThrowable);
-                    return scheduleRetry(retryReason, BackoffBehavior.DEFAULT);
-                } else if (log.isDebugEnabled()) {
-                    callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
-                    log.debug(
-                            "Not attempting to retry failure",
-                            SafeArg.of("channelName", channelName),
-                            SafeArg.of("serviceName", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()),
-                            clientSideThrowable);
-                }
-            }
-            return Futures.immediateFailedFuture(clientSideThrowable);
         }
 
         private boolean shouldAttemptToRetry(Throwable throwable) {
@@ -333,25 +331,32 @@ final class RetryingChannel implements Channel {
             return throwable instanceof IOException;
         }
 
-        private void infoLogRetry(@Nullable Throwable throwable) {
+        private void infoLogRetriesExhausted(Response response) {
+            if (log.isInfoEnabled()) {
+                SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
+                log.info(
+                        "Exhausted {} retries, returning last received response with status {}",
+                        SafeArg.of("retries", maxRetries),
+                        SafeArg.of("status", response.code()),
+                        SafeArg.of("channelName", channelName),
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()),
+                        stacktrace);
+            }
+        }
+
+        private void infoLogRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
-                        "Retrying call after failure",
+                        "Retrying call after failure {}/{}",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
+                        SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);
             }
-        }
-
-        private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
-            ListenableFuture<Response> result = input;
-            result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
-            result = Futures.catchingAsync(
-                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
-            return result;
         }
     }
 
