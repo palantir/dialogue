@@ -230,7 +230,8 @@ public final class Benchmark {
                             TimeUnit.NANOSECONDS);
             simulation.runClockTo(Optional.of(req.sendTime()));
         });
-        log.warn("Fired off all requests ({} ms)", scheduling.elapsed(TimeUnit.MILLISECONDS));
+        long ms = scheduling.elapsed(TimeUnit.MILLISECONDS);
+        log.warn("Fired off all requests ({} ms, {}req/sec)", ms, (1000 * requestsStarted[0]) / ms);
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
