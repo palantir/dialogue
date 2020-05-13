@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: DialogueNodeSelectionStrategy is compatible with old guava
+  links:
+  - https://github.com/palantir/dialogue/pull/742
