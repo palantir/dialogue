@@ -39,7 +39,6 @@ import org.apache.http.HeaderIterator;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.RequestBuilder;
-import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.message.BasicHeader;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,12 +46,12 @@ import org.slf4j.LoggerFactory;
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
 
-    private final CloseableHttpClient client;
+    private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
     private final ResponseLeakDetector responseLeakDetector;
 
     ApacheHttpClientBlockingChannel(
-            CloseableHttpClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
+            ApacheHttpClientChannels.CloseableClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
         this.responseLeakDetector = responseLeakDetector;
@@ -76,7 +75,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             RequestBody body = request.body().get();
             builder.setEntity(new RequestBodyEntity(body));
         }
-        CloseableHttpResponse httpClientResponse = client.execute(builder.build());
+        CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
         // Defensively ensure that resources are closed if failures occur within this block,
         // for example HttpClientResponse allocation may throw an OutOfMemoryError.
         boolean close = true;

@@ -103,8 +103,7 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        BlockingChannel blockingChannel =
-                new ApacheHttpClientBlockingChannel(client.apacheClient, url(uri), client.leakDetector);
+        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(client, url(uri), client.leakDetector);
         return client.executor == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor);
@@ -231,6 +230,10 @@ public final class ApacheHttpClientChannels {
                     .build();
             createMeter.mark();
             return newInstance;
+        }
+
+        CloseableHttpClient apacheClient() {
+            return apacheClient;
         }
 
         @Override
