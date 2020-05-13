@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -40,9 +41,8 @@ enum DialogueNodeSelectionStrategy {
     private static final Splitter SPLITTER = Splitter.on(",").trimResults().omitEmptyStrings();
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
-        return SPLITTER.splitToStream(header)
-                .map(DialogueNodeSelectionStrategy::safeValueOf)
-                .collect(ImmutableList.toImmutableList());
+        return ImmutableList.copyOf(
+                Lists.transform(SPLITTER.splitToList(header), DialogueNodeSelectionStrategy::safeValueOf));
     }
 
     private static DialogueNodeSelectionStrategy safeValueOf(String value) {
