@@ -1,7 +1,6 @@
 com.fasterxml.jackson.*:* = 2.11.0
 com.github.ben-manes.caffeine:caffeine = 2.8.2
 com.google.code.findbugs:jsr305 = 3.0.2
-com.google.guava:guava = 29.0-jre
 com.palantir.conjure:conjure = 4.10.1
 com.palantir.conjure.java:* = 5.16.1
 com.palantir.conjure.java.api:* = 2.12.0
@@ -39,4 +38,6 @@ com.squareup.okhttp3:mockwebserver = 3.13.1
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
 com.squareup.okhttp3:* = 3.13.1
+
+com.google.guava:guava = 25.1-jre
 # dependency-upgrader:ON
