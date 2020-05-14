@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -464,6 +465,28 @@ final class SimulationTest {
                 .client(strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
+    @SimulationCase
+    void server_side_rate_limits(Strategy strategy) {
+        servers = servers(IntStream.range(0, 9)
+                .mapToObj(i -> SimulationServer.builder()
+                        .serverName("node" + i)
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(22)))
+                        .build())
+                .toArray(SimulationServer[]::new));
+
+        // on internal k stack, there are a few heavy users of internal-ski-product, with 3, 4 and 6 nodes respectively
+
+        st = strategy;
+        result = Benchmark.builder()
+                .requestsPerSecond(10)
+                .sendUntil(Duration.ofMinutes(30))
+                .clients(13, i -> strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofHours(1))
                 .run();
     }
 
