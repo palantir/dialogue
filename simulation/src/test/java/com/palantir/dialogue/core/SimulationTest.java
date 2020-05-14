@@ -474,7 +474,7 @@ final class SimulationTest {
                 .mapToObj(i -> SimulationServer.builder()
                         .serverName("node" + i)
                         .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(22)))
+                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(200)))
                         .build())
                 .toArray(SimulationServer[]::new));
 
@@ -482,8 +482,8 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
-                .requestsPerSecond(10)
-                .sendUntil(Duration.ofMinutes(30))
+                .requestsPerSecond(26)
+                .sendUntil(Duration.ofMinutes(25))
                 .clients(13, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofHours(1))
