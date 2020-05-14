@@ -25,9 +25,9 @@
 one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=64.4%	client_mean=PT8.3962496S   	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1609, 500=891}
  one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=65.4%	client_mean=PT4.168064S    	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1634, 500=866}
            one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].txt:	success=64.7%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1618, 500=882}
-      server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.2S         	server_cpu=PT2H10M        	client_received=39000/39000	server_resps=39000	codes={200=39000}
-          server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.2S         	server_cpu=PT2H10M        	client_received=39000/39000	server_resps=39000	codes={200=39000}
-                    server_side_rate_limits[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.2S         	server_cpu=PT2H10M        	client_received=39000/39000	server_resps=39000	codes={200=39000}
+      server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=19.4%	client_mean=PT1.549373792S 	server_cpu=PT16M15.518S   	client_received=30000/30000	server_resps=126899	codes={200=5813, 429=24187}
+          server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.022052784S 	server_cpu=PT11M0.091S    	client_received=30000/30000	server_resps=30013	codes={200=30000}
+                    server_side_rate_limits[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.022052784S 	server_cpu=PT11M0.091S    	client_received=30000/30000	server_resps=30013	codes={200=30000}
        simplest_possible_case[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.837469696S 	server_cpu=PT3H4M14.6S    	client_received=13200/13200	server_resps=13200	codes={200=13200}
            simplest_possible_case[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.785727272S 	server_cpu=PT2H52M51.6S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
                      simplest_possible_case[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.785727272S 	server_cpu=PT2H52M51.6S   	client_received=13200/13200	server_resps=13200	codes={200=13200}

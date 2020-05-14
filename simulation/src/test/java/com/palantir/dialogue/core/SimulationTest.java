@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
@@ -470,19 +471,33 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits(Strategy strategy) {
-        servers = servers(IntStream.range(0, 9)
-                .mapToObj(i -> SimulationServer.builder()
-                        .serverName("node" + i)
-                        .simulation(simulation)
-                        .handler(h -> h.response(200).responseTime(Duration.ofMillis(200)))
-                        .build())
+        double qpsPerServer = 3;
+        int numServers = 9;
+
+        servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> {
+                    Meter requestRate = new Meter(simulation.codahaleClock());
+                    Function<SimulationServer, Response> responseFunc = s -> {
+                        requestRate.mark();
+                        return new TestResponse().code(requestRate.getOneMinuteRate() < qpsPerServer ? 200 : 429);
+                    };
+                    SimulationServer.ResponseTimeFunction responseTime =
+                            s -> requestRate.getOneMinuteRate() < qpsPerServer
+                                    ? Duration.ofMillis(22) // successful requests take longer
+                                    : Duration.ofMillis(7); // 429s are cheap
+                    return SimulationServer.builder()
+                            .serverName("node" + i)
+                            .simulation(simulation)
+                            .handler(h -> h.response(responseFunc).responseTime(responseTime))
+                            .build();
+                })
                 .toArray(SimulationServer[]::new));
 
         // on internal k stack, there are a few heavy users of internal-ski-product, with 3, 4 and 6 nodes respectively
 
         st = strategy;
         result = Benchmark.builder()
-                .requestsPerSecond(26)
+                .requestsPerSecond(20)
                 .sendUntil(Duration.ofMinutes(25))
                 .clients(13, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
