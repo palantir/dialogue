@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue clients do not fail when a Content-Lenght header is provided
+  links:
+  - https://github.com/palantir/dialogue/pull/748
