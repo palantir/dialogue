@@ -471,35 +471,35 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits(Strategy strategy) {
-        double qpsPerServer = 3;
-        int numServers = 9;
+        double totalRateLimit = 100;
+        int numServers = 4;
+        int numClients = 2;
+        double perServerRateLimit = totalRateLimit / numServers;
 
         servers = servers(IntStream.range(0, numServers)
                 .mapToObj(i -> {
                     Meter requestRate = new Meter(simulation.codahaleClock());
                     Function<SimulationServer, Response> responseFunc = s -> {
-                        requestRate.mark();
-                        return new TestResponse().code(requestRate.getOneMinuteRate() < qpsPerServer ? 200 : 429);
+                        if (requestRate.getOneMinuteRate() < perServerRateLimit) {
+                            requestRate.mark();
+                            return new TestResponse().code(200);
+                        } else {
+                            return new TestResponse().code(429);
+                        }
                     };
-                    SimulationServer.ResponseTimeFunction responseTime =
-                            s -> requestRate.getOneMinuteRate() < qpsPerServer
-                                    ? Duration.ofMillis(22) // successful requests take longer
-                                    : Duration.ofMillis(7); // 429s are cheap
                     return SimulationServer.builder()
                             .serverName("node" + i)
                             .simulation(simulation)
-                            .handler(h -> h.response(responseFunc).responseTime(responseTime))
+                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofMillis(200)))
                             .build();
                 })
                 .toArray(SimulationServer[]::new));
 
-        // on internal k stack, there are a few heavy users of internal-ski-product, with 3, 4 and 6 nodes respectively
-
         st = strategy;
         result = Benchmark.builder()
-                .requestsPerSecond(20)
+                .requestsPerSecond((int) totalRateLimit)
                 .sendUntil(Duration.ofMinutes(25))
-                .clients(13, i -> strategy.getChannel(simulation, servers))
+                .clients(numClients, i -> strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofHours(1))
                 .run();
