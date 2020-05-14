@@ -55,7 +55,7 @@ enum DialogueNodeSelectionStrategy {
             return BALANCED;
         }
 
-        log.info("Received unknown selection strategy", SafeArg.of("strategy", value));
+        log.info("Received unknown selection strategy {}", SafeArg.of("strategy", value));
         return UNKNOWN;
     }
 
