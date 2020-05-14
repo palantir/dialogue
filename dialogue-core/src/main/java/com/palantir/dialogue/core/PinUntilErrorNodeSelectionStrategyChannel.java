@@ -89,6 +89,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             List<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
+            Ticker ticker,
             String channelName) {
         // We preserve the 'stableIndex' so that calls can be attributed to one host even across reshuffles
         List<PinChannel> pinChannels = IntStream.range(0, channels.size())
@@ -111,7 +112,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 .orElse(0);
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
-            NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, System::nanoTime, metrics, channelName);
+            NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, ticker, metrics, channelName);
             return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
         } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
             NodeList constant = new ConstantNodeList(initialShuffle);

@@ -150,12 +150,19 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                                     channels,
                                     pinuntilerrorMetrics,
                                     random,
+                                    tick,
                                     channelName))
                             .build();
                 }
                 return channelBuilder
                         .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
-                                Optional.empty(), updatedStrategy, channels, pinuntilerrorMetrics, random, channelName))
+                                Optional.empty(),
+                                updatedStrategy,
+                                channels,
+                                pinuntilerrorMetrics,
+                                random,
+                                tick,
+                                channelName))
                         .build();
             case BALANCED:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.

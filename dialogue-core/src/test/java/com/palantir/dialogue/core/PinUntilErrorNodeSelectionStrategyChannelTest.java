@@ -201,6 +201,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 ImmutableList.of(channel1, channel2),
                 metrics,
                 pseudo,
+                Ticker.systemTicker(),
                 channelName);
     }
 
