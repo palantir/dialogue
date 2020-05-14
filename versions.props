@@ -22,7 +22,7 @@ org.slf4j:* = 1.7.30
 # test deps
 junit:junit = 4.12
 org.junit.jupiter:* = 5.6.2
-org.apache.logging.log4j:* = 2.13.2
+org.apache.logging.log4j:* = 2.13.3
 org.assertj:assertj-core = 3.16.1
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
