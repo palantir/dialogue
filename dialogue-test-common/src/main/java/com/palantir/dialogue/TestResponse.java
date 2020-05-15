@@ -19,11 +19,11 @@ package com.palantir.dialogue;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
 import com.google.errorprone.annotations.CheckReturnValue;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import javax.ws.rs.core.HttpHeaders;
 
@@ -31,7 +31,7 @@ public final class TestResponse implements Response {
 
     private final CloseRecordingInputStream inputStream;
 
-    private AtomicBoolean closeCalled = new AtomicBoolean(false);
+    private boolean closeCalled = false;
     private int code = 0;
     private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
@@ -72,7 +72,7 @@ public final class TestResponse implements Response {
     public void close() {
         checkNotClosed();
         try {
-            closeCalled.compareAndSet(false, true);
+            closeCalled = true;
             inputStream.close();
         } catch (IOException e) {
             throw new SafeRuntimeException("Failed to close", e);
@@ -80,13 +80,11 @@ public final class TestResponse implements Response {
     }
 
     public boolean isClosed() {
-        return closeCalled.get();
+        return closeCalled;
     }
 
     private void checkNotClosed() {
-        if (closeCalled.get()) {
-            throw new SafeRuntimeException("Please don't close twice");
-        }
+        Preconditions.checkState(!isClosed(), "Please don't close twice");
     }
 
     @CheckReturnValue
