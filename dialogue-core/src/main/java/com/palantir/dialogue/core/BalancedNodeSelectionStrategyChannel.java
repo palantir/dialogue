@@ -35,7 +35,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -91,9 +90,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        List<SortableChannel> sortedByScore = sortByScore(preShuffled);
+        SortableChannel[] sortedList = sortByScore(preShuffled);
 
-        for (SortableChannel channel : sortedByScore) {
+        for (int i = 0; i < sortedList.length; i++) {
+            SortableChannel channel = sortedList[i];
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 return maybe;
@@ -103,13 +103,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private static List<SortableChannel> sortByScore(List<MutableChannelWithStats> preShuffled) {
-        List<SortableChannel> sortedByScore = new ArrayList<>();
-        for (MutableChannelWithStats channel : preShuffled) {
-            sortedByScore.add(channel.computeScore());
+    private static SortableChannel[] sortByScore(List<MutableChannelWithStats> preShuffled) {
+        SortableChannel[] sorted = new SortableChannel[preShuffled.size()];
+        for (int i = 0; i < preShuffled.size(); i++) {
+            sorted[i] = preShuffled.get(i).computeScore();
         }
-        sortedByScore.sort(Comparator.comparingInt(SortableChannel::getScore));
-        return sortedByScore;
+        Arrays.sort(sorted);
+        return sorted;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -214,7 +214,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class SortableChannel {
+    private static final class SortableChannel implements Comparable {
         private final int score;
         private final MutableChannelWithStats delegate;
 
@@ -230,6 +230,18 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public String toString() {
             return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
+        }
+
+        @Override
+        public int compareTo(Object object) {
+            SortableChannel other = (SortableChannel) object;
+            if (score < other.score) {
+                return -1;
+            } else if (score > other.score) {
+                return 1;
+            } else {
+                return 0;
+            }
         }
     }
 
