@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: PinUntilError no longer allocates a lambda per request
+  links:
+  - https://github.com/palantir/dialogue/pull/751
