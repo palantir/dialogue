@@ -27,6 +27,7 @@ import com.palantir.tritium.metrics.registry.MetricName;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -47,14 +48,14 @@ import org.slf4j.LoggerFactory;
  */
 final class SimulationMetricsReporter {
     private static final Logger log = LoggerFactory.getLogger(SimulationMetricsReporter.class);
+    private static final MetricName X_AXIS =
+            MetricName.builder().safeName("time_sec").build();
 
     private final Simulation simulation;
 
     // each of these is a named column
-    private final LoadingCache<String, List<Double>> measurements =
+    private final LoadingCache<MetricName, List<Double>> measurements =
             Caffeine.newBuilder().build(name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
-
-    private static final String X_AXIS = "time_sec";
     private Predicate<MetricName> prefilter = foo -> true;
 
     SimulationMetricsReporter(Simulation simulation) {
@@ -72,10 +73,8 @@ final class SimulationMetricsReporter {
                 return;
             }
 
-            String name = asString(metricName);
-
             if (metric instanceof Counting) { // includes meters too!
-                measurements.get(name + ".count").add((double) ((Counting) metric).getCount());
+                measurements.get(metricName).add((double) ((Counting) metric).getCount());
                 return;
             }
 
@@ -86,7 +85,7 @@ final class SimulationMetricsReporter {
                         "Gauges must produce numbers",
                         SafeArg.of("metric", metricName),
                         SafeArg.of("value", value));
-                measurements.get(name + ".count").add(((Number) value).doubleValue());
+                measurements.get(metricName).add(((Number) value).doubleValue());
                 return;
             }
 
@@ -99,8 +98,11 @@ final class SimulationMetricsReporter {
     }
 
     public XYChart chart(Pattern metricNameRegex) {
-        XYChart chart =
-                new XYChartBuilder().width(800).height(600).xAxisTitle(X_AXIS).build();
+        XYChart chart = new XYChartBuilder()
+                .width(800)
+                .height(600)
+                .xAxisTitle(X_AXIS.safeName())
+                .build();
 
         // if we render too many samples, it just ends up looking like a wall of colour
         int granularity = chart.getWidth() / 3;
@@ -114,17 +116,17 @@ final class SimulationMetricsReporter {
         chart.getStyler().setToolTipsEnabled(true);
         chart.getStyler().setToolTipsAlwaysVisible(true);
 
-        Map<String, List<Double>> map = measurements.asMap();
+        Map<MetricName, List<Double>> map = measurements.asMap();
         double[] xAxis = reduceGranularity(
                 granularity, map.get(X_AXIS).stream().mapToDouble(d -> d).toArray());
-        List<String> columns = map.keySet().stream()
-                .filter(name -> !name.equals(X_AXIS))
-                .filter(metricNameRegex.asPredicate())
-                .sorted()
+        List<MetricName> columns = map.keySet().stream()
+                .filter(metric -> !metric.equals(X_AXIS))
+                .filter(metric -> metricNameRegex.asPredicate().test(asString(metric)))
+                .sorted(Comparator.comparing(metric -> asString(metric)))
                 .collect(Collectors.toList());
         String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
 
-        for (String column : columns) {
+        for (MetricName column : columns) {
             double[] series = reduceGranularity(
                     granularity, map.get(column).stream().mapToDouble(d -> d).toArray());
             Preconditions.checkState(
@@ -133,7 +135,7 @@ final class SimulationMetricsReporter {
                     SafeArg.of("column", column),
                     SafeArg.of("xaxis", xAxis.length),
                     SafeArg.of("length", series.length));
-            chart.addSeries(column, xAxis, series).setToolTips(nullToolTips);
+            chart.addSeries(asString(column) + ".count", xAxis, series).setToolTips(nullToolTips);
         }
 
         if (!simulation.events().getEvents().isEmpty()) {
