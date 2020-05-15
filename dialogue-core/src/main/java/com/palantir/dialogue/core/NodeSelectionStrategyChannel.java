@@ -83,7 +83,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        return delegate.maybeExecute(endpoint, request).map(this::wrapWithCallback);
+        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
+        if (!maybe.isPresent()) {
+            return Optional.empty();
+        }
+
+        ListenableFuture<Response> wrappedFuture = wrapWithCallback(maybe.get());
+        return Optional.of(wrappedFuture);
     }
 
     private ListenableFuture<Response> wrapWithCallback(ListenableFuture<Response> response) {
