@@ -38,6 +38,7 @@ public enum Strategy {
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
     UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
+    private static final ClientConfiguration STUB_CONFIG = stubConfig();
     private final BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel;
 
     Strategy(BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel) {
@@ -78,7 +79,7 @@ public enum Strategy {
                 .clientConfiguration(applyConfig
                         .apply(ClientConfiguration.builder()
                                 .uris(ImmutableList.copyOf(channelSupplier.get().keySet()))
-                                .from(stubConfig())
+                                .from(STUB_CONFIG)
                                 .taggedMetricRegistry(sim.taggedMetrics()))
                         .build())
                 .channelFactory(uri -> channelSupplier.get().get(uri))

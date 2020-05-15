@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: BalancedNodeSelectionStrategyChannel is slightly more performant as
+    it uses plain loops instead of Stream and findFirst
+  links:
+  - https://github.com/palantir/dialogue/pull/752

@@ -56,6 +56,7 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
+    private static final Comparator<SortableChannel> BY_SCORE = Comparator.comparingInt(SortableChannel::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
@@ -91,13 +92,25 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        return preShuffled.stream()
-                .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingInt(SortableChannel::getScore))
-                .map(channel -> channel.delegate.maybeExecute(endpoint, request))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
+        SortableChannel[] sortedChannels = sortByScore(preShuffled);
+
+        for (SortableChannel channel : sortedChannels) {
+            Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
+            if (maybe.isPresent()) {
+                return maybe;
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static SortableChannel[] sortByScore(List<MutableChannelWithStats> preShuffled) {
+        SortableChannel[] sorted = new SortableChannel[preShuffled.size()];
+        for (int i = 0; i < preShuffled.size(); i++) {
+            sorted[i] = preShuffled.get(i).computeScore();
+        }
+        Arrays.sort(sorted, BY_SCORE);
+        return sorted;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */

@@ -131,28 +131,33 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        return channel.maybeExecute(endpoint, request)
-                .map(future -> DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
-                    @Override
-                    public void onSuccess(Response response) {
-                        // We specifically don't switch  429 responses to support transactional
-                        // workflows where it is important for a large number of requests to all land on the same node,
-                        // even if a couple of them get rate limited in the middle.
-                        if (Responses.isServerError(response)
-                                || (Responses.isQosStatus(response) && !Responses.isTooManyRequests(response))) {
-                            OptionalInt next = incrementHostIfNecessary(pin);
-                            instrumentation.receivedErrorStatus(pin, channel, response, next);
-                        } else {
-                            instrumentation.successfulResponse(channel.stableIndex());
-                        }
-                    }
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+        if (!maybeResponse.isPresent()) {
+            return Optional.empty();
+        }
 
-                    @Override
-                    public void onFailure(Throwable throwable) {
-                        OptionalInt next = incrementHostIfNecessary(pin);
-                        instrumentation.receivedThrowable(pin, channel, throwable, next);
-                    }
-                }));
+        DialogueFutures.addDirectCallback(maybeResponse.get(), new FutureCallback<Response>() {
+            @Override
+            public void onSuccess(Response response) {
+                // We specifically don't switch  429 responses to support transactional
+                // workflows where it is important for a large number of requests to all land on the same node,
+                // even if a couple of them get rate limited in the middle.
+                if (Responses.isServerError(response)
+                        || (Responses.isQosStatus(response) && !Responses.isTooManyRequests(response))) {
+                    OptionalInt next = incrementHostIfNecessary(pin);
+                    instrumentation.receivedErrorStatus(pin, channel, response, next);
+                } else {
+                    instrumentation.successfulResponse(channel.stableIndex());
+                }
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {
+                OptionalInt next = incrementHostIfNecessary(pin);
+                instrumentation.receivedThrowable(pin, channel, throwable, next);
+            }
+        });
+        return maybeResponse;
     }
 
     /**

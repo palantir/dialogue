@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.tracing.Tracer;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -586,7 +587,7 @@ final class SimulationTest {
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
 
-            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests\\.count$"));
+            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests$"));
             activeRequests.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     st, result.successPercentage(), clientMeanMillis, serverCpu));
@@ -600,7 +601,7 @@ final class SimulationTest {
             }
 
             SimulationMetricsReporter.png(
-                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request\\.count$"))
+                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request$"))
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
@@ -619,6 +620,8 @@ final class SimulationTest {
                 .metricsReporter()
                 .onlyRecordMetricsFor(m ->
                         m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
+
+        Tracer.setSampler(() -> false);
     }
 
     @AfterAll
