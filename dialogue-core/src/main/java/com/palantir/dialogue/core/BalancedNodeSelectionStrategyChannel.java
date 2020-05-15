@@ -35,6 +35,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -55,6 +56,7 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
+    private static final Comparator<SortableChannel> BY_SCORE = Comparator.comparingInt(SortableChannel::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
@@ -108,7 +110,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (int i = 0; i < preShuffled.size(); i++) {
             sorted[i] = preShuffled.get(i).computeScore();
         }
-        Arrays.sort(sorted);
+        Arrays.sort(sorted, BY_SCORE);
         return sorted;
     }
 
@@ -214,7 +216,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class SortableChannel implements Comparable {
+    private static final class SortableChannel {
         private final int score;
         private final MutableChannelWithStats delegate;
 
@@ -230,18 +232,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public String toString() {
             return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
-        }
-
-        @Override
-        public int compareTo(Object object) {
-            SortableChannel other = (SortableChannel) object;
-            if (score < other.score) {
-                return -1;
-            } else if (score > other.score) {
-                return 1;
-            } else {
-                return 0;
-            }
         }
     }
 
