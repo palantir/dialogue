@@ -91,13 +91,25 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        return preShuffled.stream()
-                .map(MutableChannelWithStats::computeScore)
-                .sorted(Comparator.comparingInt(SortableChannel::getScore))
-                .map(channel -> channel.delegate.maybeExecute(endpoint, request))
-                .filter(Optional::isPresent)
-                .map(Optional::get)
-                .findFirst();
+        List<SortableChannel> sortedByScore = sortByScore(preShuffled);
+
+        for (SortableChannel channel : sortedByScore) {
+            Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
+            if (maybe.isPresent()) {
+                return maybe;
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static List<SortableChannel> sortByScore(List<MutableChannelWithStats> preShuffled) {
+        List<SortableChannel> sortedByScore = new ArrayList<>();
+        for (MutableChannelWithStats channel : preShuffled) {
+            sortedByScore.add(channel.computeScore());
+        }
+        sortedByScore.sort(Comparator.comparingInt(SortableChannel::getScore));
+        return sortedByScore;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
