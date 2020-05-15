@@ -20,7 +20,6 @@ import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -96,27 +95,17 @@ final class SimulationServer implements Channel {
                         globalServerTimeNanos.inc(simulation.clock().read() - beforeNanos);
                     },
                     MoreExecutors.directExecutor());
-            Futures.addCallback(
-                    resp,
-                    new FutureCallback<Response>() {
-                        @Override
-                        public void onSuccess(Response result) {
-                            if (log.isDebugEnabled()) {
-                                log.debug(
-                                        "time={} server={} status={} id={}",
-                                        Duration.ofNanos(simulation.clock().read()),
-                                        serverName,
-                                        result.code(),
-                                        request != null
-                                                ? request.headerParams().get(Benchmark.REQUEST_ID_HEADER)
-                                                : null);
-                            }
-                        }
 
-                        @Override
-                        public void onFailure(Throwable _throwable) {}
-                    },
-                    MoreExecutors.directExecutor());
+            if (log.isDebugEnabled()) {
+                DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(result -> {
+                    log.debug(
+                            "time={} server={} status={} id={}",
+                            Duration.ofNanos(simulation.clock().read()),
+                            serverName,
+                            result.code(),
+                            request != null ? request.headerParams().get(Benchmark.REQUEST_ID_HEADER) : null);
+                }));
+            }
 
             return resp;
         }
