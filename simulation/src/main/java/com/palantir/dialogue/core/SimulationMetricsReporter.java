@@ -135,7 +135,7 @@ final class SimulationMetricsReporter {
                     SafeArg.of("column", column),
                     SafeArg.of("xaxis", xAxis.length),
                     SafeArg.of("length", series.length));
-            chart.addSeries(asString(column), xAxis, series).setToolTips(nullToolTips);
+            chart.addSeries(asString(column) + ".count", xAxis, series).setToolTips(nullToolTips);
         }
 
         if (!simulation.events().getEvents().isEmpty()) {
