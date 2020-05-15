@@ -23,20 +23,27 @@ import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
 final class MetricNames {
+
+    private static final MetricName RESPONSE_CLOSE =
+            MetricName.builder().safeName("responseClose").build();
+    private static final MetricName GLOBAL_RESPONSES =
+            MetricName.builder().safeName("globalResponses").build();
+    private static final MetricName GLOBAL_SERVER_TIME =
+            MetricName.builder().safeName("globalServerTime").build();
+
     /** Counter incremented every time a {@code Response} is closed. */
     static Counter responseClose(TaggedMetricRegistry reg) {
-        return reg.counter(MetricName.builder().safeName("responseClose").build());
+        return reg.counter(RESPONSE_CLOSE);
     }
 
     /** Counter for how many responses are issued across all servers. */
     static Counter globalResponses(TaggedMetricRegistry registry) {
-        return registry.counter(MetricName.builder().safeName("globalResponses").build());
+        return registry.counter(GLOBAL_RESPONSES);
     }
 
     /** Counter for how long servers spend processing requests. */
     static Counter globalServerTimeNanos(TaggedMetricRegistry registry) {
-        return registry.counter(
-                MetricName.builder().safeName("globalServerTime").build());
+        return registry.counter(GLOBAL_SERVER_TIME);
     }
 
     static Counter activeRequests(TaggedMetricRegistry reg, String serverName) {

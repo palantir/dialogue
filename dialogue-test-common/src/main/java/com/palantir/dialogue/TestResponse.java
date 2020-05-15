@@ -23,7 +23,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import javax.ws.rs.core.HttpHeaders;
 
@@ -31,7 +31,7 @@ public final class TestResponse implements Response {
 
     private final CloseRecordingInputStream inputStream;
 
-    private Optional<Throwable> closeCalled = Optional.empty();
+    private AtomicBoolean closeCalled = new AtomicBoolean(false);
     private int code = 0;
     private ListMultimap<String, String> headers = ImmutableListMultimap.of();
 
@@ -72,7 +72,7 @@ public final class TestResponse implements Response {
     public void close() {
         checkNotClosed();
         try {
-            closeCalled = Optional.of(new SafeRuntimeException("Close called here"));
+            closeCalled.compareAndSet(false, true);
             inputStream.close();
         } catch (IOException e) {
             throw new SafeRuntimeException("Failed to close", e);
@@ -80,12 +80,12 @@ public final class TestResponse implements Response {
     }
 
     public boolean isClosed() {
-        return closeCalled.isPresent();
+        return closeCalled.get();
     }
 
     private void checkNotClosed() {
-        if (closeCalled.isPresent()) {
-            throw new SafeRuntimeException("Please don't close twice", closeCalled.get());
+        if (closeCalled.get()) {
+            throw new SafeRuntimeException("Please don't close twice");
         }
     }
 

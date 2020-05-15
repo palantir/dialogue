@@ -52,6 +52,7 @@ import org.slf4j.LoggerFactory;
  */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
+    private static final Request REQUEST = Request.builder().build();
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
@@ -226,9 +227,9 @@ public final class Benchmark {
                                     log.error("Channels shouldn't throw", e);
                                 }
                             },
-                            req.sendTime().toNanos() - simulation.clock().read(),
+                            req.sendTimeNanos() - simulation.clock().read(),
                             TimeUnit.NANOSECONDS);
-            simulation.runClockTo(Optional.of(req.sendTime()));
+            simulation.runClockTo(Optional.of(Duration.ofNanos(req.sendTimeNanos())));
         });
         long ms = scheduling.elapsed(TimeUnit.MILLISECONDS);
         log.warn("Fired off all requests ({} ms, {}req/sec)", ms, (1000 * requestsStarted[0]) / ms);
@@ -262,11 +263,12 @@ public final class Benchmark {
     }
 
     private Stream<ScheduledRequest> infiniteRequests(Duration interval) {
+        long intervalNanos = interval.toNanos();
         return LongStream.iterate(0, current -> current + 1).mapToObj(number -> {
             return ImmutableScheduledRequest.builder()
                     .number(number)
                     .request(requestSupplier.apply(number))
-                    .sendTime(interval.multipliedBy(number))
+                    .sendTimeNanos(intervalNanos * number)
                     .build();
         });
     }
@@ -315,7 +317,7 @@ public final class Benchmark {
 
         long number();
 
-        Duration sendTime();
+        long sendTimeNanos();
 
         Request request();
 
@@ -326,8 +328,11 @@ public final class Benchmark {
     }
 
     private static Request constructRequest(long number) {
-        return Request.builder()
-                .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
-                .build();
+        if (log.isDebugEnabled()) {
+            return Request.builder()
+                    .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
+                    .build();
+        }
+        return REQUEST;
     }
 }
