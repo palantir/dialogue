@@ -58,10 +58,7 @@ public final class InstrumentedChannelTest {
         when(endpoint.serviceName()).thenReturn("my-service");
 
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .build();
+        Timer timer = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
@@ -81,10 +78,7 @@ public final class InstrumentedChannelTest {
     public void addsMetricsForUnsuccessfulExecution_runtimeException() {
         when(endpoint.serviceName()).thenReturn("my-service");
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .build();
+        Timer timer = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
@@ -105,10 +99,7 @@ public final class InstrumentedChannelTest {
     public void addsMetricsForUnsuccessfulExecution_ioException() {
         when(endpoint.serviceName()).thenReturn("my-service");
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .build();
+        Timer timer = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())

@@ -8,7 +8,7 @@ namespaces:
     metrics:
       response:
         type: timer
-        tags: [channel-name, service-name]
+        tags: [channel-name]
         docs: Request time, note that this does not include time spent reading the response body.
       response.error:
         type: meter

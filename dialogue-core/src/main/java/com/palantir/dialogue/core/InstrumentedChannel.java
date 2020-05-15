@@ -34,20 +34,18 @@ final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
     private final ClientMetrics metrics;
+    private final Timer timer;
 
     InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.channelName = channelName;
         this.metrics = ClientMetrics.of(metrics);
+        this.timer = this.metrics.response(channelName);
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Timer.Context context = metrics.response()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .build()
-                .time();
+        Timer.Context context = timer.time();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
