@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -30,6 +31,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.InputStream;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -53,6 +55,7 @@ final class SimulationServer implements Channel {
     private final Counter activeRequests;
     private final Counter globalResponses;
     private final Counter globalServerTimeNanos;
+    private final Counter globalResponseClose;
 
     private SimulationServer(Builder builder) {
         this.serverName = Preconditions.checkNotNull(builder.serverName, "serverName");
@@ -63,6 +66,7 @@ final class SimulationServer implements Channel {
         this.activeRequests = MetricNames.activeRequests(simulation.taggedMetrics(), serverName);
         this.globalResponses = MetricNames.globalResponses(simulation.taggedMetrics());
         this.globalServerTimeNanos = MetricNames.globalServerTimeNanos(simulation.taggedMetrics());
+        this.globalResponseClose = MetricNames.responseClose(simulation.taggedMetrics());
     }
 
     public static Builder builder() {
@@ -208,8 +212,7 @@ final class SimulationServer implements Channel {
                     .schedule(
                             () -> {
                                 Response response = responseFunction.apply(server);
-                                return SimulationUtils.wrapWithCloseInstrumentation(
-                                        response, server.simulation.taggedMetrics());
+                                return wrapWithCloseInstrumentation(response, server);
                             },
                             responseTime.toNanos(),
                             TimeUnit.NANOSECONDS));
@@ -283,5 +286,30 @@ final class SimulationServer implements Channel {
 
     interface ResponseTimeFunction {
         Duration getResponseTime(SimulationServer server);
+    }
+
+    private static Response wrapWithCloseInstrumentation(Response delegate, SimulationServer sim) {
+        return new Response() {
+            @Override
+            public InputStream body() {
+                return delegate.body();
+            }
+
+            @Override
+            public int code() {
+                return delegate.code();
+            }
+
+            @Override
+            public ListMultimap<String, String> headers() {
+                return delegate.headers();
+            }
+
+            @Override
+            public void close() {
+                sim.globalResponseClose.inc();
+                delegate.close();
+            }
+        };
     }
 }
