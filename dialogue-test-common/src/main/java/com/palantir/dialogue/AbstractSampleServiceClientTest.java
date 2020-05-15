@@ -195,7 +195,8 @@ public abstract class AbstractSampleServiceClientTest {
         server.shutdown();
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
-                .hasCauseInstanceOf(ConnectException.class)
+                .getCause()
+                .isInstanceOf(ConnectException.class)
                 .hasMessageMatching(".*((Connection refused)|(Failed to connect)).*");
     }
 

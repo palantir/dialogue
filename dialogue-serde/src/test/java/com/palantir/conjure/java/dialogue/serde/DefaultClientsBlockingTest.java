@@ -21,11 +21,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
@@ -89,8 +87,8 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(exception);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isInstanceOf(UncheckedExecutionException.class)
-                .hasCauseInstanceOf(Exception.class);
+                .isInstanceOf(UnknownRemoteException.class)
+                .hasCause(exception);
     }
 
     @Test
@@ -98,9 +96,7 @@ public class DefaultClientsBlockingTest {
         Error error = new Error();
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(error);
 
-        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .isInstanceOf(ExecutionError.class)
-                .hasCauseInstanceOf(Error.class);
+        assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture)).isSameAs(error);
     }
 
     @Test
