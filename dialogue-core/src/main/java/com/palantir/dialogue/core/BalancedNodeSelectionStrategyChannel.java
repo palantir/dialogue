@@ -92,10 +92,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        SortableChannel[] sortedList = sortByScore(preShuffled);
+        SortableChannel[] sortedChannels = sortByScore(preShuffled);
 
-        for (int i = 0; i < sortedList.length; i++) {
-            SortableChannel channel = sortedList[i];
+        for (SortableChannel channel : sortedChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 return maybe;
