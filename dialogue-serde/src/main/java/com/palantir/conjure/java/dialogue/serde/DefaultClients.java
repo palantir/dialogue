@@ -73,11 +73,16 @@ enum DefaultClients implements Clients {
             return ((ChannelEndpointStage) channel).endpoint(endpoint);
         }
 
-        log.warn(
-                "Possibly inefficient bindEndpoint {} {} {}",
-                SafeArg.of("serviceName", endpoint.serviceName()),
-                SafeArg.of("endpointName", endpoint.endpointName()),
-                UnsafeArg.of("channel", channel));
+        if (log.isInfoEnabled()) {
+            log.info(
+                    "Channel of type {} does not implement ChannelEndpointStage, "
+                            + "which is recommended for maximum performance. Falling back to lambda impl.",
+                    SafeArg.of("type", channel.getClass().getSimpleName()),
+                    SafeArg.of("serviceName", endpoint.serviceName()),
+                    SafeArg.of("endpointName", endpoint.endpointName()),
+                    UnsafeArg.of("channel", channel),
+                    new SafeRuntimeException("Exception for stacktrace"));
+        }
         return request -> channel.execute(endpoint, request);
     }
 
