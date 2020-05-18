@@ -16,25 +16,18 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.EndpointChannel;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 
 interface Channel2 extends Channel, BindEndpoint {
-    Logger log = LoggerFactory.getLogger(Channel2.class);
 
     @Override
-    default EndpointChannel bindEndpoint(Endpoint endpoint) {
-        // TODO(dfox): swap this round so we have a default impl of the slow method, but require the fast one
-        log.warn(
-                "Inefficient bindEndpoint for {} endpoint on: {}",
-                endpoint,
-                this,
-                new SafeRuntimeException("called " + "here"));
-        return request -> execute(endpoint, request);
+    default ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        // this is a little inefficient, but implementations people are free to override it
+        return bindEndpoint(endpoint).execute(request);
     }
 }

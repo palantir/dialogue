@@ -36,7 +36,7 @@ final class TracedChannel implements Channel2 {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        // TODO(dfox): dedupe with below
+        // TODO(dfox): maybe dedupe with the below version
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
     }
 

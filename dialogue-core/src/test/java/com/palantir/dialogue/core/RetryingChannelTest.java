@@ -55,7 +55,7 @@ public class RetryingChannelTest {
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
-    private Channel channel;
+    private Channel2 channel;
 
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {

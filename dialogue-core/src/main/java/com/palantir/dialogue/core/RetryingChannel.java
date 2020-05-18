@@ -26,8 +26,8 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -91,7 +91,7 @@ final class RetryingChannel implements Channel2 {
                     SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
-    private final Channel delegate;
+    private final Channel2 delegate;
     private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -122,7 +122,7 @@ final class RetryingChannel implements Channel2 {
 
     @VisibleForTesting
     RetryingChannel(
-            Channel delegate,
+            Channel2 delegate,
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
@@ -141,7 +141,7 @@ final class RetryingChannel implements Channel2 {
     }
 
     private RetryingChannel(
-            Channel delegate,
+            Channel2 delegate,
             String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,
@@ -185,6 +185,11 @@ final class RetryingChannel implements Channel2 {
             return new RetryingCallback(endpoint, request, debugStacktrace).execute();
         }
         return delegate.execute(endpoint, request);
+    }
+
+    @Override
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        return req -> execute(endpoint, req);
     }
 
     private static boolean isRetryable(Request request) {
