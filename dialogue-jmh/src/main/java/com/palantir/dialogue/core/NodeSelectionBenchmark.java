@@ -49,19 +49,26 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
 @Measurement(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
-@Warmup(iterations = 2, time = 3)
+@Warmup(iterations = 3, time = 500, timeUnit =  TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.Throughput)
 public class NodeSelectionBenchmark {
 
-    @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
-    public NodeSelectionStrategy strategy;
-
     @Param({"2", "8", "100"})
     public int numChannels;
 
+    @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
+    public NodeSelectionStrategy selectionStrategy;
+
+    @Param({"true", "false"})
+    public boolean serverDriven;
+
     private final Request request = Request.builder().build();
+    private final DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+    private final Random random = SafeThreadLocalRandom.get();
+    private final Ticker ticker = Ticker.systemTicker();
+
     private LimitedChannel channel;
 
     @Setup(Level.Invocation)
@@ -70,32 +77,52 @@ public class NodeSelectionBenchmark {
                 .mapToObj(i -> AlwaysLimited.INSTANCE)
                 .collect(ImmutableList.toImmutableList());
 
-        DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Random random = SafeThreadLocalRandom.get();
-        Ticker ticker = Ticker.systemTicker();
-
-        switch (strategy) {
-            case PIN_UNTIL_ERROR:
-                channel = PinUntilErrorNodeSelectionStrategyChannel.of(
-                        Optional.empty(),
-                        DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                        channels,
-                        DialoguePinuntilerrorMetrics.of(metrics),
-                        random,
-                        ticker,
-                        "channelName");
-                break;
-            case ROUND_ROBIN:
-                channel = new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
-                break;
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                throw new SafeIllegalArgumentException("Unsupported");
+        if (serverDriven) {
+            switch (selectionStrategy) {
+                case PIN_UNTIL_ERROR:
+                    channel = createNssChannel(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
+                    break;
+                case ROUND_ROBIN:
+                    channel = createNssChannel(DialogueNodeSelectionStrategy.BALANCED);
+                    break;
+                default:
+                    throw new SafeIllegalArgumentException("Unsupported");
+            }
+        } else {
+            switch (selectionStrategy) {
+                case PIN_UNTIL_ERROR:
+                    channel = PinUntilErrorNodeSelectionStrategyChannel.of(
+                            Optional.empty(),
+                            DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                            channels,
+                            DialoguePinuntilerrorMetrics.of(metrics),
+                            random,
+                            ticker,
+                            "channelName");
+                    break;
+                case ROUND_ROBIN:
+                    channel =
+                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
+                    break;
+                default:
+                    throw new SafeIllegalArgumentException("Unsupported");
+            }
         }
     }
 
     @Benchmark
     public Optional<ListenableFuture<Response>> postRequest() {
         return channel.maybeExecute(TestEndpoint.POST, request);
+    }
+
+    private NodeSelectionStrategyChannel createNssChannel(DialogueNodeSelectionStrategy pinUntilError) {
+        return new NodeSelectionStrategyChannel(
+                NodeSelectionStrategyChannel::getFirstKnownStrategy,
+                pinUntilError,
+                "channelName",
+                random,
+                ticker,
+                metrics);
     }
 
     public static void main(String[] _args) throws Exception {
