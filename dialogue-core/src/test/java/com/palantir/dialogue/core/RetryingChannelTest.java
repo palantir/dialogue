@@ -43,7 +43,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -55,7 +54,7 @@ public class RetryingChannelTest {
             Futures.immediateFailedFuture(new SafeIoException("FAILED"));
     private static final Request REQUEST = Request.builder().build();
 
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    @Mock
     private EndpointChannel channel;
 
     @Test

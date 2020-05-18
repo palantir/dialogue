@@ -33,17 +33,17 @@ import com.palantir.dialogue.Response;
 final class UserAgentEndpointChannel implements EndpointChannel {
     private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
+    private final EndpointChannel delegate;
+    private final String userAgent;
+
+    private UserAgentEndpointChannel(EndpointChannel delegate, String userAgent) {
+        this.delegate = delegate;
+        this.userAgent = userAgent;
+    }
+
     static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint, UserAgent baseAgent) {
         String userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
         return new UserAgentEndpointChannel(delegate, userAgent);
-    }
-
-    private final EndpointChannel proceed;
-    private final String userAgent;
-
-    private UserAgentEndpointChannel(EndpointChannel proceed, String userAgent) {
-        this.proceed = proceed;
-        this.userAgent = userAgent;
     }
 
     @Override
@@ -52,12 +52,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
                 .from(request)
                 .putHeaderParams("user-agent", userAgent)
                 .build();
-        return proceed.execute(newRequest);
-    }
-
-    @Override
-    public String toString() {
-        return "UserAgentEndpointChannel{userAgent='" + userAgent + "', proceed=" + proceed + '}';
+        return delegate.execute(newRequest);
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
@@ -69,5 +64,10 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     private static UserAgent.Agent extractDialogueAgent() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
         return UserAgent.Agent.of("dialogue", maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
+    }
+
+    @Override
+    public String toString() {
+        return "UserAgentEndpointChannel{userAgent='" + userAgent + "', proceed=" + delegate + '}';
     }
 }

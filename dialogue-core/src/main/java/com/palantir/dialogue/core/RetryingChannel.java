@@ -183,15 +183,14 @@ final class RetryingChannel implements EndpointChannel {
     }
 
     @Override
-    public ListenableFuture<Response> execute(Request req) {
-        if (isRetryable(req)) {
+    public ListenableFuture<Response> execute(Request request) {
+        if (isRetryable(request)) {
             Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
                     ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
                     : Optional.empty();
-            return new RetryingCallback(delegate, req, endpoint, debugStacktrace).execute();
+            return new RetryingCallback(endpoint, request, debugStacktrace).execute();
         }
-
-        return delegate.execute(req);
+        return delegate.execute(request);
     }
 
     private static boolean isRetryable(Request request) {
@@ -205,26 +204,21 @@ final class RetryingChannel implements EndpointChannel {
     }
 
     private final class RetryingCallback {
-        private final EndpointChannel proceed;
-        private final Request request;
         private final Endpoint endpoint;
+        private final Request request;
         private final Optional<SafeRuntimeException> callsiteStacktrace;
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
         private RetryingCallback(
-                EndpointChannel proceed,
-                Request request,
-                Endpoint endpoint,
-                Optional<SafeRuntimeException> callsiteStacktrace) {
-            this.proceed = proceed;
+                Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
         ListenableFuture<Response> execute() {
-            ListenableFuture<Response> result = wrap(proceed.execute(request));
+            ListenableFuture<Response> result = wrap(delegate.execute(request));
             result.addListener(
                     () -> {
                         if (failures > 0) {
@@ -294,13 +288,13 @@ final class RetryingChannel implements EndpointChannel {
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
             if (backoffNanoseconds <= 0) {
-                return wrap(proceed.execute(request));
+                return wrap(delegate.execute(request));
             }
             DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff-" + failures);
             ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
                     () -> {
                         backoffSpan.complete();
-                        return proceed.execute(request);
+                        return delegate.execute(request);
                     },
                     backoffNanoseconds,
                     TimeUnit.NANOSECONDS);
