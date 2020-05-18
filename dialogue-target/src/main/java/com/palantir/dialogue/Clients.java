@@ -32,12 +32,12 @@ public interface Clients {
 
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
-     * @deprecated prefer {@link #bindEndpoint} as this allows pre-computing values to save CPU
+     * @deprecated prefer {@link #bind} as this allows pre-computing values to save CPU
      */
     @Deprecated
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
-    EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint);
+    EndpointChannel bind(Channel channel, Endpoint endpoint);
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling

@@ -58,29 +58,29 @@ public interface SampleServiceAsync2 extends SampleServiceAsync {
 
             // TODO(dfox): delete this entire class when conjure-java codegen produces the following:
             private final EndpointChannel voidToVoidChannel =
-                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.voidToVoid);
+                    runtime.clients().bind(channel, DialogueSampleEndpoints.voidToVoid);
             private final Deserializer<Void> voidToVoidDeserializer =
                     runtime.bodySerDe().emptyBodyDeserializer();
 
             private final EndpointChannel objectToObjectChannel =
-                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.objectToObject);
+                    runtime.clients().bind(channel, DialogueSampleEndpoints.objectToObject);
             private final Serializer<SampleObject> objectToObjectSerializer =
                     runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
             private final Deserializer<SampleObject> objectToObjectDeserializer =
                     runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
 
             private final EndpointChannel getMyAliasChannel =
-                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.getMyAlias);
+                    runtime.clients().bind(channel, DialogueSampleEndpoints.getMyAlias);
             private final Deserializer<AliasOfOptional> getMyAliasDeserializer =
                     runtime.bodySerDe().deserializer(new TypeMarker<AliasOfOptional>() {});
 
             private final EndpointChannel getMyAlias2Channel =
-                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.getMyAlias);
+                    runtime.clients().bind(channel, DialogueSampleEndpoints.getMyAlias);
             private final Deserializer<AliasOfAliasOfOptional> getMyAlias2Deserializer =
                     runtime.bodySerDe().deserializer(new TypeMarker<AliasOfAliasOfOptional>() {});
 
             private final EndpointChannel getOptionalBinaryChannel =
-                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.getOptionalBinary);
+                    runtime.clients().bind(channel, DialogueSampleEndpoints.getOptionalBinary);
 
             @Override
             public ListenableFuture<Void> voidToVoid() {
