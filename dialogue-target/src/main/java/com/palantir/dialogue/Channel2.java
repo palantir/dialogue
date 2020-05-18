@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.util.concurrent.ListenableFuture;
-
-public interface SingleEndpointChannel {
-    ListenableFuture<Response> execute(Request request);
+public interface Channel2 extends Channel {
+    SingleEndpointChannel bindEndpoint(Endpoint endpoint);
 }

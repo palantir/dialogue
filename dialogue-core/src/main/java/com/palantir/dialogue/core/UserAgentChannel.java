@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Channel2;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -30,7 +31,7 @@ import com.palantir.dialogue.SingleEndpointChannel;
  * dialogue library (extracted from this package's implementation version), and the name and version of the
  * {@link Endpoint}'s target service and endpoint.
  */
-final class UserAgentChannel implements Channel, SingleEndpointChannel.ToEndpointChannel {
+final class UserAgentChannel implements Channel, Channel2 {
 
     private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
@@ -78,8 +79,8 @@ final class UserAgentChannel implements Channel, SingleEndpointChannel.ToEndpoin
 
         private UserAgentEndpointChannel(Endpoint endpoint) {
             this.userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
-            this.proceed = delegate instanceof SingleEndpointChannel
-                    ? ((ToEndpointChannel) delegate).bindEndpoint(endpoint)
+            this.proceed = delegate instanceof Channel2
+                    ? ((Channel2) delegate).bindEndpoint(endpoint)
                     : request -> delegate.execute(endpoint, request);
         }
 

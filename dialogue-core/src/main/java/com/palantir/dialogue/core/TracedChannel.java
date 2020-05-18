@@ -18,12 +18,14 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Channel2;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.SingleEndpointChannel;
 import com.palantir.tracing.Tracers;
 
-final class TracedChannel implements Channel {
+final class TracedChannel implements Channel2 {
     private final Channel delegate;
     private final String operationName;
 
@@ -34,11 +36,32 @@ final class TracedChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        // TODO(dfox): dedupe with below
         return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
     }
 
     @Override
     public String toString() {
         return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
+    }
+
+    @Override
+    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+        return new TracedEndpointChannel(endpoint);
+    }
+
+    private class TracedEndpointChannel implements SingleEndpointChannel {
+        private final SingleEndpointChannel proceed;
+
+        TracedEndpointChannel(Endpoint endpoint) {
+            this.proceed = delegate instanceof Channel2
+                    ? ((Channel2) delegate).bindEndpoint(endpoint)
+                    : request -> delegate.execute(endpoint, request);
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return Tracers.wrapListenableFuture(operationName, () -> proceed.execute(request));
+        }
     }
 }

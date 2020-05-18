@@ -25,9 +25,11 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Channel2;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.SingleEndpointChannel;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import java.util.Collection;
@@ -42,7 +44,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class DialogueChannel implements Channel {
+public final class DialogueChannel implements Channel2 {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
     private final Channel delegate;
 
@@ -107,6 +109,11 @@ public final class DialogueChannel implements Channel {
 
     public void updateUris(Collection<String> uris) {
         updateUrisInner(uris, false);
+    }
+
+    @Override
+    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+        throw new UnsupportedOperationException("TODO");
     }
 
     private void updateUrisInner(Collection<String> uris, boolean firstTime) {
