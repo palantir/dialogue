@@ -14,8 +14,16 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
-public interface Channel2 extends Channel {
-    SingleEndpointChannel bindEndpoint(Endpoint endpoint);
+import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.SingleEndpointChannel;
+
+interface Channel2 extends Channel, BindEndpoint {
+    @Override
+    default SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+        return request -> execute(endpoint, request);
+    }
 }

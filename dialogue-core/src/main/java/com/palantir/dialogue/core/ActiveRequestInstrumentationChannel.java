@@ -25,7 +25,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
-final class ActiveRequestInstrumentationChannel implements Channel {
+final class ActiveRequestInstrumentationChannel implements Channel2 {
 
     private final String channelName;
     private final String stage;

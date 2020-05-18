@@ -58,7 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
-final class RetryingChannel implements Channel {
+final class RetryingChannel implements Channel2 {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
@@ -102,7 +102,7 @@ final class RetryingChannel implements Channel {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
-    static Channel create(Config cf, Channel channel) {
+    static Channel2 create(Config cf, Channel2 channel) {
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;

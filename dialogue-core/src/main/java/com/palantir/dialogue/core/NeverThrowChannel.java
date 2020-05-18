@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * The contract of {@link Channel} requires that the {@link Channel#execute} method never throws. This is a defensive
  * backstop so that callers can rely on this invariant.
  */
-final class NeverThrowChannel implements Channel {
+final class NeverThrowChannel implements Channel2 {
 
     private static final Logger log = LoggerFactory.getLogger(NeverThrowChannel.class);
     private final Channel delegate;

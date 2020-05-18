@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements Channel {
+final class ContentDecodingChannel implements Channel2 {
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 

@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Channel2;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -54,8 +54,8 @@ final class TracedChannel implements Channel2 {
         private final SingleEndpointChannel proceed;
 
         TracedEndpointChannel(Endpoint endpoint) {
-            this.proceed = delegate instanceof Channel2
-                    ? ((Channel2) delegate).bindEndpoint(endpoint)
+            this.proceed = delegate instanceof BindEndpoint
+                    ? ((BindEndpoint) delegate).bindEndpoint(endpoint)
                     : request -> delegate.execute(endpoint, request);
         }
 

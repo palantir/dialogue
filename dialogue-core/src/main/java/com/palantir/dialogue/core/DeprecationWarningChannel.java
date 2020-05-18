@@ -37,7 +37,7 @@ import org.slf4j.LoggerFactory;
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
-final class DeprecationWarningChannel implements Channel {
+final class DeprecationWarningChannel implements Channel2 {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
