@@ -194,7 +194,7 @@ acceptedBreaks:
       justification: "We make no guarantees for custom implementations of ConjureRuntime, and this is a compile-time\
         \ break not ABI break."
     - code: "java.method.addedToInterface"
-      new: "method com.palantir.dialogue.EndpointChannel com.palantir.dialogue.Clients::bindEndpoint(com.palantir.dialogue.Channel,\
+      new: "method com.palantir.dialogue.EndpointChannel com.palantir.dialogue.Clients::bind(com.palantir.dialogue.Channel,\
         \ com.palantir.dialogue.Endpoint)"
       justification: "We make no guarantees for custom implementations of ConjureRuntime, and this is a compile-time\
         \ break not ABI break."
