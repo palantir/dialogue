@@ -94,19 +94,16 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     }
 
     private static void setBody(RequestBuilder builder, RequestBody body) {
-        builder.setEntity(new RequestBodyEntity(maybeSetContentLength(builder, body)));
+        builder.setEntity(new RequestBodyEntity(body, contentLength(builder)));
     }
 
-    private static RequestBody maybeSetContentLength(RequestBuilder builder, RequestBody body) {
-        if (body.length().isPresent()) {
-            return body;
-        }
+    private static OptionalLong contentLength(RequestBuilder builder) {
         Header contentLengthHeader = builder.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
         if (contentLengthHeader != null) {
             builder.removeHeaders(HttpHeaders.CONTENT_LENGTH);
             String contentLengthValue = contentLengthHeader.getValue();
             try {
-                return new ContentLengthRequestBody(body, Long.parseLong(contentLengthValue));
+                return OptionalLong.of(Long.parseLong(contentLengthValue));
             } catch (NumberFormatException nfe) {
                 log.warn(
                         "Failed to parse content-length value '{}'",
@@ -114,48 +111,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                         nfe);
             }
         }
-        return body;
-    }
-
-    private static final class ContentLengthRequestBody implements RequestBody {
-
-        private final RequestBody delegate;
-        private final long length;
-
-        ContentLengthRequestBody(RequestBody delegate, long length) {
-            this.delegate = delegate;
-            this.length = length;
-        }
-
-        @Override
-        public void writeTo(OutputStream output) throws IOException {
-            delegate.writeTo(output);
-        }
-
-        @Override
-        public String contentType() {
-            return delegate.contentType();
-        }
-
-        @Override
-        public boolean repeatable() {
-            return delegate.repeatable();
-        }
-
-        @Override
-        public OptionalLong length() {
-            return OptionalLong.of(length);
-        }
-
-        @Override
-        public void close() {
-            delegate.close();
-        }
-
-        @Override
-        public String toString() {
-            return "ContentLengthRequestBody{delegate=" + delegate + ", length=" + length + '}';
-        }
+        return OptionalLong.empty();
     }
 
     private static final class HttpClientResponse implements Response {
@@ -230,10 +186,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         private final RequestBody requestBody;
         private final Header contentType;
+        private final OptionalLong contentLength;
 
-        RequestBodyEntity(RequestBody requestBody) {
+        RequestBodyEntity(RequestBody requestBody, OptionalLong contentLength) {
             this.requestBody = requestBody;
             this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
+            this.contentLength = contentLength;
         }
 
         @Override
@@ -245,12 +203,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isChunked() {
-            return !requestBody.length().isPresent();
+            return !contentLength.isPresent();
         }
 
         @Override
         public long getContentLength() {
-            return requestBody.length().orElse(-1L);
+            return contentLength.orElse(-1);
         }
 
         @Override

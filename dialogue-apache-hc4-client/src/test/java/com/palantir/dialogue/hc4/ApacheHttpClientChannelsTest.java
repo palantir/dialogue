@@ -29,16 +29,12 @@ import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.util.Map;
-import java.util.OptionalLong;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.Test;
 
@@ -108,47 +104,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 .from(request)
                 .body(body)
                 .putHeaderParams(HttpHeaders.CONTENT_LENGTH, Integer.toString(CONTENT.length))
-                .build();
-        channel.execute(endpoint, request);
-        RecordedRequest recordedRequest = server.takeRequest();
-        assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo(Integer.toString(CONTENT.length));
-        assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
-    }
-
-    @Test
-    @SuppressWarnings("FutureReturnValueIgnored")
-    public void supportsContentLengthOnBody() throws InterruptedException {
-        endpoint.method = HttpMethod.POST;
-        request = Request.builder()
-                .from(request)
-                .body(new RequestBody() {
-
-                    @Override
-                    public void writeTo(OutputStream output) throws IOException {
-                        body.writeTo(output);
-                    }
-
-                    @Override
-                    public String contentType() {
-                        return body.contentType();
-                    }
-
-                    @Override
-                    public boolean repeatable() {
-                        return body.repeatable();
-                    }
-
-                    @Override
-                    public OptionalLong length() {
-                        return OptionalLong.of(CONTENT.length);
-                    }
-
-                    @Override
-                    public void close() {
-                        body.close();
-                    }
-                })
                 .build();
         channel.execute(endpoint, request);
         RecordedRequest recordedRequest = server.takeRequest();

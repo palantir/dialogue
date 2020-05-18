@@ -19,7 +19,6 @@ package com.palantir.dialogue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.util.OptionalLong;
 
 public interface RequestBody extends Closeable {
 
@@ -31,13 +30,6 @@ public interface RequestBody extends Closeable {
 
     /** Returns <pre>true</pre> if {@link #writeTo(OutputStream)} may be invoked multiple times. */
     boolean repeatable();
-
-    /** Returns the {@code Content-Length} of the request body, if known. Note that there is no guarantee that
-     * this will result in a {@code Content-Length} request rather than {@code Transfer-Encoding: chunked}.
-     */
-    default OptionalLong length() {
-        return OptionalLong.empty();
-    }
 
     /**
      * Closes this {@link RequestBody} and releases all resources. Calling {@link #close()} should never throw,
