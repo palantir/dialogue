@@ -16,7 +16,6 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -31,15 +30,12 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.slf4j.Logger;
@@ -164,25 +160,5 @@ enum DefaultClients implements Clients {
                 .from(original)
                 .putHeaderParams(HttpHeaders.ACCEPT, acceptValue)
                 .build();
-    }
-
-    /** Internal marker type for failure legibility, this type is not meant to be handled directly. */
-    private static final class DialogueException extends RuntimeException implements SafeLoggable {
-
-        private static final String MESSAGE = "Dialogue transport failure";
-
-        private DialogueException(Throwable cause) {
-            super(MESSAGE, cause);
-        }
-
-        @Override
-        public String getLogMessage() {
-            return MESSAGE;
-        }
-
-        @Override
-        public List<Arg<?>> getArgs() {
-            return ImmutableList.of();
-        }
     }
 }
