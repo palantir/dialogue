@@ -19,8 +19,10 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CompileTimeConstant;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -57,7 +59,39 @@ final class ActiveRequestInstrumentationChannel implements Channel2 {
     }
 
     @Override
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        if (delegate instanceof BindEndpoint) {
+            EndpointChannel proceed = ((BindEndpoint) delegate).bindEndpoint(endpoint);
+
+            Counter counter = metrics.requestActive()
+                    .channelName(channelName)
+                    .serviceName(endpoint.serviceName())
+                    .stage(stage)
+                    .build();
+            return new InstrumentedEndpointChannel(counter, proceed);
+        } else {
+            return req -> execute(endpoint, req);
+        }
+    }
+
+    @Override
     public String toString() {
         return "ActiveRequestInstrumentationChannel{stage=" + stage + ", delegate=" + delegate + '}';
+    }
+
+    private static final class InstrumentedEndpointChannel implements EndpointChannel {
+        private final Counter counter;
+        private final EndpointChannel proceed;
+
+        private InstrumentedEndpointChannel(Counter counter, EndpointChannel proceed) {
+            this.counter = counter;
+            this.proceed = proceed;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            counter.inc();
+            return DialogueFutures.addDirectListener(proceed.execute(request), counter::dec);
+        }
     }
 }
