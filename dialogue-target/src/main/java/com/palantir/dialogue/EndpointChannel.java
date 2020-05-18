@@ -18,6 +18,12 @@ package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
+/**
+ * {@code EndpointChannel} is an abstraction of a transport layer (e.g., HTTP) that is used client stubs.
+ *
+ * This is a version of {@link Channel} that always sends the given request to a predefined {@link Endpoint}.
+ * Constructed using {@link ChannelEndpointStage#endpoint}.
+ */
 public interface EndpointChannel {
     ListenableFuture<Response> execute(Request request);
 }
