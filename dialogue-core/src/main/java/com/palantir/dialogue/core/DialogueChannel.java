@@ -73,7 +73,6 @@ public final class DialogueChannel implements Channel {
 
     private static LimitedChannel createPerUriChannel(Config cf, String uri) {
         Channel channel = cf.channelFactory().create(uri);
-        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
         channel = new InstrumentedChannel(
                 channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
         channel = HostMetricsChannel.create(channel, cf, uri);
