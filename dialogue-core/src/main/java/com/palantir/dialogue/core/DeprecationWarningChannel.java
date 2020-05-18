@@ -18,9 +18,10 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
@@ -41,38 +42,52 @@ final class DeprecationWarningChannel implements Channel2 {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
-    private final Channel delegate;
+    private final Channel2 delegate;
     private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(Channel delegate, TaggedMetricRegistry metrics) {
+    DeprecationWarningChannel(Channel2 delegate, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.addDirectCallback(
-                delegate.execute(endpoint, request), DialogueFutures.onSuccess(response -> {
-                    if (response != null) {
-                        response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                            metrics.deprecations(endpoint.serviceName()).mark();
-                            if (tryAcquire(endpoint.serviceName())) {
-                                log.warn(
-                                        "Using a deprecated endpoint when connecting to service",
-                                        SafeArg.of("serviceName", endpoint.serviceName()),
-                                        SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
-                                        SafeArg.of("endpointName", endpoint.endpointName()),
-                                        SafeArg.of("endpointClientVersion", endpoint.version()),
-                                        SafeArg.of(
-                                                "service",
-                                                response.getFirstHeader("server")
-                                                        .orElse("no server header provided")));
-                            }
-                        });
+        return DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), createCallback(endpoint));
+    }
+
+    @Override
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+        FutureCallback<Response> callback = createCallback(endpoint);
+        return new EndpointChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                return DialogueFutures.addDirectCallback(proceed.execute(request), callback);
+            }
+        };
+    }
+
+    private FutureCallback<Response> createCallback(Endpoint endpoint) {
+        return DialogueFutures.onSuccess(response -> {
+            if (response != null) {
+                response.getFirstHeader("deprecation").ifPresent(deprecated -> {
+                    metrics.deprecations(endpoint.serviceName()).mark();
+                    if (tryAcquire(endpoint.serviceName())) {
+                        log.warn(
+                                "Using a deprecated endpoint when connecting to service",
+                                SafeArg.of("serviceName", endpoint.serviceName()),
+                                SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
+                                SafeArg.of("endpointName", endpoint.endpointName()),
+                                SafeArg.of("endpointClientVersion", endpoint.version()),
+                                SafeArg.of(
+                                        "service",
+                                        response.getFirstHeader("server").orElse("no server header provided")));
                     }
-                }));
+                });
+            }
+        });
     }
 
     /**

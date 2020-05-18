@@ -21,8 +21,8 @@ import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -55,9 +55,9 @@ final class ContentDecodingChannel implements Channel2 {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final Channel delegate;
+    private final Channel2 delegate;
 
-    ContentDecodingChannel(Channel delegate) {
+    ContentDecodingChannel(Channel2 delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
     }
 
@@ -67,6 +67,20 @@ final class ContentDecodingChannel implements Channel2 {
                 delegate.execute(endpoint, acceptEncoding(request)),
                 ContentDecodingChannel::decompress,
                 MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+        return new EndpointChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                return Futures.transform(
+                        proceed.execute(acceptEncoding(request)),
+                        ContentDecodingChannel::decompress,
+                        MoreExecutors.directExecutor());
+            }
+        };
     }
 
     private static Request acceptEncoding(Request request) {
