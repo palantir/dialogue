@@ -56,7 +56,7 @@ public interface SampleServiceAsync2 extends SampleServiceAsync {
         return new SampleServiceAsync() {
             private final PlainSerDe plainSerDe = runtime.plainSerDe();
 
-            // THIS IS THE BIND THINGY
+            // TODO(dfox): delete this entire class when conjure-java codegen produces the following:
             private final EndpointChannel voidToVoidChannel =
                     runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.voidToVoid);
             private final Deserializer<Void> voidToVoidDeserializer =
