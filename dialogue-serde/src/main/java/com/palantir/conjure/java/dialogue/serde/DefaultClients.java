@@ -83,7 +83,7 @@ enum DefaultClients implements Clients {
                     UnsafeArg.of("channel", channel),
                     new SafeRuntimeException("Exception for stacktrace"));
         }
-        return request -> channel.execute(endpoint, request);
+        return new DefaultEndpointChannel(endpoint, channel);
     }
 
     private static ListenableFuture<Response> closeRequestBodyOnCompletion(
@@ -190,5 +190,25 @@ enum DefaultClients implements Clients {
                 .from(original)
                 .putHeaderParams(HttpHeaders.ACCEPT, acceptValue)
                 .build();
+    }
+
+    private static final class DefaultEndpointChannel implements EndpointChannel {
+        private final Endpoint endpoint;
+        private final Channel channel;
+
+        DefaultEndpointChannel(Endpoint endpoint, Channel channel) {
+            this.endpoint = endpoint;
+            this.channel = channel;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return channel.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "DefaultEndpointChannel{endpoint=" + endpoint + ", channel=" + channel + '}';
+        }
     }
 }
