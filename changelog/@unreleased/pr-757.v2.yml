@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: Remove `service-name` tag from `client.response` timer
+  description: Remove `service-name` tag from `client.response` timer and convert it to a `meter`. Most consumers only read the `count` portion which is not impacted.
   links:
   - https://github.com/palantir/dialogue/pull/757
