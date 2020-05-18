@@ -47,16 +47,19 @@ final class TracedChannel implements Channel2 {
 
     @Override
     public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        return new TracedEndpointChannel(endpoint);
+        if (delegate instanceof BindEndpoint) {
+            EndpointChannel proceed = ((BindEndpoint) delegate).bindEndpoint(endpoint);
+            return new TracedEndpointChannel(proceed);
+        } else {
+            return req -> execute(endpoint, req);
+        }
     }
 
     private class TracedEndpointChannel implements EndpointChannel {
         private final EndpointChannel proceed;
 
-        TracedEndpointChannel(Endpoint endpoint) {
-            this.proceed = delegate instanceof BindEndpoint
-                    ? ((BindEndpoint) delegate).bindEndpoint(endpoint)
-                    : request -> delegate.execute(endpoint, request);
+        TracedEndpointChannel(EndpointChannel proceed) {
+            this.proceed = proceed;
         }
 
         @Override

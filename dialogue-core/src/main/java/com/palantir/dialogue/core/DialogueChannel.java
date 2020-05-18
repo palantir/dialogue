@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel, BindEndpoint {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
-    private final Channel2 delegate;
+    private final BindEndpoint delegate;
 
     // we keep around internals purely for live-reloading
     private final Config cf;
@@ -89,22 +89,20 @@ public final class DialogueChannel implements Channel, BindEndpoint {
                 cf, limited, cf.clientConf().uris().indexOf(uri));
     }
 
-    private static Channel2 wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
-        Channel2 channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
+    private static BindEndpoint wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
+        BindEndpoint channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
         channel = RetryingChannel.create(cf, channel);
         channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
         channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
         channel = new ContentDecodingChannel(channel);
         channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(
-                channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
-        channel = new NeverThrowChannel(channel); // this must come last as a defensive backstop
-        return channel;
+        channel = ActiveRequestInstrumentationChannel.create(cf, channel, "processing");
+        return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return delegate.execute(endpoint, request);
+        return delegate.bindEndpoint(endpoint).execute(request);
     }
 
     public void updateUris(Collection<String> uris) {
@@ -236,7 +234,7 @@ public final class DialogueChannel implements Channel, BindEndpoint {
 
         /** Does *not* do any clever live-reloading. */
         @CheckReturnValue
-        public Channel buildNonLiveReloading() {
+        public Channel2 buildNonLiveReloading() {
             Config cf = builder.build();
 
             ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()
@@ -248,7 +246,7 @@ public final class DialogueChannel implements Channel, BindEndpoint {
 
             QueuedChannel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
-            Channel channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+            BindEndpoint channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
 
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()
@@ -257,7 +255,17 @@ public final class DialogueChannel implements Channel, BindEndpoint {
                     .build();
             createMeter.mark();
 
-            return channel;
+            return new Channel2() {
+                @Override
+                public EndpointChannel bindEndpoint(Endpoint endpoint) {
+                    return channel.bindEndpoint(endpoint);
+                }
+
+                @Override
+                public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                    return channel.bindEndpoint(endpoint).execute(request);
+                }
+            };
         }
     }
 }

@@ -48,7 +48,8 @@ public final class ContentDecodingChannelTest {
                         endpoint -> request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
                                 .withHeader("content-length", Integer.toString(out.size()))))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThat(ByteStreams.toByteArray(response.body())).containsExactly(expected);
@@ -59,7 +60,8 @@ public final class ContentDecodingChannelTest {
         Response response = new ContentDecodingChannel(endpoint -> request -> Futures.immediateFuture(
                         // Will fail because it's not valid gzip content
                         new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThatThrownBy(response.body()::read).isInstanceOf(IOException.class);
@@ -70,7 +72,8 @@ public final class ContentDecodingChannelTest {
         byte[] content = new byte[] {1, 2, 3, 4};
         Response response = new ContentDecodingChannel(endpoint -> request ->
                         Futures.immediateFuture(new TestResponse(content).withHeader("content-encoding", "unknown")))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers()).containsAllEntriesOf(ImmutableListMultimap.of("content-encoding", "unknown"));
         assertThat(ByteStreams.toByteArray(response.body())).isEqualTo(content);
@@ -82,7 +85,8 @@ public final class ContentDecodingChannelTest {
                     assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder().build())
                 .get();
     }
 
@@ -94,11 +98,10 @@ public final class ContentDecodingChannelTest {
                             .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(
-                        TestEndpoint.POST,
-                        Request.builder()
-                                .putHeaderParams("accept-encoding", "identity")
-                                .build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder()
+                        .putHeaderParams("accept-encoding", "identity")
+                        .build())
                 .get();
     }
 
@@ -110,11 +113,10 @@ public final class ContentDecodingChannelTest {
                             .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(
-                        TestEndpoint.POST,
-                        Request.builder()
-                                .putHeaderParams("accept-encoding", "identity")
-                                .build())
+                .bindEndpoint(TestEndpoint.POST)
+                .execute(Request.builder()
+                        .putHeaderParams("accept-encoding", "identity")
+                        .build())
                 .get();
     }
 }

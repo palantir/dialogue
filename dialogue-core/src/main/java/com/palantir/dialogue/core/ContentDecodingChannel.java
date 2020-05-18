@@ -19,8 +19,8 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements Channel2 {
+final class ContentDecodingChannel implements BindEndpoint {
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
@@ -55,32 +55,19 @@ final class ContentDecodingChannel implements Channel2 {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final Channel2 delegate;
+    private final BindEndpoint delegate;
 
-    ContentDecodingChannel(Channel2 delegate) {
+    ContentDecodingChannel(BindEndpoint delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
-    }
-
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return Futures.transform(
-                delegate.execute(endpoint, acceptEncoding(request)),
-                ContentDecodingChannel::decompress,
-                MoreExecutors.directExecutor());
     }
 
     @Override
     public EndpointChannel bindEndpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.bindEndpoint(endpoint);
-        return new EndpointChannel() {
-            @Override
-            public ListenableFuture<Response> execute(Request request) {
-                return Futures.transform(
-                        proceed.execute(acceptEncoding(request)),
-                        ContentDecodingChannel::decompress,
-                        MoreExecutors.directExecutor());
-            }
-        };
+        return req -> Futures.transform(
+                proceed.execute(acceptEncoding(req)),
+                ContentDecodingChannel::decompress,
+                MoreExecutors.directExecutor());
     }
 
     private static Request acceptEncoding(Request request) {

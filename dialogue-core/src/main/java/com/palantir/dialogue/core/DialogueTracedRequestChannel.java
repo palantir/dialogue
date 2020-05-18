@@ -17,23 +17,18 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-final class DialogueTracedRequestChannel implements Channel2 {
-    private final Channel2 delegate;
+final class DialogueTracedRequestChannel implements BindEndpoint {
+    private final BindEndpoint delegate;
 
-    DialogueTracedRequestChannel(Channel2 delegate) {
+    DialogueTracedRequestChannel(BindEndpoint delegate) {
         this.delegate = delegate;
-    }
-
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
-        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
     }
 
     @Override

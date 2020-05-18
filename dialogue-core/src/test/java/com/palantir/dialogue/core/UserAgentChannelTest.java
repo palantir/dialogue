@@ -65,7 +65,7 @@ public final class UserAgentChannelTest {
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
                 .orElse("0.0.0");
 
-        channel.execute(TestEndpoint.POST, request);
+        channel.bindEndpoint(TestEndpoint.POST).execute(request);
         verify(delegate).execute(eq((Endpoint) TestEndpoint.POST), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);

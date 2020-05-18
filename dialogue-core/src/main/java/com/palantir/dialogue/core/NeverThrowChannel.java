@@ -40,6 +40,13 @@ final class NeverThrowChannel implements Channel2 {
         this.delegate = delegate;
     }
 
+    static BindEndpoint create(BindEndpoint delegate) {
+        return endpoint -> {
+            EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+            return new NeverThrowEndpointChannel(proceed);
+        };
+    }
+
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         try {

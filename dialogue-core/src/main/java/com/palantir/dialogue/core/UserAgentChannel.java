@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -30,25 +31,23 @@ import com.palantir.dialogue.Response;
  * dialogue library (extracted from this package's implementation version), and the name and version of the
  * {@link Endpoint}'s target service and endpoint.
  */
-final class UserAgentChannel implements Channel2 {
+final class UserAgentChannel implements BindEndpoint {
 
     private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
-    private final Channel2 delegate;
+    private final BindEndpoint delegate;
     private final UserAgent baseAgent;
 
-    UserAgentChannel(Channel2 delegate, UserAgent baseAgent) {
+    UserAgentChannel(BindEndpoint delegate, UserAgent baseAgent) {
         this.delegate = delegate;
         this.baseAgent = baseAgent;
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Request newRequest = Request.builder()
-                .from(request)
-                .putHeaderParams("user-agent", UserAgents.format(augmentUserAgent(baseAgent, endpoint)))
-                .build();
-        return delegate.execute(endpoint, newRequest);
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+        String userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
+        return new UserAgentEndpointChannel(proceed, userAgent);
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
@@ -65,12 +64,6 @@ final class UserAgentChannel implements Channel2 {
     @Override
     public String toString() {
         return "UserAgentChannel{baseAgent=" + UserAgents.format(baseAgent) + ", delegate=" + delegate + '}';
-    }
-
-    @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        return new UserAgentEndpointChannel(
-                delegate.bindEndpoint(endpoint), UserAgents.format(augmentUserAgent(baseAgent, endpoint)));
     }
 
     private static final class UserAgentEndpointChannel implements EndpointChannel {

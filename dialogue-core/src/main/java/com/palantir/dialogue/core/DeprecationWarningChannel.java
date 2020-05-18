@@ -16,13 +16,13 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -38,42 +38,33 @@ import org.slf4j.LoggerFactory;
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
-final class DeprecationWarningChannel implements Channel2 {
+final class DeprecationWarningChannel implements BindEndpoint {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
-    private final Channel2 delegate;
+    private final BindEndpoint delegate;
     private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(Channel2 delegate, TaggedMetricRegistry metrics) {
+    DeprecationWarningChannel(BindEndpoint delegate, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
-    }
-
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), createCallback(endpoint));
     }
 
     @Override
     public EndpointChannel bindEndpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.bindEndpoint(endpoint);
         FutureCallback<Response> callback = createCallback(endpoint);
-        return new EndpointChannel() {
-            @Override
-            public ListenableFuture<Response> execute(Request request) {
-                return DialogueFutures.addDirectCallback(proceed.execute(request), callback);
-            }
-        };
+        return req -> DialogueFutures.addDirectCallback(proceed.execute(req), callback);
     }
 
     private FutureCallback<Response> createCallback(Endpoint endpoint) {
+        Meter meter = metrics.deprecations(endpoint.serviceName());
         return DialogueFutures.onSuccess(response -> {
             if (response != null) {
                 response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                    metrics.deprecations(endpoint.serviceName()).mark();
+                    meter.mark();
                     if (tryAcquire(endpoint.serviceName())) {
                         log.warn(
                                 "Using a deprecated endpoint when connecting to service",

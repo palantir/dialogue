@@ -27,7 +27,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
-final class ActiveRequestInstrumentationChannel implements Channel2 {
+final class ActiveRequestInstrumentationChannel implements Channel {
 
     private final String channelName;
     private final String stage;
@@ -58,20 +58,19 @@ final class ActiveRequestInstrumentationChannel implements Channel2 {
         return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
-    @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        if (delegate instanceof BindEndpoint) {
-            EndpointChannel proceed = ((BindEndpoint) delegate).bindEndpoint(endpoint);
+    static BindEndpoint create(Config cf, BindEndpoint delegate, @CompileTimeConstant String stage) {
+        return endpoint -> {
+            EndpointChannel proceed = delegate.bindEndpoint(endpoint);
 
-            Counter counter = metrics.requestActive()
-                    .channelName(channelName)
+            Counter counter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                    .requestActive()
+                    .channelName(cf.channelName())
                     .serviceName(endpoint.serviceName())
                     .stage(stage)
                     .build();
+
             return new InstrumentedEndpointChannel(counter, proceed);
-        } else {
-            return req -> execute(endpoint, req);
-        }
+        };
     }
 
     @Override
