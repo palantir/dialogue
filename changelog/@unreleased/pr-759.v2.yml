@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: Blocking clients wrap checked failures with UnknownRemoteException
+  description: Blocking clients wrap checked failures with a custom internal `DialogueException`.
   links:
   - https://github.com/palantir/dialogue/pull/759
