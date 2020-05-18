@@ -29,6 +29,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -56,6 +57,15 @@ enum DefaultClients implements Clients {
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
+        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
+        Optional<String> accepts = deserializer.accepts();
+        Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
+        ListenableFuture<Response> response =
+                closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
         return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
     }
 
@@ -106,6 +116,11 @@ enum DefaultClients implements Clients {
             }
             throw new UncheckedExecutionException(message, cause);
         }
+    }
+
+    @Override
+    public EndpointChannel bind(Channel channel, Endpoint endpoint) {
+        return new DefaultEndpointChannel(endpoint, channel);
     }
 
     // Need to create a new exception so our current stacktrace is included in the exception
@@ -163,5 +178,26 @@ enum DefaultClients implements Clients {
                 .from(original)
                 .putHeaderParams(HttpHeaders.ACCEPT, acceptValue)
                 .build();
+    }
+
+    private static final class DefaultEndpointChannel implements EndpointChannel {
+
+        private final Endpoint endpoint;
+        private final Channel channel;
+
+        DefaultEndpointChannel(Endpoint endpoint, Channel channel) {
+            this.endpoint = endpoint;
+            this.channel = channel;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return channel.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "DefaultEndpointChannel{endpoint=" + endpoint + ", channel=" + channel + '}';
+        }
     }
 }

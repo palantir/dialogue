@@ -186,3 +186,13 @@ acceptedBreaks:
         \ java.lang.Number>, T)"
       justification: "Not intended for public-consumption, it says 'DialogueInternal'\
         \ in the name"
+  "1.44.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.google.common.util.concurrent.ListenableFuture<T> com.palantir.dialogue.Clients::call(com.palantir.dialogue.EndpointChannel,\
+        \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
+      justification: "runtime is not meant for custom implementations"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.EndpointChannel com.palantir.dialogue.Clients::bind(com.palantir.dialogue.Channel,\
+        \ com.palantir.dialogue.Endpoint)"
+      justification: "runtime is not meant for custom implementations"

@@ -31,8 +31,17 @@ public interface Clients {
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
     /**
+     * Makes a request to the specified {@link EndpointChannel} and
+     * deserializes the response using a provided deserializer.
+     */
+    <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
+
+    /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
      * for conjure exceptions and cancellation on interruption.
      */
     <T> T block(ListenableFuture<T> future);
+
+    /** Create an {@link EndpointChannel} by binding an {@link Endpoint} to a {@link Channel}. */
+    EndpointChannel bind(Channel channel, Endpoint endpoint);
 }
