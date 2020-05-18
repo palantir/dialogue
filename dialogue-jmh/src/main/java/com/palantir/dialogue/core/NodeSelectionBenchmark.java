@@ -49,10 +49,11 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
 @Measurement(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
-@Warmup(iterations = 3, time = 500, timeUnit =  TimeUnit.MILLISECONDS)
+@Warmup(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.Throughput)
+@SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class NodeSelectionBenchmark {
 
     @Param({"2", "8", "100"})
@@ -72,7 +73,7 @@ public class NodeSelectionBenchmark {
     private LimitedChannel channel;
 
     @Setup(Level.Invocation)
-    public void setUp() {
+    public void before() {
         ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
                 .mapToObj(i -> AlwaysLimited.INSTANCE)
                 .collect(ImmutableList.toImmutableList());
