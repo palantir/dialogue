@@ -24,6 +24,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
@@ -42,7 +43,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -50,8 +50,9 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @State(Scope.Benchmark)
 @Measurement(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Warmup(iterations = 2, time = 3)
-@Fork(value = 0)
+@Fork(value = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
+@BenchmarkMode(Mode.Throughput)
 public class NodeSelectionBenchmark {
 
     @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
@@ -87,16 +88,17 @@ public class NodeSelectionBenchmark {
             case ROUND_ROBIN:
                 channel = new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
                 break;
+            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                throw new SafeIllegalArgumentException("Unsupported");
         }
     }
 
     @Benchmark
-    @BenchmarkMode(Mode.Throughput)
-    public void fireEmOff(Blackhole blackhole) {
-        blackhole.consume(channel.maybeExecute(TestEndpoint.POST, request));
+    public Optional<ListenableFuture<Response>> postRequest() {
+        return channel.maybeExecute(TestEndpoint.POST, request);
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void main(String[] _args) throws Exception {
         Options opt = new OptionsBuilder()
                 .include(NodeSelectionBenchmark.class.getSimpleName())
                 // .addProfiler(GCProfiler.class)
@@ -108,7 +110,7 @@ public class NodeSelectionBenchmark {
         INSTANCE;
 
         @Override
-        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request) {
             return Optional.empty();
         }
     }

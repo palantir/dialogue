@@ -21,7 +21,7 @@ dependencies {
 
 def benchmarkFile = "${buildDir}/benchmark_results.out"
 
-project.task(type: JavaExec, 'jmh') {
+task jmh(type: JavaExec) {
     main = 'org.openjdk.jmh.Main'
     classpath = sourceSets.main.runtimeClasspath
     maxHeapSize = '1024m'
@@ -37,5 +37,5 @@ project.task(type: JavaExec, 'jmh') {
 }
 
 tasks.withType(JavaCompile) {
-    options.errorprone.errorproneArgs += ['-Xep:HidingField:OFF']
+    options.errorprone.errorproneArgs += [ '-Xep:HidingField:OFF',  '-Xep:Slf4jLogsafeArgs:OFF', '-Xep:NullAway:OFF' ]
 }
