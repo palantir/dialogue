@@ -26,6 +26,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -33,6 +34,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
 import java.util.Optional;
+import java.util.OptionalLong;
 import javax.annotation.Nullable;
 import org.apache.http.Header;
 import org.apache.http.HeaderIterator;
@@ -73,7 +75,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             Preconditions.checkArgument(
                     endpoint.httpMethod() != HttpMethod.HEAD, "HEAD endpoints must not have a request body");
             RequestBody body = request.body().get();
-            builder.setEntity(new RequestBodyEntity(body));
+            setBody(builder, body);
         }
         CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
         // Defensively ensure that resources are closed if failures occur within this block,
@@ -89,6 +91,27 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 httpClientResponse.close();
             }
         }
+    }
+
+    private static void setBody(RequestBuilder builder, RequestBody body) {
+        builder.setEntity(new RequestBodyEntity(body, contentLength(builder)));
+    }
+
+    private static OptionalLong contentLength(RequestBuilder builder) {
+        Header contentLengthHeader = builder.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
+        if (contentLengthHeader != null) {
+            builder.removeHeaders(HttpHeaders.CONTENT_LENGTH);
+            String contentLengthValue = contentLengthHeader.getValue();
+            try {
+                return OptionalLong.of(Long.parseLong(contentLengthValue));
+            } catch (NumberFormatException nfe) {
+                log.warn(
+                        "Failed to parse content-length value '{}'",
+                        SafeArg.of(HttpHeaders.CONTENT_LENGTH, contentLengthValue),
+                        nfe);
+            }
+        }
+        return OptionalLong.empty();
     }
 
     private static final class HttpClientResponse implements Response {
@@ -163,10 +186,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         private final RequestBody requestBody;
         private final Header contentType;
+        private final OptionalLong contentLength;
 
-        RequestBodyEntity(RequestBody requestBody) {
+        RequestBodyEntity(RequestBody requestBody, OptionalLong contentLength) {
             this.requestBody = requestBody;
             this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
+            this.contentLength = contentLength;
         }
 
         @Override
@@ -178,13 +203,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isChunked() {
-            return true;
+            return !contentLength.isPresent();
         }
 
         @Override
         public long getContentLength() {
-            // unknown
-            return -1;
+            return contentLength.orElse(-1);
         }
 
         @Override
@@ -215,7 +239,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
-        public void consumeContent() {}
+        public void consumeContent() {
+            requestBody.close();
+        }
 
         @Override
         public String toString() {
