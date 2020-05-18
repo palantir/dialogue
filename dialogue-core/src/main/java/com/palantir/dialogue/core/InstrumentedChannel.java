@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Timer;
+import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -34,28 +34,27 @@ final class InstrumentedChannel implements Channel {
     private final Channel delegate;
     private final String channelName;
     private final ClientMetrics metrics;
-    private final Timer timer;
+    private final Meter meter;
 
     InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.channelName = channelName;
         this.metrics = ClientMetrics.of(metrics);
-        this.timer = this.metrics.response(channelName);
+        this.meter = this.metrics.response(channelName);
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Timer.Context context = timer.time();
         ListenableFuture<Response> response = delegate.execute(endpoint, request);
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response _result) {
-                context.stop();
+                meter.mark();
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                context.stop();
+                meter.mark();
                 if (throwable instanceof IOException) {
                     metrics.responseError()
                             .channelName(channelName)
