@@ -16,16 +16,13 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-final class TracedChannel implements Channel2 {
+final class TracedChannel implements ChannelEndpointStage {
     private final Channel delegate;
     private final String operationName;
 
@@ -35,36 +32,12 @@ final class TracedChannel implements Channel2 {
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        // TODO(dfox): maybe dedupe with the below version
-        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
-    }
-
-    @Override
     public String toString() {
         return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
     }
 
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
-        if (delegate instanceof ChannelEndpointStage) {
-            EndpointChannel proceed = ((ChannelEndpointStage) delegate).endpoint(endpoint);
-            return new TracedEndpointChannel(proceed);
-        } else {
-            return req -> execute(endpoint, req);
-        }
-    }
-
-    private class TracedEndpointChannel implements EndpointChannel {
-        private final EndpointChannel proceed;
-
-        TracedEndpointChannel(EndpointChannel proceed) {
-            this.proceed = proceed;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            return Tracers.wrapListenableFuture(operationName, () -> proceed.execute(request));
-        }
+        return req -> Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, req));
     }
 }

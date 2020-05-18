@@ -18,8 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  * The contract of {@link Channel} requires that the {@link Channel#execute} method never throws. This is a defensive
  * backstop so that callers can rely on this invariant.
  */
-final class NeverThrowChannel implements Channel2 {
+final class NeverThrowChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(NeverThrowChannel.class);
     private final Channel delegate;
@@ -60,15 +60,6 @@ final class NeverThrowChannel implements Channel2 {
     @Override
     public String toString() {
         return "NeverThrowChannel{" + delegate + '}';
-    }
-
-    @Override
-    public EndpointChannel endpoint(Endpoint endpoint) {
-        if (delegate instanceof ChannelEndpointStage) {
-            return new NeverThrowEndpointChannel(((ChannelEndpointStage) delegate).endpoint(endpoint));
-        } else {
-            return req -> execute(endpoint, req);
-        }
     }
 
     private static final class NeverThrowEndpointChannel implements EndpointChannel {

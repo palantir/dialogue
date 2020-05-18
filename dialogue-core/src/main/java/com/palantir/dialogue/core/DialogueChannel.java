@@ -24,8 +24,8 @@ import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -269,4 +269,6 @@ public final class DialogueChannel implements Channel, ChannelEndpointStage {
             };
         }
     }
+
+    interface Channel2 extends Channel, ChannelEndpointStage {}
 }

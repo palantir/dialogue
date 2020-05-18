@@ -17,18 +17,18 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -40,8 +40,8 @@ public final class UserAgentChannelTest {
 
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
 
-    @Mock
-    private Channel2 delegate;
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
+    private ChannelEndpointStage delegate;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
@@ -66,7 +66,7 @@ public final class UserAgentChannelTest {
                 .orElse("0.0.0");
 
         channel.endpoint(TestEndpoint.POST).execute(request);
-        verify(delegate).execute(eq((Endpoint) TestEndpoint.POST), requestCaptor.capture());
+        verify(delegate.endpoint(TestEndpoint.POST)).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
     }
