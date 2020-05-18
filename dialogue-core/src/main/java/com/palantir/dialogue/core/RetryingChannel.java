@@ -194,7 +194,7 @@ final class RetryingChannel implements ChannelEndpointStage {
 
             @Override
             public String toString() {
-                return "RetryingEndpointChannel{" + proceed + "}";
+                return "RetryingChannel.RetryingEndpointChannel{" + proceed + "}";
             }
         };
     }
