@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
@@ -64,10 +65,29 @@ final class ContentDecodingChannel implements ChannelEndpointStage {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.endpoint(endpoint);
-        return req -> Futures.transform(
-                proceed.execute(acceptEncoding(req)),
-                ContentDecodingChannel::decompress,
-                MoreExecutors.directExecutor());
+        return new ContentDecodingEndpointChannel(proceed);
+    }
+
+    private static final class ContentDecodingEndpointChannel implements EndpointChannel {
+        private final EndpointChannel proceed;
+
+        private ContentDecodingEndpointChannel(EndpointChannel proceed) {
+            this.proceed = proceed;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            Request augmentedRequest = acceptEncoding(request);
+            return Futures.transform(
+                    proceed.execute(augmentedRequest),
+                    ContentDecodingChannel::decompress,
+                    MoreExecutors.directExecutor());
+        }
+
+        @Override
+        public String toString() {
+            return "ContentDecodingEndpointChannel{" + proceed + '}';
+        }
     }
 
     private static Request acceptEncoding(Request request) {

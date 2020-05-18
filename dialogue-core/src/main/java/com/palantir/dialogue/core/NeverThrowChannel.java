@@ -78,5 +78,10 @@ final class NeverThrowChannel implements Channel {
                 return Futures.immediateFailedFuture(e);
             }
         }
+
+        @Override
+        public String toString() {
+            return "NeverThrowEndpointChannel{" + proceed + '}';
+        }
     }
 }

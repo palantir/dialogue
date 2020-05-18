@@ -56,5 +56,10 @@ final class DialogueTracedRequestChannel implements ChannelEndpointStage {
         public ListenableFuture<Response> execute(Request request) {
             return Tracers.wrapListenableFuture(operationName, () -> proceed.execute(request));
         }
+
+        @Override
+        public String toString() {
+            return "TracedEndpointChannel{" + proceed + '}';
+        }
     }
 }

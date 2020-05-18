@@ -69,7 +69,7 @@ final class ActiveRequestInstrumentationChannel implements Channel {
                     .stage(stage)
                     .build();
 
-            return new InstrumentedEndpointChannel(counter, proceed);
+            return new ActiveRequestInstrumentationEndpointChannel(counter, proceed);
         };
     }
 
@@ -78,11 +78,11 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         return "ActiveRequestInstrumentationChannel{stage=" + stage + ", delegate=" + delegate + '}';
     }
 
-    private static final class InstrumentedEndpointChannel implements EndpointChannel {
+    private static final class ActiveRequestInstrumentationEndpointChannel implements EndpointChannel {
         private final Counter counter;
         private final EndpointChannel proceed;
 
-        private InstrumentedEndpointChannel(Counter counter, EndpointChannel proceed) {
+        private ActiveRequestInstrumentationEndpointChannel(Counter counter, EndpointChannel proceed) {
             this.counter = counter;
             this.proceed = proceed;
         }
@@ -91,6 +91,11 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         public ListenableFuture<Response> execute(Request request) {
             counter.inc();
             return DialogueFutures.addDirectListener(proceed.execute(request), counter::dec);
+        }
+
+        @Override
+        public String toString() {
+            return "ActiveRequestInstrumentationEndpointChannel{" + proceed + '}';
         }
     }
 }
