@@ -14,18 +14,14 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 
-interface EndpointChannel {
-
+public interface SingleEndpointChannel {
     ListenableFuture<Response> execute(Request request);
 
     interface ToEndpointChannel {
-        EndpointChannel bindEndpoint(Endpoint endpoint);
+        SingleEndpointChannel bindEndpoint(Endpoint endpoint);
     }
 }

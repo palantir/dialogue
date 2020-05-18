@@ -32,6 +32,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.SingleEndpointChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -56,6 +57,21 @@ enum DefaultClients implements Clients {
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
+        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public SingleEndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint) {
+        return null;
+    }
+
+    @Override
+    public <T> ListenableFuture<T> call(SingleEndpointChannel channel, Request request, Deserializer<T> deserializer) {
+        // TODO(dfox): dedupe with above
+        Optional<String> accepts = deserializer.accepts();
+        Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
+        ListenableFuture<Response> response =
+                closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
         return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
     }
 

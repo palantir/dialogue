@@ -23,13 +23,14 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.SingleEndpointChannel;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
  * dialogue library (extracted from this package's implementation version), and the name and version of the
  * {@link Endpoint}'s target service and endpoint.
  */
-final class UserAgentChannel implements Channel, EndpointChannel.ToEndpointChannel {
+final class UserAgentChannel implements Channel, SingleEndpointChannel.ToEndpointChannel {
 
     private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
@@ -67,17 +68,17 @@ final class UserAgentChannel implements Channel, EndpointChannel.ToEndpointChann
     }
 
     @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
         return new UserAgentEndpointChannel(endpoint);
     }
 
-    private class UserAgentEndpointChannel implements EndpointChannel {
+    private class UserAgentEndpointChannel implements SingleEndpointChannel {
         private final String userAgent;
-        private final EndpointChannel proceed;
+        private final SingleEndpointChannel proceed;
 
         private UserAgentEndpointChannel(Endpoint endpoint) {
             this.userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
-            this.proceed = delegate instanceof EndpointChannel
+            this.proceed = delegate instanceof SingleEndpointChannel
                     ? ((ToEndpointChannel) delegate).bindEndpoint(endpoint)
                     : request -> delegate.execute(endpoint, request);
         }
