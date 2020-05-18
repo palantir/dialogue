@@ -15,6 +15,7 @@ include 'dialogue-java-client'
 include 'dialogue-okhttp-client'
 include 'dialogue-serde'
 include 'dialogue-target'
+include 'dialogue-jmh'
 include 'simulation'
 
 boolean isCiServer = System.getenv().containsKey('CI')

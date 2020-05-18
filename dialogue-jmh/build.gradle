@@ -1,0 +1,36 @@
+
+dependencies {
+    implementation 'org.openjdk.jmh:jmh-core'
+
+    // implementation 'com.palantir.conjure.java.runtime:keystores'
+    // implementation 'com.palantir.conjure.java.runtime:jetty-http2-agent'
+    // implementation 'com.squareup.okhttp3:okhttp'
+
+
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess'
+    // annotationProcessor 'com.google.auto.service:auto-service'
+}
+
+
+def benchmarkFile = "${buildDir}/benchmark_results.out"
+
+project.task(type: JavaExec, 'jmh') {
+    main = 'org.openjdk.jmh.Main'
+    classpath = sourceSets.main.runtimeClasspath
+    maxHeapSize = '1024m'
+    // ./gradlew jmv -PjmhOptions='-rf json'
+
+    if (project.hasProperty('jmhOptions')) {
+        args(project.jmhOptions.split(' '))
+    }
+    doFirst {
+        standardOutput new org.apache.tools.ant.util.TeeOutputStream(
+                new FileOutputStream(benchmarkFile), System.out)
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.errorprone.errorproneArgs += ['-Xep:HidingField:OFF']
+}
