@@ -24,13 +24,18 @@ import java.util.concurrent.Future;
  * duplicating logic.
  */
 public interface Clients {
+    /**
+     * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
+     * deserializer.
+     */
+    <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
+     * @deprecated prefer {@link #bindEndpoint} as this allows pre-computing values to save CPU
      */
+    @Deprecated
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
-
-    <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
     EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint);
 
