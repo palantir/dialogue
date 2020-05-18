@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: |
+    Codegen can take advantage of a new methods to do endpoint-specific work once upfront, instead of spending CPU cycles doing it again and again on every request.
+  links:
+  - https://github.com/palantir/dialogue/pull/764
