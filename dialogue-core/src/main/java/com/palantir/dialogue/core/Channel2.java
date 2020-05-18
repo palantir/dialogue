@@ -17,17 +17,17 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 
-interface Channel2 extends Channel, BindEndpoint {
+interface Channel2 extends Channel, ChannelEndpointStage {
 
     @Override
     default ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         // this is a little inefficient, but implementations people are free to override it
-        return bindEndpoint(endpoint).execute(request);
+        return endpoint(endpoint).execute(request);
     }
 }

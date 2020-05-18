@@ -19,7 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CompileTimeConstant;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -58,9 +58,9 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
-    static BindEndpoint create(Config cf, BindEndpoint delegate, @CompileTimeConstant String stage) {
+    static ChannelEndpointStage create(Config cf, ChannelEndpointStage delegate, @CompileTimeConstant String stage) {
         return endpoint -> {
-            EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+            EndpointChannel proceed = delegate.endpoint(endpoint);
 
             Counter counter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .requestActive()

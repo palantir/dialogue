@@ -26,7 +26,7 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
@@ -92,7 +92,7 @@ final class RetryingChannel implements Channel2 {
                     SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
-    private final BindEndpoint delegate;
+    private final ChannelEndpointStage delegate;
     private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -103,7 +103,7 @@ final class RetryingChannel implements Channel2 {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
-    static BindEndpoint create(Config cf, BindEndpoint channel) {
+    static ChannelEndpointStage create(Config cf, ChannelEndpointStage channel) {
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;
@@ -123,7 +123,7 @@ final class RetryingChannel implements Channel2 {
 
     @VisibleForTesting
     RetryingChannel(
-            BindEndpoint delegate,
+            ChannelEndpointStage delegate,
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
@@ -142,7 +142,7 @@ final class RetryingChannel implements Channel2 {
     }
 
     private RetryingChannel(
-            BindEndpoint delegate,
+            ChannelEndpointStage delegate,
             String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,
@@ -178,8 +178,8 @@ final class RetryingChannel implements Channel2 {
     }
 
     @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.endpoint(endpoint);
         return req -> {
             if (isRetryable(req)) {
                 Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()

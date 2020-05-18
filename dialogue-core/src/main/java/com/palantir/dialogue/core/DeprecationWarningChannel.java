@@ -20,7 +20,7 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Response;
@@ -38,23 +38,23 @@ import org.slf4j.LoggerFactory;
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
-final class DeprecationWarningChannel implements BindEndpoint {
+final class DeprecationWarningChannel implements ChannelEndpointStage {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
-    private final BindEndpoint delegate;
+    private final ChannelEndpointStage delegate;
     private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(BindEndpoint delegate, TaggedMetricRegistry metrics) {
+    DeprecationWarningChannel(ChannelEndpointStage delegate, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
     }
 
     @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.endpoint(endpoint);
         FutureCallback<Response> callback = createCallback(endpoint);
         return req -> DialogueFutures.addDirectCallback(proceed.execute(req), callback);
     }

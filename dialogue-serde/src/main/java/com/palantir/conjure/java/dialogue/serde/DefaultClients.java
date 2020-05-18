@@ -25,7 +25,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
@@ -69,8 +69,8 @@ enum DefaultClients implements Clients {
 
     @Override
     public EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint) {
-        if (channel instanceof BindEndpoint) {
-            return ((BindEndpoint) channel).bindEndpoint(endpoint);
+        if (channel instanceof ChannelEndpointStage) {
+            return ((ChannelEndpointStage) channel).endpoint(endpoint);
         }
 
         log.warn(

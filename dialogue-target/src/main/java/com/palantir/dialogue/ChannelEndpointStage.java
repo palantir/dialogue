@@ -16,6 +16,10 @@
 
 package com.palantir.dialogue;
 
-public interface BindEndpoint {
-    EndpointChannel bindEndpoint(Endpoint endpoint);
+/**
+ * A 'staged' version of {@link Channel}, that allows implementors to precompute anything based on the provided
+ * {@code endpoint}.
+ */
+public interface ChannelEndpointStage {
+    EndpointChannel endpoint(Endpoint endpoint);
 }

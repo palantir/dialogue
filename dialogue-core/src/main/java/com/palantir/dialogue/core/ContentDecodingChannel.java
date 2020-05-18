@@ -20,7 +20,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements BindEndpoint {
+final class ContentDecodingChannel implements ChannelEndpointStage {
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
@@ -55,15 +55,15 @@ final class ContentDecodingChannel implements BindEndpoint {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final BindEndpoint delegate;
+    private final ChannelEndpointStage delegate;
 
-    ContentDecodingChannel(BindEndpoint delegate) {
+    ContentDecodingChannel(ChannelEndpointStage delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
     }
 
     @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.endpoint(endpoint);
         return req -> Futures.transform(
                 proceed.execute(acceptEncoding(req)),
                 ContentDecodingChannel::decompress,

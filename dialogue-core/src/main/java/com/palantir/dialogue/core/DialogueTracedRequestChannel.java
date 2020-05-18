@@ -17,23 +17,23 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-final class DialogueTracedRequestChannel implements BindEndpoint {
-    private final BindEndpoint delegate;
+final class DialogueTracedRequestChannel implements ChannelEndpointStage {
+    private final ChannelEndpointStage delegate;
 
-    DialogueTracedRequestChannel(BindEndpoint delegate) {
+    DialogueTracedRequestChannel(ChannelEndpointStage delegate) {
         this.delegate = delegate;
     }
 
     @Override
-    public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.bindEndpoint(endpoint);
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        EndpointChannel proceed = delegate.endpoint(endpoint);
         String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
         return new TracedEndpointChannel(proceed, operationName);
     }
