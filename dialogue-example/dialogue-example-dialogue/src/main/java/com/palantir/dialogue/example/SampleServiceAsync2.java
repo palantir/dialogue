@@ -20,10 +20,10 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
-import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.ri.ResourceIdentifier;
 import java.io.InputStream;
@@ -31,16 +31,22 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/** Just a proof of concept before changing any codegen. */
 public interface SampleServiceAsync2 extends SampleServiceAsync {
+    @Override
     ListenableFuture<Void> voidToVoid();
 
+    @Override
     ListenableFuture<SampleObject> objectToObject(
             OffsetDateTime header, String path, List<ResourceIdentifier> queryKey, SampleObject body);
 
+    @Override
     ListenableFuture<Optional<InputStream>> getOptionalBinary();
 
+    @Override
     ListenableFuture<AliasOfOptional> getMyAlias();
 
+    @Override
     ListenableFuture<AliasOfAliasOfOptional> getMyAlias2();
 
     /**
@@ -48,10 +54,11 @@ public interface SampleServiceAsync2 extends SampleServiceAsync {
      */
     static SampleServiceAsync of(Channel channel, ConjureRuntime runtime) {
         return new SampleServiceAsync() {
-            private final PlainSerDe _plainSerDe = runtime.plainSerDe();
+            private final PlainSerDe plainSerDe = runtime.plainSerDe();
 
+            // THIS IS THE BIND THINGY
             private final EndpointChannel voidToVoidChannel =
-                    runtime.clients().getSingleEndpointChannel(channel, DialogueSampleEndpoints.voidToVoid);
+                    runtime.clients().bindEndpoint(channel, DialogueSampleEndpoints.voidToVoid);
             private final Deserializer<Void> voidToVoidDeserializer =
                     runtime.bodySerDe().emptyBodyDeserializer();
 
@@ -69,51 +76,51 @@ public interface SampleServiceAsync2 extends SampleServiceAsync {
 
             @Override
             public ListenableFuture<Void> voidToVoid() {
-                Request.Builder _request = Request.builder();
-                return runtime.clients().call(voidToVoidChannel, _request.build(), voidToVoidDeserializer);
+                Request.Builder request = Request.builder();
+                return runtime.clients().call(voidToVoidChannel, request.build(), voidToVoidDeserializer);
             }
 
             @Override
             public ListenableFuture<SampleObject> objectToObject(
                     OffsetDateTime header, String path, List<ResourceIdentifier> queryKey, SampleObject body) {
-                Request.Builder _request = Request.builder();
-                _request.putPathParams("path", _plainSerDe.serializeString(path));
-                _request.putHeaderParams("HeaderKey", _plainSerDe.serializeDateTime(header));
+                Request.Builder request = Request.builder();
+                request.putPathParams("path", plainSerDe.serializeString(path));
+                request.putHeaderParams("HeaderKey", plainSerDe.serializeDateTime(header));
                 for (ResourceIdentifier queryKeyElement : queryKey) {
-                    _request.putQueryParams("queryKey", _plainSerDe.serializeRid(queryKeyElement));
+                    request.putQueryParams("queryKey", plainSerDe.serializeRid(queryKeyElement));
                 }
-                _request.body(objectToObjectSerializer.serialize(body));
+                request.body(objectToObjectSerializer.serialize(body));
                 return runtime.clients()
                         .call(
                                 channel,
                                 DialogueSampleEndpoints.objectToObject,
-                                _request.build(),
+                                request.build(),
                                 objectToObjectDeserializer);
             }
 
             @Override
             public ListenableFuture<Optional<InputStream>> getOptionalBinary() {
-                Request.Builder _request = Request.builder();
+                Request.Builder request = Request.builder();
                 return runtime.clients()
                         .call(
                                 channel,
                                 DialogueSampleEndpoints.getOptionalBinary,
-                                _request.build(),
+                                request.build(),
                                 runtime.bodySerDe().optionalInputStreamDeserializer());
             }
 
             @Override
             public ListenableFuture<AliasOfOptional> getMyAlias() {
-                Request.Builder _request = Request.builder();
+                Request.Builder request = Request.builder();
                 return runtime.clients()
-                        .call(channel, DialogueSampleEndpoints.getMyAlias, _request.build(), getMyAliasDeserializer);
+                        .call(channel, DialogueSampleEndpoints.getMyAlias, request.build(), getMyAliasDeserializer);
             }
 
             @Override
             public ListenableFuture<AliasOfAliasOfOptional> getMyAlias2() {
-                Request.Builder _request = Request.builder();
+                Request.Builder request = Request.builder();
                 return runtime.clients()
-                        .call(channel, DialogueSampleEndpoints.getMyAlias2, _request.build(), getMyAlias2Deserializer);
+                        .call(channel, DialogueSampleEndpoints.getMyAlias2, request.build(), getMyAlias2Deserializer);
             }
 
             @Override

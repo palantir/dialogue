@@ -17,12 +17,12 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.BindEndpoint;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.EndpointChannel;
 import com.palantir.tracing.Tracers;
 
 final class TracedChannel implements Channel2 {

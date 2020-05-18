@@ -32,7 +32,7 @@ public interface Clients {
 
     <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
-    EndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint);
+    EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint);
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling

@@ -30,10 +30,10 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.EndpointChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -62,16 +62,6 @@ enum DefaultClients implements Clients {
     }
 
     @Override
-    public EndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint) {
-        if (channel instanceof BindEndpoint) {
-            return ((BindEndpoint) channel).bindEndpoint(endpoint);
-        }
-
-        log.warn("Inefficient getSingleEndpointChannel {} {}", channel, endpoint);
-        return request -> channel.execute(endpoint, request);
-    }
-
-    @Override
     public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
         // TODO(dfox): dedupe with above
         Optional<String> accepts = deserializer.accepts();
@@ -79,6 +69,20 @@ enum DefaultClients implements Clients {
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
         return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint) {
+        if (channel instanceof BindEndpoint) {
+            return ((BindEndpoint) channel).bindEndpoint(endpoint);
+        }
+
+        log.warn(
+                "Possibly inefficient bindEndpoint {} {} {}",
+                SafeArg.of("serviceName", endpoint.serviceName()),
+                SafeArg.of("endpointName", endpoint.endpointName()),
+                UnsafeArg.of("channel", channel));
+        return request -> channel.execute(endpoint, request);
     }
 
     private static ListenableFuture<Response> closeRequestBodyOnCompletion(
