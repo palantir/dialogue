@@ -234,7 +234,7 @@ public final class DialogueChannel implements Channel, ChannelEndpointStage {
 
         /** Does *not* do any clever live-reloading. */
         @CheckReturnValue
-        public Channel2 buildNonLiveReloading() {
+        public Channel buildNonLiveReloading() {
             Config cf = builder.build();
 
             ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()
@@ -255,7 +255,8 @@ public final class DialogueChannel implements Channel, ChannelEndpointStage {
                     .build();
             createMeter.mark();
 
-            // TODO(dfox): Channel2 is package-private, kinda gross to be returning this.
+            // this package-private class ensures that when clients do an instanceof check, they'll be able to use
+            // the 'ChannelEndpointStage#endpoint' method
             return new Channel2() {
                 @Override
                 public EndpointChannel endpoint(Endpoint endpoint) {
