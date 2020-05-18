@@ -69,16 +69,17 @@ final class UserAgentChannel implements Channel2 {
 
     @Override
     public EndpointChannel bindEndpoint(Endpoint endpoint) {
-        return new UserAgentEndpointChannel(endpoint);
+        return new UserAgentEndpointChannel(
+                delegate.bindEndpoint(endpoint), UserAgents.format(augmentUserAgent(baseAgent, endpoint)));
     }
 
-    private final class UserAgentEndpointChannel implements EndpointChannel {
-        private final String userAgent;
+    private static final class UserAgentEndpointChannel implements EndpointChannel {
         private final EndpointChannel proceed;
+        private final String userAgent;
 
-        private UserAgentEndpointChannel(Endpoint endpoint) {
-            this.userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
-            this.proceed = delegate.bindEndpoint(endpoint);
+        private UserAgentEndpointChannel(EndpointChannel proceed, String userAgent) {
+            this.proceed = proceed;
+            this.userAgent = userAgent;
         }
 
         @Override
