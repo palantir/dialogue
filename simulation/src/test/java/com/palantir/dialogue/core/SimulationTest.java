@@ -52,6 +52,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.parallel.Execution;
@@ -102,6 +103,11 @@ final class SimulationTest {
     @EnumSource(Strategy.class)
     @ParameterizedTest
     @interface SimulationCase {}
+
+    @BeforeAll
+    static void beforeAll() {
+        Tracer.setSampler(() -> false);
+    }
 
     private Strategy st;
 
