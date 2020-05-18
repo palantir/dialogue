@@ -25,6 +25,9 @@
 one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=64.4%	client_mean=PT8.3962496S   	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1609, 500=891}
  one_endpoint_dies_on_each_server[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=65.4%	client_mean=PT4.168064S    	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1634, 500=866}
            one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].txt:	success=64.7%	client_mean=PT0.6S         	server_cpu=PT25M          	client_received=2500/2500	server_resps=2500	codes={200=1618, 500=882}
+      server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT9M58.206186533S	server_cpu=PT9H43M7.4S    	client_received=150000/150000	server_resps=174937	codes={200=149979, 429=21}
+          server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.284821951S 	server_cpu=PT9H11M6.4S    	client_received=150000/150000	server_resps=165332	codes={200=150000}
+                    server_side_rate_limits[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.21655417S  	server_cpu=PT8H44M25.2S   	client_received=150000/150000	server_resps=157326	codes={200=150000}
        simplest_possible_case[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.837469696S 	server_cpu=PT3H4M14.6S    	client_received=13200/13200	server_resps=13200	codes={200=13200}
            simplest_possible_case[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.785727272S 	server_cpu=PT2H52M51.6S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
                      simplest_possible_case[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.785727272S 	server_cpu=PT2H52M51.6S   	client_received=13200/13200	server_resps=13200	codes={200=13200}
@@ -159,6 +162,21 @@ slowdown_and_error_thresholds[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=
 ## `one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="one_endpoint_dies_on_each_server[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="server_side_rate_limits[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+
+
+## `server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="server_side_rate_limits[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `server_side_rate_limits[UNLIMITED_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="server_side_rate_limits[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
 ## `simplest_possible_case[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`

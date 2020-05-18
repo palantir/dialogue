@@ -21,11 +21,8 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -36,7 +33,6 @@ import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -51,19 +47,14 @@ import org.junit.Rule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
 // CHECKSTYLE:ON
-
-@SuppressWarnings({"checkstyle:avoidstaticimport", "FutureReturnValueIgnored"})
+@SuppressWarnings({"checkstyle:avoidstaticimport", "checkstyle:VisibilityModifier", "FutureReturnValueIgnored"})
 @EnableRuleMigrationSupport
-@ExtendWith(MockitoExtension.class)
 public abstract class AbstractChannelTest {
 
-    private static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
+    protected static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
 
     protected abstract Channel createChannel(ClientConfiguration config);
 
@@ -74,7 +65,7 @@ public abstract class AbstractChannelTest {
     @Rule
     public final MockWebServer server = new MockWebServer();
 
-    private final RequestBody body = new RequestBody() {
+    protected final RequestBody body = new RequestBody() {
         @Override
         public void writeTo(OutputStream output) throws IOException {
             output.write(CONTENT);
@@ -94,20 +85,17 @@ public abstract class AbstractChannelTest {
         public void close() {}
     };
 
-    @Mock
-    private Request request;
+    protected Request request;
 
-    private FakeEndpoint endpoint;
+    protected FakeEndpoint endpoint;
 
-    private Channel channel;
+    protected Channel channel;
 
     @BeforeEach
     public void before() {
         channel = createChannel(server.url("").url());
 
-        lenient().when(request.body()).thenReturn(Optional.empty());
-        lenient().when(request.queryParams()).thenReturn(ImmutableListMultimap.of());
-        lenient().when(request.headerParams()).thenReturn(ImmutableListMultimap.of());
+        request = Request.builder().build();
         server.enqueue(new MockResponse().setBody("body"));
 
         endpoint = new FakeEndpoint();
@@ -156,7 +144,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void usesRequestParametersToFillPathTemplate() throws InterruptedException {
-        when(request.pathParams()).thenReturn(ImmutableMap.of("a", "A"));
+        request = Request.builder().from(request).putPathParams("a", "A").build();
         endpoint.renderPath = (params, url) -> url.pathSegment(params.get("a"));
 
         channel.execute(endpoint, request);
@@ -173,7 +161,10 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void fillsHeaders() throws Exception {
-        when(request.headerParams()).thenReturn(ImmutableListMultimap.of("a", "A", "b", "B"));
+        request = Request.builder()
+                .from(request)
+                .headerParams(ImmutableListMultimap.of("a", "A", "b", "B"))
+                .build();
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
@@ -184,7 +175,7 @@ public abstract class AbstractChannelTest {
     @Test
     @Disabled("TODO(rfink): Sort our header encoding. How does work in the jaxrs/retrofit clients?")
     public void encodesHeaders() throws Exception {
-        when(request.headerParams()).thenReturn(ImmutableListMultimap.of("a", "ø\nü"));
+        request = Request.builder().from(request).putHeaderParams("a", "ø\nü").build();
         channel.execute(endpoint, request);
 
         RecordedRequest actualRequest = server.takeRequest();
@@ -193,7 +184,10 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void fillsQueryParameters() throws Exception {
-        when(request.queryParams()).thenReturn(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"));
+        request = Request.builder()
+                .from(request)
+                .queryParams(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"))
+                .build();
         channel.execute(endpoint, request);
 
         HttpUrl requestUrl = server.takeRequest().getRequestUrl();
@@ -206,7 +200,10 @@ public abstract class AbstractChannelTest {
     @Test
     public void encodesQueryParameters() throws Exception {
         String mustEncode = "%^&/?a=A3&a=A4";
-        when(request.queryParams()).thenReturn(ImmutableListMultimap.of(mustEncode, mustEncode));
+        request = Request.builder()
+                .from(request)
+                .putQueryParams(mustEncode, mustEncode)
+                .build();
         channel.execute(endpoint, request);
 
         HttpUrl url = server.takeRequest().getRequestUrl();
@@ -217,7 +214,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void get_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.GET;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         assertThatThrownBy(() -> channel.execute(endpoint, request).get())
                 .hasMessageContaining("GET endpoints must not have a request body");
     }
@@ -225,7 +222,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void head_failsWhenBodyIsGiven() {
         endpoint.method = HttpMethod.HEAD;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         assertThatThrownBy(() -> channel.execute(endpoint, request).get())
                 .hasMessageContaining("HEAD endpoints must not have a request body");
     }
@@ -233,7 +230,6 @@ public abstract class AbstractChannelTest {
     @Test
     public void head_failsWhenBodyReturned() throws ExecutionException, InterruptedException {
         endpoint.method = HttpMethod.HEAD;
-        when(request.body()).thenReturn(Optional.empty());
         Response response = channel.execute(endpoint, request).get();
         assertThat(response.body()).hasContent("");
     }
@@ -241,21 +237,19 @@ public abstract class AbstractChannelTest {
     @Test
     public void post_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.POST;
-        when(request.body()).thenReturn(Optional.empty());
         assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();
     }
 
     @Test
     public void put_okWhenNoBodyIsGiven() {
         endpoint.method = HttpMethod.PUT;
-        when(request.body()).thenReturn(Optional.empty());
         assertThatCode(() -> channel.execute(endpoint, request)).doesNotThrowAnyException();
     }
 
     @Test
     public void delete_okWhenBodyIsGiven() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.DELETE;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("DELETE");
@@ -266,7 +260,6 @@ public abstract class AbstractChannelTest {
     @Test
     public void delete_okWhenNoBodyIsGiven() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.DELETE;
-        when(request.body()).thenReturn(Optional.empty());
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("DELETE");
@@ -283,7 +276,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void postMethodYieldsPostHttpCall() throws InterruptedException {
         endpoint.method = HttpMethod.POST;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("POST");
     }
@@ -291,7 +284,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void putMethodYieldsPutHttpCall() throws InterruptedException {
         endpoint.method = HttpMethod.PUT;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getMethod()).isEqualTo("PUT");
     }
@@ -313,7 +306,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void setsContentTypeHeader() throws InterruptedException {
         endpoint.method = HttpMethod.POST;
-        when(request.body()).thenReturn(Optional.of(body));
+        request = Request.builder().from(request).body(body).build();
         channel.execute(endpoint, request);
 
         assertThat(server.takeRequest().getHeader("content-type")).isEqualTo("application/text");
@@ -396,7 +389,6 @@ public abstract class AbstractChannelTest {
     @TestTracing(snapshot = true)
     public void requestAreTraced() throws Exception {
         endpoint.method = HttpMethod.POST;
-        when(request.body()).thenReturn(Optional.empty());
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getHeader("X-B3-TraceId")).isNotEmpty();
@@ -415,9 +407,9 @@ public abstract class AbstractChannelTest {
         return gzipBytes;
     }
 
-    private static final class FakeEndpoint implements Endpoint {
-        private BiConsumer<Map<String, String>, UrlBuilder> renderPath;
-        private HttpMethod method;
+    public static final class FakeEndpoint implements Endpoint {
+        public BiConsumer<Map<String, String>, UrlBuilder> renderPath;
+        public HttpMethod method;
 
         @Override
         public void renderPath(Map<String, String> params, UrlBuilder url) {
