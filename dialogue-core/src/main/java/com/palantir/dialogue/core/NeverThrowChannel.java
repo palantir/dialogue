@@ -19,7 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -40,7 +40,7 @@ final class NeverThrowChannel implements Channel {
         this.delegate = delegate;
     }
 
-    static ChannelEndpointStage create(ChannelEndpointStage delegate) {
+    static EndpointChannelFactory create(EndpointChannelFactory delegate) {
         return endpoint -> {
             EndpointChannel proceed = delegate.endpoint(endpoint);
             return new NeverThrowEndpointChannel(proceed);

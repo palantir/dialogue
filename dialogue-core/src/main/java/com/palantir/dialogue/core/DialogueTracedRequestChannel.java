@@ -17,17 +17,17 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-final class DialogueTracedRequestChannel implements ChannelEndpointStage {
-    private final ChannelEndpointStage delegate;
+final class DialogueTracedRequestChannel implements EndpointChannelFactory {
+    private final EndpointChannelFactory delegate;
 
-    DialogueTracedRequestChannel(ChannelEndpointStage delegate) {
+    DialogueTracedRequestChannel(EndpointChannelFactory delegate) {
         this.delegate = delegate;
     }
 

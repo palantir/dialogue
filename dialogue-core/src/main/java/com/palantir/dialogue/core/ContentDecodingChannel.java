@@ -21,7 +21,7 @@ import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements ChannelEndpointStage {
+final class ContentDecodingChannel implements EndpointChannelFactory {
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
@@ -56,9 +56,9 @@ final class ContentDecodingChannel implements ChannelEndpointStage {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final ChannelEndpointStage delegate;
+    private final EndpointChannelFactory delegate;
 
-    ContentDecodingChannel(ChannelEndpointStage delegate) {
+    ContentDecodingChannel(EndpointChannelFactory delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
     }
 

@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -26,12 +26,12 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tracing.Tracers;
 
-final class TracedChannel implements ChannelEndpointStage {
+final class TracedChannel implements EndpointChannelFactory {
     private final Channel delegate;
     private final String operationName;
 
     TracedChannel(Channel delegate, String operationName) {
-        Preconditions.checkArgument(!(delegate instanceof ChannelEndpointStage), "Expecting plain Channel");
+        Preconditions.checkArgument(!(delegate instanceof EndpointChannelFactory), "Expecting plain Channel");
         this.delegate = delegate;
         this.operationName = operationName;
     }

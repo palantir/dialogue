@@ -20,7 +20,7 @@ package com.palantir.dialogue;
  * A 'staged' version of {@link Channel}, that allows implementors to precompute necessary objects (e.g. counter
  * lookups) based on the provided {@code endpoint}, saving CPU cycles on each call.
  */
-public interface ChannelEndpointStage {
+public interface EndpointChannelFactory {
 
     /**
      * Construct a new {@link EndpointChannel} which will send all requests to the given {@link Endpoint}. This

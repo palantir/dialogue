@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
 import java.util.Optional;
@@ -41,7 +41,7 @@ public final class UserAgentChannelTest {
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private ChannelEndpointStage delegate;
+    private EndpointChannelFactory delegate;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
