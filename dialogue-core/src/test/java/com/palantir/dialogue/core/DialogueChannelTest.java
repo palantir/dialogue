@@ -54,7 +54,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public final class DialogueChannelsTest {
+public final class DialogueChannelTest {
 
     public static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("foo", "1.0.0"));
     private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
