@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Endpoint;
@@ -47,6 +48,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
@@ -465,6 +467,42 @@ final class SimulationTest {
                 .client(strategy.getChannel(simulation, servers))
                 .simulation(simulation)
                 .abortAfter(Duration.ofSeconds(10))
+                .run();
+    }
+
+    @SimulationCase
+    void server_side_rate_limits(Strategy strategy) {
+        double totalRateLimit = 100;
+        int numServers = 4;
+        int numClients = 2;
+        double perServerRateLimit = totalRateLimit / numServers;
+
+        servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> {
+                    Meter requestRate = new Meter(simulation.codahaleClock());
+                    Function<SimulationServer, Response> responseFunc = s -> {
+                        if (requestRate.getOneMinuteRate() < perServerRateLimit) {
+                            requestRate.mark();
+                            return new TestResponse().code(200);
+                        } else {
+                            return new TestResponse().code(429);
+                        }
+                    };
+                    return SimulationServer.builder()
+                            .serverName("node" + i)
+                            .simulation(simulation)
+                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofMillis(200)))
+                            .build();
+                })
+                .toArray(SimulationServer[]::new));
+
+        st = strategy;
+        result = Benchmark.builder()
+                .requestsPerSecond((int) totalRateLimit)
+                .sendUntil(Duration.ofMinutes(25))
+                .clients(numClients, i -> strategy.getChannel(simulation, servers))
+                .simulation(simulation)
+                .abortAfter(Duration.ofHours(1))
                 .run();
     }
 
