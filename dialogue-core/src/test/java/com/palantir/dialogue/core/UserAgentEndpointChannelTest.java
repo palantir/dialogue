@@ -21,14 +21,13 @@ import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Answers;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -36,21 +35,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
-public final class UserAgentChannelTest {
+public final class UserAgentEndpointChannelTest {
 
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
 
-    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private EndpointChannelFactory delegate;
+    @Mock
+    private EndpointChannel delegate;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
 
-    private UserAgentChannel channel;
+    private EndpointChannel channel;
 
     @BeforeEach
     public void before() {
-        channel = new UserAgentChannel(delegate, baseAgent);
+        channel = UserAgentEndpointChannel.create(delegate, TestEndpoint.POST, baseAgent);
     }
 
     private Request request = Request.builder()
@@ -65,8 +64,8 @@ public final class UserAgentChannelTest {
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
                 .orElse("0.0.0");
 
-        channel.endpoint(TestEndpoint.POST).execute(request);
-        verify(delegate.endpoint(TestEndpoint.POST)).execute(requestCaptor.capture());
+        channel.execute(request);
+        verify(delegate).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
     }

@@ -19,47 +19,31 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.Tracers;
 
-final class DialogueTracedRequestChannel implements EndpointChannelFactory {
-    private final EndpointChannelFactory delegate;
+final class DialogueTracedRequestChannel implements EndpointChannel {
+    private final EndpointChannel delegate;
+    private final String operationName;
 
-    DialogueTracedRequestChannel(EndpointChannelFactory delegate) {
+    private DialogueTracedRequestChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
+        this.operationName = operationName;
+    }
+
+    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint) {
+        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
+        return new DialogueTracedRequestChannel(delegate, operationName);
     }
 
     @Override
-    public EndpointChannel endpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.endpoint(endpoint);
-        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
-        return new TracedEndpointChannel(proceed, operationName);
+    public ListenableFuture<Response> execute(Request request) {
+        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(request));
     }
 
     @Override
     public String toString() {
         return "DialogueTracedRequestChannel{" + delegate + '}';
-    }
-
-    private static final class TracedEndpointChannel implements EndpointChannel {
-        private final EndpointChannel proceed;
-        private final String operationName;
-
-        private TracedEndpointChannel(EndpointChannel proceed, String operationName) {
-            this.proceed = proceed;
-            this.operationName = operationName;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            return Tracers.wrapListenableFuture(operationName, () -> proceed.execute(request));
-        }
-
-        @Override
-        public String toString() {
-            return "TracedEndpointChannel{" + proceed + '}';
-        }
     }
 }

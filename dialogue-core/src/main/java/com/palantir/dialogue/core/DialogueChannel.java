@@ -90,14 +90,18 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     }
 
     private static EndpointChannelFactory wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
-        EndpointChannelFactory channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
-        channel = RetryingChannel.create(cf, channel);
-        channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
-        channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
-        channel = new ContentDecodingChannel(channel);
-        channel = new DialogueTracedRequestChannel(channel);
-        channel = ActiveRequestInstrumentationChannel.create(cf, channel, "processing");
-        return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
+        return endpoint -> {
+            EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+            channel = new TracedChannel(channel, "Dialogue-request-attempt");
+            channel = RetryingChannel.create(cf, channel, endpoint);
+            channel = UserAgentEndpointChannel.create(
+                    channel, endpoint, cf.clientConf().userAgent().get());
+            channel = DeprecationWarningChannel.create(cf, channel, endpoint);
+            channel = new ContentDecodingChannel(channel);
+            channel = DialogueTracedRequestChannel.create(channel, endpoint);
+            channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
+            return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
+        };
     }
 
     @Override

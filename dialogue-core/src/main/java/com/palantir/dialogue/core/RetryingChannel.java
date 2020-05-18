@@ -28,7 +28,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -59,7 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
-final class RetryingChannel implements EndpointChannelFactory {
+final class RetryingChannel implements EndpointChannel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
@@ -92,7 +91,8 @@ final class RetryingChannel implements EndpointChannelFactory {
                     SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
-    private final EndpointChannelFactory delegate;
+    private final EndpointChannel delegate;
+    private final Endpoint endpoint;
     private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -103,7 +103,7 @@ final class RetryingChannel implements EndpointChannelFactory {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
-    static EndpointChannelFactory create(Config cf, EndpointChannelFactory channel) {
+    static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;
@@ -111,6 +111,7 @@ final class RetryingChannel implements EndpointChannelFactory {
 
         return new RetryingChannel(
                 channel,
+                endpoint,
                 cf.channelName(),
                 clientConf.taggedMetricRegistry(),
                 clientConf.maxNumRetries(),
@@ -123,7 +124,8 @@ final class RetryingChannel implements EndpointChannelFactory {
 
     @VisibleForTesting
     RetryingChannel(
-            EndpointChannelFactory delegate,
+            EndpointChannel delegate,
+            Endpoint endpoint,
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
@@ -131,6 +133,7 @@ final class RetryingChannel implements EndpointChannelFactory {
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
         this(
                 delegate,
+                endpoint,
                 channelName,
                 new DefaultTaggedMetricRegistry(),
                 maxRetries,
@@ -142,7 +145,8 @@ final class RetryingChannel implements EndpointChannelFactory {
     }
 
     private RetryingChannel(
-            EndpointChannelFactory delegate,
+            EndpointChannel delegate,
+            Endpoint endpoint,
             String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,
@@ -152,6 +156,7 @@ final class RetryingChannel implements EndpointChannelFactory {
             ScheduledExecutorService scheduler,
             DoubleSupplier jitter) {
         this.delegate = delegate;
+        this.endpoint = endpoint;
         this.channelName = channelName;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
@@ -178,25 +183,15 @@ final class RetryingChannel implements EndpointChannelFactory {
     }
 
     @Override
-    public EndpointChannel endpoint(Endpoint endpoint) {
-        EndpointChannel proceed = delegate.endpoint(endpoint);
-        return new EndpointChannel() {
-            @Override
-            public ListenableFuture<Response> execute(Request req) {
-                if (isRetryable(req)) {
-                    Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
-                            ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
-                            : Optional.empty();
-                    return new RetryingCallback(proceed, req, endpoint, debugStacktrace).execute();
-                }
-                return proceed.execute(req);
-            }
+    public ListenableFuture<Response> execute(Request req) {
+        if (isRetryable(req)) {
+            Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
+                    ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
+                    : Optional.empty();
+            return new RetryingCallback(delegate, req, endpoint, debugStacktrace).execute();
+        }
 
-            @Override
-            public String toString() {
-                return "RetryingChannel.RetryingEndpointChannel{" + proceed + "}";
-            }
-        };
+        return delegate.execute(req);
     }
 
     private static boolean isRetryable(Request request) {

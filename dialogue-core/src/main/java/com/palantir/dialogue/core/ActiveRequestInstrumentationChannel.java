@@ -22,7 +22,6 @@ import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -58,20 +57,16 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
-    static EndpointChannelFactory create(
-            Config cf, EndpointChannelFactory delegate, @CompileTimeConstant String stage) {
-        return endpoint -> {
-            EndpointChannel proceed = delegate.endpoint(endpoint);
+    static EndpointChannel create(
+            Config cf, EndpointChannel delegate, Endpoint endpoint, @CompileTimeConstant String stage) {
+        Counter counter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                .requestActive()
+                .channelName(cf.channelName())
+                .serviceName(endpoint.serviceName())
+                .stage(stage)
+                .build();
 
-            Counter counter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
-                    .requestActive()
-                    .channelName(cf.channelName())
-                    .serviceName(endpoint.serviceName())
-                    .stage(stage)
-                    .build();
-
-            return new ActiveRequestInstrumentationEndpointChannel(counter, proceed);
-        };
+        return new ActiveRequestInstrumentationEndpointChannel(counter, delegate);
     }
 
     @Override
