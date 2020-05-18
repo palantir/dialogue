@@ -20,13 +20,16 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,29 +59,55 @@ final class DeprecationWarningChannel implements ChannelEndpointStage {
     public EndpointChannel endpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.endpoint(endpoint);
         FutureCallback<Response> callback = createCallback(endpoint);
-        return req -> DialogueFutures.addDirectCallback(proceed.execute(req), callback);
+        return new DeprecationWarningEndpointChannel(proceed, callback);
     }
 
     private FutureCallback<Response> createCallback(Endpoint endpoint) {
         Meter meter = metrics.deprecations(endpoint.serviceName());
+
         return DialogueFutures.onSuccess(response -> {
             if (response != null) {
-                response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                    meter.mark();
-                    if (tryAcquire(endpoint.serviceName())) {
-                        log.warn(
-                                "Using a deprecated endpoint when connecting to service",
-                                SafeArg.of("serviceName", endpoint.serviceName()),
-                                SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
-                                SafeArg.of("endpointName", endpoint.endpointName()),
-                                SafeArg.of("endpointClientVersion", endpoint.version()),
-                                SafeArg.of(
-                                        "service",
-                                        response.getFirstHeader("server").orElse("no server header provided")));
-                    }
-                });
+                return;
+            }
+
+            Optional<String> maybeHeader = response.getFirstHeader("deprecation");
+            if (!maybeHeader.isPresent()) {
+                return;
+            }
+
+            meter.mark();
+            if (tryAcquire(endpoint.serviceName())) {
+                log.warn(
+                        "Using a deprecated endpoint when connecting to service",
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
+                        SafeArg.of("endpointName", endpoint.endpointName()),
+                        SafeArg.of("endpointClientVersion", endpoint.version()),
+                        SafeArg.of("service", response.getFirstHeader("server").orElse("no server header provided")));
             }
         });
+    }
+
+    private static final class DeprecationWarningEndpointChannel implements EndpointChannel {
+        private final EndpointChannel proceed;
+        private final FutureCallback<Response> callback;
+
+        DeprecationWarningEndpointChannel(EndpointChannel proceed, FutureCallback<Response> callback) {
+            this.proceed = proceed;
+            this.callback = callback;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            ListenableFuture<Response> future = proceed.execute(request);
+            DialogueFutures.addDirectCallback(future, callback);
+            return future;
+        }
+
+        @Override
+        public String toString() {
+            return "DeprecationWarningEndpointChannel{" + proceed + '}';
+        }
     }
 
     /**
