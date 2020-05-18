@@ -54,16 +54,12 @@ enum DefaultClients implements Clients {
     @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
-        Optional<String> accepts = deserializer.accepts();
-        Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
-        ListenableFuture<Response> response =
-                closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
-        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+        EndpointChannel endpointChannel = bindEndpoint(channel, endpoint);
+        return call(endpointChannel, request, deserializer);
     }
 
     @Override
     public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        // TODO(dfox): dedupe with above
         Optional<String> accepts = deserializer.accepts();
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
