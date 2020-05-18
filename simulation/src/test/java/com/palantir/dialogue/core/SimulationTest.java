@@ -36,7 +36,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -551,14 +550,10 @@ final class SimulationTest {
         Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
-        long clientMeanNanos = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.MILLISECONDS.convert(clientMeanNanos, TimeUnit.NANOSECONDS);
-
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(
-                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
+                "success=%s%%\t\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
                 result.successPercentage(),
-                Duration.of(clientMeanNanos, ChronoUnit.NANOS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),
@@ -588,9 +583,8 @@ final class SimulationTest {
                     StandardOpenOption.TRUNCATE_EXISTING);
 
             XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests$"));
-            activeRequests.setTitle(String.format(
-                    "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
-                    st, result.successPercentage(), clientMeanMillis, serverCpu));
+            activeRequests.setTitle(
+                    String.format("%s success=%s%% server_cpu=%s", st, result.successPercentage(), serverCpu));
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
             // on disk to aid local iteration.

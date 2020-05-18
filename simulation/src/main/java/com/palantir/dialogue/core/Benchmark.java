@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Snapshot;
 import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -243,9 +242,6 @@ public final class Benchmark {
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(ClientMetrics.of(simulation.taggedMetrics())
-                                    .response(SimulationUtils.CHANNEL_NAME)
-                                    .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(
@@ -272,8 +268,6 @@ public final class Benchmark {
 
     @Value.Immutable
     interface BenchmarkResult {
-        Snapshot clientHistogram();
-
         Duration endTime();
 
         Map<String, Integer> statusCodes();

@@ -20,7 +20,7 @@ Connection pool metrics from the dialogue Apache client.
 
 ### client
 General client metrics produced by dialogue. These metrics are meant to be applicable to all conjure clients without being implementation-specific.
-- `client.response` tagged `channel-name` (timer): Request time, note that this does not include time spent reading the response body.
+- `client.response` tagged `channel-name` (meter): Rate that response are received by channel.
 - `client.response.error` tagged `channel-name`, `service-name`, `reason` (meter): Rate of errors received by reason and service-name. Currently only errors with reason `IOException` are reported.
 - `client.deprecations` tagged `service-name` (meter): Rate of deprecated endpoints being invoked.
 

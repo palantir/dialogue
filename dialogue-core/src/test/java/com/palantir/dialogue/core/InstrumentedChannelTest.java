@@ -21,7 +21,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Timer;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -58,19 +57,19 @@ public final class InstrumentedChannelTest {
         when(endpoint.serviceName()).thenReturn("my-service");
 
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response("my-channel");
+        Meter meter = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
                 .reason(IOException.class.getSimpleName())
                 .build();
 
-        assertThat(timer.getCount()).isZero();
+        assertThat(meter.getCount()).isZero();
 
         // Successful execution
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFuture(null));
         channel.execute(endpoint, null);
-        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(meter.getCount()).isEqualTo(1);
         assertThat(responseErrors.getCount()).isZero();
     }
 
@@ -78,20 +77,20 @@ public final class InstrumentedChannelTest {
     public void addsMetricsForUnsuccessfulExecution_runtimeException() {
         when(endpoint.serviceName()).thenReturn("my-service");
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response("my-channel");
+        Meter meter = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
                 .reason(IOException.class.getSimpleName())
                 .build();
 
-        assertThat(timer.getCount()).isZero();
+        assertThat(meter.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
 
         // Unsuccessful execution with IOException
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
         channel.execute(endpoint, null);
-        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(meter.getCount()).isEqualTo(1);
         assertThat(responseErrors.getCount()).isZero();
     }
 
@@ -99,20 +98,20 @@ public final class InstrumentedChannelTest {
     public void addsMetricsForUnsuccessfulExecution_ioException() {
         when(endpoint.serviceName()).thenReturn("my-service");
         ClientMetrics metrics = ClientMetrics.of(registry);
-        Timer timer = metrics.response("my-channel");
+        Meter meter = metrics.response("my-channel");
         Meter responseErrors = metrics.responseError()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
                 .reason(IOException.class.getSimpleName())
                 .build();
 
-        assertThat(timer.getCount()).isZero();
+        assertThat(meter.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
 
         // Unsuccessful execution with IOException
         when(delegate.execute(any(), any())).thenReturn(Futures.immediateFailedFuture(new IOException()));
         channel.execute(endpoint, null);
-        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(meter.getCount()).isEqualTo(1);
         assertThat(responseErrors.getCount()).isOne();
     }
 }
