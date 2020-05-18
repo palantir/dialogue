@@ -19,11 +19,22 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 interface Channel2 extends Channel, BindEndpoint {
+    Logger log = LoggerFactory.getLogger(Channel2.class);
+
     @Override
-    default SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+    default EndpointChannel bindEndpoint(Endpoint endpoint) {
+        // TODO(dfox): swap this round so we have a default impl of the slow method, but require the fast one
+        log.warn(
+                "Inefficient bindEndpoint for {} endpoint on: {}",
+                endpoint,
+                this,
+                new SafeRuntimeException("called " + "here"));
         return request -> execute(endpoint, request);
     }
 }

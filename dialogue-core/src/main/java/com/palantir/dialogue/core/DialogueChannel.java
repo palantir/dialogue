@@ -29,7 +29,7 @@ import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import java.util.Collection;
@@ -112,7 +112,7 @@ public final class DialogueChannel implements Channel, BindEndpoint {
     }
 
     @Override
-    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
         return delegate.bindEndpoint(endpoint);
     }
 

@@ -22,7 +22,7 @@ import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.tracing.Tracers;
 
 final class TracedChannel implements Channel2 {
@@ -46,12 +46,12 @@ final class TracedChannel implements Channel2 {
     }
 
     @Override
-    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
         return new TracedEndpointChannel(endpoint);
     }
 
-    private class TracedEndpointChannel implements SingleEndpointChannel {
-        private final SingleEndpointChannel proceed;
+    private class TracedEndpointChannel implements EndpointChannel {
+        private final EndpointChannel proceed;
 
         TracedEndpointChannel(Endpoint endpoint) {
             this.proceed = delegate instanceof BindEndpoint

@@ -41,7 +41,7 @@ public final class UserAgentChannelTest {
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
 
     @Mock
-    private Channel delegate;
+    private Channel2 delegate;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;

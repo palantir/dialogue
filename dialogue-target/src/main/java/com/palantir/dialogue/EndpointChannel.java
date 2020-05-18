@@ -18,6 +18,6 @@ package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
 
-public interface SingleEndpointChannel {
+public interface EndpointChannel {
     ListenableFuture<Response> execute(Request request);
 }

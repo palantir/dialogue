@@ -23,7 +23,7 @@ import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.ri.ResourceIdentifier;
 import java.io.InputStream;
@@ -31,7 +31,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 
-public interface SampleServiceAsync2 {
+public interface SampleServiceAsync2 extends SampleServiceAsync {
     ListenableFuture<Void> voidToVoid();
 
     ListenableFuture<SampleObject> objectToObject(
@@ -50,7 +50,7 @@ public interface SampleServiceAsync2 {
         return new SampleServiceAsync() {
             private final PlainSerDe _plainSerDe = runtime.plainSerDe();
 
-            private final SingleEndpointChannel voidToVoidChannel =
+            private final EndpointChannel voidToVoidChannel =
                     runtime.clients().getSingleEndpointChannel(channel, DialogueSampleEndpoints.voidToVoid);
             private final Deserializer<Void> voidToVoidDeserializer =
                     runtime.bodySerDe().emptyBodyDeserializer();
@@ -118,7 +118,7 @@ public interface SampleServiceAsync2 {
 
             @Override
             public String toString() {
-                return "SampleServiceBlocking{channel=" + channel + ", runtime=" + runtime + '}';
+                return "SampleServiceAsync2{channel=" + channel + ", runtime=" + runtime + '}';
             }
         };
     }

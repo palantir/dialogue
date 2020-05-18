@@ -17,5 +17,5 @@
 package com.palantir.dialogue;
 
 public interface BindEndpoint {
-    SingleEndpointChannel bindEndpoint(Endpoint endpoint);
+    EndpointChannel bindEndpoint(Endpoint endpoint);
 }

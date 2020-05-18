@@ -30,11 +30,9 @@ public interface Clients {
      */
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
-    default SingleEndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint) {
-        return request -> channel.execute(endpoint, request);
-    }
+    <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
-    <T> ListenableFuture<T> call(SingleEndpointChannel channel, Request request, Deserializer<T> deserializer);
+    EndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint);
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling

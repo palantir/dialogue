@@ -18,8 +18,10 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import org.slf4j.Logger;
@@ -51,5 +53,32 @@ final class NeverThrowChannel implements Channel2 {
     @Override
     public String toString() {
         return "NeverThrowChannel{" + delegate + '}';
+    }
+
+    @Override
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
+        if (delegate instanceof BindEndpoint) {
+            return new NeverThrowEndpointChannel(((BindEndpoint) delegate).bindEndpoint(endpoint));
+        } else {
+            return req -> execute(endpoint, req);
+        }
+    }
+
+    private static final class NeverThrowEndpointChannel implements EndpointChannel {
+        private final EndpointChannel proceed;
+
+        private NeverThrowEndpointChannel(EndpointChannel proceed) {
+            this.proceed = proceed;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            try {
+                return proceed.execute(request);
+            } catch (RuntimeException | Error e) {
+                log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
+                return Futures.immediateFailedFuture(e);
+            }
+        }
     }
 }

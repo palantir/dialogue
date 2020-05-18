@@ -23,7 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
@@ -68,13 +68,13 @@ final class UserAgentChannel implements Channel2 {
     }
 
     @Override
-    public SingleEndpointChannel bindEndpoint(Endpoint endpoint) {
+    public EndpointChannel bindEndpoint(Endpoint endpoint) {
         return new UserAgentEndpointChannel(endpoint);
     }
 
-    private class UserAgentEndpointChannel implements SingleEndpointChannel {
+    private final class UserAgentEndpointChannel implements EndpointChannel {
         private final String userAgent;
-        private final SingleEndpointChannel proceed;
+        private final EndpointChannel proceed;
 
         private UserAgentEndpointChannel(Endpoint endpoint) {
             this.userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));

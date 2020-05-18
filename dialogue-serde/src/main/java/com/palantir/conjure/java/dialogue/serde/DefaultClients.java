@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
+import com.palantir.dialogue.BindEndpoint;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
@@ -32,7 +33,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.SingleEndpointChannel;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -61,12 +62,17 @@ enum DefaultClients implements Clients {
     }
 
     @Override
-    public SingleEndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint) {
-        return null;
+    public EndpointChannel getSingleEndpointChannel(Channel channel, Endpoint endpoint) {
+        if (channel instanceof BindEndpoint) {
+            return ((BindEndpoint) channel).bindEndpoint(endpoint);
+        }
+
+        log.warn("Inefficient getSingleEndpointChannel {} {}", channel, endpoint);
+        return request -> channel.execute(endpoint, request);
     }
 
     @Override
-    public <T> ListenableFuture<T> call(SingleEndpointChannel channel, Request request, Deserializer<T> deserializer) {
+    public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
         // TODO(dfox): dedupe with above
         Optional<String> accepts = deserializer.accepts();
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
