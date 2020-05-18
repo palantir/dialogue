@@ -55,3 +55,5 @@ __init__.pyc
 .cache/
 .ipynb_checkpoints/
 .vscode/
+
+**/jmh-result.*

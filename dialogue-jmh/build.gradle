@@ -1,16 +1,21 @@
+versionsLock {
+    testProject()
+}
 
 dependencies {
+    implementation project(':dialogue-core')
+    implementation project(':dialogue-test-common')
+    implementation 'com.google.guava:guava'
     implementation 'org.openjdk.jmh:jmh-core'
+    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
 
-    // implementation 'com.palantir.conjure.java.runtime:keystores'
-    // implementation 'com.palantir.conjure.java.runtime:jetty-http2-agent'
-    // implementation 'com.squareup.okhttp3:okhttp'
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+    runtimeOnly 'org.apache.logging.log4j:log4j-core'
 
-
+    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess'
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
-    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess'
-    // annotationProcessor 'com.google.auto.service:auto-service'
 }
 
 
@@ -20,8 +25,8 @@ project.task(type: JavaExec, 'jmh') {
     main = 'org.openjdk.jmh.Main'
     classpath = sourceSets.main.runtimeClasspath
     maxHeapSize = '1024m'
-    // ./gradlew jmv -PjmhOptions='-rf json'
 
+    // e.g. ./gradlew jmv -PjmhOptions='-rf json'
     if (project.hasProperty('jmhOptions')) {
         args(project.jmhOptions.split(' '))
     }
