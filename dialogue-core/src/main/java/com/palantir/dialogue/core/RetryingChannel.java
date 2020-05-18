@@ -180,14 +180,22 @@ final class RetryingChannel implements ChannelEndpointStage {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.endpoint(endpoint);
-        return req -> {
-            if (isRetryable(req)) {
-                Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
-                        ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
-                        : Optional.empty();
-                return new RetryingCallback(proceed, req, endpoint, debugStacktrace).execute();
+        return new EndpointChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Request req) {
+                if (isRetryable(req)) {
+                    Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
+                            ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
+                            : Optional.empty();
+                    return new RetryingCallback(proceed, req, endpoint, debugStacktrace).execute();
+                }
+                return proceed.execute(req);
             }
-            return proceed.execute(req);
+
+            @Override
+            public String toString() {
+                return "RetryingEndpointChannel{" + proceed + "}";
+            }
         };
     }
 

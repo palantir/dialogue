@@ -107,9 +107,8 @@ public class IntegrationTest {
     @Test
     public void conjure_generated_async_interface_with_optional_binary_return_type_and_gzip() {
         setBinaryGzipResponse("Hello, world");
-        SampleServiceAsync client = async;
 
-        ListenableFuture<Optional<InputStream>> future = client.getOptionalBinary();
+        ListenableFuture<Optional<InputStream>> future = async.getOptionalBinary();
         Optional<InputStream> maybeBinary = Futures.getUnchecked(future);
 
         assertThat(maybeBinary).isPresent();

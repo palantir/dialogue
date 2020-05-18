@@ -83,5 +83,10 @@ final class UserAgentChannel implements ChannelEndpointStage {
                     .build();
             return proceed.execute(newRequest);
         }
+
+        @Override
+        public String toString() {
+            return "UserAgentEndpointChannel{userAgent='" + userAgent + '\'' + ", proceed=" + proceed + '}';
+        }
     }
 }

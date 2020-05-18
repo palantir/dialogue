@@ -57,5 +57,10 @@ final class TracedChannel implements ChannelEndpointStage {
         public ListenableFuture<Response> execute(Request request) {
             return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
         }
+
+        @Override
+        public String toString() {
+            return "TracedEndpointChannel{" + delegate + '}';
+        }
     }
 }
