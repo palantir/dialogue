@@ -26,9 +26,9 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -59,7 +59,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
-final class RetryingChannel implements ChannelEndpointStage {
+final class RetryingChannel implements EndpointChannelFactory {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
@@ -92,7 +92,7 @@ final class RetryingChannel implements ChannelEndpointStage {
                     SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
-    private final ChannelEndpointStage delegate;
+    private final EndpointChannelFactory delegate;
     private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -103,7 +103,7 @@ final class RetryingChannel implements ChannelEndpointStage {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
-    static ChannelEndpointStage create(Config cf, ChannelEndpointStage channel) {
+    static EndpointChannelFactory create(Config cf, EndpointChannelFactory channel) {
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;
@@ -123,7 +123,7 @@ final class RetryingChannel implements ChannelEndpointStage {
 
     @VisibleForTesting
     RetryingChannel(
-            ChannelEndpointStage delegate,
+            EndpointChannelFactory delegate,
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
@@ -142,7 +142,7 @@ final class RetryingChannel implements ChannelEndpointStage {
     }
 
     private RetryingChannel(
-            ChannelEndpointStage delegate,
+            EndpointChannelFactory delegate,
             String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,

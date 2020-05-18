@@ -14,16 +14,27 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 
-/**
- * {@code EndpointChannel} is an abstraction of a transport layer (e.g., HTTP) that is used client stubs.
- *
- * This is a version of {@link Channel} that always sends the given request to a predefined {@link Endpoint}.
- * Constructed using {@link EndpointChannelFactory#endpoint}.
- */
-public interface EndpointChannel {
-    ListenableFuture<Response> execute(Request request);
+public class EndpointChannelAdapter implements EndpointChannel {
+
+    private final Channel delegate;
+    private final Endpoint endpoint;
+
+    public EndpointChannelAdapter(Channel delegate, Endpoint endpoint) {
+        this.delegate = delegate;
+        this.endpoint = endpoint;
+    }
+
+    @Override
+    public ListenableFuture<Response> execute(Request request) {
+        return delegate.execute(endpoint, request);
+    }
 }

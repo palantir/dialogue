@@ -21,9 +21,9 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
@@ -41,16 +41,16 @@ import org.slf4j.LoggerFactory;
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
-final class DeprecationWarningChannel implements ChannelEndpointStage {
+final class DeprecationWarningChannel implements EndpointChannelFactory {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
-    private final ChannelEndpointStage delegate;
+    private final EndpointChannelFactory delegate;
     private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
 
-    DeprecationWarningChannel(ChannelEndpointStage delegate, TaggedMetricRegistry metrics) {
+    DeprecationWarningChannel(EndpointChannelFactory delegate, TaggedMetricRegistry metrics) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
     }

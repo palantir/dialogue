@@ -20,9 +20,9 @@ import com.codahale.metrics.Counter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -58,7 +58,8 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
-    static ChannelEndpointStage create(Config cf, ChannelEndpointStage delegate, @CompileTimeConstant String stage) {
+    static EndpointChannelFactory create(
+            Config cf, EndpointChannelFactory delegate, @CompileTimeConstant String stage) {
         return endpoint -> {
             EndpointChannel proceed = delegate.endpoint(endpoint);
 

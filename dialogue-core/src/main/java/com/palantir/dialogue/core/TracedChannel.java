@@ -17,50 +17,27 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
-import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.tracing.Tracers;
 
-final class TracedChannel implements ChannelEndpointStage {
-    private final Channel delegate;
+final class TracedChannel implements EndpointChannel {
+    private final EndpointChannel delegate;
     private final String operationName;
 
-    TracedChannel(Channel delegate, String operationName) {
-        Preconditions.checkArgument(!(delegate instanceof ChannelEndpointStage), "Expecting plain Channel");
+    TracedChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
         this.operationName = operationName;
     }
 
     @Override
-    public EndpointChannel endpoint(Endpoint endpoint) {
-        return new TracedEndpointChannel(endpoint);
+    public ListenableFuture<Response> execute(Request request) {
+        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(request));
     }
 
     @Override
     public String toString() {
         return "TracedChannel{operationName=" + operationName + ", delegate=" + delegate + '}';
-    }
-
-    private final class TracedEndpointChannel implements EndpointChannel {
-        private final Endpoint endpoint;
-
-        private TracedEndpointChannel(Endpoint endpoint) {
-            this.endpoint = endpoint;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(endpoint, request));
-        }
-
-        @Override
-        public String toString() {
-            return "TracedEndpointChannel{" + delegate + '}';
-        }
     }
 }

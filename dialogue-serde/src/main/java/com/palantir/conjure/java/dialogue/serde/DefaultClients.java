@@ -26,11 +26,11 @@ import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -69,8 +69,8 @@ enum DefaultClients implements Clients {
 
     @Override
     public EndpointChannel bindEndpoint(Channel channel, Endpoint endpoint) {
-        if (channel instanceof ChannelEndpointStage) {
-            return ((ChannelEndpointStage) channel).endpoint(endpoint);
+        if (channel instanceof EndpointChannelFactory) {
+            return ((EndpointChannelFactory) channel).endpoint(endpoint);
         }
 
         if (log.isInfoEnabled()) {

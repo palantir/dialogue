@@ -30,7 +30,7 @@ import com.google.common.util.concurrent.ListenableFuture;
  * Implementations of {@link Channel#execute(Endpoint, Request)} must never throw. A failed {@link ListenableFuture}
  * must be returned instead.
  *
- * See also {@link ChannelEndpointStage} and {@link EndpointChannel}.
+ * See also {@link EndpointChannelFactory} and {@link EndpointChannel}.
  */
 public interface Channel {
     ListenableFuture<Response> execute(Endpoint endpoint, Request request);

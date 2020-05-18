@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
 import java.util.Optional;
@@ -36,21 +36,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
-public final class UserAgentChannelTest {
+public final class UserAgentEndpointChannelTest {
 
     private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private ChannelEndpointStage delegate;
+    private EndpointChannelFactory delegate;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
 
-    private UserAgentChannel channel;
+    private UserAgentEndpointChannel channel;
 
     @BeforeEach
     public void before() {
-        channel = new UserAgentChannel(delegate, baseAgent);
+        channel = new UserAgentEndpointChannel(delegate, baseAgent);
     }
 
     private Request request = Request.builder()

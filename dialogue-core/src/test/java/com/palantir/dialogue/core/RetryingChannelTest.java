@@ -28,7 +28,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.ChannelEndpointStage;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -56,13 +56,13 @@ public class RetryingChannelTest {
     private static final Request REQUEST = Request.builder().build();
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
-    private ChannelEndpointStage channel;
+    private EndpointChannelFactory channel;
 
     @Test
     public void testNoFailures() throws ExecutionException, InterruptedException {
         when(channel.endpoint(any()).execute(any())).thenReturn(SUCCESS);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -79,7 +79,7 @@ public class RetryingChannelTest {
         when(channel.endpoint(any()).execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -100,7 +100,7 @@ public class RetryingChannelTest {
                 .thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -118,7 +118,7 @@ public class RetryingChannelTest {
     public void testRetriesMax() {
         when(channel.endpoint(any()).execute(any())).thenReturn(FAILED);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -137,7 +137,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(429);
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -159,7 +159,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(503);
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -183,7 +183,7 @@ public class RetryingChannelTest {
 
         long startTime = System.nanoTime();
         Duration backoffSlotSize = Duration.ofSeconds(10);
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -208,7 +208,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(308);
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -231,7 +231,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(429);
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -251,7 +251,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -270,7 +270,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -287,7 +287,7 @@ public class RetryingChannelTest {
     public void doesnt_retry_500s_for_post() throws Exception {
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -307,7 +307,7 @@ public class RetryingChannelTest {
         when(mockResponse.code()).thenReturn(503);
         when(channel.endpoint(any()).execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -332,7 +332,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response2))
                 .thenReturn(Futures.immediateFuture(eventualSuccess));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -358,7 +358,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFuture(response2))
                 .thenReturn(Futures.immediateFuture(response3));
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 2,
@@ -381,7 +381,7 @@ public class RetryingChannelTest {
     public void testPropagatesCancel() {
         ListenableFuture<Response> delegateResult = SettableFuture.create();
         when(channel.endpoint(any()).execute(any())).thenReturn(delegateResult);
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 3,
@@ -400,7 +400,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
                 .thenReturn(SUCCESS);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -418,7 +418,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
                 .thenReturn(SUCCESS);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -436,7 +436,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SafeRuntimeException("bug")))
                 .thenReturn(SUCCESS);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -457,7 +457,7 @@ public class RetryingChannelTest {
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException("connect timed out")))
                 .thenReturn(SUCCESS);
 
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
@@ -474,7 +474,7 @@ public class RetryingChannelTest {
         when(channel.endpoint(any()).execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
-        ChannelEndpointStage retryer = new RetryingChannel(
+        EndpointChannelFactory retryer = new RetryingChannel(
                 channel,
                 "my-channel",
                 1,
