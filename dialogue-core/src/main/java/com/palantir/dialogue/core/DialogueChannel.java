@@ -30,6 +30,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -115,18 +116,21 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
+            ImmutableList.Builder<EndpointMaybeChannelFactory> perUriChannels = ImmutableList.builder();
+
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
-                Channel channel = cf.channelFactory().create(uri);
-                channel = InstrumentedChannel.create(cf, channel);
-                channel = HostMetricsChannel.create(cf, channel, uri);
-                channel = ActiveRequestInstrumentationChannel.create(cf, channel, "running");
-                channel = new TraceEnrichingChannel(channel);
-                LimitedChannel limited = new ChannelToLimitedChannelAdapter(channel);
-                perUriChannels.add(ConcurrencyLimitedChannel.create(cf, limited, uriIndex));
+                Channel baseChannel = cf.channelFactory().create(uri);
+                EndpointChannelFactory perUriChannelFactory = endpoint -> {
+                    Channel channel = InstrumentedChannel.create(cf, baseChannel);
+                    channel = HostMetricsChannel.create(cf, channel, uri);
+                    channel = ActiveRequestInstrumentationChannel.create(cf, channel, "running");
+                    channel = new TraceEnrichingChannel(channel);
+                    return new EndpointChannelAdapter(endpoint, channel);
+                };
+                perUriChannels.add(ConcurrencyLimitedChannel.create(cf, perUriChannelFactory, uriIndex));
             }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
+            ImmutableList<EndpointMaybeChannelFactory> channels = perUriChannels.build();
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
             Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
