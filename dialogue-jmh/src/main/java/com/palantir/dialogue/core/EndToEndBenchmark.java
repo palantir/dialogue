@@ -29,7 +29,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
-import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
@@ -75,7 +74,7 @@ public class EndToEndBenchmark {
     private Undertow undertow;
     private ExecutorService blockingExecutor;
     private SampleServiceBlocking blocking;
-    private SampleServiceAsync _async;
+    // private SampleServiceAsync async;
     private ApacheHttpClientChannels.CloseableClient closeableApache;
     private Channel apacheChannel;
 
@@ -110,7 +109,7 @@ public class EndToEndBenchmark {
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
-        _async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
+        // async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
 
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)

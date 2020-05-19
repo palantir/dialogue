@@ -69,7 +69,8 @@ public class NodeSelectionBenchmark {
     public NodeSelectionStrategy selectionStrategy;
 
     private static final Request request = Request.builder().build();
-    private static final TestResponse response = new TestResponse().code(200);
+    private static final TestResponse response =
+            new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED");
     private static final ListenableFuture<Response> future = Futures.immediateFuture(response);
 
     private final DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
