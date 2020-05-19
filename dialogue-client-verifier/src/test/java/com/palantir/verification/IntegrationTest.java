@@ -90,6 +90,7 @@ public class IntegrationTest {
     @Test
     public void alias_of_optional() {
         set204Response();
+        blocking.voidToVoid();
         AliasOfOptional myAlias = blocking.getMyAlias();
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();

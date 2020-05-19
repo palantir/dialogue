@@ -16,44 +16,50 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 
 /**
  * A channel that observes metrics about the processed requests and responses.
  * TODO(rfink): Consider renaming since this is no longer the only one doing instrumentation
  */
-final class InstrumentedChannel implements Channel {
-    private final Channel delegate;
-    private final String channelName;
-    private final ClientMetrics metrics;
+final class InstrumentedChannel implements EndpointChannel {
+    private final EndpointChannel delegate;
+    private final Timer responseTimer;
+    private final Meter responseError;
 
-    InstrumentedChannel(Channel delegate, String channelName, TaggedMetricRegistry metrics) {
+    InstrumentedChannel(EndpointChannel delegate, Timer responseTimer, Meter responseError) {
         this.delegate = delegate;
-        this.channelName = channelName;
-        this.metrics = ClientMetrics.of(metrics);
+        this.responseTimer = responseTimer;
+        this.responseError = responseError;
     }
 
-    static InstrumentedChannel create(Config cf, Channel delegate) {
+    static InstrumentedChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        ClientMetrics metrics = ClientMetrics.of(cf.clientConf().taggedMetricRegistry());
         return new InstrumentedChannel(
-                delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+                delegate,
+                metrics.response()
+                        .channelName(cf.channelName())
+                        .serviceName(endpoint.serviceName())
+                        .build(),
+                metrics.responseError()
+                        .channelName(cf.channelName())
+                        .serviceName(endpoint.serviceName())
+                        .reason("IOException")
+                        .build());
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Timer.Context context = metrics.response()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .build()
-                .time();
-        ListenableFuture<Response> response = delegate.execute(endpoint, request);
+    public ListenableFuture<Response> execute(Request request) {
+        Timer.Context context = responseTimer.time();
+        ListenableFuture<Response> response = delegate.execute(request);
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response _result) {
@@ -64,12 +70,7 @@ final class InstrumentedChannel implements Channel {
             public void onFailure(Throwable throwable) {
                 context.stop();
                 if (throwable instanceof IOException) {
-                    metrics.responseError()
-                            .channelName(channelName)
-                            .serviceName(endpoint.serviceName())
-                            .reason("IOException")
-                            .build()
-                            .mark();
+                    responseError.mark();
                 }
             }
         });

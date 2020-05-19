@@ -20,8 +20,7 @@ import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.HostEventsSink;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -33,13 +32,18 @@ import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-final class HostMetricsChannel implements Channel {
-    private final Channel delegate;
+final class HostMetricsChannel implements EndpointChannel {
+    private final EndpointChannel delegate;
     private final Ticker clock;
     private final HostEventsSink.HostEventCallback hostEventCallback;
 
     private HostMetricsChannel(
-            Channel delegate, HostEventsSink hostMetrics, Ticker ticker, String serviceName, String host, int port) {
+            EndpointChannel delegate,
+            HostEventsSink hostMetrics,
+            Ticker ticker,
+            String serviceName,
+            String host,
+            int port) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
         clock = ticker;
         this.hostEventCallback = Preconditions.checkNotNull(hostMetrics, "HostEventsSink is required")
@@ -49,7 +53,7 @@ final class HostMetricsChannel implements Channel {
                         port);
     }
 
-    static Channel create(Config cf, Channel channel, String uri) {
+    static EndpointChannel create(Config cf, EndpointChannel channel, String uri) {
         Optional<HostEventsSink> hostEventsSink = cf.clientConf().hostEventsSink();
         if (!hostEventsSink.isPresent()) {
             return channel;
@@ -72,8 +76,8 @@ final class HostMetricsChannel implements Channel {
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        ListenableFuture<Response> result = delegate.execute(endpoint, request);
+    public ListenableFuture<Response> execute(Request request) {
+        ListenableFuture<Response> result = delegate.execute(request);
         DialogueFutures.addDirectCallback(result, new Callback());
         return result;
     }

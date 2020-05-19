@@ -120,13 +120,17 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel baseChannel = cf.channelFactory().create(uri);
+
                 EndpointChannelFactory perUriChannelFactory = endpoint -> {
-                    Channel channel = InstrumentedChannel.create(cf, baseChannel);
-                    channel = HostMetricsChannel.create(cf, channel, uri);
-                    channel = ActiveRequestInstrumentationChannel.create(cf, channel, "running");
-                    channel = new TraceEnrichingChannel(channel);
-                    return new EndpointChannelAdapter(endpoint, channel);
+                    EndpointChannel endpointChannel = new EndpointChannelAdapter(endpoint, baseChannel);
+                    endpointChannel = InstrumentedChannel.create(cf, endpointChannel, endpoint);
+                    endpointChannel = HostMetricsChannel.create(cf, endpointChannel, uri);
+                    endpointChannel =
+                            ActiveRequestInstrumentationChannel.create(cf, endpointChannel, endpoint, "running");
+                    endpointChannel = new TraceEnrichingChannel(endpointChannel);
+                    return endpointChannel;
                 };
+
                 perUriChannels.add(ConcurrencyLimitedChannel.create(cf, perUriChannelFactory, uriIndex));
             }
             ImmutableList<EndpointMaybeChannelFactory> channels = perUriChannels.build();

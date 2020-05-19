@@ -16,41 +16,29 @@
 
 package com.palantir.dialogue.core;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import com.codahale.metrics.Counter;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
-import com.palantir.dialogue.TestEndpoint;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import org.junit.jupiter.api.Test;
-
-final class ActiveRequestInstrumentationChannelTest {
-    private static final Endpoint ENDPOINT = TestEndpoint.POST;
-
-    DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-
-    @Test
-    public void testActiveRequests() {
-        SettableFuture<Response> future = SettableFuture.create();
-        Channel stub = (_endpoint, _request) -> future;
-        ActiveRequestInstrumentationChannel instrumented =
-                new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", registry);
-        ListenableFuture<Response> result =
-                instrumented.execute(ENDPOINT, Request.builder().build());
-        assertThat(result).isNotDone();
-        Counter counter = DialogueClientMetrics.of(registry)
-                .requestActive()
-                .channelName("my-channel")
-                .serviceName(ENDPOINT.serviceName())
-                .stage("stage")
-                .build();
-        assertThat(counter.getCount()).describedAs("metric").isOne();
-        future.cancel(false);
-        assertThat(counter.getCount()).describedAs("metric").isZero();
-    }
-}
+//
+// final class ActiveRequestInstrumentationChannelTest {
+//     private static final Endpoint ENDPOINT = TestEndpoint.POST;
+//
+//     DefaultTaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+//
+//     @Test
+//     public void testActiveRequests() {
+//         SettableFuture<Response> future = SettableFuture.create();
+//         Channel stub = (_endpoint, _request) -> future;
+//         ActiveRequestInstrumentationChannel instrumented =
+//                 new ActiveRequestInstrumentationChannel(stub, "my-channel", "stage", registry);
+//         ListenableFuture<Response> result =
+//                 instrumented.execute(ENDPOINT, Request.builder().build());
+//         assertThat(result).isNotDone();
+//         Counter counter = DialogueClientMetrics.of(registry)
+//                 .requestActive()
+//                 .channelName("my-channel")
+//                 .serviceName(ENDPOINT.serviceName())
+//                 .stage("stage")
+//                 .build();
+//         assertThat(counter.getCount()).describedAs("metric").isOne();
+//         future.cancel(false);
+//         assertThat(counter.getCount()).describedAs("metric").isZero();
+//     }
+// }

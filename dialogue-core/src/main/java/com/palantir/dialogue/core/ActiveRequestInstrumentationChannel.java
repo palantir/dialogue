@@ -19,36 +19,18 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CompileTimeConstant;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 
-final class ActiveRequestInstrumentationChannel implements Channel {
+final class ActiveRequestInstrumentationChannel implements EndpointChannel {
+    private final Counter counter;
+    private final EndpointChannel proceed;
 
-    private final String channelName;
-    private final String stage;
-    private final DialogueClientMetrics metrics;
-    private final Channel delegate;
-
-    ActiveRequestInstrumentationChannel(
-            Channel delegate,
-            String channelName,
-            final @CompileTimeConstant String stage,
-            TaggedMetricRegistry metrics) {
-        // The delegate must never be allowed to throw, otherwise the counter may be incremented without
-        // being decremented.
-        this.delegate = new NeverThrowChannel(delegate);
-        this.channelName = channelName;
-        this.stage = stage;
-        this.metrics = DialogueClientMetrics.of(metrics);
-    }
-
-    static Channel create(Config cf, Channel delegate, @CompileTimeConstant String stage) {
-        return new ActiveRequestInstrumentationChannel(
-                delegate, cf.channelName(), stage, cf.clientConf().taggedMetricRegistry());
+    private ActiveRequestInstrumentationChannel(Counter counter, EndpointChannel proceed) {
+        this.counter = counter;
+        this.proceed = proceed;
     }
 
     static EndpointChannel create(
@@ -60,43 +42,17 @@ final class ActiveRequestInstrumentationChannel implements Channel {
                 .stage(stage)
                 .build();
 
-        return new ActiveRequestInstrumentationEndpointChannel(counter, delegate);
+        return new ActiveRequestInstrumentationChannel(counter, delegate);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Counter counter = metrics.requestActive()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .stage(stage)
-                .build();
+    public ListenableFuture<Response> execute(Request request) {
         counter.inc();
-        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
+        return DialogueFutures.addDirectListener(proceed.execute(request), counter::dec);
     }
 
     @Override
     public String toString() {
-        return "ActiveRequestInstrumentationChannel{stage=" + stage + ", delegate=" + delegate + '}';
-    }
-
-    private static final class ActiveRequestInstrumentationEndpointChannel implements EndpointChannel {
-        private final Counter counter;
-        private final EndpointChannel proceed;
-
-        private ActiveRequestInstrumentationEndpointChannel(Counter counter, EndpointChannel proceed) {
-            this.counter = counter;
-            this.proceed = proceed;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            counter.inc();
-            return DialogueFutures.addDirectListener(proceed.execute(request), counter::dec);
-        }
-
-        @Override
-        public String toString() {
-            return "ActiveRequestInstrumentationEndpointChannel{" + proceed + '}';
-        }
+        return "ActiveRequestInstrumentationEndpointChannel{" + proceed + '}';
     }
 }

@@ -17,8 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.CloseableSpan;
@@ -30,28 +29,28 @@ import com.palantir.tracing.api.TraceHttpHeaders;
 import java.util.Optional;
 
 /** A channel that adds Zipkin compatible tracing headers. */
-final class TraceEnrichingChannel implements Channel {
+final class TraceEnrichingChannel implements EndpointChannel {
     private static final String OPERATION = "Dialogue-http-request";
-    private final Channel delegate;
+    private final EndpointChannel delegate;
 
-    TraceEnrichingChannel(Channel delegate) {
-        this.delegate = new NeverThrowChannel(delegate);
+    TraceEnrichingChannel(EndpointChannel delegate) {
+        this.delegate = delegate;
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Request request) {
         DetachedSpan span = DetachedSpan.start(OPERATION);
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
         try (CloseableSpan ignored = span.childSpan(OPERATION + " initial", SpanType.CLIENT_OUTGOING)) {
-            return DialogueFutures.addDirectListener(executeInternal(endpoint, request), span::complete);
+            return DialogueFutures.addDirectListener(executeInternal(request), span::complete);
         }
     }
 
-    private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
+    private ListenableFuture<Response> executeInternal(Request request) {
         Optional<TraceMetadata> maybeMetadata = Tracer.maybeGetTraceMetadata();
         if (!maybeMetadata.isPresent()) {
-            return delegate.execute(endpoint, request);
+            return delegate.execute(request);
         }
         TraceMetadata metadata = maybeMetadata.get();
 
@@ -72,7 +71,7 @@ final class TraceEnrichingChannel implements Channel {
                     metadata.getOriginatingSpanId().get());
         }
 
-        return delegate.execute(endpoint, tracedRequest.build());
+        return delegate.execute(tracedRequest.build());
     }
 
     @Override

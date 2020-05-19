@@ -17,11 +17,13 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tracing.Tracers;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
 
 final class DialogueTracedRequestChannel implements EndpointChannel {
     private final EndpointChannel delegate;
@@ -39,7 +41,26 @@ final class DialogueTracedRequestChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(request));
+        DetachedSpan span = DetachedSpan.start(operationName);
+        ListenableFuture<Response> result = null;
+        // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
+        // no active trace, the detached span would not be associated with work initiated by delegateFactory.
+        try (CloseableSpan ignored =
+                // This could be more efficient using https://github.com/palantir/tracing-java/issues/177
+                span.childSpan(operationName + " initial")) {
+            result = delegate.execute(request);
+        } finally {
+            if (result != null) {
+                // In the successful case we add a listener in the finally block to prevent confusing traces
+                // when delegateFactory returns a completed future. This way the detached span cannot complete
+                // prior to its child.
+                result.addListener(span::complete, MoreExecutors.directExecutor());
+            } else {
+                // Complete the detached span, even if the delegateFactory throws.
+                span.complete();
+            }
+        }
+        return result;
     }
 
     @Override
