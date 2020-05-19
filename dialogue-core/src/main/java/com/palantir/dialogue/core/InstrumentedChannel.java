@@ -42,7 +42,8 @@ final class InstrumentedChannel implements Channel {
     }
 
     static InstrumentedChannel create(Config cf, Channel delegate) {
-        return new InstrumentedChannel(delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+        return new InstrumentedChannel(
+                delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry());
     }
 
     @Override
