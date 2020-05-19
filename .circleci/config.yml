@@ -44,6 +44,7 @@ jobs:
       - deploy:
           command: |
             if [[ "${CIRCLE_BRANCH:-x}" == "develop" ]] || [[ "${CIRCLE_TAG:-x}" != "x" ]]; then
+              git status --porcelain
               ./gradlew --parallel --stacktrace --continue --max-workers=4 publish
             fi
       - save_cache:
