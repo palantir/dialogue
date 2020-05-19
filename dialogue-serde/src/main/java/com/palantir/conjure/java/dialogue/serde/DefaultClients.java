@@ -17,12 +17,10 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.net.HttpHeaders;
-import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Channel;
@@ -96,7 +94,6 @@ enum DefaultClients implements Clients {
     }
 
     @Override
-    @SuppressWarnings("ThrowError") // match behavior of Futures.getUnchecked(Future)
     public <T> T block(ListenableFuture<T> future) {
         try {
             return future.get();
@@ -108,7 +105,6 @@ enum DefaultClients implements Clients {
             throw new SafeRuntimeException("Interrupted waiting for future", e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
-            String message = cause.getMessage();
 
             // TODO(jellis): can consider propagating other relevant exceptions (eg: HttpConnectTimeoutException)
             // see HttpClientImpl#send(HttpRequest req, BodyHandler<T> responseHandler)
@@ -129,9 +125,10 @@ enum DefaultClients implements Clients {
 
             // This matches the behavior in Futures.getUnchecked(Future)
             if (cause instanceof Error) {
-                throw new ExecutionError(cause.getMessage(), (Error) cause);
+                cause.addSuppressed(new SafeRuntimeException("Rethrown by dialogue"));
+                throw (Error) cause;
             }
-            throw new UncheckedExecutionException(message, cause);
+            throw new DialogueException(cause);
         }
     }
 
