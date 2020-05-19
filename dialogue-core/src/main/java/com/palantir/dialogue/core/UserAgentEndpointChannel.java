@@ -21,6 +21,7 @@ import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 
@@ -29,25 +30,29 @@ import com.palantir.dialogue.Response;
  * dialogue library (extracted from this package's implementation version), and the name and version of the
  * {@link Endpoint}'s target service and endpoint.
  */
-final class UserAgentChannel implements Channel {
-
+final class UserAgentEndpointChannel implements EndpointChannel {
     private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
-    private final Channel delegate;
-    private final UserAgent baseAgent;
+    private final EndpointChannel delegate;
+    private final String userAgent;
 
-    UserAgentChannel(Channel delegate, UserAgent baseAgent) {
+    private UserAgentEndpointChannel(EndpointChannel delegate, String userAgent) {
         this.delegate = delegate;
-        this.baseAgent = baseAgent;
+        this.userAgent = userAgent;
+    }
+
+    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint, UserAgent baseAgent) {
+        String userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
+        return new UserAgentEndpointChannel(delegate, userAgent);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Request request) {
         Request newRequest = Request.builder()
                 .from(request)
-                .putHeaderParams("user-agent", UserAgents.format(augmentUserAgent(baseAgent, endpoint)))
+                .putHeaderParams("user-agent", userAgent)
                 .build();
-        return delegate.execute(endpoint, newRequest);
+        return delegate.execute(newRequest);
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
@@ -63,6 +68,6 @@ final class UserAgentChannel implements Channel {
 
     @Override
     public String toString() {
-        return "UserAgentChannel{baseAgent=" + UserAgents.format(baseAgent) + ", delegate=" + delegate + '}';
+        return "UserAgentEndpointChannel{userAgent='" + userAgent + "', proceed=" + delegate + '}';
     }
 }

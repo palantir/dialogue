@@ -26,6 +26,8 @@ import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
@@ -42,9 +44,9 @@ import java.util.concurrent.ScheduledExecutorService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class DialogueChannel implements Channel {
+public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
-    private final Channel delegate;
+    private final EndpointChannelFactory delegate;
 
     // we keep around internals purely for live-reloading
     private final Config cf;
@@ -87,26 +89,33 @@ public final class DialogueChannel implements Channel {
                 cf, limited, cf.clientConf().uris().indexOf(uri));
     }
 
-    private static Channel wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
-        Channel channel = new TracedChannel(queuedChannel, "Dialogue-request-attempt");
-        channel = RetryingChannel.create(cf, channel);
-        channel = new UserAgentChannel(channel, cf.clientConf().userAgent().get());
-        channel = new DeprecationWarningChannel(channel, cf.clientConf().taggedMetricRegistry());
-        channel = new ContentDecodingChannel(channel);
-        channel = new DialogueTracedRequestChannel(channel);
-        channel = new ActiveRequestInstrumentationChannel(
-                channel, cf.channelName(), "processing", cf.clientConf().taggedMetricRegistry());
-        channel = new NeverThrowChannel(channel); // this must come last as a defensive backstop
-        return channel;
+    private static EndpointChannelFactory wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
+        return endpoint -> {
+            EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+            channel = new TracedChannel(channel, "Dialogue-request-attempt");
+            channel = RetryingChannel.create(cf, channel, endpoint);
+            channel = UserAgentEndpointChannel.create(
+                    channel, endpoint, cf.clientConf().userAgent().get());
+            channel = DeprecationWarningChannel.create(cf, channel, endpoint);
+            channel = new ContentDecodingChannel(channel);
+            channel = DialogueTracedRequestChannel.create(channel, endpoint);
+            channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
+            return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
+        };
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return delegate.execute(endpoint, request);
+        return delegate.endpoint(endpoint).execute(request);
     }
 
     public void updateUris(Collection<String> uris) {
         updateUrisInner(uris, false);
+    }
+
+    @Override
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        return delegate.endpoint(endpoint);
     }
 
     private void updateUrisInner(Collection<String> uris, boolean firstTime) {
@@ -241,7 +250,7 @@ public final class DialogueChannel implements Channel {
 
             QueuedChannel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
-            Channel channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+            EndpointChannelFactory channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
 
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()
@@ -250,7 +259,23 @@ public final class DialogueChannel implements Channel {
                     .build();
             createMeter.mark();
 
-            return channel;
+            return new DialogueNonReloadingChannel() {
+                @Override
+                public EndpointChannel endpoint(Endpoint endpoint) {
+                    return channel.endpoint(endpoint);
+                }
+
+                @Override
+                public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                    return channel.endpoint(endpoint).execute(request);
+                }
+            };
         }
     }
+
+    /**
+     * This package-private class ensures that when clients do an instanceof check, they'll be able to use the
+     * {@link EndpointChannelFactory#endpoint} method.
+     */
+    interface DialogueNonReloadingChannel extends Channel, EndpointChannelFactory {}
 }

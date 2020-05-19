@@ -25,7 +25,6 @@ import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -45,10 +44,10 @@ public final class ContentDecodingChannelTest {
             throw new IllegalStateException(e);
         }
         Response response = new ContentDecodingChannel(
-                        (endpoint, request) -> Futures.immediateFuture(new TestResponse(out.toByteArray())
+                        request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
                                 .withHeader("content-length", Integer.toString(out.size()))))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThat(ByteStreams.toByteArray(response.body())).containsExactly(expected);
@@ -56,10 +55,10 @@ public final class ContentDecodingChannelTest {
 
     @Test
     public void testDecoding_delayedFailure() throws Exception {
-        Response response = new ContentDecodingChannel((endpoint, request) -> Futures.immediateFuture(
+        Response response = new ContentDecodingChannel(request -> Futures.immediateFuture(
                         // Will fail because it's not valid gzip content
                         new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
         assertThatThrownBy(response.body()::read).isInstanceOf(IOException.class);
@@ -68,9 +67,9 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testOnlyDecodesGzip() throws Exception {
         byte[] content = new byte[] {1, 2, 3, 4};
-        Response response = new ContentDecodingChannel((endpoint, request) ->
+        Response response = new ContentDecodingChannel(request ->
                         Futures.immediateFuture(new TestResponse(content).withHeader("content-encoding", "unknown")))
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .execute(Request.builder().build())
                 .get();
         assertThat(response.headers()).containsAllEntriesOf(ImmutableListMultimap.of("content-encoding", "unknown"));
         assertThat(ByteStreams.toByteArray(response.body())).isEqualTo(content);
@@ -78,43 +77,39 @@ public final class ContentDecodingChannelTest {
 
     @Test
     public void testRequestHeader() throws Exception {
-        new ContentDecodingChannel((endpoint, request) -> {
+        new ContentDecodingChannel(request -> {
                     assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(TestEndpoint.POST, Request.builder().build())
+                .execute(Request.builder().build())
                 .get();
     }
 
     @Test
     public void testRequestHeader_existingIsNotReplaced() throws Exception {
-        new ContentDecodingChannel((endpoint, request) -> {
+        new ContentDecodingChannel(request -> {
                     assertThat(request.headerParams())
                             .as("The requested 'identity' encoding should not be replaced")
                             .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(
-                        TestEndpoint.POST,
-                        Request.builder()
-                                .putHeaderParams("accept-encoding", "identity")
-                                .build())
+                .execute(Request.builder()
+                        .putHeaderParams("accept-encoding", "identity")
+                        .build())
                 .get();
     }
 
     @Test
     public void testResponseHeaders() throws Exception {
-        new ContentDecodingChannel((endpoint, request) -> {
+        new ContentDecodingChannel(request -> {
                     assertThat(request.headerParams())
                             .as("The requested 'identity' encoding should not be replaced")
                             .contains(MapEntry.entry("accept-encoding", "identity"));
                     return Futures.immediateFuture(new TestResponse());
                 })
-                .execute(
-                        TestEndpoint.POST,
-                        Request.builder()
-                                .putHeaderParams("accept-encoding", "identity")
-                                .build())
+                .execute(Request.builder()
+                        .putHeaderParams("accept-encoding", "identity")
+                        .build())
                 .get();
     }
 }

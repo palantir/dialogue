@@ -21,8 +21,7 @@ import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -46,7 +45,7 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements Channel {
+final class ContentDecodingChannel implements EndpointChannel {
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
@@ -55,18 +54,17 @@ final class ContentDecodingChannel implements Channel {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final Channel delegate;
+    private final EndpointChannel delegate;
 
-    ContentDecodingChannel(Channel delegate) {
+    ContentDecodingChannel(EndpointChannel delegate) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Request request) {
+        Request augmentedRequest = acceptEncoding(request);
         return Futures.transform(
-                delegate.execute(endpoint, acceptEncoding(request)),
-                ContentDecodingChannel::decompress,
-                MoreExecutors.directExecutor());
+                delegate.execute(augmentedRequest), ContentDecodingChannel::decompress, MoreExecutors.directExecutor());
     }
 
     private static Request acceptEncoding(Request request) {

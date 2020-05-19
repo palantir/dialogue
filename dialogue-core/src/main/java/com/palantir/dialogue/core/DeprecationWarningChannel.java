@@ -16,16 +16,19 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,42 +40,58 @@ import org.slf4j.LoggerFactory;
  * be used to understand more granular rates of deprecated calls against a particular service using the
  * {@code service-name} tag.
  */
-final class DeprecationWarningChannel implements Channel {
+final class DeprecationWarningChannel implements EndpointChannel {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
     private static final Object SENTINEL = new Object();
 
-    private final Channel delegate;
+    private final EndpointChannel delegate;
     private final ClientMetrics metrics;
     private final Cache<String, Object> loggingRateLimiter =
             Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
+    private final FutureCallback<Response> callback;
 
-    DeprecationWarningChannel(Channel delegate, TaggedMetricRegistry metrics) {
+    private DeprecationWarningChannel(EndpointChannel delegate, TaggedMetricRegistry metrics, Endpoint endpoint) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
+        this.callback = createCallback(endpoint);
+    }
+
+    static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
+        return new DeprecationWarningChannel(delegate, metrics, endpoint);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.addDirectCallback(
-                delegate.execute(endpoint, request), DialogueFutures.onSuccess(response -> {
-                    if (response != null) {
-                        response.getFirstHeader("deprecation").ifPresent(deprecated -> {
-                            metrics.deprecations(endpoint.serviceName()).mark();
-                            if (tryAcquire(endpoint.serviceName())) {
-                                log.warn(
-                                        "Using a deprecated endpoint when connecting to service",
-                                        SafeArg.of("serviceName", endpoint.serviceName()),
-                                        SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
-                                        SafeArg.of("endpointName", endpoint.endpointName()),
-                                        SafeArg.of("endpointClientVersion", endpoint.version()),
-                                        SafeArg.of(
-                                                "service",
-                                                response.getFirstHeader("server")
-                                                        .orElse("no server header provided")));
-                            }
-                        });
-                    }
-                }));
+    public ListenableFuture<Response> execute(Request request) {
+        ListenableFuture<Response> future = delegate.execute(request);
+        DialogueFutures.addDirectCallback(future, callback);
+        return future;
+    }
+
+    private FutureCallback<Response> createCallback(Endpoint endpoint) {
+        Meter meter = metrics.deprecations(endpoint.serviceName());
+
+        return DialogueFutures.onSuccess(response -> {
+            if (response == null) {
+                return;
+            }
+
+            Optional<String> maybeHeader = response.getFirstHeader("deprecation");
+            if (!maybeHeader.isPresent()) {
+                return;
+            }
+
+            meter.mark();
+            if (tryAcquire(endpoint.serviceName())) {
+                log.warn(
+                        "Using a deprecated endpoint when connecting to service",
+                        SafeArg.of("serviceName", endpoint.serviceName()),
+                        SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
+                        SafeArg.of("endpointName", endpoint.endpointName()),
+                        SafeArg.of("endpointClientVersion", endpoint.version()),
+                        SafeArg.of("service", response.getFirstHeader("server").orElse("no server header provided")));
+            }
+        });
     }
 
     /**

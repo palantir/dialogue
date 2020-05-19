@@ -29,6 +29,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -52,11 +54,36 @@ enum DefaultClients implements Clients {
     @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
+        EndpointChannel endpointChannel = bind(channel, endpoint);
+        return call(endpointChannel, request, deserializer);
+    }
+
+    @Override
+    public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
         Optional<String> accepts = deserializer.accepts();
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
-                closeRequestBodyOnCompletion(channel.execute(endpoint, outgoingRequest), outgoingRequest);
+                closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
         return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+    }
+
+    @Override
+    public EndpointChannel bind(Channel channel, Endpoint endpoint) {
+        if (channel instanceof EndpointChannelFactory) {
+            return ((EndpointChannelFactory) channel).endpoint(endpoint);
+        }
+
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Channel of type {} does not implement EndpointChannelFactory, "
+                            + "which is recommended for maximum performance. Falling back to lambda impl.",
+                    SafeArg.of("type", channel.getClass().getSimpleName()),
+                    SafeArg.of("serviceName", endpoint.serviceName()),
+                    SafeArg.of("endpointName", endpoint.endpointName()),
+                    UnsafeArg.of("channel", channel),
+                    new SafeRuntimeException("Exception for stacktrace"));
+        }
+        return new EndpointChannelAdapter(endpoint, channel);
     }
 
     private static ListenableFuture<Response> closeRequestBodyOnCompletion(
@@ -163,5 +190,25 @@ enum DefaultClients implements Clients {
                 .from(original)
                 .putHeaderParams(HttpHeaders.ACCEPT, acceptValue)
                 .build();
+    }
+
+    private static final class EndpointChannelAdapter implements EndpointChannel {
+        private final Endpoint endpoint;
+        private final Channel channel;
+
+        EndpointChannelAdapter(Endpoint endpoint, Channel channel) {
+            this.endpoint = endpoint;
+            this.channel = channel;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return channel.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "EndpointChannelAdapter{endpoint=" + endpoint + ", channel=" + channel + '}';
+        }
     }
 }

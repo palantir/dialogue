@@ -24,11 +24,20 @@ import java.util.concurrent.Future;
  * duplicating logic.
  */
 public interface Clients {
+    /**
+     * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
+     * deserializer.
+     */
+    <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
+     * @deprecated prefer {@link #bind} as this allows pre-computing values to save CPU
      */
+    @Deprecated
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
+
+    EndpointChannel bind(Channel channel, Endpoint endpoint);
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling

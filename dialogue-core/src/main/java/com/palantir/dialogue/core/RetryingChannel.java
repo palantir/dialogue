@@ -26,8 +26,8 @@ import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -58,7 +58,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
-final class RetryingChannel implements Channel {
+final class RetryingChannel implements EndpointChannel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
@@ -91,7 +91,8 @@ final class RetryingChannel implements Channel {
                     SafeArg.of("method", endpoint.httpMethod()));
 
     private final ListeningScheduledExecutorService scheduler;
-    private final Channel delegate;
+    private final EndpointChannel delegate;
+    private final Endpoint endpoint;
     private final String channelName;
     private final int maxRetries;
     private final ClientConfiguration.ServerQoS serverQoS;
@@ -102,7 +103,7 @@ final class RetryingChannel implements Channel {
     private final Meter retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
-    static Channel create(Config cf, Channel channel) {
+    static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;
@@ -110,6 +111,7 @@ final class RetryingChannel implements Channel {
 
         return new RetryingChannel(
                 channel,
+                endpoint,
                 cf.channelName(),
                 clientConf.taggedMetricRegistry(),
                 clientConf.maxNumRetries(),
@@ -122,7 +124,8 @@ final class RetryingChannel implements Channel {
 
     @VisibleForTesting
     RetryingChannel(
-            Channel delegate,
+            EndpointChannel delegate,
+            Endpoint endpoint,
             String channelName,
             int maxRetries,
             Duration backoffSlotSize,
@@ -130,6 +133,7 @@ final class RetryingChannel implements Channel {
             ClientConfiguration.RetryOnTimeout retryOnTimeout) {
         this(
                 delegate,
+                endpoint,
                 channelName,
                 new DefaultTaggedMetricRegistry(),
                 maxRetries,
@@ -141,7 +145,8 @@ final class RetryingChannel implements Channel {
     }
 
     private RetryingChannel(
-            Channel delegate,
+            EndpointChannel delegate,
+            Endpoint endpoint,
             String channelName,
             TaggedMetricRegistry metrics,
             int maxRetries,
@@ -151,6 +156,7 @@ final class RetryingChannel implements Channel {
             ScheduledExecutorService scheduler,
             DoubleSupplier jitter) {
         this.delegate = delegate;
+        this.endpoint = endpoint;
         this.channelName = channelName;
         this.maxRetries = maxRetries;
         this.backoffSlotSize = backoffSlotSize;
@@ -177,14 +183,14 @@ final class RetryingChannel implements Channel {
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Request request) {
         if (isRetryable(request)) {
             Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
                     ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
                     : Optional.empty();
             return new RetryingCallback(endpoint, request, debugStacktrace).execute();
         }
-        return delegate.execute(endpoint, request);
+        return delegate.execute(request);
     }
 
     private static boolean isRetryable(Request request) {
@@ -212,7 +218,7 @@ final class RetryingChannel implements Channel {
         }
 
         ListenableFuture<Response> execute() {
-            ListenableFuture<Response> result = wrap(delegate.execute(endpoint, request));
+            ListenableFuture<Response> result = wrap(delegate.execute(request));
             result.addListener(
                     () -> {
                         if (failures > 0) {
@@ -282,13 +288,13 @@ final class RetryingChannel implements Channel {
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
             if (backoffNanoseconds <= 0) {
-                return wrap(delegate.execute(endpoint, request));
+                return wrap(delegate.execute(request));
             }
             DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff-" + failures);
             ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
                     () -> {
                         backoffSpan.complete();
-                        return delegate.execute(endpoint, request);
+                        return delegate.execute(request);
                     },
                     backoffNanoseconds,
                     TimeUnit.NANOSECONDS);

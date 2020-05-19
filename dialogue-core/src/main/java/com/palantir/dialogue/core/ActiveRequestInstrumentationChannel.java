@@ -21,6 +21,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -56,8 +57,41 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
+    static EndpointChannel create(
+            Config cf, EndpointChannel delegate, Endpoint endpoint, @CompileTimeConstant String stage) {
+        Counter counter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                .requestActive()
+                .channelName(cf.channelName())
+                .serviceName(endpoint.serviceName())
+                .stage(stage)
+                .build();
+
+        return new ActiveRequestInstrumentationEndpointChannel(counter, delegate);
+    }
+
     @Override
     public String toString() {
         return "ActiveRequestInstrumentationChannel{stage=" + stage + ", delegate=" + delegate + '}';
+    }
+
+    private static final class ActiveRequestInstrumentationEndpointChannel implements EndpointChannel {
+        private final Counter counter;
+        private final EndpointChannel proceed;
+
+        private ActiveRequestInstrumentationEndpointChannel(Counter counter, EndpointChannel proceed) {
+            this.counter = counter;
+            this.proceed = proceed;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            counter.inc();
+            return DialogueFutures.addDirectListener(proceed.execute(request), counter::dec);
+        }
+
+        @Override
+        public String toString() {
+            return "ActiveRequestInstrumentationEndpointChannel{" + proceed + '}';
+        }
     }
 }
