@@ -25,6 +25,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
@@ -58,11 +60,11 @@ import org.slf4j.LoggerFactory;
  *     doing work, much of which will be wasted</li>
  * </ul>
  */
-final class QueuedChannel implements Channel {
+final class QueuedChannel implements EndpointChannelFactory {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
     private final Deque<DeferredCall> queuedCalls;
-    private final LimitedChannel delegate;
+    private final EndpointMaybeChannelFactory delegate;
     private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
@@ -71,8 +73,9 @@ final class QueuedChannel implements Channel {
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
-    QueuedChannel(LimitedChannel delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+    QueuedChannel(
+            EndpointMaybeChannelFactory delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
+        this.delegate = delegate;
         this.channelName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
@@ -83,24 +86,35 @@ final class QueuedChannel implements Channel {
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
-    static QueuedChannel create(Config cf, LimitedChannel delegate) {
+    static QueuedChannel create(Config cf, EndpointMaybeChannelFactory delegate) {
         return new QueuedChannel(delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);
+    public EndpointChannel endpoint(Endpoint endpoint) {
+        EndpointMaybeChannel chan = delegate.endpoint(endpoint);
+        return new EndpointChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                return maybeExecute(chan, endpoint, request).orElseGet(limitedResultSupplier);
+            }
+
+            @Override
+            public String toString() {
+                return "QueuedChannel.EndpointChannel{" + chan + '}';
+            }
+        };
     }
 
     /**
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @VisibleForTesting
-    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    Optional<ListenableFuture<Response>> maybeExecute(EndpointMaybeChannel chan, Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult = chan.maybeExecute(request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
@@ -117,6 +131,7 @@ final class QueuedChannel implements Channel {
         }
 
         DeferredCall components = DeferredCall.builder()
+                .chan(chan)
                 .endpoint(endpoint)
                 .request(request)
                 .response(SettableFuture.create())
@@ -195,9 +210,10 @@ final class QueuedChannel implements Channel {
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
-            Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            EndpointMaybeChannel chan = queueHead.chan();
+            Optional<ListenableFuture<Response>> maybeResponse = chan.maybeExecute(queueHead.request());
 
+            Endpoint endpoint = queueHead.endpoint(); // just for logging
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
@@ -285,6 +301,8 @@ final class QueuedChannel implements Channel {
 
     @Value.Immutable
     interface DeferredCall {
+        EndpointMaybeChannel chan();
+
         Endpoint endpoint();
 
         Request request();

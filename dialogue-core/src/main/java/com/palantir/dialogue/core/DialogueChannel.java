@@ -30,7 +30,6 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -132,11 +131,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             }
             ImmutableList<EndpointMaybeChannelFactory> channels = perUriChannels.build();
 
-            LimitedChannel nodeSelectionChannel = Strategies.create(cf, channels);
-            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            EndpointMaybeChannelFactory nodeSelectionChannel = Strategies.create(cf, channels);
+            EndpointChannelFactory queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
             EndpointChannelFactory channelFactory = endpoint -> {
-                EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+                EndpointChannel channel = queuedChannel.endpoint(endpoint);
                 channel = new TracedChannel(channel, "Dialogue-request-attempt");
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(

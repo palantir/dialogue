@@ -59,13 +59,15 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class NodeSelectionBenchmark {
 
-    @Param({"true", "false"})
+    // @Param({"true", "false"})
+    @Param({"false"})
     public boolean headerDriven;
 
     @Param({"2", "8"})
     public int numChannels;
 
-    @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
+    // @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
+    @Param({"PIN_UNTIL_ERROR"})
     public NodeSelectionStrategy selectionStrategy;
 
     private static final Request request = Request.builder().build();
@@ -86,30 +88,30 @@ public class NodeSelectionBenchmark {
                 .collect(ImmutableList.toImmutableList());
 
         if (headerDriven) {
-            switch (selectionStrategy) {
-                case PIN_UNTIL_ERROR:
-                    channel = new NodeSelectionStrategyChannel(
-                            NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                            DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                            "channelName",
-                            random,
-                            ticker,
-                            metrics,
-                            channels);
-                    break;
-                case ROUND_ROBIN:
-                    channel = new NodeSelectionStrategyChannel(
-                            NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                            DialogueNodeSelectionStrategy.BALANCED,
-                            "channelName",
-                            random,
-                            ticker,
-                            metrics,
-                            channels);
-                    break;
-                default:
-                    throw new SafeIllegalArgumentException("Unsupported");
-            }
+            // switch (selectionStrategy) {
+            //     case PIN_UNTIL_ERROR:
+            //         channel = new NodeSelectionStrategyChannel(
+            //                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
+            //                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+            //                 "channelName",
+            //                 random,
+            //                 ticker,
+            //                 metrics,
+            //                 channels);
+            //         break;
+            //     case ROUND_ROBIN:
+            //         channel = new NodeSelectionStrategyChannel(
+            //                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
+            //                 DialogueNodeSelectionStrategy.BALANCED,
+            //                 "channelName",
+            //                 random,
+            //                 ticker,
+            //                 metrics,
+            //                 channels);
+            //         break;
+            //     default:
+            //         throw new SafeIllegalArgumentException("Unsupported");
+            // }
         } else {
             switch (selectionStrategy) {
                 case PIN_UNTIL_ERROR:
@@ -122,10 +124,10 @@ public class NodeSelectionBenchmark {
                             ticker,
                             "channelName");
                     break;
-                case ROUND_ROBIN:
-                    channel =
-                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
-                    break;
+                // case ROUND_ROBIN:
+                //     channel =
+                //             new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
+                //     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
             }
