@@ -8,6 +8,8 @@ dependencies {
     implementation project(':dialogue-example:dialogue-example-dialogue')
     implementation project(':dialogue-target')
     implementation project(':dialogue-test-common')
+    implementation project(':dialogue-apache-hc4-client')
+    implementation project(':dialogue-serde')
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:client-config'

@@ -21,10 +21,19 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Clients;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -32,6 +41,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.ResponseCodeHandler;
+import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +55,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
-import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
@@ -60,11 +69,16 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 @SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class EndToEndBenchmark {
 
+    private static final Request request = Request.builder().build();
+    private static final Clients clientUtils =
+            DefaultConjureRuntime.builder().build().clients();
+
     private Undertow undertow;
     private ExecutorService blockingExecutor;
-
     private SampleServiceBlocking blocking;
     private SampleServiceAsync async;
+    private ApacheHttpClientChannels.CloseableClient closeableApache;
+    private Channel apacheChannel;
 
     @Setup
     public void before() {
@@ -98,35 +112,46 @@ public class EndToEndBenchmark {
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
         async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
+
+        closeableApache = ApacheHttpClientChannels.clientBuilder()
+                .executor(blockingExecutor)
+                .clientConfiguration(ClientConfiguration.builder()
+                        .from(ClientConfigurations.of(serviceConf))
+                        .taggedMetricRegistry(metrics)
+                        .userAgent(TestConfigurations.AGENT)
+                        .build())
+                .clientName("clientName")
+                .build();
+        apacheChannel =
+                ApacheHttpClientChannels.createSingleUri(serviceConf.uris().get(0), closeableApache);
     }
 
     @TearDown
-    public void after() {
+    public void after() throws IOException {
         undertow.stop();
         MoreExecutors.shutdownAndAwaitTermination(RetryingChannel.sharedScheduler.get(), 1, TimeUnit.SECONDS);
         MoreExecutors.shutdownAndAwaitTermination(blockingExecutor, 1, TimeUnit.SECONDS);
-    }
-
-    @Threads(1)
-    @Benchmark
-    public void singleThreadBlocking() {
-        blocking.voidToVoid();
-    }
-
-    @Threads(1)
-    @Benchmark
-    public ListenableFuture<Void> singleThreadAsync() {
-        return async.voidToVoid();
+        closeableApache.close();
     }
 
     @Benchmark
-    public void parallelBlocking() {
+    public void dialogueBlocking() {
         blocking.voidToVoid();
     }
 
     @Benchmark
-    public ListenableFuture<Void> parallelAsync() {
+    public ListenableFuture<Void> dialogueAsync() {
         return async.voidToVoid();
+    }
+
+    @Benchmark
+    public ListenableFuture<Response> rawApacheAsync() {
+        return apacheChannel.execute(TestEndpoint.GET, request);
+    }
+
+    @Benchmark
+    public void rawApacheBlocking() {
+        clientUtils.block(apacheChannel.execute(TestEndpoint.GET, request));
     }
 
     private static String getUri(Undertow undertow) {
