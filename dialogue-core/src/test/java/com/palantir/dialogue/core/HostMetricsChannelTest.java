@@ -55,8 +55,7 @@ class HostMetricsChannelTest {
     @Test
     void shortcircuit_if_there_is_no_sink() {
         Channel channel = HostMetricsChannel.create(
-                mockChannel,
-                config(TestConfigurations.create("https://unused", "https://unused2")),
+                config(TestConfigurations.create("https://unused", "https://unused2")), mockChannel,
                 "https://foo:1001");
 
         assertThat(channel).isSameAs(mockChannel);
@@ -65,11 +64,10 @@ class HostMetricsChannelTest {
     @Test
     void shortcircuit_if_someone_passes_in_the_noop_enum() {
         Channel channel = HostMetricsChannel.create(
-                mockChannel,
                 config(ClientConfiguration.builder()
                         .from(TestConfigurations.create("https://unused", "https://unused2"))
                         .hostEventsSink(NoOpHostEventsSink.INSTANCE)
-                        .build()),
+                        .build()), mockChannel,
                 "https://foo:1001");
 
         assertThat(channel).isSameAs(mockChannel);
@@ -93,7 +91,6 @@ class HostMetricsChannelTest {
     void calls_sink_when_response_comes_back() {
         AtomicBoolean recorded = new AtomicBoolean();
         Channel channel = HostMetricsChannel.create(
-                mockChannel,
                 config(ClientConfiguration.builder()
                         .from(TestConfigurations.create("https://unused", "https://unused2"))
                         .hostEventsSink(new HostEventsSink() {
@@ -113,7 +110,7 @@ class HostMetricsChannelTest {
                                 Assertions.fail("no IOExceptions expected");
                             }
                         })
-                        .build()),
+                        .build()), mockChannel,
                 "https://foo:1001");
 
         SettableFuture<Response> settable = SettableFuture.create();

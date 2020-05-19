@@ -20,7 +20,6 @@ import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -31,77 +30,16 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
-import com.palantir.logsafe.SafeArg;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
 import java.util.Random;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ScheduledExecutorService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
-    private static final Logger log = LoggerFactory.getLogger(DialogueChannel.class);
     private final EndpointChannelFactory delegate;
-
-    // we keep around internals purely for live-reloading
     private final Config cf;
 
-    private final QueuedChannel queuedChannel; // just so we can process the queue when uris reload
-    private final Map<String, LimitedChannel> limitedChannelByUri = new ConcurrentHashMap<>();
-    private final NodeSelectionStrategyChannel nodeSelectionChannel;
-
-    private DialogueChannel(Config cf) {
-        this.cf = withUris(cf, Collections.emptyList()); // zeroing these out because this isn't the source of truth
-        this.nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf);
-        this.queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-        this.delegate = wrapQueuedChannel(cf, queuedChannel);
-        updateUrisInner(cf.clientConf().uris(), true);
-    }
-
-    private static ImmutableConfig withUris(Config cf, List<String> elements) {
-        return ImmutableConfig.builder()
-                .from(cf)
-                .rawConfig(ClientConfiguration.builder()
-                        .from(cf.clientConf())
-                        .uris(elements)
-                        .build())
-                .build();
-    }
-
-    private static LimitedChannel createPerUriChannel(Config cf, String uri) {
-        Channel channel = cf.channelFactory().create(uri);
-        // Instrument inner-most channel with instrumentation channels so that we measure only the over-the-wire-time
-        channel = new InstrumentedChannel(
-                channel, cf.channelName(), cf.clientConf().taggedMetricRegistry());
-        channel = HostMetricsChannel.create(channel, cf, uri);
-        channel = new ActiveRequestInstrumentationChannel(
-                channel, cf.channelName(), "running", cf.clientConf().taggedMetricRegistry());
-        // TracedChannel must wrap TracedRequestChannel to ensure requests have tracing headers.
-        channel = new TraceEnrichingChannel(channel);
-
-        ChannelToLimitedChannelAdapter limited = new ChannelToLimitedChannelAdapter(channel);
-        return ConcurrencyLimitedChannel.create(
-                cf, limited, cf.clientConf().uris().indexOf(uri));
-    }
-
-    private static EndpointChannelFactory wrapQueuedChannel(Config cf, QueuedChannel queuedChannel) {
-        return endpoint -> {
-            EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
-            channel = new TracedChannel(channel, "Dialogue-request-attempt");
-            channel = RetryingChannel.create(cf, channel, endpoint);
-            channel = UserAgentEndpointChannel.create(
-                    channel, endpoint, cf.clientConf().userAgent().get());
-            channel = DeprecationWarningChannel.create(cf, channel, endpoint);
-            channel = new ContentDecodingChannel(channel);
-            channel = DialogueTracedRequestChannel.create(channel, endpoint);
-            channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
-            return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
-        };
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate) {
+        this.cf = cf;
+        this.delegate = delegate;
     }
 
     @Override
@@ -109,57 +47,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         return delegate.endpoint(endpoint).execute(request);
     }
 
-    public void updateUris(Collection<String> uris) {
-        updateUrisInner(uris, false);
-    }
-
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
-    }
-
-    private void updateUrisInner(Collection<String> uris, boolean firstTime) {
-        Set<String> uniqueUris = new HashSet<>(uris);
-        // Uris didn't really change so nothing to do
-        if (limitedChannelByUri.keySet().equals(uniqueUris) && !firstTime) {
-            return;
-        }
-
-        infoLogUriUpdate(uris, firstTime);
-
-        Sets.SetView<String> staleUris = Sets.difference(limitedChannelByUri.keySet(), uniqueUris);
-        Sets.SetView<String> newUris = Sets.difference(uniqueUris, limitedChannelByUri.keySet());
-
-        staleUris.forEach(limitedChannelByUri::remove);
-        ImmutableList<String> allUris = ImmutableList.<String>builder()
-                .addAll(limitedChannelByUri.keySet())
-                .addAll(newUris)
-                .build();
-
-        newUris.forEach(uri -> {
-            Config configWithUris = withUris(cf, allUris); // necessary for attribute metrics to the right hostIndex
-            LimitedChannel singleUriChannel = createPerUriChannel(configWithUris, uri);
-            limitedChannelByUri.put(uri, singleUriChannel);
-        });
-
-        nodeSelectionChannel.updateChannels(ImmutableList.copyOf(limitedChannelByUri.values()));
-        // some queued requests might be able to make progress on a new uri now
-        queuedChannel.schedule();
-    }
-
-    private void infoLogUriUpdate(Collection<String> uris, boolean firstTime) {
-        if (!limitedChannelByUri.isEmpty() && uris.isEmpty()) {
-            log.info(
-                    "Updated to zero uris",
-                    SafeArg.of("channelName", cf.channelName()),
-                    SafeArg.of("prevNumUris", limitedChannelByUri.size()));
-        }
-        if (limitedChannelByUri.isEmpty() && !uris.isEmpty() && !firstTime) {
-            log.info(
-                    "Updated from zero uris",
-                    SafeArg.of("channelName", cf.channelName()),
-                    SafeArg.of("numUris", uris.size()));
-        }
     }
 
     public static Builder builder() {
@@ -224,33 +114,35 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
-            DialogueChannel dialogueChannel = new DialogueChannel(cf);
 
-            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
-                    .create()
-                    .clientName(cf.channelName())
-                    .clientType("dialogue-channel")
-                    .build();
-            createMeter.mark();
+            ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
+            for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
+                String uri = cf.clientConf().uris().get(uriIndex);
+                Channel channel = cf.channelFactory().create(uri);
+                channel = InstrumentedChannel.create(cf, channel);
+                channel = HostMetricsChannel.create(cf, channel, uri);
+                channel = ActiveRequestInstrumentationChannel.create(cf, channel, "running");
+                channel = new TraceEnrichingChannel(channel);
+                LimitedChannel limited = new ChannelToLimitedChannelAdapter(channel);
+                perUriChannels.add(ConcurrencyLimitedChannel.create(cf, limited, uriIndex));
+            }
+            ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
-            return dialogueChannel;
-        }
+            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
+            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
-        /** Does *not* do any clever live-reloading. */
-        @CheckReturnValue
-        public Channel buildNonLiveReloading() {
-            Config cf = builder.build();
-
-            ImmutableList<LimitedChannel> perUriChannels = cf.clientConf().uris().stream()
-                    .map(uri -> DialogueChannel.createPerUriChannel(cf, uri))
-                    .collect(ImmutableList.toImmutableList());
-
-            NodeSelectionStrategyChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf);
-            nodeSelectionChannel.updateChannels(perUriChannels);
-
-            QueuedChannel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-
-            EndpointChannelFactory channel = DialogueChannel.wrapQueuedChannel(cf, queuedChannel);
+            EndpointChannelFactory channelFactory = endpoint -> {
+                EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+                channel = new TracedChannel(channel, "Dialogue-request-attempt");
+                channel = RetryingChannel.create(cf, channel, endpoint);
+                channel = UserAgentEndpointChannel.create(
+                        channel, endpoint, cf.clientConf().userAgent().get());
+                channel = DeprecationWarningChannel.create(cf, channel, endpoint);
+                channel = new ContentDecodingChannel(channel);
+                channel = DialogueTracedRequestChannel.create(channel, endpoint);
+                channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
+                return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
+            };
 
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()
@@ -259,23 +151,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueNonReloadingChannel() {
-                @Override
-                public EndpointChannel endpoint(Endpoint endpoint) {
-                    return channel.endpoint(endpoint);
-                }
+            return new DialogueChannel(cf, channelFactory);
+        }
 
-                @Override
-                public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                    return channel.endpoint(endpoint).execute(request);
-                }
-            };
+        /** Does *not* do any clever live-reloading. */
+        @CheckReturnValue
+        public Channel buildNonLiveReloading() {
+            return build();
         }
     }
-
-    /**
-     * This package-private class ensures that when clients do an instanceof check, they'll be able to use the
-     * {@link EndpointChannelFactory#endpoint} method.
-     */
-    interface DialogueNonReloadingChannel extends Channel, EndpointChannelFactory {}
 }

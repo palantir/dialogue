@@ -46,6 +46,11 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         this.metrics = DialogueClientMetrics.of(metrics);
     }
 
+    static Channel create(Config cf, Channel delegate, @CompileTimeConstant String stage) {
+        return new ActiveRequestInstrumentationChannel(
+                delegate, cf.channelName(), stage, cf.clientConf().taggedMetricRegistry());
+    }
+
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Counter counter = metrics.requestActive()

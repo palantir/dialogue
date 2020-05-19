@@ -71,14 +71,16 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.delegate = new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
     }
 
-    static NodeSelectionStrategyChannel create(Config cf) {
-        return new NodeSelectionStrategyChannel(
+    static NodeSelectionStrategyChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
+        NodeSelectionStrategyChannel nss = new NodeSelectionStrategyChannel(
                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
                 DialogueNodeSelectionStrategy.of(cf.clientConf().nodeSelectionStrategy()),
                 cf.channelName(),
                 cf.random(),
                 cf.ticker(),
                 cf.clientConf().taggedMetricRegistry());
+        nss.updateChannels(channels);
+        return nss;
     }
 
     @Override

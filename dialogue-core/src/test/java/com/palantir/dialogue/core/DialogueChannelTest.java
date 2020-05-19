@@ -141,35 +141,6 @@ public final class DialogueChannelTest {
     }
 
     @Test
-    @SuppressWarnings("FutureReturnValueIgnored") // intentionally spawning a bunch of throwaway requests
-    void live_reloading_an_extra_uri_allows_queued_requests_to_make_progress() {
-        when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
-
-        channel = DialogueChannel.builder()
-                .channelName("my-channel")
-                .clientConfiguration(stubConfig)
-                .channelFactory(uri -> mockChannel)
-                .random(new Random(123456L))
-                .build();
-
-        int numRequests = 100; // we kick off a bunch of requests but don't bother waiting for their futures.
-        for (int i = 0; i < numRequests; i++) {
-            channel.execute(endpoint, request);
-        }
-
-        // stubConfig has 1 uri and ConcurrencyLimitedChannel initialLimit is 20
-        verify(mockChannel, times(ConcurrencyLimitedChannel.INITIAL_LIMIT)).execute(any(), any());
-
-        // live-reload from 1 -> 2 uris
-        ImmutableList<String> reloadedUris = ImmutableList.of(stubConfig.uris().get(0), "https://some-other-uri");
-        channel.updateUris(reloadedUris);
-
-        // Now that we have two uris, another batch of 20 requests can get out the door
-        verify(mockChannel, times(reloadedUris.size() * ConcurrencyLimitedChannel.INITIAL_LIMIT))
-                .execute(any(), any());
-    }
-
-    @Test
     void test_queue_rejection_is_not_retried() {
         when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
         channel = DialogueChannel.builder()
