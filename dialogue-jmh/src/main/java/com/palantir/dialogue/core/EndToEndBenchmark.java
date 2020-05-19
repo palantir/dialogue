@@ -75,7 +75,7 @@ public class EndToEndBenchmark {
     private Undertow undertow;
     private ExecutorService blockingExecutor;
     private SampleServiceBlocking blocking;
-    private SampleServiceAsync async;
+    private SampleServiceAsync _async;
     private ApacheHttpClientChannels.CloseableClient closeableApache;
     private Channel apacheChannel;
 
@@ -110,7 +110,7 @@ public class EndToEndBenchmark {
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
-        async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
+        _async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
 
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)

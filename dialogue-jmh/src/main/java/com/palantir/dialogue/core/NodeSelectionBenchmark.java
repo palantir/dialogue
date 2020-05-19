@@ -48,22 +48,22 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
-@Measurement(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Warmup(iterations = 12, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 12, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 @BenchmarkMode(Mode.Throughput)
 @SuppressWarnings({"VisibilityModifier", "DesignForExtension"})
 public class NodeSelectionBenchmark {
 
-    @Param({"2", "8", "100"})
+    @Param({"true", "false"})
+    public boolean headerDriven;
+
+    @Param({"2", "8"})
     public int numChannels;
 
     @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
     public NodeSelectionStrategy selectionStrategy;
-
-    @Param({"true", "false"})
-    public boolean serverDriven;
 
     private final Request request = Request.builder().build();
     private final DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
@@ -78,7 +78,7 @@ public class NodeSelectionBenchmark {
                 .mapToObj(i -> AlwaysLimited.INSTANCE)
                 .collect(ImmutableList.toImmutableList());
 
-        if (serverDriven) {
+        if (headerDriven) {
             switch (selectionStrategy) {
                 case PIN_UNTIL_ERROR:
                     channel = createNssChannel(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
