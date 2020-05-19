@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.Iterables;
-import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -27,7 +26,6 @@ import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
@@ -55,14 +53,15 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 20, time = 500, timeUnit = TimeUnit.MILLISECONDS)
-@Measurement(iterations = 10, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Warmup(iterations = 16, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 16, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
@@ -134,21 +133,24 @@ public class EndToEndBenchmark {
         closeableApache.close();
     }
 
+    @Threads(4)
     @Benchmark
     public void dialogueBlocking() {
         blocking.voidToVoid();
     }
 
-    @Benchmark
-    public ListenableFuture<Void> dialogueAsync() {
-        return async.voidToVoid();
-    }
+    // TODO(dfox): wait for the listenable futures
+    // @Benchmark
+    // public ListenableFuture<Void> dialogueAsync() {
+    //     return async.voidToVoid();
+    // }
+    //
+    // @Benchmark
+    // public ListenableFuture<Response> rawApacheAsync() {
+    //     return apacheChannel.execute(TestEndpoint.GET, request);
+    // }
 
-    @Benchmark
-    public ListenableFuture<Response> rawApacheAsync() {
-        return apacheChannel.execute(TestEndpoint.GET, request);
-    }
-
+    @Threads(4)
     @Benchmark
     public void rawApacheBlocking() {
         clientUtils.block(apacheChannel.execute(TestEndpoint.GET, request));
@@ -162,7 +164,7 @@ public class EndToEndBenchmark {
     public static void main(String[] _args) throws Exception {
         Options opt = new OptionsBuilder()
                 .include(EndToEndBenchmark.class.getSimpleName())
-                .jvmArgsAppend("-XX:+CrashOnOutOfMemoryError")
+                .jvmArgsPrepend("-Xmx1024m", "-Xms1024m", "-XX:+CrashOnOutOfMemoryError")
                 // .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();

@@ -36,15 +36,10 @@ def benchmarkFile = "${buildDir}/benchmark_results.out"
 task jmh(type: JavaExec) {
     main = 'org.openjdk.jmh.Main'
     classpath = sourceSets.main.runtimeClasspath
-    maxHeapSize = '1024m'
 
     // e.g. ./gradlew jmv -PjmhOptions='-rf json'
     if (project.hasProperty('jmhOptions')) {
         args(project.jmhOptions.split(' '))
-    }
-    doFirst {
-        standardOutput new org.apache.tools.ant.util.TeeOutputStream(
-                new FileOutputStream(benchmarkFile), System.out)
     }
 }
 
