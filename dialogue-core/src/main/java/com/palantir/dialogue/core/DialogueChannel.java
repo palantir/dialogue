@@ -259,9 +259,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            // this package-private class ensures that when clients do an instanceof check, they'll be able to use
-            // the 'ChannelEndpointStage#endpoint' method
-            return new Channel2() {
+            return new DialogueNonReloadingChannel() {
                 @Override
                 public EndpointChannel endpoint(Endpoint endpoint) {
                     return channel.endpoint(endpoint);
@@ -275,5 +273,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
     }
 
-    interface Channel2 extends Channel, EndpointChannelFactory {}
+    /**
+     * This package-private class ensures that when clients do an instanceof check, they'll be able to use the
+     * {@link EndpointChannelFactory#endpoint} method.
+     */
+    interface DialogueNonReloadingChannel extends Channel, EndpointChannelFactory {}
 }

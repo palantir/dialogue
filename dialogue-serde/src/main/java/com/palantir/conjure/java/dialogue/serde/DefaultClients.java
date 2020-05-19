@@ -73,9 +73,9 @@ enum DefaultClients implements Clients {
             return ((EndpointChannelFactory) channel).endpoint(endpoint);
         }
 
-        if (log.isInfoEnabled()) {
-            log.info(
-                    "Channel of type {} does not implement ChannelEndpointStage, "
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Channel of type {} does not implement EndpointChannelFactory, "
                             + "which is recommended for maximum performance. Falling back to lambda impl.",
                     SafeArg.of("type", channel.getClass().getSimpleName()),
                     SafeArg.of("serviceName", endpoint.serviceName()),
