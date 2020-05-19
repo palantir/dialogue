@@ -93,17 +93,7 @@ final class QueuedChannel implements EndpointChannelFactory {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         EndpointMaybeChannel chan = delegate.endpoint(endpoint);
-        return new EndpointChannel() {
-            @Override
-            public ListenableFuture<Response> execute(Request request) {
-                return maybeExecute(chan, endpoint, request).orElseGet(limitedResultSupplier);
-            }
-
-            @Override
-            public String toString() {
-                return "QueuedChannel.EndpointChannel{" + chan + '}';
-            }
-        };
+        return new Inner(chan, endpoint);
     }
 
     /**
@@ -325,6 +315,26 @@ final class QueuedChannel implements EndpointChannelFactory {
         @Override
         public int size() {
             throw new UnsupportedOperationException("size should never be called on a ConcurrentLinkedDeque");
+        }
+    }
+
+    private final class Inner implements EndpointChannel {
+        private final EndpointMaybeChannel chan;
+        private final Endpoint endpoint;
+
+        Inner(EndpointMaybeChannel chan, Endpoint endpoint) {
+            this.chan = chan;
+            this.endpoint = endpoint;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return maybeExecute(chan, endpoint, request).orElseGet(limitedResultSupplier);
+        }
+
+        @Override
+        public String toString() {
+            return "QueuedChannel.EndpointChannel{" + chan + '}';
         }
     }
 }

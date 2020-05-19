@@ -98,29 +98,34 @@ final class ConcurrencyLimitedChannel implements EndpointMaybeChannelFactory {
     @Override
     public EndpointMaybeChannel endpoint(Endpoint endpoint) {
         EndpointChannel proceed = delegate.endpoint(endpoint);
+        return new Inner(proceed);
+    }
 
-        return new EndpointMaybeChannel() {
-            @Override
-            public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
-                Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
-                if (maybePermit.isPresent()) {
-                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
-                    logPermitAcquired();
-                    ListenableFuture<Response> result = proceed.execute(request);
-                    DialogueFutures.addDirectCallback(result, permit);
-                    return Optional.of(result);
-                } else {
-                    logPermitRefused();
-                    limitedMeter.mark();
-                    return Optional.empty();
-                }
-            }
+    private final class Inner implements EndpointMaybeChannel {
+        private final EndpointChannel proceed;
 
-            @Override
-            public String toString() {
-                return "ConcurrerencyLimitdChannel.EndpointMaybeChannel{" + proceed + '}';
+        Inner(EndpointChannel proceed) {this.proceed = proceed;}
+
+        @Override
+        public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
+            Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+            if (maybePermit.isPresent()) {
+                CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
+                logPermitAcquired();
+                ListenableFuture<Response> result = proceed.execute(request);
+                DialogueFutures.addDirectCallback(result, permit);
+                return Optional.of(result);
+            } else {
+                logPermitRefused();
+                limitedMeter.mark();
+                return Optional.empty();
             }
-        };
+        }
+
+        @Override
+        public String toString() {
+            return "ConcurrerencyLimitdChannel.EndpointMaybeChannel{" + proceed + '}';
+        }
     }
 
     private void logPermitAcquired() {
