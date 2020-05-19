@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -53,7 +52,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements EndpointMaybeChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final Comparator<SortableChannel> BY_SCORE = Comparator.comparingInt(SortableChannel::getScore);
@@ -65,7 +64,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker clock;
 
     BalancedNodeSelectionStrategyChannel(
-            ImmutableList<LimitedChannel> channels,
+            ImmutableList<EndpointMaybeChannel> channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
@@ -85,7 +84,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
         List<MutableChannelWithStats> preShuffled = shuffleImmutableList(channels, random);
@@ -95,7 +94,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         SortableChannel[] sortedChannels = sortByScore(preShuffled);
 
         for (SortableChannel channel : sortedChannels) {
-            Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(request);
             if (maybe.isPresent()) {
                 return maybe;
             }
@@ -130,8 +129,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return "BalancedNodeSelectionStrategyChannel{channels=" + channels + '}';
     }
 
-    private static final class MutableChannelWithStats implements LimitedChannel {
-        private final LimitedChannel delegate;
+    private static final class MutableChannelWithStats implements EndpointMaybeChannel {
+        private final EndpointMaybeChannel delegate;
         private final FutureCallback<Response> updateStats;
         private final PerHostObservability observability;
 
@@ -144,7 +143,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
+        MutableChannelWithStats(EndpointMaybeChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
@@ -177,9 +176,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         @Override
-        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
             inflight.incrementAndGet();
-            Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(request);
             if (maybe.isPresent()) {
                 DialogueFutures.addDirectCallback(maybe.get(), updateStats);
                 observability.markRequestMade();
@@ -314,7 +313,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         static PerHostObservability create(
-                ImmutableList<LimitedChannel> channels,
+                ImmutableList<EndpointMaybeChannel> channels,
                 TaggedMetricRegistry taggedMetrics,
                 String channelName,
                 int index) {

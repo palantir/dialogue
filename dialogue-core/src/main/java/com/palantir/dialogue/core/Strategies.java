@@ -19,11 +19,10 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.util.Optional;
 
 final class Strategies {
 
-    static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
+    static EndpointMaybeChannelFactory create(Config cf, ImmutableList<EndpointMaybeChannelFactory> channels) {
         if (channels.isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
@@ -32,33 +31,39 @@ final class Strategies {
             return channels.get(0);
         }
 
-        DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
-                DialoguePinuntilerrorMetrics.of(cf.clientConf().taggedMetricRegistry());
+        // DialoguePinuntilerrorMetrics pinuntilerrorMetrics =
+        //         DialoguePinuntilerrorMetrics.of(cf.clientConf().taggedMetricRegistry());
         switch (cf.clientConf().nodeSelectionStrategy()) {
-            case PIN_UNTIL_ERROR:
-                return PinUntilErrorNodeSelectionStrategyChannel.of(
-                        Optional.empty(),
-                        DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                        channels,
-                        pinuntilerrorMetrics,
-                        cf.random(),
-                        cf.ticker(),
-                        cf.channelName());
-            case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
-                return PinUntilErrorNodeSelectionStrategyChannel.of(
-                        Optional.empty(),
-                        DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
-                        channels,
-                        pinuntilerrorMetrics,
-                        cf.random(),
-                        cf.ticker(),
-                        cf.channelName());
-
+            // TODO(dfox): implement
+                // case PIN_UNTIL_ERROR:
+                //     return PinUntilErrorNodeSelectionStrategyChannel.of(
+                //             Optional.empty(),
+                //             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                //             channels,
+                //             pinuntilerrorMetrics,
+                //             cf.random(),
+                //             cf.ticker(),
+                //             cf.channelName());
+                // case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
+                //     return PinUntilErrorNodeSelectionStrategyChannel.of(
+                //             Optional.empty(),
+                //             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
+                //             channels,
+                //             pinuntilerrorMetrics,
+                //             cf.random(),
+                //             cf.ticker(),
+                //             cf.channelName());
             case ROUND_ROBIN:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return new BalancedNodeSelectionStrategyChannel(
-                        channels, cf.random(), cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName());
+                return endpoint -> {
+                    return new BalancedNodeSelectionStrategyChannel(
+                            channels.stream().map(c -> c.endpoint(endpoint)).collect(ImmutableList.toImmutableList()),
+                            cf.random(),
+                            cf.ticker(),
+                            cf.clientConf().taggedMetricRegistry(),
+                            cf.channelName());
+                };
         }
         throw new SafeRuntimeException(
                 "Unknown NodeSelectionStrategy",

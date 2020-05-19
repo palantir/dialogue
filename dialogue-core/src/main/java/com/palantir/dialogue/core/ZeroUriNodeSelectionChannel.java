@@ -27,7 +27,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
 
 /** When we have zero URIs, no request can get out the door. */
-final class ZeroUriNodeSelectionChannel implements LimitedChannel {
+final class ZeroUriNodeSelectionChannel implements EndpointMaybeChannelFactory {
     private final String channelName;
 
     ZeroUriNodeSelectionChannel(String channelName) {
@@ -35,7 +35,11 @@ final class ZeroUriNodeSelectionChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request _request) {
+    public EndpointMaybeChannel endpoint(Endpoint endpoint) {
+        return request -> maybeExecute(endpoint, request);
+    }
+
+    private Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request _request) {
         return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
                 "There are no URIs configured to handle requests",
                 SafeArg.of("channel", channelName),
