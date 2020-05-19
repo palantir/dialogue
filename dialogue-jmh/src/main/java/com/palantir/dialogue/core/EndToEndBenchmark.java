@@ -74,14 +74,12 @@ public class EndToEndBenchmark {
     private Undertow undertow;
     private ExecutorService blockingExecutor;
     private SampleServiceBlocking blocking;
-    // private SampleServiceAsync async;
     private ApacheHttpClientChannels.CloseableClient closeableApache;
     private Channel apacheChannel;
 
     @Setup
     public void before() {
         undertow = Undertow.builder()
-                // .addHttpListener(0, "localhost", new BlockingHandler(exchange -> exchange.setStatusCode(200)))
                 .addHttpListener(0, "localhost", new ResponseCodeHandler(200))
                 .build();
         undertow.start();
@@ -109,7 +107,6 @@ public class EndToEndBenchmark {
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
-        // async = clients.getNonReloading(SampleServiceAsync.class, serviceConf);
 
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)
@@ -137,17 +134,6 @@ public class EndToEndBenchmark {
     public void dialogueBlocking() {
         blocking.voidToVoid();
     }
-
-    // TODO(dfox): wait for the listenable futures
-    // @Benchmark
-    // public ListenableFuture<Void> dialogueAsync() {
-    //     return async.voidToVoid();
-    // }
-    //
-    // @Benchmark
-    // public ListenableFuture<Response> rawApacheAsync() {
-    //     return apacheChannel.execute(TestEndpoint.GET, request);
-    // }
 
     @Threads(4)
     @Benchmark
