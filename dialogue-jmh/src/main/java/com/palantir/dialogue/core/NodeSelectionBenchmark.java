@@ -88,10 +88,24 @@ public class NodeSelectionBenchmark {
         if (headerDriven) {
             switch (selectionStrategy) {
                 case PIN_UNTIL_ERROR:
-                    channel = createNssChannel(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR, channels);
+                    channel = new NodeSelectionStrategyChannel(
+                            NodeSelectionStrategyChannel::getFirstKnownStrategy,
+                            DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                            "channelName",
+                            random,
+                            ticker,
+                            metrics,
+                            channels);
                     break;
                 case ROUND_ROBIN:
-                    channel = createNssChannel(DialogueNodeSelectionStrategy.BALANCED, channels);
+                    channel = new NodeSelectionStrategyChannel(
+                            NodeSelectionStrategyChannel::getFirstKnownStrategy,
+                            DialogueNodeSelectionStrategy.BALANCED,
+                            "channelName",
+                            random,
+                            ticker,
+                            metrics,
+                            channels);
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
@@ -122,18 +136,6 @@ public class NodeSelectionBenchmark {
     @Benchmark
     public Optional<ListenableFuture<Response>> postRequest() {
         return channel.maybeExecute(TestEndpoint.POST, request);
-    }
-
-    private NodeSelectionStrategyChannel createNssChannel(
-            DialogueNodeSelectionStrategy pinUntilError, ImmutableList<LimitedChannel> channels) {
-        return new NodeSelectionStrategyChannel(
-                NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                pinUntilError,
-                "channelName",
-                random,
-                ticker,
-                metrics,
-                channels);
     }
 
     public static void main(String[] _args) throws Exception {
