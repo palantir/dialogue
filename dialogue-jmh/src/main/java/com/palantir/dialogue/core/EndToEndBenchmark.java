@@ -30,6 +30,7 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.dialogue.example.SampleServiceBlocking2;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.Tracers;
@@ -59,7 +60,7 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
-@Warmup(iterations = 16, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Warmup(iterations = 32, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Measurement(iterations = 16, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.SECONDS)
@@ -73,9 +74,11 @@ public class EndToEndBenchmark {
 
     private Undertow undertow;
     private ExecutorService blockingExecutor;
-    private SampleServiceBlocking blocking;
     private ApacheHttpClientChannels.CloseableClient closeableApache;
     private Channel apacheChannel;
+
+    private SampleServiceBlocking blocking;
+    private SampleServiceBlocking2 blocking2;
 
     @Setup
     public void before() {
@@ -107,6 +110,7 @@ public class EndToEndBenchmark {
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
+        blocking2 = clients.getNonReloading(SampleServiceBlocking2.class, serviceConf);
 
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)
@@ -133,6 +137,12 @@ public class EndToEndBenchmark {
     @Benchmark
     public void dialogueBlocking() {
         blocking.voidToVoid();
+    }
+
+    @Threads(4)
+    @Benchmark
+    public void dialogue2Blocking() {
+        blocking2.voidToVoid();
     }
 
     @Threads(4)
