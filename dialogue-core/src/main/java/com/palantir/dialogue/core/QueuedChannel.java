@@ -131,7 +131,10 @@ final class QueuedChannel implements Channel {
         int newSize = incrementQueueSize();
 
         if (log.isDebugEnabled()) {
-            log.debug("Request queued {}", SafeArg.of("queueSize", newSize), SafeArg.of("channelName", channelName));
+            log.debug(
+                    "Request queued {} on channel {}",
+                    SafeArg.of("queueSize", newSize),
+                    SafeArg.of("channelName", channelName));
         }
 
         schedule();
@@ -154,7 +157,7 @@ final class QueuedChannel implements Channel {
 
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Scheduled {} requests",
+                    "Scheduled {} requests on channel {}",
                     SafeArg.of("numScheduled", numScheduled),
                     SafeArg.of("channelName", channelName));
         }
