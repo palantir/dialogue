@@ -24,6 +24,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.Tracer;
 
 final class DialogueTracedRequestChannel implements EndpointChannel {
     private final EndpointChannel delegate;
@@ -41,6 +42,10 @@ final class DialogueTracedRequestChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
+        if (!Tracer.isTraceObservable()) {
+            return delegate.execute(request);
+        }
+
         DetachedSpan span = DetachedSpan.start(operationName);
         ListenableFuture<Response> result = null;
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
