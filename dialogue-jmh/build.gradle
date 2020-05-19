@@ -1,3 +1,10 @@
+apply plugin: 'application'
+
+// Run `./gradlew distTar` to get a standalone tgz which can be uploaded to VMs for more reliable benchmark results
+application {
+    mainClass = 'org.openjdk.jmh.Main'
+}
+
 versionsLock {
     testProject()
 }
@@ -29,7 +36,6 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 }
-
 
 def benchmarkFile = "${buildDir}/benchmark_results.out"
 
