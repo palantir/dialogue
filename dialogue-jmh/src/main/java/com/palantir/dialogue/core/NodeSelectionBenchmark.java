@@ -18,12 +18,14 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -42,6 +44,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
@@ -65,7 +68,10 @@ public class NodeSelectionBenchmark {
     @Param({"PIN_UNTIL_ERROR", "ROUND_ROBIN"})
     public NodeSelectionStrategy selectionStrategy;
 
-    private final Request request = Request.builder().build();
+    private static final Request request = Request.builder().build();
+    private static final TestResponse response = new TestResponse().code(200);
+    private static final ListenableFuture<Response> future = Futures.immediateFuture(response);
+
     private final DefaultTaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
     private final Random random = SafeThreadLocalRandom.get();
     private final Ticker ticker = Ticker.systemTicker();
@@ -75,16 +81,16 @@ public class NodeSelectionBenchmark {
     @Setup(Level.Invocation)
     public void before() {
         ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
-                .mapToObj(i -> AlwaysLimited.INSTANCE)
+                .mapToObj(i -> FakeChannel.INSTANCE)
                 .collect(ImmutableList.toImmutableList());
 
         if (headerDriven) {
             switch (selectionStrategy) {
                 case PIN_UNTIL_ERROR:
-                    channel = createNssChannel(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
+                    channel = createNssChannel(DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR, channels);
                     break;
                 case ROUND_ROBIN:
-                    channel = createNssChannel(DialogueNodeSelectionStrategy.BALANCED);
+                    channel = createNssChannel(DialogueNodeSelectionStrategy.BALANCED, channels);
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
@@ -111,35 +117,41 @@ public class NodeSelectionBenchmark {
         }
     }
 
+    @Threads(4)
     @Benchmark
     public Optional<ListenableFuture<Response>> postRequest() {
         return channel.maybeExecute(TestEndpoint.POST, request);
     }
 
-    private NodeSelectionStrategyChannel createNssChannel(DialogueNodeSelectionStrategy pinUntilError) {
-        return new NodeSelectionStrategyChannel(
+    private NodeSelectionStrategyChannel createNssChannel(
+            DialogueNodeSelectionStrategy pinUntilError, ImmutableList<LimitedChannel> channels) {
+        NodeSelectionStrategyChannel chan = new NodeSelectionStrategyChannel(
                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
                 pinUntilError,
                 "channelName",
                 random,
                 ticker,
                 metrics);
+        chan.updateChannels(channels);
+        return chan;
     }
 
     public static void main(String[] _args) throws Exception {
         Options opt = new OptionsBuilder()
                 .include(NodeSelectionBenchmark.class.getSimpleName())
+                .jvmArgsPrepend("-Xmx1024m", "-Xms1024m", "-XX:+CrashOnOutOfMemoryError")
+                // .jvmArgsPrepend("-XX:+FlightRecorder", "-XX:StartFlightRecording=filename=./foo.jfr")
                 // .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();
     }
 
-    private enum AlwaysLimited implements LimitedChannel {
+    private enum FakeChannel implements LimitedChannel {
         INSTANCE;
 
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request) {
-            return Optional.empty();
+            return Optional.of(future);
         }
     }
 }
