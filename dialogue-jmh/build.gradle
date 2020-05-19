@@ -3,6 +3,11 @@ versionsLock {
 }
 
 dependencies {
+    implementation project(':dialogue-clients')
+    implementation project(':dialogue-core')
+    implementation project(':dialogue-example:dialogue-example-dialogue')
+    implementation project(':dialogue-target')
+    implementation project(':dialogue-test-common')
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:client-config'
@@ -10,10 +15,8 @@ dependencies {
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.tritium:tritium-registry'
+    implementation 'io.undertow:undertow-core'
     implementation 'org.openjdk.jmh:jmh-core'
-    implementation project(':dialogue-core')
-    implementation project(':dialogue-target')
-    implementation project(':dialogue-test-common')
 
     runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
     runtimeOnly 'org.apache.logging.log4j:log4j-core'
