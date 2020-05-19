@@ -126,15 +126,14 @@ public class NodeSelectionBenchmark {
 
     private NodeSelectionStrategyChannel createNssChannel(
             DialogueNodeSelectionStrategy pinUntilError, ImmutableList<LimitedChannel> channels) {
-        NodeSelectionStrategyChannel chan = new NodeSelectionStrategyChannel(
+        return new NodeSelectionStrategyChannel(
                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
                 pinUntilError,
                 "channelName",
                 random,
                 ticker,
-                metrics);
-        chan.updateChannels(channels);
-        return chan;
+                metrics,
+                channels);
     }
 
     public static void main(String[] _args) throws Exception {

@@ -55,9 +55,6 @@ class NodeSelectionStrategyChannelTest {
     private LimitedChannel channel1;
 
     @Mock
-    private LimitedChannel channel2;
-
-    @Mock
     private Ticker clock;
 
     private String channelName = "channelName";
@@ -65,31 +62,20 @@ class NodeSelectionStrategyChannelTest {
     private NodeSelectionStrategyChannel channel;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() {}
+
+    @Test
+    void updates_strategy_on_response() {
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1);
         channel = new NodeSelectionStrategyChannel(
                 strategySelector,
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
                 channelName,
                 pseudo,
                 clock,
-                new DefaultTaggedMetricRegistry());
-    }
+                new DefaultTaggedMetricRegistry(),
+                channels);
 
-    @Test
-    void handles_zero_to_one_uri_update() {
-        channel.updateChannels(ImmutableList.of());
-        channel.updateChannels(ImmutableList.of(channel1));
-    }
-
-    @Test
-    void handles_one_to_many_uri_update() {
-        channel.updateChannels(ImmutableList.of(channel1));
-        channel.updateChannels(ImmutableList.of(channel1, channel2));
-    }
-
-    @Test
-    void updates_strategy_on_response() {
-        channel.updateChannels(ImmutableList.of(channel1));
         setResponse(channel1, Optional.of("BALANCED,FOO"));
         channel.maybeExecute(null, null).get();
         verify(strategySelector, times(1))
