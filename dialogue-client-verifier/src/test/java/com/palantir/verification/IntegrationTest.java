@@ -36,7 +36,6 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
-import com.palantir.dialogue.example.SampleServiceAsync2;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
@@ -85,7 +84,7 @@ public class IntegrationTest {
         Channel dialogueChannel = ApacheHttpClientChannels.create(clientConf(getUri(undertow)));
         ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
         blocking = SampleServiceBlocking.of(dialogueChannel, runtime);
-        async = SampleServiceAsync2.of(dialogueChannel, runtime);
+        async = SampleServiceAsync.of(dialogueChannel, runtime);
     }
 
     @Test

@@ -30,7 +30,6 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceBlocking;
-import com.palantir.dialogue.example.SampleServiceBlocking2;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.Tracers;
@@ -78,7 +77,6 @@ public class EndToEndBenchmark {
     private Channel apacheChannel;
 
     private SampleServiceBlocking blocking;
-    private SampleServiceBlocking2 blocking2;
 
     @Setup
     public void before() {
@@ -110,7 +108,6 @@ public class EndToEndBenchmark {
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
-        blocking2 = clients.getNonReloading(SampleServiceBlocking2.class, serviceConf);
 
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)
@@ -137,12 +134,6 @@ public class EndToEndBenchmark {
     @Benchmark
     public void dialogueBlocking() {
         blocking.voidToVoid();
-    }
-
-    @Threads(4)
-    @Benchmark
-    public void dialogue2Blocking() {
-        blocking2.voidToVoid();
     }
 
     @Threads(4)
