@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: DialogueChannel no longer allows users to mutate its internals by calling
+    `updateUris`. If the URIs change, throw it away and make a new one.
+  links:
+  - https://github.com/palantir/dialogue/pull/776
