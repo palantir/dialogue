@@ -14,7 +14,9 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.palantir.tracing:tracing'
     implementation 'com.palantir.tritium:tritium-registry'
+    implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'io.undertow:undertow-core'
     implementation 'org.openjdk.jmh:jmh-core'
 

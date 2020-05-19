@@ -18,14 +18,22 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tracing.Tracers;
+import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.ResponseCodeHandler;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,8 +51,8 @@ import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @State(Scope.Benchmark)
-@Measurement(iterations = 6, time = 500, timeUnit = TimeUnit.MILLISECONDS)
-@Warmup(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Warmup(iterations = 10, time = 500, timeUnit = TimeUnit.MILLISECONDS)
+@Measurement(iterations = 3, time = 500, timeUnit = TimeUnit.MILLISECONDS)
 @Fork(value = 1)
 @OutputTimeUnit(TimeUnit.SECONDS)
 @BenchmarkMode(Mode.Throughput)
@@ -52,6 +60,8 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 public class EndToEndBenchmark {
 
     private Undertow undertow;
+    private ExecutorService blockingExecutor;
+
     private SampleServiceBlocking blocking;
     private SampleServiceAsync async;
 
@@ -63,8 +73,23 @@ public class EndToEndBenchmark {
                 .build();
         undertow.start();
 
-        DialogueClients.ReloadingFactory clients =
-                DialogueClients.create(Refreshable.only(null)).withUserAgent(TestConfigurations.AGENT);
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+
+        blockingExecutor = Tracers.wrap(
+                "dialogue-blocking-channel",
+                Executors.newCachedThreadPool(MetricRegistries.instrument(
+                        metrics,
+                        new ThreadFactoryBuilder()
+                                .setNameFormat("dialogue-blocking-channel-%d")
+                                .setDaemon(true)
+                                .build(),
+                        "dialogue-blocking-channel")));
+
+        DialogueClients.ReloadingFactory clients = DialogueClients.create(Refreshable.only(null))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withTaggedMetrics(metrics)
+                .withBlockingExecutor(blockingExecutor);
+
         ServiceConfiguration serviceConf = ServiceConfiguration.builder()
                 .addUris(getUri(undertow))
                 .security(TestConfigurations.SSL_CONFIG)
@@ -77,6 +102,8 @@ public class EndToEndBenchmark {
     @TearDown
     public void after() {
         undertow.stop();
+        MoreExecutors.shutdownAndAwaitTermination(RetryingChannel.sharedScheduler.get(), 1, TimeUnit.SECONDS);
+        MoreExecutors.shutdownAndAwaitTermination(blockingExecutor, 1, TimeUnit.SECONDS);
     }
 
     @Benchmark
@@ -97,6 +124,7 @@ public class EndToEndBenchmark {
     public static void main(String[] _args) throws Exception {
         Options opt = new OptionsBuilder()
                 .include(EndToEndBenchmark.class.getSimpleName())
+                .jvmArgsAppend("-XX:+CrashOnOutOfMemoryError")
                 // .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();
