@@ -45,6 +45,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
+import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
@@ -106,13 +107,25 @@ public class EndToEndBenchmark {
         MoreExecutors.shutdownAndAwaitTermination(blockingExecutor, 1, TimeUnit.SECONDS);
     }
 
+    @Threads(1)
     @Benchmark
-    public void blocking() {
+    public void singleThreadBlocking() {
+        blocking.voidToVoid();
+    }
+
+    @Threads(1)
+    @Benchmark
+    public ListenableFuture<Void> singleThreadAsync() {
+        return async.voidToVoid();
+    }
+
+    @Benchmark
+    public void parallelBlocking() {
         blocking.voidToVoid();
     }
 
     @Benchmark
-    public ListenableFuture<Void> async() {
+    public ListenableFuture<Void> parallelAsync() {
         return async.voidToVoid();
     }
 
