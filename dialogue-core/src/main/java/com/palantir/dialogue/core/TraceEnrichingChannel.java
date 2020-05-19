@@ -39,6 +39,10 @@ final class TraceEnrichingChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
+        if (!Tracer.isTraceObservable()) {
+            return executeInternal(request);
+        }
+
         DetachedSpan span = DetachedSpan.start(OPERATION);
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
