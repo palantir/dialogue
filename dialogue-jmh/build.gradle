@@ -1,0 +1,55 @@
+apply plugin: 'application'
+
+// Run `./gradlew distTar` to get a standalone tgz which can be uploaded to VMs for more reliable benchmark results
+application {
+    mainClass = 'org.openjdk.jmh.Main'
+}
+
+versionsLock {
+    testProject()
+}
+
+dependencies {
+    implementation project(':dialogue-clients')
+    implementation project(':dialogue-core')
+    implementation project(':dialogue-example:dialogue-example-dialogue')
+    implementation project(':dialogue-target')
+    implementation project(':dialogue-test-common')
+    implementation project(':dialogue-apache-hc4-client')
+    implementation project(':dialogue-serde')
+    implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.runtime:client-config'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.palantir.tracing:tracing'
+    implementation 'com.palantir.tritium:tritium-registry'
+    implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'io.undertow:undertow-core'
+    implementation 'org.openjdk.jmh:jmh-core'
+
+    runtimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
+    runtimeOnly 'org.apache.logging.log4j:log4j-core'
+
+    annotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess'
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+}
+
+def benchmarkFile = "${buildDir}/benchmark_results.out"
+
+task jmh(type: JavaExec) {
+    main = 'org.openjdk.jmh.Main'
+    classpath = sourceSets.main.runtimeClasspath
+
+    // e.g. ./gradlew jmv -PjmhOptions='-rf json'
+    if (project.hasProperty('jmhOptions')) {
+        args(project.jmhOptions.split(' '))
+    }
+}
+
+tasks.withType(JavaCompile) {
+    options.errorprone.errorproneArgs += [ '-Xep:HidingField:OFF',  '-Xep:Slf4jLogsafeArgs:OFF', '-Xep:NullAway:OFF' ]
+}
+tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care
