@@ -132,7 +132,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             }
             ImmutableList<EndpointMaybeChannelFactory> channels = perUriChannels.build();
 
-            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
+            LimitedChannel nodeSelectionChannel = Strategies.create(cf, channels);
             Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
             EndpointChannelFactory channelFactory = endpoint -> {
