@@ -97,7 +97,7 @@ public final class Benchmark {
     public Benchmark endpoints(Endpoint... endpoints) {
         Preconditions.checkNotNull(clients, "Must call client or clients first");
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
-        Preconditions.checkNotNull(simulation);
+        Preconditions.checkNotNull(simulation, "Must call .simulation() first");
         Clients utils = DefaultConjureRuntime.builder().build().clients();
 
         endpointChannels = Arrays.stream(clients)
