@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,17 +27,16 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
-import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestConfigurations;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.testing.Assertions;
 import com.palantir.logsafe.testing.LoggableExceptionAssert;
-import java.nio.file.Paths;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.assertj.core.internal.Failures;
@@ -50,8 +49,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public final class RefreshingChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
-    private static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
     private static final ServicesConfigBlock EMPTY_CONFIG =
             ServicesConfigBlock.builder().build();
     private static final String URI_1 = "uri-1";
@@ -60,7 +57,7 @@ public final class RefreshingChannelFactoryTest {
                     SERVICE_A,
                     PartialServiceConfiguration.builder()
                             .addUris(URI_1)
-                            .security(SSL_CONFIG)
+                            .security(TestConfigurations.SSL_CONFIG)
                             .build())
             .build();
     private static final String URI_2 = "uri-2";
@@ -69,7 +66,7 @@ public final class RefreshingChannelFactoryTest {
                     SERVICE_A,
                     PartialServiceConfiguration.builder()
                             .addUris(URI_2)
-                            .security(SSL_CONFIG)
+                            .security(TestConfigurations.SSL_CONFIG)
                             .build())
             .build();
 
