@@ -198,3 +198,9 @@ acceptedBreaks:
         \ com.palantir.dialogue.Endpoint)"
       justification: "We make no guarantees for custom implementations of ConjureRuntime, and this is a compile-time\
         \ break not ABI break."
+  "1.47.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.core.RefreshingChannelFactory"
+      justification: "No remaining users of this method, everyone has switched to\
+        \ 'DialogueClients' instead"
