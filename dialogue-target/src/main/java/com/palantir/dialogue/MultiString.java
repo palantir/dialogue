@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -66,7 +67,7 @@ final class MultiString {
         return sb.toString();
     }
 
-    public static String encode(Iterable<String> strings) {
+    public static String encode(Iterable<? extends String> strings) {
         if (strings instanceof List) {
             return encode((List<String>) strings);
         }

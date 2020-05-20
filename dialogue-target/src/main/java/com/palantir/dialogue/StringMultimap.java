@@ -63,6 +63,20 @@ final class StringMultimap implements ListMultimap<String, String> {
             return this;
         }
 
+        Builder put(String key, String value) {
+            String existing = wip.get(key);
+            if (existing == null) {
+                wip.put(key, value);
+            } else {
+                wip.put(key, MultiString.concat(existing, value));
+            }
+            return this;
+        }
+
+        Builder put(Map.Entry<String,? extends String> entry) {
+            return put(entry.getKey(), entry.getValue());
+        }
+
         Builder putAll(String key, Iterable<String> values) {
             wip.merge(key, MultiString.encode(values), MultiString::concat);
             return this;
@@ -70,6 +84,23 @@ final class StringMultimap implements ListMultimap<String, String> {
 
         Builder putAll(String key, String... values) {
             wip.merge(key, MultiString.encode(Arrays.asList(values)), MultiString::concat);
+            return this;
+        }
+
+        Builder putAll(Multimap<String, ? extends String> multimap) {
+            if (multimap instanceof StringMultimap) {
+                return putAll((StringMultimap) multimap);
+            }
+
+            multimap.asMap().forEach((keyToAdd, values) -> {
+                String existing = wip.get(keyToAdd);
+                String valuesToAdd = MultiString.encode(values);
+                if (existing == null) {
+                    wip.put(keyToAdd, valuesToAdd);
+                } else {
+                    wip.put(keyToAdd, MultiString.concat(existing, valuesToAdd));
+                }
+            });
             return this;
         }
 

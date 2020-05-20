@@ -16,12 +16,9 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
-import com.google.common.collect.MultimapBuilder;
-import com.google.common.collect.Multimaps;
 import com.palantir.logsafe.Preconditions;
 import java.util.Arrays;
 import java.util.Map;
@@ -31,14 +28,14 @@ import java.util.Optional;
 /** Defines the parameters of a single {@link Call} to an {@link Endpoint}. */
 public final class Request {
 
-    private final ListMultimap<String, String> headerParams;
-    private final ImmutableListMultimap<String, String> queryParams;
+    private final StringMultimap headerParams;
+    private final StringMultimap queryParams;
     private final ImmutableMap<String, String> pathParams;
     private final Optional<RequestBody> body;
 
     private Request(Builder builder) {
         body = builder.body;
-        headerParams = Multimaps.unmodifiableListMultimap(builder.headerParams);
+        headerParams = builder.headerParams.build();
         queryParams = builder.queryParams.build();
         pathParams = builder.pathParams.build();
     }
@@ -114,10 +111,8 @@ public final class Request {
     }
 
     public static final class Builder {
-        private ListMultimap<String, String> headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
-                .arrayListValues()
-                .build();
-        private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
+        private StringMultimap.Builder headerParams = StringMultimap.treeMapBuilder(String.CASE_INSENSITIVE_ORDER);
+        private StringMultimap.Builder queryParams = StringMultimap.linkedHashMapBuilder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
 
@@ -175,7 +170,7 @@ public final class Request {
         }
 
         public Request.Builder queryParams(Multimap<String, ? extends String> entries) {
-            queryParams = ImmutableListMultimap.builder();
+            queryParams.clear();
             return putAllQueryParams(entries);
         }
 
