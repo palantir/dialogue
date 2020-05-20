@@ -149,6 +149,7 @@ final class QueuedChannel implements Channel {
     /**
      * Try to schedule as many tasks as possible. Called when requests are submitted and when they complete.
      */
+    @VisibleForTesting
     void schedule() {
         int numScheduled = 0;
         while (scheduleNextTask()) {

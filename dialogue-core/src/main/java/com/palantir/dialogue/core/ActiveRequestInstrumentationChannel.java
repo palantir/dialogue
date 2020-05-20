@@ -46,15 +46,9 @@ final class ActiveRequestInstrumentationChannel implements Channel {
         this.metrics = DialogueClientMetrics.of(metrics);
     }
 
-    @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Counter counter = metrics.requestActive()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .stage(stage)
-                .build();
-        counter.inc();
-        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
+    static Channel create(Config cf, Channel delegate, @CompileTimeConstant String stage) {
+        return new ActiveRequestInstrumentationChannel(
+                delegate, cf.channelName(), stage, cf.clientConf().taggedMetricRegistry());
     }
 
     static EndpointChannel create(
@@ -67,6 +61,17 @@ final class ActiveRequestInstrumentationChannel implements Channel {
                 .build();
 
         return new ActiveRequestInstrumentationEndpointChannel(counter, delegate);
+    }
+
+    @Override
+    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        Counter counter = metrics.requestActive()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .stage(stage)
+                .build();
+        counter.inc();
+        return DialogueFutures.addDirectListener(delegate.execute(endpoint, request), counter::dec);
     }
 
     @Override

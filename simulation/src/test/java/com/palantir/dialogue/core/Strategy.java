@@ -74,24 +74,22 @@ public enum Strategy {
             Simulation sim,
             Supplier<Map<String, SimulationServer>> channelSupplier,
             UnaryOperator<ClientConfiguration.Builder> applyConfig) {
-        DialogueChannel channel = DialogueChannel.builder()
-                .channelName(SimulationUtils.CHANNEL_NAME)
-                .clientConfiguration(applyConfig
-                        .apply(ClientConfiguration.builder()
-                                .uris(ImmutableList.copyOf(channelSupplier.get().keySet()))
-                                .from(STUB_CONFIG)
-                                .taggedMetricRegistry(sim.taggedMetrics()))
-                        .build())
-                .channelFactory(uri -> channelSupplier.get().get(uri))
-                .random(sim.pseudoRandom())
-                .scheduler(sim.scheduler())
-                .ticker(sim.clock())
-                .build();
-
         return RefreshingChannelFactory.RefreshingChannel.create(
                 () -> channelSupplier.get().keySet(), uris -> {
-                    channel.updateUris(uris);
-                    return channel;
+                    return DialogueChannel.builder()
+                            .channelName(SimulationUtils.CHANNEL_NAME)
+                            .clientConfiguration(applyConfig
+                                    .apply(ClientConfiguration.builder()
+                                            .uris(ImmutableList.copyOf(
+                                                    channelSupplier.get().keySet()))
+                                            .from(STUB_CONFIG)
+                                            .taggedMetricRegistry(sim.taggedMetrics()))
+                                    .build())
+                            .channelFactory(uri -> channelSupplier.get().get(uri))
+                            .random(sim.pseudoRandom())
+                            .scheduler(sim.scheduler())
+                            .ticker(sim.clock())
+                            .buildNonLiveReloading();
                 });
     }
 
