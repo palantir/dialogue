@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -26,51 +27,60 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 final class TimingEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final Timer responseTimer;
     private final Meter ioExceptionMeter;
+    private final Ticker ticker;
 
-    private TimingEndpointChannel(EndpointChannel delegate, Timer responseTimer, Meter ioExceptionMeter) {
+    TimingEndpointChannel(
+            EndpointChannel delegate,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics,
+            String channelName,
+            Endpoint endpoint) {
         this.delegate = delegate;
-        this.responseTimer = responseTimer;
-        this.ioExceptionMeter = ioExceptionMeter;
+        this.ticker = ticker;
+        ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
+        this.responseTimer = metrics.response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .build();
+        this.ioExceptionMeter = metrics.responseError()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .reason("IOException")
+                .build();
     }
 
-    static EndpointChannel create(
-            TaggedMetricRegistry taggedMetrics, String channelName, EndpointChannel delegate, Endpoint endpoint) {
-        ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
+    static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
         return new TimingEndpointChannel(
-                delegate,
-                metrics.response()
-                        .channelName(channelName)
-                        .serviceName(endpoint.serviceName())
-                        .build(),
-                metrics.responseError()
-                        .channelName(channelName)
-                        .serviceName(endpoint.serviceName())
-                        .reason("IOException")
-                        .build());
+                delegate, cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName(), endpoint);
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        Timer.Context context = responseTimer.time();
+        long beforeNanos = ticker.read();
         ListenableFuture<Response> response = delegate.execute(request);
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response _result) {
-                context.stop();
+                updateResponseTimer();
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                context.stop();
+                updateResponseTimer();
                 if (throwable instanceof IOException) {
                     ioExceptionMeter.mark();
                 }
+            }
+
+            private void updateResponseTimer() {
+                responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
     }

@@ -140,8 +140,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new ContentDecodingChannel(channel);
                 channel = TracedChannel.create(channel, endpoint);
                 channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
-                channel = TimingEndpointChannel.create(
-                        cf.clientConf().taggedMetricRegistry(), cf.channelName(), channel, endpoint);
+                channel = TimingEndpointChannel.create(cf, channel, endpoint);
                 return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
             };
 
