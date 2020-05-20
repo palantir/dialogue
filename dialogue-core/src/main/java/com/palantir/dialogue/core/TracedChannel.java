@@ -17,23 +17,53 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tracing.Tracers;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
+    private final String operationNameInitial;
 
-    TracedChannel(EndpointChannel delegate, String operationName) {
+    private TracedChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
         this.operationName = operationName;
+        this.operationNameInitial = operationName + " initial";
+    }
+
+    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint) {
+        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
+        return new TracedChannel(delegate, operationName);
+    }
+
+    static EndpointChannel requestAttempt(EndpointChannel delegate) {
+        return new TracedChannel(delegate, "Dialogue-request-attempt");
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(request));
+        if (Tracer.hasTraceId() && !Tracer.isTraceObservable()) {
+            return delegate.execute(request);
+        }
+
+        DetachedSpan span = DetachedSpan.start(operationName);
+        ListenableFuture<Response> future = null;
+        try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
+            future = delegate.execute(request);
+        } finally {
+            if (future != null) {
+                future.addListener(span::complete, MoreExecutors.directExecutor());
+            } else {
+                span.complete();
+            }
+        }
+        return future;
     }
 
     @Override
