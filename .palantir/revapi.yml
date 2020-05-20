@@ -204,3 +204,9 @@ acceptedBreaks:
       old: "method void com.palantir.dialogue.core.DialogueChannel::updateUris(java.util.Collection<java.lang.String>)"
       justification: "No remaining users of this method, everyone has switched to\
         \ 'DialogueClients' instead"
+  "1.47.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.core.RefreshingChannelFactory"
+      justification: "No remaining users of this method, everyone has switched to\
+        \ 'DialogueClients' instead"
