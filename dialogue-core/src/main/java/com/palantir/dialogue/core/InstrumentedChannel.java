@@ -41,6 +41,11 @@ final class InstrumentedChannel implements Channel {
         this.metrics = ClientMetrics.of(metrics);
     }
 
+    static InstrumentedChannel create(Config cf, Channel delegate) {
+        return new InstrumentedChannel(
+                delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry());
+    }
+
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         Timer.Context context = metrics.response()

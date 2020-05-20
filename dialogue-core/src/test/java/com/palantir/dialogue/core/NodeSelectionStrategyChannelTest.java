@@ -18,15 +18,14 @@ package com.palantir.dialogue.core;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
-import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +34,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
 import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -65,43 +63,27 @@ class NodeSelectionStrategyChannelTest {
     private NodeSelectionStrategyChannel channel;
 
     @BeforeEach
-    void beforeEach() {
+    void beforeEach() {}
+
+    @Test
+    void updates_strategy_on_response() {
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
         channel = new NodeSelectionStrategyChannel(
                 strategySelector,
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
                 channelName,
                 pseudo,
                 clock,
-                new DefaultTaggedMetricRegistry());
-    }
+                new DefaultTaggedMetricRegistry(),
+                channels);
 
-    @Test
-    void handles_zero_to_one_uri_update() {
-        channel.updateChannels(ImmutableList.of());
-        channel.updateChannels(ImmutableList.of(channel1));
-    }
+        when(channel1.maybeExecute(any(), any()))
+                .thenReturn(Optional.of(Futures.immediateFuture(
+                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
-    @Test
-    void handles_one_to_many_uri_update() {
-        channel.updateChannels(ImmutableList.of(channel1));
-        channel.updateChannels(ImmutableList.of(channel1, channel2));
-    }
-
-    @Test
-    void updates_strategy_on_response() {
-        channel.updateChannels(ImmutableList.of(channel1));
-        setResponse(channel1, Optional.of("BALANCED,FOO"));
         channel.maybeExecute(null, null).get();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
-    }
-
-    private static void setResponse(LimitedChannel mockChannel, Optional<String> header) {
-        Mockito.clearInvocations(mockChannel);
-        Mockito.reset(mockChannel);
-        Response resp = mock(Response.class);
-        lenient().when(resp.getFirstHeader("Node-Selection-Strategy")).thenReturn(header);
-        lenient().when(mockChannel.maybeExecute(any(), any())).thenReturn(Optional.of(Futures.immediateFuture(resp)));
     }
 }

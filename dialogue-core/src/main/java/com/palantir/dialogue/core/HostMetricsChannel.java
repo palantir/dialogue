@@ -49,7 +49,7 @@ final class HostMetricsChannel implements Channel {
                         port);
     }
 
-    static Channel create(Channel channel, Config cf, String uri) {
+    static Channel create(Config cf, Channel channel, String uri) {
         Optional<HostEventsSink> hostEventsSink = cf.clientConf().hostEventsSink();
         if (!hostEventsSink.isPresent()) {
             return channel;

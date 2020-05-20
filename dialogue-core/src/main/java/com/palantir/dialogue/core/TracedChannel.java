@@ -31,7 +31,7 @@ final class TracedChannel implements EndpointChannel {
     private final String operationName;
     private final String operationNameInitial;
 
-    TracedChannel(EndpointChannel delegate, String operationName) {
+    private TracedChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
         this.operationName = operationName;
         this.operationNameInitial = operationName + " initial";
