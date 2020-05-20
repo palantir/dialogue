@@ -1,5 +1,6 @@
 type: improvement
 improvement:
-  description: Remove `service-name` tag from `client.response` timer and convert it to a `meter`. Most consumers only read the `count` portion which is not impacted.
+  description: |
+    `client.response` timer now measures user-perceived time. This now includes queue time and any backoffs caused by retrying.
   links:
   - https://github.com/palantir/dialogue/pull/780
