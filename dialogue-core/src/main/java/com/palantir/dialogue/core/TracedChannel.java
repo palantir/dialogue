@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -29,6 +30,15 @@ final class TracedChannel implements EndpointChannel {
     TracedChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
         this.operationName = operationName;
+    }
+
+    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint) {
+        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
+        return new TracedChannel(delegate, operationName);
+    }
+
+    static EndpointChannel requestAttempt(EndpointChannel delegate) {
+        return new TracedChannel(delegate, "Dialogue-request-attempt");
     }
 
     @Override
