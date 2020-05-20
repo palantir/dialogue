@@ -17,6 +17,8 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -25,9 +27,12 @@ import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
@@ -77,6 +82,7 @@ public class EndToEndBenchmark {
     private Channel apacheChannel;
 
     private SampleServiceBlocking blocking;
+    private SampleServiceBlocking zeroNetworkDialogue;
 
     @Setup
     public void before() {
@@ -109,17 +115,26 @@ public class EndToEndBenchmark {
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
 
+        ClientConfiguration clientConf = ClientConfiguration.builder()
+                .from(ClientConfigurations.of(serviceConf))
+                .taggedMetricRegistry(metrics)
+                .userAgent(TestConfigurations.AGENT)
+                .build();
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)
-                .clientConfiguration(ClientConfiguration.builder()
-                        .from(ClientConfigurations.of(serviceConf))
-                        .taggedMetricRegistry(metrics)
-                        .userAgent(TestConfigurations.AGENT)
-                        .build())
+                .clientConfiguration(clientConf)
                 .clientName("clientName")
                 .build();
         apacheChannel =
                 ApacheHttpClientChannels.createSingleUri(serviceConf.uris().get(0), closeableApache);
+
+        Channel zeroNetworkChannel = DialogueChannel.builder()
+                .channelName("goFast")
+                .clientConfiguration(clientConf)
+                .channelFactory(uri -> InstantChannel.INSTANCE)
+                .buildNonLiveReloading();
+        zeroNetworkDialogue = SampleServiceBlocking.of(
+                zeroNetworkChannel, DefaultConjureRuntime.builder().build());
     }
 
     @TearDown
@@ -134,6 +149,12 @@ public class EndToEndBenchmark {
     @Benchmark
     public void dialogueBlocking() {
         blocking.voidToVoid();
+    }
+
+    @Threads(1)
+    @Benchmark
+    public void setZeroNetworkDialogue() {
+        zeroNetworkDialogue.voidToVoid();
     }
 
     @Threads(4)
@@ -154,5 +175,14 @@ public class EndToEndBenchmark {
                 // .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();
+    }
+
+    private enum InstantChannel implements Channel {
+        INSTANCE;
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
+            return Futures.immediateFuture(new TestResponse().code(200));
+        }
     }
 }

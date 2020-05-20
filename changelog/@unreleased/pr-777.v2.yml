@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: When the current trace is not sampled (i.e. 99% of the time), Dialogue
+    short-circuits a bunch of work.
+  links:
+  - https://github.com/palantir/dialogue/pull/777
