@@ -41,8 +41,19 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @SuppressWarnings("FutureReturnValueIgnored")
 public final class TimingEndpointChannelTest {
 
-    private TaggedMetricRegistry registry;
-    private TimingEndpointChannel timingChannel;
+    private final TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+    private final Endpoint endpoint = TestEndpoint.POST;
+    private final Timer timer = ClientMetrics.of(registry)
+            .response()
+            .channelName("my-channel")
+            .serviceName(endpoint.serviceName())
+            .build();
+    private final Meter responseErrors = ClientMetrics.of(registry)
+            .responseError()
+            .channelName("my-channel")
+            .serviceName(endpoint.serviceName())
+            .reason(IOException.class.getSimpleName())
+            .build();
 
     @Mock
     private EndpointChannel delegate;
@@ -50,26 +61,11 @@ public final class TimingEndpointChannelTest {
     @Mock
     private Ticker ticker;
 
-    private Timer timer;
-    private Meter responseErrors;
+    private TimingEndpointChannel timingChannel;
 
     @BeforeEach
     public void before() {
-        Endpoint endpoint = TestEndpoint.POST;
-
-        registry = new DefaultTaggedMetricRegistry();
         timingChannel = new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint);
-
-        ClientMetrics metrics = ClientMetrics.of(registry);
-        timer = metrics.response()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .build();
-        responseErrors = metrics.responseError()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .reason(IOException.class.getSimpleName())
-                .build();
     }
 
     @Test
