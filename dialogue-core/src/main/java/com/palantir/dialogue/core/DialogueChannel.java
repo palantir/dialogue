@@ -119,7 +119,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
-                channel = InstrumentedChannel.create(cf, channel);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 channel = ActiveRequestInstrumentationChannel.create(cf, channel, "running");
                 channel = new TraceEnrichingChannel(channel);
@@ -141,6 +140,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new ContentDecodingChannel(channel);
                 channel = TracedChannel.create(channel, endpoint);
                 channel = ActiveRequestInstrumentationChannel.create(cf, channel, endpoint, "processing");
+                channel = TimingEndpointChannel.create(
+                        cf.clientConf().taggedMetricRegistry(), cf.channelName(), channel, endpoint);
                 return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
             };
 

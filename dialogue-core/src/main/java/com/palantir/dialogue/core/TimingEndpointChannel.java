@@ -27,13 +27,12 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 
-/** More performant version of {@link com.palantir.dialogue.core.InstrumentedChannel}. */
-final class InstrumentedEndpointChannel implements EndpointChannel {
+final class TimingEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final Timer responseTimer;
     private final Meter ioExceptionMeter;
 
-    private InstrumentedEndpointChannel(EndpointChannel delegate, Timer responseTimer, Meter ioExceptionMeter) {
+    private TimingEndpointChannel(EndpointChannel delegate, Timer responseTimer, Meter ioExceptionMeter) {
         this.delegate = delegate;
         this.responseTimer = responseTimer;
         this.ioExceptionMeter = ioExceptionMeter;
@@ -42,7 +41,7 @@ final class InstrumentedEndpointChannel implements EndpointChannel {
     static EndpointChannel create(
             TaggedMetricRegistry taggedMetrics, String channelName, EndpointChannel delegate, Endpoint endpoint) {
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        return new InstrumentedEndpointChannel(
+        return new TimingEndpointChannel(
                 delegate,
                 metrics.response()
                         .channelName(channelName)
@@ -78,6 +77,6 @@ final class InstrumentedEndpointChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "InstrumentedEndpointChannel{" + delegate + '}';
+        return "TimingEndpointChannel{" + delegate + '}';
     }
 }
