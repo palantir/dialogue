@@ -131,10 +131,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(11)
                 .sendUntil(Duration.ofMinutes(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofHours(1))
                 .run();
     }
@@ -166,8 +166,8 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
-                .requestsPerSecond(500)
                 .simulation(simulation)
+                .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
                 .endpoints(getEndpoint)
@@ -196,10 +196,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -224,10 +224,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(90))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -252,10 +252,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -281,10 +281,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -309,10 +309,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -432,10 +432,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(1000)
                 .sendUntil(Duration.ofSeconds(10))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofSeconds(10))
                 .run();
     }
@@ -462,10 +462,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(30_000) // fire off a ton of requests very quickly
                 .numRequests(1000)
                 .client(strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofSeconds(10))
                 .run();
     }
@@ -498,10 +498,10 @@ final class SimulationTest {
 
         st = strategy;
         result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond((int) totalRateLimit)
                 .sendUntil(Duration.ofMinutes(25))
                 .clients(numClients, i -> strategy.getChannel(simulation, servers))
-                .simulation(simulation)
                 .abortAfter(Duration.ofHours(1))
                 .run();
     }

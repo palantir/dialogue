@@ -32,6 +32,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.Map;
@@ -96,11 +97,21 @@ public final class Benchmark {
     public Benchmark endpoints(Endpoint... endpoints) {
         Preconditions.checkNotNull(clients, "Must call client or clients first");
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
+        Preconditions.checkNotNull(simulation);
         Clients utils = DefaultConjureRuntime.builder().build().clients();
 
-        endpointChannels = Arrays.stream(this.clients)
+        endpointChannels = Arrays.stream(clients)
                 .flatMap(channel -> {
-                    return Arrays.stream(endpoints).map(endpoint -> utils.bind(channel, endpoint));
+                    return Arrays.stream(endpoints).map(endpoint -> {
+                        EndpointChannel bound = utils.bind(channel, endpoint);
+                        Preconditions.checkArgument(
+                                endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
+                                "Must have a consistent service name for our graphs to work",
+                                SafeArg.of("endpoint", endpoint));
+                        bound = InstrumentedEndpointChannel.create(
+                                simulation.taggedMetrics(), SimulationUtils.CHANNEL_NAME, bound, endpoint);
+                        return bound;
+                    });
                 })
                 .toArray(EndpointChannel[]::new);
 
@@ -170,10 +181,6 @@ public final class Benchmark {
 
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
-
-        Channel[] channels = Arrays.stream(clients)
-                .map(c -> new InstrumentedChannel(c, SimulationUtils.CHANNEL_NAME, simulation.taggedMetrics()))
-                .toArray(Channel[]::new);
 
         long[] requestsStarted = {0};
         long[] responsesReceived = {0};
