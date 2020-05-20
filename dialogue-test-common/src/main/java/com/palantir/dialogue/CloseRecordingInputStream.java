@@ -16,29 +16,27 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Optional;
 import org.assertj.core.api.Assertions;
 
 /** A test-only inputstream which can only be closed once. */
 public final class CloseRecordingInputStream extends InputStream {
 
     private final InputStream delegate;
-    private Optional<Throwable> closeCalled = Optional.empty();
+    private volatile boolean closeCalled = false;
 
     public CloseRecordingInputStream(InputStream delegate) {
         this.delegate = delegate;
     }
 
     public boolean isClosed() {
-        return closeCalled.isPresent();
+        return closeCalled;
     }
 
     public void assertNotClosed() {
-        if (closeCalled.isPresent()) {
-            Assertions.fail("Expected CloseRecordingInputStream to be open but was closed", closeCalled.get());
+        if (closeCalled) {
+            Assertions.fail("Expected CloseRecordingInputStream to be open but was closed");
         }
     }
 
@@ -86,7 +84,7 @@ public final class CloseRecordingInputStream extends InputStream {
 
     @Override
     public void close() throws IOException {
-        closeCalled = Optional.of(new SafeRuntimeException("close was called here"));
+        closeCalled = true;
         delegate.close();
     }
 }

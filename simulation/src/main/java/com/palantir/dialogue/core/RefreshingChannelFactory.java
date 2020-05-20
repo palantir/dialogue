@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,8 +24,12 @@ import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
@@ -86,7 +90,7 @@ public final class RefreshingChannelFactory {
     }
 
     @VisibleForTesting
-    static final class RefreshingChannel implements Channel {
+    static final class RefreshingChannel implements Channel, EndpointChannelFactory {
         private final Supplier<Channel> channelSupplier;
 
         private RefreshingChannel(Supplier<Channel> channelSupplier) {
@@ -107,6 +111,27 @@ public final class RefreshingChannelFactory {
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
             return channelSupplier.get().execute(endpoint, request);
+        }
+
+        @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            Clients utils = DefaultConjureRuntime.builder().build().clients();
+            Supplier<EndpointChannel> endpointChannel =
+                    new MemoizingComposingSupplier<>(channelSupplier, chan -> utils.bind(chan, endpoint));
+            return new SupplierEndpointChannel(endpointChannel);
+        }
+
+        private static class SupplierEndpointChannel implements EndpointChannel {
+            private final Supplier<EndpointChannel> endpointChannel;
+
+            SupplierEndpointChannel(Supplier<EndpointChannel> endpointChannel) {
+                this.endpointChannel = endpointChannel;
+            }
+
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                return endpointChannel.get().execute(request);
+            }
         }
     }
 }

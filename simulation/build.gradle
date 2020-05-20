@@ -6,6 +6,7 @@ dependencies {
     implementation project(':dialogue-core')
     implementation project(':dialogue-target')
     implementation project(':dialogue-test-common')
+    implementation project(':dialogue-serde')
     implementation 'org.jmock:jmock'
     implementation 'org.knowm.xchart:xchart'
     implementation 'com.github.ben-manes.caffeine:caffeine'
