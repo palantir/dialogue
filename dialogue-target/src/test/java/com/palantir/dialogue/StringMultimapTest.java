@@ -58,6 +58,16 @@ class StringMultimapTest {
         test(map2);
     }
 
+    @Test
+    void tree() {
+        StringMultimap map = StringMultimap.treeMapBuilder(String.CASE_INSENSITIVE_ORDER)
+                .putAll("key4", "c", "b")
+                .putAll("key1", "b", "a")
+                .putAll("key2", "x")
+                .build();
+        assertThat(map.keySet()).containsExactly("key1", "key2", "key4");
+    }
+
     private void test(StringMultimap candidate) {
         assertThat(candidate.size()).describedAs(candidate.toString()).isEqualTo(reference.size());
         assertThat(candidate.values()).containsExactlyElementsOf(reference.values());

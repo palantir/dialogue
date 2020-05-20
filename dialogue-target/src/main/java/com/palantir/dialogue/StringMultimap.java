@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
@@ -42,8 +43,8 @@ final class StringMultimap implements ListMultimap<String, String> {
         this.internal = internal;
     }
 
-    public static Builder treeMapBuilder(Comparator<String> comparator) {
-        return new Builder(new TreeMap<>(comparator));
+    public static Builder treeMapBuilder(Comparator<String> keyComparator) {
+        return new Builder(new TreeMap<>(keyComparator));
     }
 
     public static Builder linkedHashMapBuilder() {
@@ -229,6 +230,23 @@ final class StringMultimap implements ListMultimap<String, String> {
 
     @Override
     public String toString() {
-        return "TokenizedMultiMap{" + "internal=" + internal + '}';
+        return "StringMultimap{" + internal + '}';
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        StringMultimap that = (StringMultimap) obj;
+        return internal.equals(that.internal);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(internal.hashCode());
     }
 }
