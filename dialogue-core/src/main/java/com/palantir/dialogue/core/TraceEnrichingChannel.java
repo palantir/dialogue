@@ -27,7 +27,6 @@ import com.palantir.tracing.TraceMetadata;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.SpanType;
 import com.palantir.tracing.api.TraceHttpHeaders;
-import java.util.Optional;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
@@ -41,26 +40,24 @@ final class TraceEnrichingChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        if (!Tracer.isTraceObservable()) {
+        if (Tracer.hasTraceId() && !Tracer.isTraceObservable()) {
             // in the vast majority of cases, we're not actually sampling span information at all, so we might as
             // well save the CPU cycles of creating a DetachedSpan and just send the headers.
-            Optional<TraceMetadata> maybeMetadata = Tracer.maybeGetTraceMetadata();
-            if (maybeMetadata.isPresent()) {
-                return executeInternal(endpoint, request, maybeMetadata.get());
-            }
+            return executeInternal(endpoint, request);
         }
 
         DetachedSpan span = DetachedSpan.start(OPERATION);
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
         try (CloseableSpan ignored = span.childSpan(INITIAL, SpanType.CLIENT_OUTGOING)) {
-            ListenableFuture<Response> future = executeInternal(
-                    endpoint, request, Tracer.maybeGetTraceMetadata().get());
+            ListenableFuture<Response> future = executeInternal(endpoint, request);
             return DialogueFutures.addDirectListener(future, span::complete);
         }
     }
 
-    private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request, TraceMetadata metadata) {
+    private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
+        TraceMetadata metadata = Tracer.maybeGetTraceMetadata().get();
+
         Request.Builder tracedRequest = Request.builder()
                 .from(request)
                 .putHeaderParams(TraceHttpHeaders.TRACE_ID, Tracer.getTraceId())
