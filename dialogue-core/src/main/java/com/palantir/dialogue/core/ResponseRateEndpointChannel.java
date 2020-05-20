@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
-import com.codahale.metrics.Timer;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -27,26 +26,23 @@ import com.palantir.dialogue.Response;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 
-final class TimingEndpointChannel implements EndpointChannel {
+final class ResponseRateEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
-    private final Timer responseTimer;
+    private final Meter responseMeter;
     private final Meter ioExceptionMeter;
 
-    private TimingEndpointChannel(EndpointChannel delegate, Timer responseTimer, Meter ioExceptionMeter) {
+    private ResponseRateEndpointChannel(EndpointChannel delegate, Meter responseMeter, Meter ioExceptionMeter) {
         this.delegate = delegate;
-        this.responseTimer = responseTimer;
+        this.responseMeter = responseMeter;
         this.ioExceptionMeter = ioExceptionMeter;
     }
 
     static EndpointChannel create(
             TaggedMetricRegistry taggedMetrics, String channelName, EndpointChannel delegate, Endpoint endpoint) {
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        return new TimingEndpointChannel(
+        return new ResponseRateEndpointChannel(
                 delegate,
-                metrics.response()
-                        .channelName(channelName)
-                        .serviceName(endpoint.serviceName())
-                        .build(),
+                metrics.response(channelName),
                 metrics.responseError()
                         .channelName(channelName)
                         .serviceName(endpoint.serviceName())
@@ -56,18 +52,16 @@ final class TimingEndpointChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        Timer.Context context = responseTimer.time();
         ListenableFuture<Response> response = delegate.execute(request);
-
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response _result) {
-                context.stop();
+                responseMeter.mark();
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                context.stop();
+                responseMeter.mark();
                 if (throwable instanceof IOException) {
                     ioExceptionMeter.mark();
                 }
@@ -77,6 +71,6 @@ final class TimingEndpointChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "TimingEndpointChannel{" + delegate + '}';
+        return "ResponseRateEndpointChannel{" + delegate + '}';
     }
 }
