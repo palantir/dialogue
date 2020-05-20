@@ -156,7 +156,7 @@ public class EndToEndBenchmark {
     //     blocking.voidToVoid();
     // }
 
-    @Threads(4)
+    @Threads(1)
     @Benchmark
     public void zeroNetworkCall() {
         goFast.voidToVoid();
