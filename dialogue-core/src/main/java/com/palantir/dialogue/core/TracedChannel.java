@@ -17,19 +17,24 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.tracing.Tracers;
+import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
+    private final String operationNameInitial;
 
     TracedChannel(EndpointChannel delegate, String operationName) {
         this.delegate = delegate;
         this.operationName = operationName;
+        this.operationNameInitial = operationName + " initial";
     }
 
     static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint) {
@@ -43,7 +48,23 @@ final class TracedChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        return Tracers.wrapListenableFuture(operationName, () -> delegate.execute(request));
+        if (!Tracer.isTraceObservable()) {
+            // no point spending CPU cycles setting up a DetachedSpan if we're not sampling span info
+            return delegate.execute(request);
+        }
+
+        DetachedSpan span = DetachedSpan.start(operationName);
+        ListenableFuture<Response> future = null;
+        try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
+            future = delegate.execute(request);
+        } finally {
+            if (future != null) {
+                future.addListener(span::complete, MoreExecutors.directExecutor());
+            } else {
+                span.complete();
+            }
+        }
+        return future;
     }
 
     @Override
