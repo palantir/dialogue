@@ -24,7 +24,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
-import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
@@ -48,11 +47,6 @@ final class TracedChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        if (!Tracer.isTraceObservable()) {
-            // no point spending CPU cycles setting up a DetachedSpan if we're not sampling span info
-            return delegate.execute(request);
-        }
-
         DetachedSpan span = DetachedSpan.start(operationName);
         ListenableFuture<Response> future = null;
         try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {

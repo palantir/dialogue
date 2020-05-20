@@ -19,10 +19,15 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tracing.Tracer;
 import org.junit.jupiter.api.Test;
@@ -37,22 +42,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class TraceEnrichingChannelTest {
 
     @Mock
-    Channel delegate;
+    public Channel delegate;
 
     @Captor
-    ArgumentCaptor<Request> requestCaptor;
-
-    @Test
-    void when_there_is_no_global_trace_headers_are_omitteed() {
-        Tracer.setSampler(() -> true);
-        assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
-
-        TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
-        channel.execute(TestEndpoint.POST, Request.builder().build());
-
-        verify(delegate).execute(any(), requestCaptor.capture());
-        assertThat(requestCaptor.getValue().headerParams().keySet()).isEmpty();
-    }
+    public ArgumentCaptor<Request> requestCaptor;
 
     @Test
     void when_span_sampling_is_turned_off_we_still_send_zipkin_headers() {
@@ -65,5 +58,32 @@ class TraceEnrichingChannelTest {
             assertThat(requestCaptor.getValue().headerParams().keySet())
                     .containsExactlyInAnyOrder("X-B3-Sampled", "X-B3-TraceId", "X-B3-SpanId");
         }
+    }
+
+    // this is a weird case, but we have to test it!
+    @Test
+    void when_there_is_no_global_trace_headers_are_still_sent() {
+        set200(delegate);
+
+        Tracer.setSampler(() -> true);
+        assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
+
+        TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
+        channel.execute(TestEndpoint.POST, Request.builder().build());
+
+        verify(delegate).execute(any(), requestCaptor.capture());
+        assertThat(requestCaptor.getValue().headerParams().keySet())
+                .containsExactlyInAnyOrder(
+                        "X-B3-Sampled", "X-B3-TraceId", "X-B3-SpanId", "X-B3-ParentSpanId", "X-OrigSpanId");
+
+        assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
+    }
+
+    private static void set200(Channel chan) {
+        when(chan.execute(any(), any())).thenReturn(http(200));
+    }
+
+    private static ListenableFuture<Response> http(int value) {
+        return Futures.immediateFuture(new TestResponse().code(value));
     }
 }
