@@ -35,7 +35,7 @@ final class MultiString {
     }
 
     public static String encode(List<String> strings) {
-        Preconditions.checkArgument(!strings.isEmpty());
+        Preconditions.checkArgument(!strings.isEmpty(), "Can't encode an empty list");
         int numStrings = strings.size();
 
         if (numStrings == 1) {
@@ -63,6 +63,35 @@ final class MultiString {
                 }
             }
         }
+        return sb.toString();
+    }
+
+    public static String encode(Iterable<String> strings) {
+        if (strings instanceof List) {
+            return encode((List<String>) strings);
+        }
+
+        StringBuilder sb = new StringBuilder();
+        boolean first = true;
+        for (String input : strings) {
+            if (!first) {
+                sb.append(SEP);
+            }
+            first = false;
+
+            if (noSpecialChars(input)) {
+                sb.append(input);
+            } else {
+                for (char c : input.toCharArray()) {
+                    if (c == SEP || c == ESCAPE) {
+                        sb.append(ESCAPE);
+                    }
+                    sb.append(c);
+                }
+            }
+        }
+        Preconditions.checkState(!first, "Can't encode an empty iterable");
+
         return sb.toString();
     }
 
@@ -122,5 +151,9 @@ final class MultiString {
         tokens.add(sb.toString());
 
         return tokens;
+    }
+
+    public static String concat(String head, String tail) {
+        return head + SEP + tail;
     }
 }

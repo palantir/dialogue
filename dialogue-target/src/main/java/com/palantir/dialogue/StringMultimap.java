@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultiset;
@@ -23,18 +24,69 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multiset;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
-final class TokenizedMultiMap implements ListMultimap<String, String> {
-
+final class StringMultimap implements ListMultimap<String, String> {
     private final Map<String, String> internal;
 
-    TokenizedMultiMap(Map<String, String> internal) {
+    @VisibleForTesting
+    StringMultimap(Map<String, String> internal) {
         this.internal = internal;
+    }
+
+    public static Builder treeMapBuilder(Comparator<String> comparator) {
+        return new Builder(new TreeMap<>(comparator));
+    }
+
+    public static Builder linkedHashMapBuilder() {
+        return new Builder(new LinkedHashMap<>());
+    }
+
+    static class Builder {
+        private final Map<String, String> wip;
+
+        private Builder(Map<String, String> wip) {
+            this.wip = wip;
+        }
+
+        Builder clear() {
+            wip.clear();
+            return this;
+        }
+
+        Builder putAll(String key, Iterable<String> values) {
+            wip.merge(key, MultiString.encode(values), MultiString::concat);
+            return this;
+        }
+
+        Builder putAll(String key, String... values) {
+            wip.merge(key, MultiString.encode(Arrays.asList(values)), MultiString::concat);
+            return this;
+        }
+
+        Builder putAll(StringMultimap sibling) {
+            sibling.internal.forEach((keyToAdd, valuesToAdd) -> {
+                String existing = wip.get(keyToAdd);
+                if (existing == null) {
+                    wip.put(keyToAdd, valuesToAdd);
+                } else {
+                    wip.put(keyToAdd, MultiString.concat(existing, valuesToAdd));
+                }
+            });
+            return this;
+        }
+
+        StringMultimap build() {
+            return new StringMultimap(wip);
+        }
     }
 
     @Override
@@ -106,6 +158,8 @@ final class TokenizedMultiMap implements ListMultimap<String, String> {
             return 0;
         }
 
+        // TODO(dfox): maybe memoize this?
+
         int size = 0;
         Collection<String> values = internal.values();
         for (String value : values) {
@@ -165,7 +219,8 @@ final class TokenizedMultiMap implements ListMultimap<String, String> {
             return ImmutableMap.of();
         }
 
-        ImmutableMap.Builder<String, Collection<String>> builder = ImmutableMap.builderWithExpectedSize(internal.size());
+        ImmutableMap.Builder<String, Collection<String>> builder =
+                ImmutableMap.builderWithExpectedSize(internal.size());
         internal.forEach((key, value) -> {
             builder.put(key, MultiString.decode(value));
         });
