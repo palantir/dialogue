@@ -23,8 +23,11 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -53,12 +56,14 @@ import org.slf4j.LoggerFactory;
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
     private static final Request REQUEST = Request.builder().build();
+    private static final Endpoint DEFAULT_ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
     private Duration delayBetweenRequests;
     private Channel[] clients;
-    private IntSupplier clientIndexChooser;
+    private EndpointChannel[] endpointChannels;
+    private IntSupplier endpointChannelChooser;
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
@@ -89,19 +94,20 @@ public final class Benchmark {
     }
 
     public Benchmark endpoints(Endpoint... endpoints) {
-        return endpoints(true, endpoints);
-    }
-
-    public Benchmark endpoints(boolean randomize, Endpoint... endpoints) {
+        Preconditions.checkNotNull(clients, "Must call client or clients first");
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
+        Clients utils = DefaultConjureRuntime.builder().build().clients();
+
+        endpointChannels = Arrays.stream(this.clients)
+                .flatMap(channel -> {
+                    return Arrays.stream(endpoints).map(endpoint -> utils.bind(channel, endpoint));
+                })
+                .toArray(EndpointChannel[]::new);
+
         Random pseudoRandom = new Random(21876781263L);
-        requestStream = requestStream.map(req -> {
-            int index = randomize ? pseudoRandom.nextInt(endpoints.length) : (int) (req.number() % endpoints.length);
-            return ImmutableScheduledRequest.builder()
-                    .from(req)
-                    .endpoint(endpoints[index])
-                    .build();
-        });
+        int count = endpointChannels.length;
+        endpointChannelChooser = () -> pseudoRandom.nextInt(count);
+
         return this;
     }
 
@@ -111,17 +117,13 @@ public final class Benchmark {
     }
 
     public Benchmark client(Channel value) {
-        clients(1, unused -> value);
-        this.clientIndexChooser = () -> 0;
-        return this;
+        return clients(1, unused -> value);
     }
 
     /** Use this if you want to simulate a bunch of clients. */
     public Benchmark clients(int numClients, IntFunction<Channel> clientFunction) {
         this.clients = IntStream.range(0, numClients).mapToObj(clientFunction).toArray(Channel[]::new);
-        Random pseudoRandom = new Random(1231234L);
-        this.clientIndexChooser = () -> pseudoRandom.nextInt(numClients);
-        return this;
+        return endpoints(DEFAULT_ENDPOINT);
     }
 
     private Benchmark stopWhenNumReceived(long numReceived) {
@@ -206,9 +208,9 @@ public final class Benchmark {
                                         simulation.clock().read(),
                                         req.number(),
                                         req);
-                                Channel channel = channels[clientIndexChooser.getAsInt()];
+                                EndpointChannel channel = endpointChannels[endpointChannelChooser.getAsInt()];
                                 try {
-                                    ListenableFuture<Response> future = channel.execute(req.endpoint(), req.request());
+                                    ListenableFuture<Response> future = channel.execute(req.request());
                                     requestsStarted[0] += 1;
 
                                     Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
@@ -313,18 +315,11 @@ public final class Benchmark {
 
     @Value.Immutable
     interface ScheduledRequest {
-        Endpoint ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
-
         long number();
 
         long sendTimeNanos();
 
         Request request();
-
-        @Value.Default
-        default Endpoint endpoint() {
-            return ENDPOINT;
-        }
     }
 
     private static Request constructRequest(long number) {

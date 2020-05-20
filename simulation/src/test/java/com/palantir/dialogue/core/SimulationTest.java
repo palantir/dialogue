@@ -169,8 +169,8 @@ final class SimulationTest {
                 .requestsPerSecond(500)
                 .simulation(simulation)
                 .sendUntil(Duration.ofSeconds(20))
-                .endpoints(getEndpoint)
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .endpoints(getEndpoint)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -373,9 +373,9 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
-                .endpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(1))
                 .clients(10, i -> strategy.getChannel(simulation, servers))
+                .endpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
