@@ -81,7 +81,6 @@ final class ChannelCache {
                     SafeArg.of("instanceNumber", newCache.instanceNumber),
                     SafeArg.of("totalAliveNow", numLiveInstances),
                     SafeArg.of("newCache", newCache),
-                    SafeArg.of("existing", LIVE_INSTANCES),
                     new SafeRuntimeException("ChannelCache constructed here"));
         }
 
