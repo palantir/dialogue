@@ -59,7 +59,7 @@ final class TracedEncoding implements Encoding {
 
     @Override
     public String toString() {
-        return "TracedEncoding{delegate=" + delegate + '}';
+        return "TracedEncoding{" + delegate + '}';
     }
 
     /**
@@ -90,6 +90,11 @@ final class TracedEncoding implements Encoding {
                 delegate.serialize(value, output);
             }
         }
+
+        @Override
+        public String toString() {
+            return "TracedSerializer{delegate=" + delegate + ", operation='" + operation + "'}";
+        }
     }
 
     private static final class TracedDeserializer<T> implements Deserializer<T> {
@@ -107,6 +112,11 @@ final class TracedEncoding implements Encoding {
             try (CloseableTracer ignored = CloseableTracer.startSpan(operation)) {
                 return delegate.deserialize(input);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "TracedDeserializer{delegate=" + delegate + ", operation='" + operation + "'}";
         }
     }
 }

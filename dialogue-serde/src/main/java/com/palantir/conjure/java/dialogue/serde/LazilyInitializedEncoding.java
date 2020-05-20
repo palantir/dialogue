@@ -61,7 +61,7 @@ final class LazilyInitializedEncoding implements Encoding {
 
     @Override
     public String toString() {
-        return "LazilyInitializedEncoding{delegate=" + delegate + '}';
+        return "LazilyInitializedEncoding{" + delegate + '}';
     }
 
     private static final class LazilyInitializedSerializer<T> implements Serializer<T> {
@@ -76,6 +76,11 @@ final class LazilyInitializedEncoding implements Encoding {
         public void serialize(T value, OutputStream output) {
             delegate.get().serialize(value, output);
         }
+
+        @Override
+        public String toString() {
+            return "LazilyInitializedSerializer{" + delegate + '}';
+        }
     }
 
     private static final class LazilyInitializedDeserializer<T> implements Deserializer<T> {
@@ -89,6 +94,11 @@ final class LazilyInitializedEncoding implements Encoding {
         @Override
         public T deserialize(InputStream input) {
             return delegate.get().deserialize(input);
+        }
+
+        @Override
+        public String toString() {
+            return "LazilyInitializedDeserializer{" + delegate + '}';
         }
     }
 }
