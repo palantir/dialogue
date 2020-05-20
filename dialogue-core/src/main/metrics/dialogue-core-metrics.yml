@@ -7,9 +7,9 @@ namespaces:
           without being implementation-specific.
     metrics:
       response:
-        type: meter
-        tags: [channel-name]
-        docs: Rate that response are received by channel.
+        type: timer
+        tags: [channel-name, service-name]
+        docs: Request time, note that this does not include time spent reading the response body.
       response.error:
         type: meter
         tags: [channel-name, service-name, reason]
