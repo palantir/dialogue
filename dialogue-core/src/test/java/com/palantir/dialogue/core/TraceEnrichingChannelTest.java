@@ -32,6 +32,7 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+@SuppressWarnings("FutureReturnValueIgnored") // we verify using mockito
 @ExtendWith(MockitoExtension.class)
 class TraceEnrichingChannelTest {
 

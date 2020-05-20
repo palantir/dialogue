@@ -181,7 +181,7 @@ public class EndToEndBenchmark {
         INSTANCE;
 
         @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
             return Futures.immediateFuture(new TestResponse().code(200));
         }
     }
