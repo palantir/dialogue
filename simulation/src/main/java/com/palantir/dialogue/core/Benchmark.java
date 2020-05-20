@@ -103,14 +103,19 @@ public final class Benchmark {
         endpointChannels = Arrays.stream(clients)
                 .flatMap(channel -> {
                     return Arrays.stream(endpoints).map(endpoint -> {
-                        EndpointChannel bound = utils.bind(channel, endpoint);
                         Preconditions.checkArgument(
                                 endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
                                 "Must have a consistent service name for our graphs to work",
                                 SafeArg.of("endpoint", endpoint));
-                        bound = InstrumentedEndpointChannel.create(
-                                simulation.taggedMetrics(), SimulationUtils.CHANNEL_NAME, bound, endpoint);
-                        return bound;
+
+                        EndpointChannel endpointChannel = utils.bind(channel, endpoint);
+                        endpointChannel = new TimingEndpointChannel(
+                                endpointChannel,
+                                simulation.clock(),
+                                simulation.taggedMetrics(),
+                                SimulationUtils.CHANNEL_NAME,
+                                endpoint);
+                        return endpointChannel;
                     });
                 })
                 .toArray(EndpointChannel[]::new);
