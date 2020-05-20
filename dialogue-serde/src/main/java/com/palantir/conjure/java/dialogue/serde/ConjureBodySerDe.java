@@ -85,7 +85,8 @@ final class ConjureBodySerDe implements BodySerDe {
     private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
         return input.stream()
                 .map(weightedEncoding -> WeightedEncoding.of(
-                        new LazilyInitializedEncoding(weightedEncoding.encoding()), weightedEncoding.weight()))
+                        new LazilyInitializedEncoding(new TracedEncoding(weightedEncoding.encoding())),
+                        weightedEncoding.weight()))
                 .collect(ImmutableList.toImmutableList());
     }
 

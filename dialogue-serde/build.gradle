@@ -8,6 +8,7 @@ dependencies {
     api 'com.palantir.tokens:auth-tokens'
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.tracing:tracing'
     implementation 'org.slf4j:slf4j-api'
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'com.fasterxml.jackson.core:jackson-core'
