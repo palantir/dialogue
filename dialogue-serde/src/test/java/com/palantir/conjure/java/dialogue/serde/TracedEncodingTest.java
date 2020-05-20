@@ -28,10 +28,17 @@ import com.palantir.tracing.api.Span;
 import com.palantir.tracing.api.SpanObserver;
 import java.io.ByteArrayInputStream;
 import java.util.List;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 class TracedEncodingTest {
+
+    @BeforeEach
+    void before() {
+        Tracer.setSampler(AlwaysSampler.INSTANCE);
+        Tracer.getAndClearTrace();
+    }
 
     @Test
     void testTypeString_string() {
@@ -48,8 +55,6 @@ class TracedEncodingTest {
 
     @Test
     void testSerializerOperationName() {
-        Tracer.setSampler(AlwaysSampler.INSTANCE);
-        Tracer.getAndClearTrace();
         Encoding.Serializer<String> serializer =
                 new TracedEncoding(new StubEncoding()).serializer(new TypeMarker<String>() {});
         SpanObserver mockObserver = mock(SpanObserver.class);
@@ -67,8 +72,6 @@ class TracedEncodingTest {
 
     @Test
     void testDeserializerOperationName() {
-        Tracer.setSampler(AlwaysSampler.INSTANCE);
-        Tracer.getAndClearTrace();
         Encoding.Deserializer<String> deserializer =
                 new TracedEncoding(new StubEncoding()).deserializer(new TypeMarker<String>() {});
         SpanObserver mockObserver = mock(SpanObserver.class);
