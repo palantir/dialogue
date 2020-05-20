@@ -25,12 +25,25 @@ import org.junit.jupiter.api.Test;
 class MultiStringTest {
     @Test
     void decode() {
+        assertThat(MultiString.decode("")).containsExactly("");
+        assertThat(MultiString.decode("hello")).containsExactly("hello");
         assertThat(MultiString.decode("hello|world")).containsExactly("hello", "world");
         assertThat(MultiString.decode("hello|world|")).containsExactly("hello", "world", "");
         assertThat(MultiString.decode("hello^|world")).containsExactly("hello|world");
         assertThat(MultiString.decode("hello^^world")).containsExactly("hello^world");
         assertThat(MultiString.decode("hello^^^^world")).containsExactly("hello^^world");
         assertThat(MultiString.decode("^")).containsExactly("");
+    }
+
+    @Test
+    void decodeCount() {
+        assertThat(MultiString.decodeCount("")).isEqualTo(1);
+        assertThat(MultiString.decodeCount("hello")).isEqualTo(1);
+        assertThat(MultiString.decodeCount("hello|world")).isEqualTo(2);
+        assertThat(MultiString.decodeCount("hello|world|")).isEqualTo(3);
+        assertThat(MultiString.decodeCount("hello^|world")).isEqualTo(1);
+        assertThat(MultiString.decodeCount("hello^^world")).isEqualTo(1);
+        assertThat(MultiString.decodeCount("hello^^^^world")).isEqualTo(1);
     }
 
     @Test

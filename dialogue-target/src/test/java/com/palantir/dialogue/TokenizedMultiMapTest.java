@@ -1,0 +1,58 @@
+/*
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.palantir.dialogue;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
+import org.junit.jupiter.api.Test;
+
+class TokenizedMultiMapTest {
+
+    TokenizedMultiMap map = new TokenizedMultiMap(ImmutableMap.<String, String>builder()
+            .put("key1", "hello|world")
+            .put("key2", "hello|my|favou^|rite|world")
+            .build());
+    ListMultimap<String, String> reference = guavaReference();
+
+    @Test
+    void basic_comparison() {
+        assertThat(map.size()).isEqualTo(reference.size());
+        assertThat(map.values()).containsExactlyElementsOf(reference.values());
+        assertThat(map.entries()).containsExactlyElementsOf(reference.entries());
+        assertThat(map.keys()).containsExactlyElementsOf(reference.keys());
+        assertThat(map.keySet()).isEqualTo(reference.keySet());
+        assertThat(map.get("key1")).isEqualTo(reference.get("key1"));
+        assertThat(map.containsKey("key1")).isEqualTo(reference.containsKey("key1"));
+        assertThat(map.containsValue("my")).isEqualTo(reference.containsValue("my"));
+        assertThat(map.containsEntry("key1", "hello")).isEqualTo(reference.containsEntry("key1", "hello"));
+    }
+
+    private ListMultimap<String, String> guavaReference() {
+        ListMultimap<String, String> mutable =
+                MultimapBuilder.linkedHashKeys().arrayListValues().build();
+        mutable.put("key1", "hello");
+        mutable.put("key1", "world");
+        mutable.put("key2", "hello");
+        mutable.put("key2", "my");
+        mutable.put("key2", "favou|rite");
+        mutable.put("key2", "world");
+        return mutable;
+    }
+}

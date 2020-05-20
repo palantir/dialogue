@@ -66,6 +66,28 @@ final class MultiString {
         return sb.toString();
     }
 
+    public static int decodeCount(String multiString) {
+        if (noSpecialChars(multiString)) {
+            return 1;
+        }
+
+        int count = 0;
+
+        boolean inEscape = false;
+        for (char c : multiString.toCharArray()) {
+            if (inEscape) {
+                inEscape = false;
+            } else if (c == SEP) {
+                count += 1;
+            } else if (c == ESCAPE) {
+                inEscape = true;
+            }
+        }
+
+        count += 1;
+        return count;
+    }
+
     public static List<String> decode(String multiString) {
         if (noSpecialChars(multiString)) {
             // we often store a single value with no separator and no unescaping necessary
