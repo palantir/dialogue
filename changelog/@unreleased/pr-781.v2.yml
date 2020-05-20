@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Tracing around dialogue encodings describing serde and I/O time per
+    request, matching data produced by conjure-undertow on the server
+  links:
+  - https://github.com/palantir/dialogue/pull/781
