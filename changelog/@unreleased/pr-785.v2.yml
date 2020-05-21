@@ -1,0 +1,6 @@
+type: deprecation
+deprecation:
+  description: The `dialogue.client.request.active` metric is no longer recorded to
+    save $ and CPU
+  links:
+  - https://github.com/palantir/dialogue/pull/785
