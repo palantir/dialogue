@@ -122,18 +122,22 @@ public final class Request {
         @Nullable
         private ListMultimap<String, String> headerParams;
 
+        // To optimize the case where we don't end up modifying the headers, we may store a reference to another
+        // Request's internal headerParams object. If we need to do a mutation, then we'll copy all the elements
+        private ListMultimap<String, String> existingUnmodifiableHeaderParams;
         private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
 
         private Builder() {}
 
-        public Request.Builder from(Request instance) {
-            Preconditions.checkNotNull(instance, "instance");
-            putAllHeaderParams(instance.headerParams());
-            putAllQueryParams(instance.queryParams());
-            putAllPathParams(instance.pathParams());
-            Optional<RequestBody> bodyOptional = instance.body();
+        public Request.Builder from(Request existing) {
+            Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
+
+            existingUnmodifiableHeaderParams = Multimaps.unmodifiableListMultimap(existing.headerParams);
+            putAllQueryParams(existing.queryParams());
+            putAllPathParams(existing.pathParams());
+            Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
                 body(bodyOptional);
             }
@@ -146,16 +150,25 @@ public final class Request {
                 headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
                         .arrayListValues()
                         .build();
+
+                if (existingUnmodifiableHeaderParams != null) {
+                    headerParams.putAll(existingUnmodifiableHeaderParams);
+                    existingUnmodifiableHeaderParams = null;
+                }
             }
             return headerParams;
         }
 
         private ListMultimap<String, String> unmodifiableHeaderParams() {
-            if (headerParams == null) {
-                return EMPTY_HEADERS;
-            } else {
+            if (existingUnmodifiableHeaderParams != null) {
+                return existingUnmodifiableHeaderParams;
+            }
+
+            if (headerParams != null) {
                 return Multimaps.unmodifiableListMultimap(headerParams);
             }
+
+            return EMPTY_HEADERS;
         }
 
         public Request.Builder putHeaderParams(String key, String... values) {
