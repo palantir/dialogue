@@ -37,7 +37,16 @@ public interface Clients {
     @Deprecated
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
-    EndpointChannel bind(Channel channel, Endpoint endpoint);
+    default EndpointChannel bind(Channel channel, Endpoint endpoint) {
+        return new EndpointChannel() {
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                // this default implementation exists just in case people take new :dialogue-target but have an old
+                // version of :dialogue-serde
+                return channel.execute(endpoint, request);
+            }
+        };
+    }
 
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
