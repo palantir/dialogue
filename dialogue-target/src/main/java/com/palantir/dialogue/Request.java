@@ -27,10 +27,12 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 
 /** Defines the parameters of a single {@link Call} to an {@link Endpoint}. */
+@ThreadSafe
 public final class Request {
 
     private final ListMultimap<String, String> headerParams;
@@ -41,7 +43,7 @@ public final class Request {
     private Request(Builder builder) {
         body = builder.body;
         headerParams = builder.unmodifiableHeaderParams();
-        queryParams = builder.queryParams.build();
+        queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.pathParams.build();
     }
 
@@ -115,21 +117,28 @@ public final class Request {
         return new Builder();
     }
 
+    @NotThreadSafe
     public static final class Builder {
-        private static final ImmutableListMultimap<String, String> EMPTY_HEADERS =
+        private static final ImmutableListMultimap<String, String> EMPTY =
                 new ImmutableListMultimap.Builder<String, String>().build();
 
         @Nullable
         private ListMultimap<String, String> headerParams;
 
-        // To optimize the case where we don't end up modifying the headers, we may store a reference to another
-        // Request's internal headerParams object. If we need to do a mutation, then we'll copy all the elements
+        @Nullable
+        private ImmutableListMultimap.Builder<String, String> queryParams;
+
+        private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
+
+        private Optional<RequestBody> body = Optional.empty();
+
+        // To optimize the case where we don't end up modifying headers/queryparams/pathparams, we may store a
+        // references to another Request's internal objects. If we need to do a mutation, then we'll copy the elements
         @Nullable
         private ListMultimap<String, String> existingUnmodifiableHeaderParams;
 
-        private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
-        private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
-        private Optional<RequestBody> body = Optional.empty();
+        @Nullable
+        private ImmutableListMultimap<String, String> existingQueryParams;
 
         private Builder() {}
 
@@ -137,7 +146,7 @@ public final class Request {
             Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
 
             existingUnmodifiableHeaderParams = Multimaps.unmodifiableListMultimap(existing.headerParams);
-            putAllQueryParams(existing.queryParams());
+            existingQueryParams = existing.queryParams;
             putAllPathParams(existing.pathParams());
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
@@ -146,7 +155,6 @@ public final class Request {
             return this;
         }
 
-        @Nonnull
         private ListMultimap<String, String> mutableHeaderParams() {
             if (headerParams == null) {
                 headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
@@ -161,6 +169,18 @@ public final class Request {
             return headerParams;
         }
 
+        private ImmutableListMultimap.Builder<String, String> mutableQueryParams() {
+            if (queryParams == null) {
+                queryParams = ImmutableListMultimap.builder();
+
+                if (existingQueryParams != null) {
+                    queryParams.putAll(existingQueryParams);
+                    existingQueryParams = null;
+                }
+            }
+            return queryParams;
+        }
+
         private ListMultimap<String, String> unmodifiableHeaderParams() {
             if (existingUnmodifiableHeaderParams != null) {
                 return existingUnmodifiableHeaderParams;
@@ -170,7 +190,19 @@ public final class Request {
                 return Multimaps.unmodifiableListMultimap(headerParams);
             }
 
-            return EMPTY_HEADERS;
+            return EMPTY;
+        }
+
+        public ImmutableListMultimap<String, String> unmodifiableQueryParams() {
+            if (existingQueryParams != null) {
+                return existingQueryParams;
+            }
+
+            if (queryParams != null) {
+                return queryParams.build();
+            }
+
+            return EMPTY;
         }
 
         public Request.Builder putHeaderParams(String key, String... values) {
@@ -198,17 +230,17 @@ public final class Request {
         }
 
         public Request.Builder putQueryParams(String key, String... values) {
-            queryParams.putAll(key, values);
+            mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String value) {
-            queryParams.put(key, value);
+            mutableQueryParams().put(key, value);
             return this;
         }
 
         public Request.Builder putQueryParams(Map.Entry<String, ? extends String> entry) {
-            queryParams.put(entry);
+            mutableQueryParams().put(entry);
             return this;
         }
 
@@ -218,12 +250,12 @@ public final class Request {
         }
 
         public Request.Builder putAllQueryParams(String key, Iterable<String> values) {
-            queryParams.putAll(key, values);
+            mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllQueryParams(Multimap<String, ? extends String> entries) {
-            queryParams.putAll(entries);
+            mutableQueryParams().putAll(entries);
             return this;
         }
 

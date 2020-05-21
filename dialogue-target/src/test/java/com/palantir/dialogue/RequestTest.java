@@ -52,8 +52,8 @@ public final class RequestTest {
                 Request.builder().putHeaderParams("Authorization", "foo").build();
         Request request2 = Request.builder().from(request1).build();
         assertThat(request2.headerParams())
-                .describedAs(
-                        "Re-using the exact same underlying instance is a safe optimization because Requests are immutable")
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
                 .isSameAs(request1.headerParams());
     }
 
