@@ -27,6 +27,8 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /** Defines the parameters of a single {@link Call} to an {@link Endpoint}. */
 public final class Request {
@@ -38,7 +40,7 @@ public final class Request {
 
     private Request(Builder builder) {
         body = builder.body;
-        headerParams = Multimaps.unmodifiableListMultimap(builder.headerParams);
+        headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.queryParams.build();
         pathParams = builder.pathParams.build();
     }
@@ -114,9 +116,12 @@ public final class Request {
     }
 
     public static final class Builder {
-        private ListMultimap<String, String> headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
-                .arrayListValues()
-                .build();
+        private static final ListMultimap<String, String> EMPTY_HEADERS =
+                new ImmutableListMultimap.Builder<String, String>().build();
+
+        @Nullable
+        private ListMultimap<String, String> headerParams;
+
         private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
@@ -135,27 +140,45 @@ public final class Request {
             return this;
         }
 
+        @Nonnull
+        private ListMultimap<String, String> mutableHeaderParams() {
+            if (headerParams == null) {
+                headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+            }
+            return headerParams;
+        }
+
+        private ListMultimap<String, String> unmodifiableHeaderParams() {
+            if (headerParams == null) {
+                return EMPTY_HEADERS;
+            } else {
+                return Multimaps.unmodifiableListMultimap(headerParams);
+            }
+        }
+
         public Request.Builder putHeaderParams(String key, String... values) {
             return putAllHeaderParams(key, Arrays.asList(values));
         }
 
         public Request.Builder putHeaderParams(String key, String value) {
-            headerParams.put(key, value);
+            mutableHeaderParams().put(key, value);
             return this;
         }
 
         public Request.Builder headerParams(Multimap<String, ? extends String> entries) {
-            headerParams.clear();
+            mutableHeaderParams().clear();
             return putAllHeaderParams(entries);
         }
 
         public Request.Builder putAllHeaderParams(String key, Iterable<String> values) {
-            headerParams.putAll(key, values);
+            mutableHeaderParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllHeaderParams(Multimap<String, ? extends String> entries) {
-            headerParams.putAll(entries);
+            mutableHeaderParams().putAll(entries);
             return this;
         }
 
