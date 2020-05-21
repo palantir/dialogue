@@ -31,7 +31,6 @@ Instrumentation for BalancedChannel internals.
 ### dialogue.client
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
-- `dialogue.client.request.active` tagged `channel-name`, `service-name`, `stage` (counter): Number of requests that are actively running. The `stage` may refer to `running` requests actively executing over the wire or `processing` which may be awaiting a client or backing off for a retry. Note that running requests are also counted as processing.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
