@@ -226,7 +226,7 @@ public final class Request {
         }
 
         public Request.Builder pathParams(Map<String, ? extends String> entries) {
-            pathParams = null;
+            pathParams = ImmutableMap.builder();
             return putAllPathParams(entries);
         }
 

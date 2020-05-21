@@ -28,6 +28,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.profile.GCProfiler;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
@@ -42,8 +43,21 @@ import org.openjdk.jmh.runner.options.OptionsBuilder;
 public class RequestBuilderBenchmark {
 
     private Request empty = Request.builder().build();
-    private Request nonEmpty =
-            Request.builder().putHeaderParams("Authorization", "whatever").build();
+    private Request nonEmpty = Request.builder()
+            .putHeaderParams("Authorization", "whatever")
+            .putHeaderParams("header1", "header")
+            .putHeaderParams("header2", "header")
+            .putHeaderParams("header3", "header")
+            .putHeaderParams("header4", "header")
+            .putPathParams("path1", "path")
+            .putPathParams("path2", "path")
+            .putPathParams("path3", "path")
+            .putPathParams("path4", "path")
+            .putQueryParams("query1", "query")
+            .putQueryParams("query2", "query")
+            .putQueryParams("query3", "query")
+            .putQueryParams("query4", "query")
+            .build();
 
     @Threads(1)
     @Benchmark
@@ -68,7 +82,7 @@ public class RequestBuilderBenchmark {
                 .include(RequestBuilderBenchmark.class.getSimpleName())
                 .jvmArgsPrepend("-Xmx1024m", "-Xms1024m", "-XX:+CrashOnOutOfMemoryError")
                 // .jvmArgsPrepend("-XX:+FlightRecorder", "-XX:StartFlightRecording=filename=./foo.jfr")
-                // .addProfiler(GCProfiler.class)
+                .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();
     }
