@@ -32,9 +32,8 @@ public interface Clients {
 
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
-     * @deprecated prefer {@link #bind} as this allows pre-computing values to save CPU
+     * Deprecated. prefer {@link #bind} as this allows pre-computing values to save CPU
      */
-    @Deprecated
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
     default EndpointChannel bind(Channel channel, Endpoint endpoint) {
