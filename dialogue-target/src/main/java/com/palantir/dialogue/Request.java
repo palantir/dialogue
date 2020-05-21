@@ -116,7 +116,7 @@ public final class Request {
     }
 
     public static final class Builder {
-        private static final ListMultimap<String, String> EMPTY_HEADERS =
+        private static final ImmutableListMultimap<String, String> EMPTY_HEADERS =
                 new ImmutableListMultimap.Builder<String, String>().build();
 
         @Nullable
@@ -124,7 +124,9 @@ public final class Request {
 
         // To optimize the case where we don't end up modifying the headers, we may store a reference to another
         // Request's internal headerParams object. If we need to do a mutation, then we'll copy all the elements
+        @Nullable
         private ListMultimap<String, String> existingUnmodifiableHeaderParams;
+
         private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
         private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
         private Optional<RequestBody> body = Optional.empty();
