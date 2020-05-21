@@ -26,13 +26,6 @@ namespaces:
         type: meter
         tags: [client-name, service-name, endpoint]
         docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
-      request.active:
-        type: counter
-        tags: [channel-name, service-name, stage]
-        docs:
-          Number of requests that are actively running. The `stage` may refer to `running` requests actively
-          executing over the wire or `processing` which may be awaiting a client or backing off for a retry.
-          Note that running requests are also counted as processing.
       request.retry:
         type: meter
         tags: [channel-name, reason]
