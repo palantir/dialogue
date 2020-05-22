@@ -24,6 +24,7 @@ import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
@@ -53,7 +54,11 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -195,6 +200,48 @@ public class IntegrationTest {
         // the entire batch.
         ListenableFuture<List<Void>> all = Futures.allAsList(futures);
         all.get();
+    }
+
+    @Test
+    public void fairness_avoids_starvation() throws Exception {
+        int permitsPerSecond = 300;
+        RateLimiter rateLimiter = RateLimiter.create(permitsPerSecond);
+
+        undertowHandler = exchange -> {
+            if (rateLimiter.tryAcquire()) {
+                Thread.sleep(7);
+                exchange.setStatusCode(200);
+            } else {
+                Thread.sleep(22);
+                exchange.setStatusCode(429);
+            }
+        };
+
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        AtomicBoolean bigThreadFinished = new AtomicBoolean(false);
+        CountDownLatch smallThreadFinished = new CountDownLatch(1);
+
+        // one thread kicks off a big batch of requests (danger of starving all other threads)
+        executor.submit(() -> {
+            List<ListenableFuture<Void>> futures = IntStream.range(0, permitsPerSecond * 2)
+                    .mapToObj(i -> async.voidToVoid())
+                    .collect(Collectors.toList());
+            Futures.allAsList(futures).get();
+            bigThreadFinished.set(true);
+            return null;
+        });
+
+        // an independent thread just wants to kick off some work.
+        executor.submit(() -> {
+            async.voidToVoid();
+            smallThreadFinished.countDown();
+            return null;
+        });
+
+        smallThreadFinished.await(1, TimeUnit.SECONDS);
+        assertThat(bigThreadFinished).isFalse();
+
+        MoreExecutors.shutdownAndAwaitTermination(executor, 1, TimeUnit.SECONDS);
     }
 
     private void set204Response() {
