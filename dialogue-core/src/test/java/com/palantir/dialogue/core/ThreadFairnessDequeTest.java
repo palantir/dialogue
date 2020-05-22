@@ -44,17 +44,17 @@ class ThreadFairnessDequeTest {
     public void testFifoEvenWhileTotallyDequeued() throws InterruptedException {
         queue.addLast(1);
         enqueueWithNewThread(2, 3);
-        assertThat(queue.poll()).isEqualTo(1);
-        assertThat(queue.poll()).isEqualTo(2);
+        assertThat(queue.poll().getValue()).isEqualTo(1);
+        assertThat(queue.poll().getValue()).isEqualTo(2);
         queue.addLast(4);
-        assertThat(queue.poll()).isEqualTo(3);
-        assertThat(queue.poll()).isEqualTo(4);
+        assertThat(queue.poll().getValue()).isEqualTo(3);
+        assertThat(queue.poll().getValue()).isEqualTo(4);
     }
 
     private List<Integer> dequeue() {
         List<Integer> result = new ArrayList<>();
         while (queue.size() > 0) {
-            result.add(queue.poll());
+            result.add(queue.poll().getValue());
         }
         return result;
     }

@@ -32,6 +32,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -161,10 +162,11 @@ final class QueuedChannel implements Channel {
      * tasks may be able to be scheduled, and false otherwise.
      */
     private boolean scheduleNextTask() {
-        DeferredCall queueHead = queuedCalls.poll();
-        if (queueHead == null) {
+        Map.Entry<Long, DeferredCall> entry = queuedCalls.poll();
+        if (entry == null) {
             return false;
         }
+        DeferredCall queueHead = entry.getValue();
         SettableFuture<Response> queuedResponse = queueHead.response();
         // If the future has been completed (most likely via cancel) the call should not be queued.
         // There's a race where cancel may be invoked between this check and execution, but the scheduled
@@ -179,7 +181,7 @@ final class QueuedChannel implements Channel {
             Endpoint endpoint = queueHead.endpoint();
             Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
             if (!maybeResponse.isPresent()) {
-                queuedCalls.addFirst(queueHead);
+                queuedCalls.restore(entry);
                 return false;
             }
             ListenableFuture<Response> response = maybeResponse.get();
