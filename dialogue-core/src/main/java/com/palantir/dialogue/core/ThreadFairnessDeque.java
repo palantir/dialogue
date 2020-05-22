@@ -28,47 +28,28 @@ import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 
 @ThreadSafe
-final class ThreadFairnessQueue<T> {
+final class ThreadFairnessDeque<T> {
 
     @GuardedBy("this")
     private final Map<Long, Deque<T>> queueByThreadId = new LinkedHashMap<>();
 
     private final Function<Long, Deque<T>> CREATE = threadId -> new ArrayDeque<>(2);
     private final AtomicInteger size = new AtomicInteger();
-    private final int maxSize;
-
-    ThreadFairnessQueue(int maxSize) {
-        this.maxSize = maxSize;
-    }
 
     int size() {
         return size.get();
     }
 
-    boolean offerFirst(T element) {
-        int newSize = size.incrementAndGet();
-        if (newSize > maxSize) {
-            size.decrementAndGet();
-            return false;
-        }
-
-        synchronized (this) {
-            long threadId = Thread.currentThread().getId();
-            return queue(threadId).offerFirst(element);
-        }
+    synchronized void addFirst(T element) {
+        size.incrementAndGet();
+        long threadId = Thread.currentThread().getId();
+        queue(threadId).addFirst(element);
     }
 
-    boolean offerLast(T element) {
-        int newSize = size.incrementAndGet();
-        if (newSize > maxSize) {
-            size.decrementAndGet();
-            return false;
-        }
-
-        synchronized (this) {
-            long threadId = Thread.currentThread().getId();
-            return queue(threadId).offerLast(element);
-        }
+    synchronized void addLast(T element) {
+        size.incrementAndGet();
+        long threadId = Thread.currentThread().getId();
+        queue(threadId).addLast(element);
     }
 
     @Nullable

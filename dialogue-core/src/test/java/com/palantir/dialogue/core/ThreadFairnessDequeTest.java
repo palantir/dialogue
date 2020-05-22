@@ -23,15 +23,15 @@ import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
-class ThreadFairnessQueueTest {
-    private final ThreadFairnessQueue<Integer> queue = new ThreadFairnessQueue<>(Integer.MAX_VALUE);
+class ThreadFairnessDequeTest {
+    private final ThreadFairnessDeque<Integer> queue = new ThreadFairnessDeque<>();
 
     @Test
     public void testPrioritizesPerThread() throws InterruptedException {
-        queue.offerLast(1);
+        queue.addLast(1);
         enqueueWithNewThread(2, 3, 4);
         enqueueWithNewThread(5, 6, 7);
-        queue.offerLast(8);
+        queue.addLast(8);
         assertThat(dequeue()).containsExactly(1, 2, 5, 8, 3, 6, 4, 7);
     }
 
@@ -42,11 +42,11 @@ class ThreadFairnessQueueTest {
 
     @Test
     public void testFifoEvenWhileTotallyDequeued() throws InterruptedException {
-        queue.offerLast(1);
+        queue.addLast(1);
         enqueueWithNewThread(2, 3);
         assertThat(queue.poll()).isEqualTo(1);
         assertThat(queue.poll()).isEqualTo(2);
-        queue.offerLast(4);
+        queue.addLast(4);
         assertThat(queue.poll()).isEqualTo(3);
         assertThat(queue.poll()).isEqualTo(4);
     }
@@ -60,7 +60,7 @@ class ThreadFairnessQueueTest {
     }
 
     private void enqueueWithNewThread(int... numbers) throws InterruptedException {
-        Thread thread = new Thread(() -> Arrays.stream(numbers).forEach(queue::offerLast));
+        Thread thread = new Thread(() -> Arrays.stream(numbers).forEach(queue::addLast));
         thread.start();
         thread.join();
     }
