@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.guava.api.Assertions.assertThat;
 
+import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMultimap;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
@@ -75,5 +76,16 @@ public final class RequestTest {
                         .putAll("accept-encoding", "bar", "baz")
                         .putAll("another-header", "another-value")
                         .build());
+    }
+
+    @Test
+    void from_method_query_param_mutation() {
+        Request request1 = Request.builder().build();
+        Request request2 = Request.builder()
+                .from(request1)
+                .queryParams(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"))
+                .build();
+
+        System.out.println(request2.queryParams());
     }
 }

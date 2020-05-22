@@ -201,7 +201,8 @@ public final class Request {
         }
 
         public Request.Builder queryParams(Multimap<String, ? extends String> entries) {
-            queryParams = ImmutableListMultimap.builder();
+            queryParams = null;
+            existingQueryParams = null;
             return putAllQueryParams(entries);
         }
 
@@ -226,7 +227,8 @@ public final class Request {
         }
 
         public Request.Builder pathParams(Map<String, ? extends String> entries) {
-            pathParams = ImmutableMap.builder();
+            pathParams = null;
+            existingPathParams = null;
             return putAllPathParams(entries);
         }
 
