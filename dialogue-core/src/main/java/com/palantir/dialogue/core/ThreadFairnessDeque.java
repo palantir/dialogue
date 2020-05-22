@@ -37,7 +37,8 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 final class ThreadFairnessDeque<T> {
-    private final Function<Long, Deque<T>> CREATE = threadId -> new ArrayDeque<>(2);
+    @SuppressWarnings("UnnecessaryLambda") // avoiding allocation
+    private final Function<Long, Deque<T>> createNewQueue = threadId -> new ArrayDeque<>(2);
 
     @GuardedBy("this")
     private final Map<Long, Deque<T>> queueByThreadId = new LinkedHashMap<>();
@@ -90,6 +91,6 @@ final class ThreadFairnessDeque<T> {
     }
 
     private synchronized Deque<T> queue(long threadId) {
-        return queueByThreadId.computeIfAbsent(threadId, CREATE);
+        return queueByThreadId.computeIfAbsent(threadId, createNewQueue);
     }
 }
