@@ -18,11 +18,18 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.codahale.metrics.Meter;
+import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
+import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tracing.Tracer;
@@ -50,6 +57,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -470,19 +478,41 @@ final class SimulationTest {
                 .run();
     }
 
+    // Simulated Guava rate limiter (does not maintain pool of resoruces).
+    private static final class RateLimiter {
+        private final Ticker clock;
+        private final long durationBetweenRequests;
+
+        private long nextRequestTime = 0;
+
+        private RateLimiter(Ticker clock, double maxRate) {
+            this.clock = clock;
+            this.durationBetweenRequests = (long) (1_000_000_000 / maxRate);
+        }
+
+        public boolean tryAcquire() {
+            long now = clock.read();
+            if (now < nextRequestTime) {
+                return false;
+            } else {
+                nextRequestTime += durationBetweenRequests;
+                return true;
+            }
+        }
+    }
+
     @SimulationCase
     void server_side_rate_limits(Strategy strategy) {
         double totalRateLimit = 100;
-        int numServers = 4;
+        int numServers = 1;
         int numClients = 2;
         double perServerRateLimit = totalRateLimit / numServers;
 
         servers = servers(IntStream.range(0, numServers)
                 .mapToObj(i -> {
-                    Meter requestRate = new Meter(simulation.codahaleClock());
+                    RateLimiter rateLimiter = new RateLimiter(simulation.clock(), perServerRateLimit);
                     Function<SimulationServer, Response> responseFunc = s -> {
-                        if (requestRate.getOneMinuteRate() < perServerRateLimit) {
-                            requestRate.mark();
+                        if (rateLimiter.tryAcquire()) {
                             return new TestResponse().code(200);
                         } else {
                             return new TestResponse().code(429);
@@ -491,7 +521,7 @@ final class SimulationTest {
                     return SimulationServer.builder()
                             .serverName("node" + i)
                             .simulation(simulation)
-                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofMillis(200)))
+                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofMillis(4)))
                             .build();
                 })
                 .toArray(SimulationServer[]::new));
@@ -499,11 +529,44 @@ final class SimulationTest {
         st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond((int) totalRateLimit)
-                .sendUntil(Duration.ofMinutes(25))
-                .clients(numClients, i -> strategy.getChannel(simulation, servers))
+                .requestsPerSecond(2)
+                .numRequests(2)
+                .clients(numClients, i -> new NCallChannel(strategy.getChannel(simulation, servers), 1000))
+                .roundRobinChannelChooser()
                 .abortAfter(Duration.ofHours(1))
                 .run();
+    }
+
+    private static final class NCallChannel implements Channel {
+        private final Channel channel;
+        private final int n;
+
+        private NCallChannel(Channel channel, int n) {
+            this.channel = channel;
+            this.n = n;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            List<ListenableFuture<Response>> responses = IntStream.range(0, n)
+                    .mapToObj($ -> channel.execute(endpoint, request))
+                    .collect(Collectors.toList());
+            return Futures.catching(Futures.transform(Futures.allAsList(responses), resps -> {
+                resps.subList(0, n - 1).forEach(Response::close);
+                return Iterables.getLast(resps);
+            }, MoreExecutors.directExecutor()), RuntimeException.class, x -> {
+                responses.forEach(resp -> Futures.addCallback(resp, new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(@Nullable Response result) {
+                        result.close();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable thrown) {}
+                }, MoreExecutors.directExecutor()));
+                throw x;
+            }, MoreExecutors.directExecutor());
+        }
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {

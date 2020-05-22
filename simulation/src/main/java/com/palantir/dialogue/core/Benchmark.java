@@ -40,6 +40,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
@@ -124,6 +125,12 @@ public final class Benchmark {
         int count = endpointChannels.length;
         endpointChannelChooser = () -> pseudoRandom.nextInt(count);
 
+        return this;
+    }
+
+    public Benchmark roundRobinChannelChooser() {
+        AtomicInteger number = new AtomicInteger(0);
+        endpointChannelChooser = () -> number.incrementAndGet() % endpointChannels.length;
         return this;
     }
 
