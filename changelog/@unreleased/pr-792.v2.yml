@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: When all nodes are concurrency limited and requests queue up, they'll
+    be processed in a fairer way so that a single heavy-user thread can't starve out
+    all other threads. Note the vast majority of the time, this code will be short-circuited
+    (so have no impact) because the queue is empty.
+  links:
+  - https://github.com/palantir/dialogue/pull/792
