@@ -55,6 +55,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -209,10 +210,9 @@ public class IntegrationTest {
 
         undertowHandler = exchange -> {
             if (rateLimiter.tryAcquire()) {
-                Thread.sleep(7);
+                Thread.sleep(100);
                 exchange.setStatusCode(200);
             } else {
-                Thread.sleep(22);
                 exchange.setStatusCode(429);
             }
         };
@@ -222,20 +222,24 @@ public class IntegrationTest {
         CountDownLatch smallThreadFinished = new CountDownLatch(1);
 
         // one thread kicks off a big batch of requests (danger of starving all other threads)
-        executor.submit(() -> {
+        executor.execute(() -> {
             List<ListenableFuture<Void>> futures = IntStream.range(0, permitsPerSecond * 2)
                     .mapToObj(i -> async.voidToVoid())
                     .collect(Collectors.toList());
-            Futures.allAsList(futures).get();
-            bigThreadFinished.set(true);
-            return null;
+            try {
+                Futures.allAsList(futures).get();
+                bigThreadFinished.set(true);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
         });
 
         // an independent thread just wants to kick off some work.
-        executor.submit(() -> {
-            async.voidToVoid();
+        executor.execute(() -> {
+            blocking.voidToVoid();
             smallThreadFinished.countDown();
-            return null;
         });
 
         smallThreadFinished.await(1, TimeUnit.SECONDS);
