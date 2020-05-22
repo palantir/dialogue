@@ -255,7 +255,7 @@ public final class Request {
                         .build();
 
                 if (existingUnmodifiableHeaderParams != null) {
-                    headerParams.putAll(existingUnmodifiableHeaderParams);
+                    existingUnmodifiableHeaderParams.forEach(headerParams::put);
                     existingUnmodifiableHeaderParams = null;
                 }
             }
@@ -267,7 +267,7 @@ public final class Request {
                 queryParams = ImmutableListMultimap.builder();
 
                 if (existingQueryParams != null) {
-                    queryParams.putAll(existingQueryParams);
+                    existingQueryParams.forEach(queryParams::put);
                     existingQueryParams = null;
                 }
             }
@@ -279,7 +279,7 @@ public final class Request {
                 pathParams = ImmutableMap.builder();
 
                 if (existingPathParams != null) {
-                    pathParams.putAll(existingPathParams);
+                    existingPathParams.forEach(pathParams::put);
                     existingPathParams = null;
                 }
             }
