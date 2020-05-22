@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Reduce allocation and eliminate some unnecessary copying from `Request.builder().from()`
+  links:
+  - https://github.com/palantir/dialogue/pull/791
