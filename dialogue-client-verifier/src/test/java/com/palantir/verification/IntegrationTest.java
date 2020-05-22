@@ -242,8 +242,12 @@ public class IntegrationTest {
             smallThreadFinished.countDown();
         });
 
-        smallThreadFinished.await(1, TimeUnit.SECONDS);
-        assertThat(bigThreadFinished).isFalse();
+        assertThat(smallThreadFinished.await(1, TimeUnit.SECONDS))
+                .describedAs("Small thread should return within a second")
+                .isTrue();
+        assertThat(bigThreadFinished)
+                .describedAs("Big thread should still be working through the big queue of requests")
+                .isFalse();
 
         MoreExecutors.shutdownAndAwaitTermination(executor, 1, TimeUnit.SECONDS);
     }
