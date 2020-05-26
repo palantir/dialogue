@@ -24,8 +24,10 @@ import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -37,6 +39,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -55,8 +58,10 @@ import org.slf4j.LoggerFactory;
  */
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
+    private static final Request BLANK_REQUEST = Request.builder().build();
 
-    private static final Comparator<SortableChannel> BY_SCORE = Comparator.comparingInt(SortableChannel::getScore);
+    private static final Comparator<SortableChannel> BY_SCORE =
+            Comparator.comparingInt(SortableChannel::getScore).thenComparingLong(SortableChannel::getRtt);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
@@ -133,9 +138,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
+        private final Ticker clock;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
+        private volatile long rttNanos = 0;
+        // private volatile long nextRttMeasurement = 0;
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -147,6 +155,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
+            this.clock = clock;
             this.observability = observability;
             // Saves one allocation on each network call
             this.updateStats = new FutureCallback<Response>() {
@@ -180,13 +189,33 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
             inflight.incrementAndGet();
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
-            if (maybe.isPresent()) {
-                DialogueFutures.addDirectCallback(maybe.get(), updateStats);
-                observability.markRequestMade();
-            } else {
+            if (!maybe.isPresent()) {
                 inflight.decrementAndGet(); // quickly undo
+                return Optional.empty();
             }
+
+            DialogueFutures.addDirectCallback(maybe.get(), updateStats);
+            observability.markRequestMade();
+            maybeSampleRtt();
             return maybe;
+        }
+
+        private void maybeSampleRtt() {
+            long initialNanos = clock.read();
+            // if (initialNanos < nextRttMeasurement) {
+            //     return;
+            // }
+
+            Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
+            if (maybe.isPresent()) {
+                // nextRttMeasurement = initialNanos + TimeUnit.SECONDS.toNanos(1);
+                DialogueFutures.addDirectListener(maybe.get(), () -> {
+                    rttNanos = clock.read() - initialNanos;
+                    if (log.isInfoEnabled()) {
+                        log.info("rttNanos {}", SafeArg.of("rtt", rttNanos), UnsafeArg.of("channel", delegate));
+                    }
+                });
+            }
         }
 
         SortableChannel computeScore() {
@@ -198,7 +227,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
-            return new SortableChannel(score, this);
+            return new SortableChannel(score, rttNanos, this);
         }
 
         @Override
@@ -217,10 +246,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      */
     private static final class SortableChannel {
         private final int score;
+        private final long rtt;
         private final MutableChannelWithStats delegate;
 
-        SortableChannel(int score, MutableChannelWithStats delegate) {
+        SortableChannel(int score, long rtt, MutableChannelWithStats delegate) {
             this.score = score;
+            this.rtt = rtt;
             this.delegate = delegate;
         }
 
@@ -228,9 +259,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return score;
         }
 
+        public long getRtt() {
+            return rtt;
+        }
+
         @Override
         public String toString() {
-            return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
+            return "SortableChannel{" + "score=" + score + ", rtt=" + rtt + ", delegate=" + delegate + '}';
         }
     }
 
@@ -340,6 +375,33 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     meter.mark();
                 }
             };
+        }
+    }
+
+    private enum RttEndpoint implements Endpoint {
+        INSTANCE;
+
+        @Override
+        public void renderPath(Map<String, String> params, UrlBuilder url) {}
+
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.OPTIONS;
+        }
+
+        @Override
+        public String serviceName() {
+            return "Balanced";
+        }
+
+        @Override
+        public String endpointName() {
+            return "rtt";
+        }
+
+        @Override
+        public String version() {
+            return "0.0.0";
         }
     }
 }
