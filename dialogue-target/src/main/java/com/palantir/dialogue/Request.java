@@ -27,8 +27,12 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
+import javax.annotation.concurrent.ThreadSafe;
 
-/** Defines the parameters of a single {@link Call} to an {@link Endpoint}. */
+/** Defines the parameters of a single call to an {@link Endpoint}. */
+@ThreadSafe
 public final class Request {
 
     private final ListMultimap<String, String> headerParams;
@@ -38,9 +42,9 @@ public final class Request {
 
     private Request(Builder builder) {
         body = builder.body;
-        headerParams = Multimaps.unmodifiableListMultimap(builder.headerParams);
-        queryParams = builder.queryParams.build();
-        pathParams = builder.pathParams.build();
+        headerParams = builder.unmodifiableHeaderParams();
+        queryParams = builder.unmodifiableQueryParams();
+        pathParams = builder.unmodifiablePathParams();
     }
 
     /**
@@ -113,22 +117,44 @@ public final class Request {
         return new Builder();
     }
 
+    @NotThreadSafe
     public static final class Builder {
-        private ListMultimap<String, String> headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
-                .arrayListValues()
-                .build();
-        private ImmutableListMultimap.Builder<String, String> queryParams = ImmutableListMultimap.builder();
-        private ImmutableMap.Builder<String, String> pathParams = ImmutableMap.builder();
+        private static final ImmutableListMultimap<String, String> EMPTY =
+                new ImmutableListMultimap.Builder<String, String>().build();
+
+        @Nullable
+        private ListMultimap<String, String> headerParams;
+
+        @Nullable
+        private ImmutableListMultimap.Builder<String, String> queryParams;
+
+        @Nullable
+        private ImmutableMap.Builder<String, String> pathParams;
+
         private Optional<RequestBody> body = Optional.empty();
+
+        // To optimize the case where a builder doesn't end up modifying headers/queryparams/pathparams, we may store
+        // references to another Request's internal objects. If we need to do a mutation, then we'll copy the elements
+        // and null these out.
+        @Nullable
+        private ListMultimap<String, String> existingUnmodifiableHeaderParams;
+
+        @Nullable
+        private ImmutableListMultimap<String, String> existingQueryParams;
+
+        @Nullable
+        private ImmutableMap<String, String> existingPathParams;
 
         private Builder() {}
 
-        public Request.Builder from(Request instance) {
-            Preconditions.checkNotNull(instance, "instance");
-            putAllHeaderParams(instance.headerParams());
-            putAllQueryParams(instance.queryParams());
-            putAllPathParams(instance.pathParams());
-            Optional<RequestBody> bodyOptional = instance.body();
+        public Request.Builder from(Request existing) {
+            Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
+
+            existingUnmodifiableHeaderParams = Multimaps.unmodifiableListMultimap(existing.headerParams);
+            existingQueryParams = existing.queryParams;
+            existingPathParams = existing.pathParams;
+
+            Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
                 body(bodyOptional);
             }
@@ -140,72 +166,74 @@ public final class Request {
         }
 
         public Request.Builder putHeaderParams(String key, String value) {
-            headerParams.put(key, value);
+            mutableHeaderParams().put(key, value);
             return this;
         }
 
         public Request.Builder headerParams(Multimap<String, ? extends String> entries) {
-            headerParams.clear();
+            mutableHeaderParams().clear();
             return putAllHeaderParams(entries);
         }
 
         public Request.Builder putAllHeaderParams(String key, Iterable<String> values) {
-            headerParams.putAll(key, values);
+            mutableHeaderParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllHeaderParams(Multimap<String, ? extends String> entries) {
-            headerParams.putAll(entries);
+            mutableHeaderParams().putAll(entries);
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String... values) {
-            queryParams.putAll(key, values);
+            mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String value) {
-            queryParams.put(key, value);
+            mutableQueryParams().put(key, value);
             return this;
         }
 
         public Request.Builder putQueryParams(Map.Entry<String, ? extends String> entry) {
-            queryParams.put(entry);
+            mutableQueryParams().put(entry);
             return this;
         }
 
         public Request.Builder queryParams(Multimap<String, ? extends String> entries) {
-            queryParams = ImmutableListMultimap.builder();
+            queryParams = null;
+            existingQueryParams = null;
             return putAllQueryParams(entries);
         }
 
         public Request.Builder putAllQueryParams(String key, Iterable<String> values) {
-            queryParams.putAll(key, values);
+            mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllQueryParams(Multimap<String, ? extends String> entries) {
-            queryParams.putAll(entries);
+            mutableQueryParams().putAll(entries);
             return this;
         }
 
         public Request.Builder putPathParams(String key, String value) {
-            pathParams.put(key, value);
+            mutablePathParams().put(key, value);
             return this;
         }
 
         public Request.Builder putPathParams(Map.Entry<String, ? extends String> entry) {
-            pathParams.put(entry);
+            mutablePathParams().put(entry);
             return this;
         }
 
         public Request.Builder pathParams(Map<String, ? extends String> entries) {
-            pathParams = ImmutableMap.builder();
+            pathParams = null;
+            existingPathParams = null;
             return putAllPathParams(entries);
         }
 
         public Request.Builder putAllPathParams(Map<String, ? extends String> entries) {
-            pathParams.putAll(entries);
+            mutablePathParams().putAll(entries);
             return this;
         }
 
@@ -218,6 +246,80 @@ public final class Request {
         public Request.Builder body(Optional<? extends RequestBody> value) {
             body = (Optional<RequestBody>) value;
             return this;
+        }
+
+        private ListMultimap<String, String> mutableHeaderParams() {
+            if (headerParams == null) {
+                headerParams = MultimapBuilder.treeKeys(String.CASE_INSENSITIVE_ORDER)
+                        .arrayListValues()
+                        .build();
+
+                if (existingUnmodifiableHeaderParams != null) {
+                    existingUnmodifiableHeaderParams.forEach(headerParams::put);
+                    existingUnmodifiableHeaderParams = null;
+                }
+            }
+            return headerParams;
+        }
+
+        private ImmutableListMultimap.Builder<String, String> mutableQueryParams() {
+            if (queryParams == null) {
+                queryParams = ImmutableListMultimap.builder();
+
+                if (existingQueryParams != null) {
+                    existingQueryParams.forEach(queryParams::put);
+                    existingQueryParams = null;
+                }
+            }
+            return queryParams;
+        }
+
+        private ImmutableMap.Builder<String, String> mutablePathParams() {
+            if (pathParams == null) {
+                pathParams = ImmutableMap.builder();
+
+                if (existingPathParams != null) {
+                    existingPathParams.forEach(pathParams::put);
+                    existingPathParams = null;
+                }
+            }
+            return pathParams;
+        }
+
+        private ListMultimap<String, String> unmodifiableHeaderParams() {
+            if (existingUnmodifiableHeaderParams != null) {
+                return existingUnmodifiableHeaderParams;
+            }
+
+            if (headerParams != null) {
+                return Multimaps.unmodifiableListMultimap(headerParams);
+            }
+
+            return EMPTY;
+        }
+
+        private ImmutableListMultimap<String, String> unmodifiableQueryParams() {
+            if (existingQueryParams != null) {
+                return existingQueryParams;
+            }
+
+            if (queryParams != null) {
+                return queryParams.build();
+            }
+
+            return EMPTY;
+        }
+
+        private ImmutableMap<String, String> unmodifiablePathParams() {
+            if (existingPathParams != null) {
+                return existingPathParams;
+            }
+
+            if (pathParams != null) {
+                return pathParams.build();
+            }
+
+            return ImmutableMap.of();
         }
 
         public Request build() {

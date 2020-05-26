@@ -19,6 +19,8 @@ package com.palantir.dialogue;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.guava.api.Assertions.assertThat;
 
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ImmutableMultimap;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import org.junit.jupiter.api.Test;
@@ -43,5 +45,47 @@ public final class RequestTest {
                 .putHeaderParams("other", token.toString())
                 .build();
         assertThat(request).asString().doesNotContain(sentinel);
+    }
+
+    @Test
+    void from_method_copies_headers_no_mutation() {
+        Request request1 =
+                Request.builder().putHeaderParams("Authorization", "foo").build();
+        Request request2 = Request.builder().from(request1).build();
+        assertThat(request2.headerParams())
+                .describedAs("Re-using the exact same underlying instance is a safe optimization because Requests are"
+                        + " immutable")
+                .isSameAs(request1.headerParams());
+    }
+
+    @Test
+    void from_method_copies_headers_with_mutation() {
+        Request request1 = Request.builder()
+                .putHeaderParams("Authorization", "foo")
+                .putHeaderParams("accept-encoding", "bar")
+                .build();
+        Request request2 = Request.builder()
+                .from(request1)
+                .putHeaderParams("accept-encoding", "baz") // TODO(dfox): I don't think users will like this behaviour
+                .putHeaderParams("another-header", "another-value")
+                .build();
+        assertThat(request2.headerParams())
+                .describedAs("We should preserve the Authorization header from request1, but we changed")
+                .isEqualTo(ImmutableMultimap.<String, String>builder()
+                        .put("Authorization", "foo")
+                        .putAll("accept-encoding", "bar", "baz")
+                        .putAll("another-header", "another-value")
+                        .build());
+    }
+
+    @Test
+    void from_method_query_param_mutation() {
+        Request request1 = Request.builder().build();
+        Request request2 = Request.builder()
+                .from(request1)
+                .queryParams(ImmutableListMultimap.of("a", "A1", "a", "A2", "b", "B"))
+                .build();
+
+        System.out.println(request2.queryParams());
     }
 }
