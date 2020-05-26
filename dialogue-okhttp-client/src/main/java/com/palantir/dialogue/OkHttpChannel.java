@@ -93,6 +93,11 @@ public final class OkHttpChannel implements Channel {
             case PATCH:
                 okRequest = okRequest.patch(toOkHttpBody(request.body()));
                 break;
+            case OPTIONS:
+                okRequest = okRequest.method(
+                        "OPTIONS",
+                        request.body().isPresent() ? toOkHttpBody(request.body().get()) : null);
+                break;
         }
 
         // Fill headers

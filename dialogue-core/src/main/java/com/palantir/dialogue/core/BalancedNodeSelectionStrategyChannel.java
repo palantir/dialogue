@@ -382,7 +382,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         INSTANCE;
 
         @Override
-        public void renderPath(Map<String, String> params, UrlBuilder url) {}
+        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
 
         @Override
         public HttpMethod httpMethod() {
