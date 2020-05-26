@@ -25,7 +25,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
+import com.palantir.tracing.Tracers;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -622,6 +624,7 @@ final class SimulationTest {
                         m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
 
         Tracer.setSampler(() -> false);
+        Tracer.initTrace(Observability.DO_NOT_SAMPLE, Tracers.randomId());
     }
 
     @AfterAll
