@@ -194,22 +194,20 @@ public final class Benchmark {
         Stopwatch scheduling = Stopwatch.createStarted();
 
         benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
+        FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
+            @Override
+            public void onSuccess(Response response) {
+                response.close(); // just being a good citizen
+                statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
+            }
+
+            @Override
+            public void onFailure(Throwable throwable) {
+                statusCodes.compute(throwable.getMessage(), (c, num) -> num == null ? 1 : num + 1);
+            }
+        };
         requestStream.forEach(req -> {
             log.debug("Scheduling {}", req.number());
-
-            FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
-                @Override
-                public void onSuccess(Response response) {
-                    response.close(); // just being a good citizen
-                    statusCodes.compute(Integer.toString(response.code()), (c, num) -> num == null ? 1 : num + 1);
-                }
-
-                @Override
-                public void onFailure(Throwable throwable) {
-                    log.warn("Benchmark onFailure requestNum={}", req.number(), throwable);
-                    statusCodes.compute(throwable.getMessage(), (c, num) -> num == null ? 1 : num + 1);
-                }
-            };
 
             simulation
                     .scheduler()
