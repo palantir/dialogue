@@ -47,7 +47,7 @@ public final class OkHttpChannels {
     private static final boolean DEFAULT_ENABLE_HTTP2 = true;
 
     private static final ThreadFactory executionThreads = new ThreadFactoryBuilder()
-            .setUncaughtExceptionHandler((thread, uncaughtException) -> log.error(
+            .setUncaughtExceptionHandler((_thread, uncaughtException) -> log.error(
                     "An exception was uncaught in an execution thread. "
                             + "This likely left a thread blocked, and is as such a serious bug "
                             + "which requires debugging.",
@@ -113,7 +113,7 @@ public final class OkHttpChannels {
         if (config.proxyCredentials().isPresent()) {
             BasicCredentials basicCreds = config.proxyCredentials().get();
             final String credentials = Credentials.basic(basicCreds.username(), basicCreds.password());
-            builder.proxyAuthenticator((route, response) -> response.request()
+            builder.proxyAuthenticator((_route, response) -> response.request()
                     .newBuilder()
                     .header(HttpHeaders.PROXY_AUTHORIZATION, credentials)
                     .build());

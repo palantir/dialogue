@@ -186,7 +186,7 @@ public class IntegrationTest {
 
         // kick off a big spike of requests (so that we actually max out our concurrency limiter).
         List<ListenableFuture<Void>> futures = IntStream.range(0, permitsPerSecond * 10)
-                .mapToObj(i -> async.voidToVoid())
+                .mapToObj(_i -> async.voidToVoid())
                 .collect(Collectors.toList());
 
         // Our ConcurrencyLimiters should be able to figure out a sensible bound (based on the RTT) to send requests

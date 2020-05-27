@@ -80,7 +80,7 @@ final class RetryingChannel implements EndpointChannel {
                     SCHEDULER_NAME)));
 
     @SuppressWarnings("UnnecessaryLambda") // no allocations
-    private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (endpoint, response) ->
+    private static final BiFunction<Endpoint, Response, Throwable> qosThrowable = (_endpoint, response) ->
             new SafeRuntimeException("Received retryable response", SafeArg.of("status", response.code()));
 
     @SuppressWarnings("UnnecessaryLambda") // no allocations

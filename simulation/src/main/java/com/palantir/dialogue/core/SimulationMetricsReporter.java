@@ -55,8 +55,8 @@ final class SimulationMetricsReporter {
 
     // each of these is a named column
     private final LoadingCache<MetricName, List<Double>> measurements =
-            Caffeine.newBuilder().build(name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
-    private Predicate<MetricName> prefilter = foo -> true;
+            Caffeine.newBuilder().build(_name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
+    private Predicate<MetricName> prefilter = _foo -> true;
 
     SimulationMetricsReporter(Simulation simulation) {
         this.simulation = simulation;

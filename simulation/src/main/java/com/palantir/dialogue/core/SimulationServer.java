@@ -88,7 +88,7 @@ final class SimulationServer implements Channel {
             }
 
             ListenableFuture<Response> resp = maybeResp.get();
-            DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(ignored -> globalResponses.inc()));
+            DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(_ignored -> globalResponses.inc()));
             resp.addListener(
                     () -> {
                         activeRequests.dec();
@@ -185,7 +185,7 @@ final class SimulationServer implements Channel {
     /** Declarative server handler, built using a staged-builder. */
     public static class ServerHandler implements HandlerBuilder0, HandlerBuilder1 {
 
-        private Predicate<Endpoint> predicate = endpoint -> true;
+        private Predicate<Endpoint> predicate = _endpoint -> true;
         private Function<SimulationServer, Response> responseFunction;
         private ResponseTimeFunction responseTimeFunction;
 
@@ -232,7 +232,7 @@ final class SimulationServer implements Channel {
         HandlerBuilder1 response(Function<SimulationServer, Response> func);
 
         default HandlerBuilder1 response(int status) {
-            return response(server -> new TestResponse().code(status));
+            return response(_server -> new TestResponse().code(status));
         }
 
         default HandlerBuilder1 respond200UntilCapacity(int errorStatus, int capacity) {
@@ -251,7 +251,7 @@ final class SimulationServer implements Channel {
 
         /** BEWARE: servers don't actually behave like this. */
         default ServerHandler responseTime(Duration duration) {
-            return responseTime(server -> duration);
+            return responseTime(_server -> duration);
         }
 
         /**
