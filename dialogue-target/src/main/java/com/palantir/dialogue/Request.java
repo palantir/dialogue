@@ -127,9 +127,9 @@ public final class Request {
         @SuppressWarnings("UnnecessaryLambda") // Avoid unnecessary allocation
         private static final com.google.common.base.Supplier<List<String>> MAP_VALUE_FACTORY = () -> new ArrayList<>(1);
 
-        private static final int MUTABLE_HEADERS = 1;
-        private static final int MUTABLE_QUERY = 1 << 1;
-        private static final int MUTABLE_PATH = 1 << 2;
+        private static final int MUTABLE_HEADERS_MASK = 1;
+        private static final int MUTABLE_QUERY_MASK = 1 << 1;
+        private static final int MUTABLE_PATH_MASK = 1 << 2;
 
         private ListMultimap<String, String> headerParams = ImmutableListMultimap.of();
 
@@ -139,7 +139,7 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
-        private int mutableCollections = 0;
+        private int mutableCollectionsBitSet = 0;
 
         private Builder() {}
 
@@ -289,35 +289,35 @@ public final class Request {
         }
 
         private boolean isQueryMutable() {
-            return isMutable(MUTABLE_QUERY);
+            return getBitFlag(MUTABLE_QUERY_MASK);
         }
 
         private void setQueryMutable() {
-            setMutable(MUTABLE_QUERY);
+            setBitFlag(MUTABLE_QUERY_MASK);
         }
 
         private boolean isHeaderMutable() {
-            return isMutable(MUTABLE_HEADERS);
+            return getBitFlag(MUTABLE_HEADERS_MASK);
         }
 
         private void setHeaderMutable() {
-            setMutable(MUTABLE_HEADERS);
+            setBitFlag(MUTABLE_HEADERS_MASK);
         }
 
         private boolean isPathMutable() {
-            return isMutable(MUTABLE_PATH);
+            return getBitFlag(MUTABLE_PATH_MASK);
         }
 
         private void setPathMutable() {
-            setMutable(MUTABLE_PATH);
+            setBitFlag(MUTABLE_PATH_MASK);
         }
 
-        private boolean isMutable(int mask) {
-            return (mutableCollections & mask) != 0;
+        private boolean getBitFlag(int mask) {
+            return (mutableCollectionsBitSet & mask) != 0;
         }
 
-        private void setMutable(int mask) {
-            mutableCollections |= mask;
+        private void setBitFlag(int flag) {
+            mutableCollectionsBitSet |= flag;
         }
     }
 }
