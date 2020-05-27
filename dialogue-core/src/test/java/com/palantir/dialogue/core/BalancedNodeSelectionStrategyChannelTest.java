@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -76,8 +77,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(399)).maybeExecute(any(), any());
-        verify(chan2, times(201)).maybeExecute(any(), any());
+        verify(chan1, times(199)).maybeExecute(eq(endpoint), any());
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
     }
 
     @Test
@@ -88,8 +89,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(198)).maybeExecute(any(), any());
-        verify(chan2, times(202)).maybeExecute(any(), any());
+        verify(chan1, times(299)).maybeExecute(eq(endpoint), any());
+        verify(chan2, times(301)).maybeExecute(eq(endpoint), any());
     }
 
     @Test
@@ -98,8 +99,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         when(chan2.maybeExecute(any(), any())).thenReturn(Optional.empty());
 
         assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
-        verify(chan1, times(1)).maybeExecute(any(), any());
-        verify(chan2, times(1)).maybeExecute(any(), any());
+        verify(chan1, times(1)).maybeExecute(eq(endpoint), any());
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
     }
 
     @Test
@@ -116,8 +117,8 @@ class BalancedNodeSelectionStrategyChannelTest {
                     .containsExactly(0, 0);
         }
 
-        verify(chan1, times(198)).maybeExecute(any(), any());
-        verify(chan2, times(202)).maybeExecute(any(), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
     }
 
     @Test

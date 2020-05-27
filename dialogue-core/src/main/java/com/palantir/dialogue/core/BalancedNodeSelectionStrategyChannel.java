@@ -65,11 +65,20 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
     private static final Request BLANK_REQUEST = Request.builder().build();
+    private static final Comparator<ChannelStats> BY_SCORE = Comparator.comparingInt(ChannelStats::getScore);
 
-    private static final Comparator<SortableChannel> BY_SCORE =
-            Comparator.comparingInt(SortableChannel::getScore).thenComparingLong(SortableChannel::getRtt);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
+
+    /**
+     * This determines how 'sticky' we are to our 'nearest' node (as measured by RTT). If this is set too high, then we
+     * may deliver suboptimal perf by sending all requests to a slow node that is physically nearby, when there's
+     * actually a faster one further away.
+     * If this is too low, then we may prematurely spill across AZs and pay the $ cost. Should probably
+     * keep this lower than {@link #FAILURE_WEIGHT} to ensure that a single 5xx makes a nearby node less attractive
+     * than a faraway node that exhibited zero failures.
+     */
+    private static final double RTT_WEIGHT = 3;
 
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
@@ -103,9 +112,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        SortableChannel[] sortedChannels = sortByScore(preShuffled);
+        ChannelStats[] sortedChannels = sortByScore(preShuffled);
 
-        for (SortableChannel channel : sortedChannels) {
+        for (ChannelStats channel : sortedChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 sampleRttsForAllChannels();
@@ -141,7 +150,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 results.add(Futures.immediateFuture(Long.MAX_VALUE));
             }
         }
-        if (log.isInfoEnabled()) {
+        if (log.isDebugEnabled()) {
             DialogueFutures.addDirectCallback(Futures.allAsList(results), new FutureCallback<List<Long>>() {
                 @Override
                 public void onSuccess(List<Long> result) {
@@ -149,7 +158,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                             result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
                     List<Long> best =
                             channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
-                    log.info(
+                    log.debug(
                             "RTTs {} {} {}",
                             SafeArg.of("nanos", result),
                             SafeArg.of("millis", millis),
@@ -164,13 +173,36 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private static SortableChannel[] sortByScore(List<MutableChannelWithStats> preShuffled) {
-        SortableChannel[] sorted = new SortableChannel[preShuffled.size()];
+    private static ChannelStats[] sortByScore(List<MutableChannelWithStats> preShuffled) {
+        ChannelStats[] snapshotArray = new ChannelStats[preShuffled.size()];
+
+        long bestRttNanos = Long.MAX_VALUE;
+        long worstRttNanos = 0;
         for (int i = 0; i < preShuffled.size(); i++) {
-            sorted[i] = preShuffled.get(i).computeScore();
+            ChannelStats snapshot = preShuffled.get(i).getSnapshot();
+            snapshotArray[i] = snapshot;
+
+            if (snapshot.rttNanos != Long.MAX_VALUE) {
+                bestRttNanos = Math.min(bestRttNanos, snapshot.rttNanos);
+                worstRttNanos = Math.max(worstRttNanos, snapshot.rttNanos);
+            }
         }
-        Arrays.sort(sorted, BY_SCORE);
-        return sorted;
+
+        // Latency (rtt) is measured in nanos, which is a tricky unit to include in our 'score' because adding it
+        // would dominate all the other data (which has the unit of 'num requests'). To avoid the need for a conversion
+        // fudge-factor, we instead figure out where each rtt lies on the spectrum from bestRttNanos to worstRttNanos,
+        // with 0 being best and 1 being worst. This ensures that if several nodes are all within the same AZ and
+        // can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have a similar rttScore (near zero).
+        // Note, this can only be computed when we have all the snapshots in front of us.
+        if (bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0) {
+            long rttRange = worstRttNanos - bestRttNanos;
+            for (ChannelStats snapshot : snapshotArray) {
+                snapshot.rttSpectrum = ((float) snapshot.rttNanos - bestRttNanos) / rttRange;
+            }
+        }
+
+        Arrays.sort(snapshotArray, BY_SCORE);
+        return snapshotArray;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -182,7 +214,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     IntStream getScores() {
-        return channels.stream().mapToInt(c -> c.computeScore().score);
+        return channels.stream().mapToInt(c -> c.getSnapshot().getScore());
     }
 
     @Override
@@ -251,22 +283,14 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return maybe;
         }
 
-        SortableChannel computeScore() {
-            int requestsInflight = inflight.get();
-            double failureReservoir = recentFailuresReservoir.get();
-
-            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
-            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
-
-            observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
-            return new SortableChannel(score, rtt.getNanos(), this);
+        ChannelStats getSnapshot() {
+            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getNanos());
         }
 
         @Override
         public String toString() {
-            return "MutableChannelWithStats{score=" + computeScore().score
-                    + ", inflight=" + inflight
+            return "MutableChannelWithStats{"
+                    + "inflight=" + inflight
                     + ", recentFailures=" + recentFailuresReservoir
                     + ", delegate=" + delegate
                     + '}';
@@ -274,31 +298,35 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     /**
-     * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
+     * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class SortableChannel {
-        private final int score;
-        private final long rtt;
+    private static final class ChannelStats {
         private final MutableChannelWithStats delegate;
+        private final int requestsInflight;
+        private final double recentBadness;
 
-        SortableChannel(int score, long rtt, MutableChannelWithStats delegate) {
-            this.score = score;
-            this.rtt = rtt;
+        private final long rttNanos;
+        private float rttSpectrum = 0; // assigned later once we've figured out the range of rttNanos across channels
+
+        ChannelStats(MutableChannelWithStats delegate, int requestsInflight, double recentBadness, long rttNanos) {
             this.delegate = delegate;
+            this.requestsInflight = requestsInflight;
+            this.recentBadness = recentBadness;
+            this.rttNanos = rttNanos;
         }
 
         int getScore() {
-            return score;
-        }
-
-        long getRtt() {
-            return rtt;
+            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
+            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
+            return requestsInflight
+                    + Ints.saturatedCast(Math.round(recentBadness))
+                    + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
         }
 
         @Override
         public String toString() {
-            return "SortableChannel{" + "score=" + score + ", rtt=" + rtt + ", delegate=" + delegate + '}';
+            return "SortableChannel{" + getScore() + '}';
         }
     }
 
@@ -320,7 +348,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.computeScore().getScore(),
+                    c -> c.getSnapshot().getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
                         if (log.isInfoEnabled() && longs.length > 1) {
@@ -369,18 +397,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, double failures, int score) {
-            if (log.isDebugEnabled()) {
-                log.debug(
-                        "Computed score",
-                        channelName,
-                        hostIndex,
-                        SafeArg.of("score", score),
-                        SafeArg.of("inflight", inflight),
-                        SafeArg.of("failures", failures));
-            }
-        }
-
         static PerHostObservability create(
                 ImmutableList<LimitedChannel> channels,
                 TaggedMetricRegistry taggedMetrics,
@@ -411,7 +427,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private enum RttEndpoint implements Endpoint {
+    @VisibleForTesting
+    enum RttEndpoint implements Endpoint {
         INSTANCE;
 
         @Override
@@ -442,7 +459,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     @ThreadSafe
     static class RoundTripTimeMeasurement {
 
-        // TODO(dfox): switch to some exponentially decaying thingy?
+        // TODO(dfox): switch to some exponentially decaying thingy, so we could detect if network topology changes
         private final AtomicLong rttNanos = new AtomicLong(Long.MAX_VALUE);
 
         long getNanos() {
