@@ -89,8 +89,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(299)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(301)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
     }
 
     @Test
@@ -112,7 +112,7 @@ class BalancedNodeSelectionStrategyChannelTest {
                 clock.read() < start + Duration.ofSeconds(10).toNanos();
                 incrementClockBy(Duration.ofMillis(50))) {
             channel.maybeExecute(endpoint, request);
-            assertThat(channel.getScores())
+            assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                     .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
                     .containsExactly(0, 0);
         }
@@ -128,19 +128,19 @@ class BalancedNodeSelectionStrategyChannelTest {
 
         for (int i = 0; i < 11; i++) {
             channel.maybeExecute(endpoint, request);
-            assertThat(channel.getScores())
+            assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                     .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), channel)
                     .containsExactly(0, 0);
             incrementClockBy(Duration.ofMillis(50));
         }
         channel.maybeExecute(endpoint, request);
-        assertThat(channel.getScores())
+        assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), channel)
-                .containsExactly(1, 0);
+                .containsExactly(0, 1);
 
         incrementClockBy(Duration.ofSeconds(5));
 
-        assertThat(channel.getScores())
+        assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                 .describedAs(
                         "%s: We quickly forget about 4xxs and go back to fair shuffling %s",
                         Duration.ofNanos(clock.read()), channel)

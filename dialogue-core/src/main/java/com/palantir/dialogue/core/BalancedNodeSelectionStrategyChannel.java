@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -213,8 +214,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    IntStream getScores() {
-        return channels.stream().mapToInt(c -> c.getSnapshot().getScore());
+    Stream<ChannelStats> getScoresForTesting() {
+        return Arrays.stream(sortByScore(channels));
     }
 
     @Override
@@ -301,7 +302,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class ChannelStats {
+    @VisibleForTesting
+    static final class ChannelStats {
         private final MutableChannelWithStats delegate;
         private final int requestsInflight;
         private final double recentBadness;
