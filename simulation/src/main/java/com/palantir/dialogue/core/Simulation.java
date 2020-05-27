@@ -41,7 +41,7 @@ final class Simulation {
     private final Random random = new Random(3218974678L);
 
     Simulation() {
-        Thread.currentThread().setUncaughtExceptionHandler((t, e) -> log.error("Uncaught throwable", e));
+        Thread.currentThread().setUncaughtExceptionHandler((_t, e) -> log.error("Uncaught throwable", e));
         this.listenableExecutor = new ExternalDeterministicScheduler(deterministicExecutor, ticker);
     }
 

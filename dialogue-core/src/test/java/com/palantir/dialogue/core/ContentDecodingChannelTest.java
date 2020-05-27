@@ -44,7 +44,7 @@ public final class ContentDecodingChannelTest {
             throw new IllegalStateException(e);
         }
         Response response = new ContentDecodingChannel(
-                        request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
+                        _request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
                                 .withHeader("content-length", Integer.toString(out.size()))))
                 .execute(Request.builder().build())
@@ -55,7 +55,7 @@ public final class ContentDecodingChannelTest {
 
     @Test
     public void testDecoding_delayedFailure() throws Exception {
-        Response response = new ContentDecodingChannel(request -> Futures.immediateFuture(
+        Response response = new ContentDecodingChannel(_request -> Futures.immediateFuture(
                         // Will fail because it's not valid gzip content
                         new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")))
                 .execute(Request.builder().build())
@@ -67,7 +67,7 @@ public final class ContentDecodingChannelTest {
     @Test
     public void testOnlyDecodesGzip() throws Exception {
         byte[] content = new byte[] {1, 2, 3, 4};
-        Response response = new ContentDecodingChannel(request ->
+        Response response = new ContentDecodingChannel(_request ->
                         Futures.immediateFuture(new TestResponse(content).withHeader("content-encoding", "unknown")))
                 .execute(Request.builder().build())
                 .get();

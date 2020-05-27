@@ -100,7 +100,7 @@ public abstract class AbstractChannelTest {
 
         endpoint = new FakeEndpoint();
         endpoint.method = HttpMethod.GET;
-        endpoint.renderPath = (params, url) -> url.pathSegment("a");
+        endpoint.renderPath = (_params, url) -> url.pathSegment("a");
     }
 
     @Test
@@ -126,7 +126,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void respectsBasePath_noSegment() throws InterruptedException {
-        endpoint.renderPath = (params, url) -> {};
+        endpoint.renderPath = (_params, _url) -> {};
 
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
@@ -135,7 +135,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void respectsBasePath_emptySegment() throws InterruptedException {
-        endpoint.renderPath = (params, url) -> url.pathSegment("");
+        endpoint.renderPath = (_params, url) -> url.pathSegment("");
 
         channel = createChannel(server.url("/foo/bar").url());
         channel.execute(endpoint, request);
@@ -153,7 +153,7 @@ public abstract class AbstractChannelTest {
 
     @Test
     public void encodesPathParameters() throws InterruptedException {
-        endpoint.renderPath = (params, url) -> url.pathSegment("/ü/");
+        endpoint.renderPath = (_params, url) -> url.pathSegment("/ü/");
 
         channel.execute(endpoint, request);
         assertThat(server.takeRequest().getRequestUrl()).isEqualTo(server.url("/%2F%C3%BC%2F"));
@@ -366,7 +366,7 @@ public abstract class AbstractChannelTest {
     public void supports_empty_path_parameter() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.GET;
         endpoint.renderPath =
-                (params, url) -> url.pathSegment("a").pathSegment("").pathSegment("b");
+                (_params, url) -> url.pathSegment("a").pathSegment("").pathSegment("b");
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("GET");
@@ -377,7 +377,7 @@ public abstract class AbstractChannelTest {
     @Test
     public void emptyTrailingPathParameterResultsInTrailingSlash() throws InterruptedException, ExecutionException {
         endpoint.method = HttpMethod.GET;
-        endpoint.renderPath = (params, url) -> url.pathSegment("foo").pathSegment("");
+        endpoint.renderPath = (_params, url) -> url.pathSegment("foo").pathSegment("");
         ListenableFuture<Response> result = channel.execute(endpoint, request);
         RecordedRequest recorded = server.takeRequest();
         assertThat(recorded.getMethod()).isEqualTo("GET");

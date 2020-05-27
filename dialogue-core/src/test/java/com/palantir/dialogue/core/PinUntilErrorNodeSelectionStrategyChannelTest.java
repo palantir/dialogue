@@ -102,13 +102,13 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         setResponse(channel1, 100);
         setResponse(channel2, 204);
 
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
                 .describedAs("Should be locked on to channel2 initially")
                 .contains(204, 204, 204, 204, 204, 204);
 
         setResponse(channel2, 429);
 
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
                 .describedAs("Even after receiving a 429, we must stay pinned on the same channel to support "
                         + "transactional workflows like the internal atlas-replacement, which rely on all requests "
                         + "hitting the same node. See PDS-117063 for an example.")
@@ -120,13 +120,13 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         setResponse(channel1, 100);
         setResponse(channel2, 204);
 
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
                 .describedAs("Should be locked on to channel2 initially")
                 .contains(204, 204, 204, 204, 204, 204);
 
         setResponse(channel2, errorStatus);
 
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilErrorWithoutReshuffle)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilErrorWithoutReshuffle)))
                 .describedAs("A single error code should switch us to channel 1")
                 .contains(errorStatus, 100, 100, 100, 100, 100);
     }
@@ -136,22 +136,22 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         setResponse(channel1, 100);
         setResponse(channel2, 204);
 
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
                 .describedAs("First batch on channel2")
                 .contains(204, 204, 204, 204, 204, 204);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(11).toNanos());
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
                 .describedAs("Second batch: reshuffle gave us channel1")
                 .contains(100, 100, 100, 100, 100, 100);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(22).toNanos());
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
                 .describedAs("Third batch: reshuffle gave us channel2 again")
                 .contains(204, 204, 204, 204, 204, 204);
 
         when(clock.read()).thenReturn(Duration.ofMinutes(33).toNanos());
-        assertThat(IntStream.range(0, 6).map(number -> getCode(pinUntilError)))
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
                 .describedAs("Fourth batch: reshuffle gave us channel2 again")
                 .contains(204, 204, 204, 204, 204, 204);
     }

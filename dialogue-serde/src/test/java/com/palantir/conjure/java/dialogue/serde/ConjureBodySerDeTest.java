@@ -191,7 +191,7 @@ public class ConjureBodySerDeTest {
 
         @Override
         public <T> Encoding.Deserializer<T> deserializer(TypeMarker<T> _type) {
-            return input -> {
+            return _input -> {
                 throw new SafeRuntimeException("brokenEncoding is broken");
             };
         }
@@ -257,7 +257,7 @@ public class ConjureBodySerDeTest {
 
         @Override
         public <T> Encoding.Serializer<T> serializer(TypeMarker<T> _type) {
-            return (value, output) -> {
+            return (_value, _output) -> {
                 // nop
             };
         }
@@ -265,7 +265,7 @@ public class ConjureBodySerDeTest {
         @Override
         @SuppressWarnings("unchecked")
         public <T> Encoding.Deserializer<T> deserializer(TypeMarker<T> type) {
-            return input -> {
+            return _input -> {
                 Preconditions.checkArgument(TYPE.equals(type), "This stub encoding only supports String");
                 return (T) getContentType();
             };
