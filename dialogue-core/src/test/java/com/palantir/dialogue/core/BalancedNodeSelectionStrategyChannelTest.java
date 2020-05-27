@@ -76,8 +76,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(199)).maybeExecute(any(), any());
-        verify(chan2, times(1)).maybeExecute(any(), any());
+        verify(chan1, times(398)).maybeExecute(any(), any());
+        verify(chan2, times(2)).maybeExecute(any(), any());
     }
 
     @Test
@@ -88,8 +88,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(99)).maybeExecute(any(), any());
-        verify(chan2, times(101)).maybeExecute(any(), any());
+        verify(chan1, times(198)).maybeExecute(any(), any());
+        verify(chan2, times(202)).maybeExecute(any(), any());
     }
 
     @Test
@@ -116,8 +116,8 @@ class BalancedNodeSelectionStrategyChannelTest {
                     .containsExactly(0, 0);
         }
 
-        verify(chan1, times(99)).maybeExecute(any(), any());
-        verify(chan2, times(101)).maybeExecute(any(), any());
+        verify(chan1, times(198)).maybeExecute(any(), any());
+        verify(chan2, times(202)).maybeExecute(any(), any());
     }
 
     @Test
