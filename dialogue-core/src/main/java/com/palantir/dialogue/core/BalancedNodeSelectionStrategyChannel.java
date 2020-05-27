@@ -164,7 +164,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 public void onSuccess(List<Long> result) {
                     List<Long> millis =
                             result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
-                    log.info("RTTs {} {}", SafeArg.of("nanos", result), SafeArg.of("millis", millis));
+                    List<Long> accumulated =
+                            channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
+                    log.info(
+                            "RTTs {} {}",
+                            SafeArg.of("nanos", result),
+                            SafeArg.of("millis", millis),
+                            SafeArg.of("accumulated", accumulated));
                 }
 
                 @Override
