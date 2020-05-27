@@ -22,7 +22,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
@@ -42,7 +44,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
@@ -103,11 +107,72 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (SortableChannel channel : sortedChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
+                sampleRttsForAllChannels();
                 return maybe;
             }
         }
 
         return Optional.empty();
+    }
+
+    private void sampleRttsForAllChannels() {
+        // TODO(dfox): don't do this 100% of the time
+        // if (random.nextDouble() > 0.01f) {
+        //     return;
+        // }
+
+        List<ListenableFuture<Long>> results = new ArrayList<>();
+        for (MutableChannelWithStats channel : channels) {
+            long attempt1Before = clock.read();
+
+            Optional<ListenableFuture<Response>> attempt1 =
+                    channel.delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
+            if (!attempt1.isPresent()) {
+                results.add(Futures.immediateFuture(Long.MAX_VALUE));
+                continue;
+            }
+
+            ListenableFuture<Long> attempt1Duration = Futures.transform(
+                    attempt1.get(), response1 -> clock.read() - attempt1Before, MoreExecutors.directExecutor());
+
+            results.add(Futures.transformAsync(
+                    attempt1Duration,
+                    attempt1Nanos -> {
+                        long attempt2Before = clock.read();
+                        Optional<ListenableFuture<Response>> attempt2 =
+                                channel.delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
+                        if (!attempt2.isPresent()) {
+                            return Futures.immediateFuture(Long.MAX_VALUE); // signifies we couldn't get two samples
+                        }
+
+                        return Futures.transform(
+                                attempt2.get(),
+                                response2 -> {
+                                    long attempt2Nanos = clock.read() - attempt2Before;
+                                    // taking min of two attempts to exclude samples that incurred a TLS handshake
+                                    long newMeasurement = Math.min(attempt1Nanos, attempt2Nanos);
+                                    channel.rtt.addMeasurement(newMeasurement);
+                                    return newMeasurement;
+                                },
+                                MoreExecutors.directExecutor());
+                    },
+                    MoreExecutors.directExecutor()));
+        }
+        if (log.isInfoEnabled()) {
+            DialogueFutures.addDirectCallback(Futures.allAsList(results), new FutureCallback<List<Long>>() {
+                @Override
+                public void onSuccess(List<Long> result) {
+                    List<Long> millis =
+                            result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
+                    log.info("RTTs {} {}", SafeArg.of("nanos", result), SafeArg.of("millis", millis));
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    log.info("Throwable", throwable);
+                }
+            });
+        }
     }
 
     private static SortableChannel[] sortByScore(List<MutableChannelWithStats> preShuffled) {
@@ -139,7 +204,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
-        private final Ticker clock;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
@@ -155,7 +219,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
-            this.clock = clock;
             this.observability = observability;
             // Saves one allocation on each network call
             this.updateStats = new FutureCallback<Response>() {
@@ -196,23 +259,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
             DialogueFutures.addDirectCallback(maybe.get(), updateStats);
             observability.markRequestMade();
-            maybeSampleRtt();
             return maybe;
-        }
-
-        private void maybeSampleRtt() {
-            long initialNanos = clock.read();
-
-            Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
-            if (maybe.isPresent()) {
-                DialogueFutures.addDirectListener(maybe.get(), () -> {
-                    long rttNanos = clock.read() - initialNanos;
-                    rtt.update(rttNanos);
-                    if (log.isInfoEnabled()) {
-                        log.info("rttNanos {} {}", SafeArg.of("rtt", rttNanos), UnsafeArg.of("channel", delegate));
-                    }
-                });
-            }
         }
 
         SortableChannel computeScore() {
@@ -415,7 +462,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return (long) rttNanos;
         }
 
-        synchronized void update(long newMeasurement) {
+        synchronized void addMeasurement(long newMeasurement) {
             float denominator = (float) numSamples / (numSamples + 1);
             this.rttNanos = rttNanos * denominator + (float) newMeasurement / (numSamples + 1);
             this.numSamples = numSamples + 1;

@@ -150,12 +150,12 @@ class BalancedNodeSelectionStrategyChannelTest {
     void rtt_accumulates_avg_nicely() {
         BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement rtt =
                 new BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement();
-        rtt.update(1);
-        rtt.update(2);
-        rtt.update(3);
+        rtt.addMeasurement(1);
+        rtt.addMeasurement(2);
+        rtt.addMeasurement(3);
         assertThat(rtt.getNanos()).isEqualTo(2);
 
-        rtt.update(500);
+        rtt.addMeasurement(500);
         assertThat(rtt.getNanos()).isEqualTo(126);
     }
 
