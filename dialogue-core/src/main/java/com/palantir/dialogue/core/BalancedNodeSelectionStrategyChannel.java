@@ -46,6 +46,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.ThreadSafe;
@@ -123,40 +124,22 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         List<ListenableFuture<Long>> results = new ArrayList<>();
         for (MutableChannelWithStats channel : channels) {
-            long attempt1Before = clock.read();
+            long before = clock.read();
 
-            Optional<ListenableFuture<Response>> attempt1 =
+            Optional<ListenableFuture<Response>> future =
                     channel.delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
-            if (!attempt1.isPresent()) {
+            if (future.isPresent()) {
+                results.add(Futures.transform(
+                        future.get(),
+                        _response -> {
+                            long durationNanos = clock.read() - before;
+                            channel.rtt.addMeasurement(durationNanos);
+                            return durationNanos;
+                        },
+                        MoreExecutors.directExecutor()));
+            } else {
                 results.add(Futures.immediateFuture(Long.MAX_VALUE));
-                continue;
             }
-
-            ListenableFuture<Long> attempt1Duration = Futures.transform(
-                    attempt1.get(), response1 -> clock.read() - attempt1Before, MoreExecutors.directExecutor());
-
-            results.add(Futures.transformAsync(
-                    attempt1Duration,
-                    attempt1Nanos -> {
-                        long attempt2Before = clock.read();
-                        Optional<ListenableFuture<Response>> attempt2 =
-                                channel.delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
-                        if (!attempt2.isPresent()) {
-                            return Futures.immediateFuture(Long.MAX_VALUE); // signifies we couldn't get two samples
-                        }
-
-                        return Futures.transform(
-                                attempt2.get(),
-                                response2 -> {
-                                    long attempt2Nanos = clock.read() - attempt2Before;
-                                    // taking min of two attempts to exclude samples that incurred a TLS handshake
-                                    long newMeasurement = Math.min(attempt1Nanos, attempt2Nanos);
-                                    channel.rtt.addMeasurement(newMeasurement);
-                                    return newMeasurement;
-                                },
-                                MoreExecutors.directExecutor());
-                    },
-                    MoreExecutors.directExecutor()));
         }
         if (log.isInfoEnabled()) {
             DialogueFutures.addDirectCallback(Futures.allAsList(results), new FutureCallback<List<Long>>() {
@@ -164,18 +147,18 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 public void onSuccess(List<Long> result) {
                     List<Long> millis =
                             result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
-                    List<Long> accumulated =
+                    List<Long> best =
                             channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
                     log.info(
-                            "RTTs {} {}",
+                            "RTTs {} {} {}",
                             SafeArg.of("nanos", result),
                             SafeArg.of("millis", millis),
-                            SafeArg.of("accumulated", accumulated));
+                            SafeArg.of("best", best));
                 }
 
                 @Override
                 public void onFailure(Throwable throwable) {
-                    log.info("Throwable", throwable);
+                    log.info("Failed to sample RTT for channels", throwable);
                 }
             });
         }
@@ -460,23 +443,20 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     static class RoundTripTimeMeasurement {
 
         // TODO(dfox): switch to some exponentially decaying thingy?
-        // TODO(dfox): can we exclude outlier measurements that probably include TLS handshakes?
-        private volatile float rttNanos = 0;
-        private volatile long numSamples = 0;
+        private final AtomicLong rttNanos = new AtomicLong(Long.MAX_VALUE);
 
         long getNanos() {
-            return (long) rttNanos;
+            return rttNanos.get();
         }
 
-        synchronized void addMeasurement(long newMeasurement) {
-            float denominator = (float) numSamples / (numSamples + 1);
-            this.rttNanos = rttNanos * denominator + (float) newMeasurement / (numSamples + 1);
-            this.numSamples = numSamples + 1;
+        void addMeasurement(long newMeasurement) {
+            // Only stores the *minimum* values, so that we exclude slow calls that might include TLS handshakes.
+            rttNanos.getAndUpdate(existing -> Math.min(existing, newMeasurement));
         }
 
         @Override
         public String toString() {
-            return "RoundTripTimeMeasurement{" + "rttNanos=" + rttNanos + ", numSamples=" + numSamples + '}';
+            return "RoundTripTimeMeasurement{" + "rttNanos=" + rttNanos + '}';
         }
     }
 }

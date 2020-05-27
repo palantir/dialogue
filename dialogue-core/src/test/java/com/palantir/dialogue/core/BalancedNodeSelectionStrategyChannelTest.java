@@ -76,8 +76,8 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (int i = 0; i < 200; i++) {
             channel.maybeExecute(endpoint, request);
         }
-        verify(chan1, times(398)).maybeExecute(any(), any());
-        verify(chan2, times(2)).maybeExecute(any(), any());
+        verify(chan1, times(399)).maybeExecute(any(), any());
+        verify(chan2, times(201)).maybeExecute(any(), any());
     }
 
     @Test
@@ -147,16 +147,17 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
-    void rtt_accumulates_avg_nicely() {
+    void rtt_just_remembers_the_min() {
         BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement rtt =
                 new BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement();
+        rtt.addMeasurement(3);
+        assertThat(rtt.getNanos()).isEqualTo(3);
         rtt.addMeasurement(1);
         rtt.addMeasurement(2);
-        rtt.addMeasurement(3);
-        assertThat(rtt.getNanos()).isEqualTo(2);
+        assertThat(rtt.getNanos()).isEqualTo(1);
 
         rtt.addMeasurement(500);
-        assertThat(rtt.getNanos()).isEqualTo(126);
+        assertThat(rtt.getNanos()).isEqualTo(1);
     }
 
     private static void set200(LimitedChannel chan) {
