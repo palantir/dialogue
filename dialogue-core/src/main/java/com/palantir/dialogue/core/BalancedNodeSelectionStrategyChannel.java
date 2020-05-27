@@ -44,6 +44,7 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -142,8 +143,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
-        private volatile long rttNanos = 0;
-        // private volatile long nextRttMeasurement = 0;
+        private final RoundTripTimeMeasurement rtt = new RoundTripTimeMeasurement();
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -202,17 +202,14 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         private void maybeSampleRtt() {
             long initialNanos = clock.read();
-            // if (initialNanos < nextRttMeasurement) {
-            //     return;
-            // }
 
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
             if (maybe.isPresent()) {
-                // nextRttMeasurement = initialNanos + TimeUnit.SECONDS.toNanos(1);
                 DialogueFutures.addDirectListener(maybe.get(), () -> {
-                    rttNanos = clock.read() - initialNanos;
+                    long rttNanos = clock.read() - initialNanos;
+                    rtt.update(rttNanos);
                     if (log.isInfoEnabled()) {
-                        log.info("rttNanos {}", SafeArg.of("rtt", rttNanos), UnsafeArg.of("channel", delegate));
+                        log.info("rttNanos {} {}", SafeArg.of("rtt", rttNanos), UnsafeArg.of("channel", delegate));
                     }
                 });
             }
@@ -227,7 +224,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
-            return new SortableChannel(score, rttNanos, this);
+            return new SortableChannel(score, rtt.getNanos(), this);
         }
 
         @Override
@@ -259,7 +256,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return score;
         }
 
-        public long getRtt() {
+        long getRtt() {
             return rtt;
         }
 
@@ -402,6 +399,31 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public String version() {
             return "0.0.0";
+        }
+    }
+
+    @VisibleForTesting
+    @ThreadSafe
+    static class RoundTripTimeMeasurement {
+
+        // TODO(dfox): switch to some exponentially decaying thingy?
+        // TODO(dfox): can we exclude outlier measurements that probably include TLS handshakes?
+        private volatile float rttNanos = 0;
+        private volatile long numSamples = 0;
+
+        long getNanos() {
+            return (long) rttNanos;
+        }
+
+        synchronized void update(long newMeasurement) {
+            float denominator = (float) numSamples / (numSamples + 1);
+            this.rttNanos = rttNanos * denominator + (float) newMeasurement / (numSamples + 1);
+            this.numSamples = numSamples + 1;
+        }
+
+        @Override
+        public String toString() {
+            return "RoundTripTimeMeasurement{" + "rttNanos=" + rttNanos + ", numSamples=" + numSamples + '}';
         }
     }
 }

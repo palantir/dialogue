@@ -146,6 +146,19 @@ class BalancedNodeSelectionStrategyChannelTest {
                 .containsExactly(0, 0);
     }
 
+    @Test
+    void rtt_accumulates_avg_nicely() {
+        BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement rtt =
+                new BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement();
+        rtt.update(1);
+        rtt.update(2);
+        rtt.update(3);
+        assertThat(rtt.getNanos()).isEqualTo(2);
+
+        rtt.update(500);
+        assertThat(rtt.getNanos()).isEqualTo(126);
+    }
+
     private static void set200(LimitedChannel chan) {
         when(chan.maybeExecute(any(), any())).thenReturn(http(200));
     }
