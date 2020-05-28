@@ -187,13 +187,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // the RttSamplePermit ensures that if a server black-holes one of our OPTIONS requests, we don't kick off
         // more and more and more requests and eventually exhaust a threadpool
-        ListenableFuture<List<Long>> allAsList = Futures.allAsList(futures);
-        DialogueFutures.addDirectListener(allAsList, maybePermit.get()::close);
+        DialogueFutures.addDirectCallback(Futures.allAsList(futures), new FutureCallback<List<Long>>() {
+            @Override
+            public void onSuccess(List<Long> result) {
+                maybePermit.get().close();
 
-        if (log.isDebugEnabled()) {
-            DialogueFutures.addDirectCallback(allAsList, new FutureCallback<List<Long>>() {
-                @Override
-                public void onSuccess(List<Long> result) {
+                if (log.isDebugEnabled()) {
                     List<Long> millis =
                             result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
                     List<Long> best =
@@ -204,13 +203,14 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                             SafeArg.of("millis", millis),
                             SafeArg.of("best", best));
                 }
+            }
 
-                @Override
-                public void onFailure(Throwable throwable) {
-                    log.info("Failed to sample RTT for channels", throwable);
-                }
-            });
-        }
+            @Override
+            public void onFailure(Throwable throwable) {
+                maybePermit.get().close();
+                log.info("Failed to sample RTT for channels", throwable);
+            }
+        });
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
