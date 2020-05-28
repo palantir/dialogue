@@ -156,8 +156,7 @@ class BalancedNodeSelectionStrategyChannelTest {
 
         SettableFuture<Response> chan1OptionsResponse = SettableFuture.create();
         SettableFuture<Response> chan2OptionsResponse = SettableFuture.create();
-        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
-                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
         when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan1OptionsResponse));
         when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan2OptionsResponse));
 
@@ -189,8 +188,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
 
-        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
-                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
         when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
         when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
 
@@ -205,8 +203,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
 
-        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
-                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
         when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
         when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
 
@@ -218,26 +215,6 @@ class BalancedNodeSelectionStrategyChannelTest {
         assertThat(channel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
         verify(chan1, times(1)).maybeExecute(eq(rttEndpoint), any());
         verify(chan2, times(1)).maybeExecute(eq(rttEndpoint), any());
-    }
-
-    @Test
-    void rtt_returns_the_min_of_the_last_5_measurements() {
-        BalancedNodeSelectionStrategyChannel.RttMeasurement rtt =
-                new BalancedNodeSelectionStrategyChannel.RttMeasurement();
-        rtt.addMeasurement(3);
-        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(3);
-        rtt.addMeasurement(1);
-        rtt.addMeasurement(2);
-        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(1);
-
-        rtt.addMeasurement(500);
-        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(1);
-        rtt.addMeasurement(500);
-        rtt.addMeasurement(500);
-        rtt.addMeasurement(500);
-        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(2);
-        rtt.addMeasurement(500);
-        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(500);
     }
 
     private static void set200(LimitedChannel chan) {

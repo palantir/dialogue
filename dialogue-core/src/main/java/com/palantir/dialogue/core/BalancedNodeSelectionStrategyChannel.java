@@ -22,37 +22,27 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.Closeable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
-import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,7 +75,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
-    private final RttMeasurementRateLimiter shouldMeasureRtts;
+    private final RttSampler rttSampler;
 
     BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
@@ -96,11 +86,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.shouldMeasureRtts = new RttMeasurementRateLimiter(clock);
+        this.rttSampler = new RttSampler(channels, clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
                         channels.get(index),
                         clock,
+                        rttSampler.get(index),
                         PerHostObservability.create(channels, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
@@ -122,7 +113,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (ChannelStats channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                maybeSampleAllChannelRttsNonBlocking();
+                rttSampler.maybeSampleRtts();
                 return maybe;
             }
         }
@@ -161,58 +152,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return snapshotArray;
     }
 
-    private void maybeSampleAllChannelRttsNonBlocking() {
-        Optional<RttMeasurementPermit> maybePermit = shouldMeasureRtts.acquireNonBlocking();
-        if (!maybePermit.isPresent()) {
-            return;
-        }
-
-        List<ListenableFuture<Long>> futures = channels.stream()
-                .map(channel -> {
-                    long before = clock.read();
-                    return channel.delegate
-                            .maybeExecute(
-                                    RttEndpoint.INSTANCE, Request.builder().build())
-                            .map(future -> Futures.transform(
-                                    future,
-                                    _response -> {
-                                        long durationNanos = clock.read() - before;
-                                        channel.rtt.addMeasurement(durationNanos);
-                                        return durationNanos;
-                                    },
-                                    MoreExecutors.directExecutor()))
-                            .orElseGet(() -> Futures.immediateFuture(Long.MAX_VALUE));
-                })
-                .collect(ImmutableList.toImmutableList());
-
-        // the RttSamplePermit ensures that if a server black-holes one of our OPTIONS requests, we don't kick off
-        // more and more and more requests and eventually exhaust a threadpool
-        DialogueFutures.addDirectCallback(Futures.allAsList(futures), new FutureCallback<List<Long>>() {
-            @Override
-            public void onSuccess(List<Long> result) {
-                maybePermit.get().close();
-
-                if (log.isDebugEnabled()) {
-                    List<Long> millis =
-                            result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
-                    List<Long> best =
-                            channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
-                    log.debug(
-                            "RTTs {} {} {}",
-                            SafeArg.of("nanos", result),
-                            SafeArg.of("millis", millis),
-                            SafeArg.of("best", best));
-                }
-            }
-
-            @Override
-            public void onFailure(Throwable throwable) {
-                maybePermit.get().close();
-                log.info("Failed to sample RTT for channels", throwable);
-            }
-        });
-    }
-
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
     private static <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList, Random random) {
         List<T> mutableList = new ArrayList<>(sourceList);
@@ -233,10 +172,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
+        private final LongSupplier rtt;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
-        private final RttMeasurement rtt;
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -245,11 +184,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
+        MutableChannelWithStats(
+                LimitedChannel delegate, Ticker clock, LongSupplier rtt, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
+            this.rtt = rtt;
             this.observability = observability;
-            this.rtt = new RttMeasurement();
             // Saves one allocation on each network call
             this.updateStats = new FutureCallback<Response>() {
                 @Override
@@ -292,7 +232,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         ChannelStats getSnapshot() {
-            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getNanos());
+            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getAsLong());
         }
 
         @Override
@@ -435,106 +375,5 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 }
             };
         }
-    }
-
-    @VisibleForTesting
-    enum RttEndpoint implements Endpoint {
-        INSTANCE;
-
-        @Override
-        public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
-
-        @Override
-        public HttpMethod httpMethod() {
-            return HttpMethod.OPTIONS;
-        }
-
-        @Override
-        public String serviceName() {
-            return "Balanced";
-        }
-
-        @Override
-        public String endpointName() {
-            return "rtt";
-        }
-
-        @Override
-        public String version() {
-            return "0.0.0";
-        }
-    }
-
-    /**
-     * Always returns the *minimum* value from the last few samples, so that we exclude slow calls that might include
-     * TLS handshakes.
-     */
-    @VisibleForTesting
-    @ThreadSafe
-    static final class RttMeasurement {
-        private static final int NUM_MEASUREMENTS = 5;
-
-        private final long[] samples;
-        private volatile long bestRttNanos = Long.MAX_VALUE;
-
-        RttMeasurement() {
-            samples = new long[NUM_MEASUREMENTS];
-            Arrays.fill(samples, Long.MAX_VALUE);
-        }
-
-        long getNanos() {
-            return bestRttNanos;
-        }
-
-        synchronized void addMeasurement(long newMeasurement) {
-            Preconditions.checkArgument(newMeasurement > 0, "Must be greater than zero");
-            Preconditions.checkArgument(newMeasurement < Long.MAX_VALUE, "Must be less than MAX_VALUE");
-
-            if (samples[0] == Long.MAX_VALUE) {
-                Arrays.fill(samples, newMeasurement);
-                bestRttNanos = newMeasurement;
-            } else {
-                System.arraycopy(samples, 1, samples, 0, NUM_MEASUREMENTS - 1);
-                samples[NUM_MEASUREMENTS - 1] = newMeasurement;
-                bestRttNanos = Arrays.stream(samples).min().getAsLong();
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "RttMeasurement{" + "bestRttNanos=" + bestRttNanos + ", samples=" + Arrays.toString(samples) + '}';
-        }
-    }
-
-    private static final class RttMeasurementRateLimiter {
-        private static final long BETWEEN_SAMPLES = Duration.ofSeconds(1).toNanos();
-
-        private final Ticker clock;
-        private final AtomicLong lastMeasured = new AtomicLong(0);
-        private final AtomicBoolean currentlySampling = new AtomicBoolean(false);
-
-        private RttMeasurementRateLimiter(Ticker clock) {
-            this.clock = clock;
-        }
-
-        Optional<RttMeasurementPermit> acquireNonBlocking() {
-            long last = lastMeasured.get();
-            if (last + BETWEEN_SAMPLES > clock.read()) {
-                return Optional.empty();
-            }
-
-            if (currentlySampling.compareAndSet(false, true)) {
-                lastMeasured.set(clock.read());
-                return Optional.of(() -> currentlySampling.compareAndSet(true, false));
-            } else {
-                log.warn("Wanted to sample RTTs but an existing sample was still in progress");
-                return Optional.empty();
-            }
-        }
-    }
-
-    private interface RttMeasurementPermit extends Closeable {
-        @Override
-        void close();
     }
 }
