@@ -72,12 +72,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final double FAILURE_WEIGHT = 10;
 
     /**
-     * This determines how 'sticky' we are to our 'nearest' node (as measured by RTT). If this is set too high, then we
-     * may deliver suboptimal perf by sending all requests to a slow node that is physically nearby, when there's
-     * actually a faster one further away.
-     * If this is too low, then we may prematurely spill across AZs and pay the $ cost. Should probably
-     * keep this lower than {@link #FAILURE_WEIGHT} to ensure that a single 5xx makes a nearby node less attractive
-     * than a faraway node that exhibited zero failures.
+     * RTT_WEIGHT determines how sticky we are to the physically nearest node (as measured by RTT). If this is set
+     * too high, then we may deliver suboptimal perf by sending all requests to a slow node that is physically nearby,
+     * when there's actually a faster one further away.
+     * If this is too low, then we may prematurely spill across AZs and pay the $ cost. Keep this lower than
+     * {@link #FAILURE_WEIGHT} to ensure that a single 5xx makes a nearby node less attractive than a faraway node
+     * that exhibited zero failures.
      */
     private static final double RTT_WEIGHT = 3;
 
@@ -226,7 +226,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
-        private final RttMeasurement rtt = new RttMeasurement();
+        private final RttMeasurement rtt;
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -239,6 +239,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
+            this.rtt = new RttMeasurement();
             // Saves one allocation on each network call
             this.updateStats = new FutureCallback<Response>() {
                 @Override
@@ -271,13 +272,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
             inflight.incrementAndGet();
             Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
-            if (!maybe.isPresent()) {
+            if (maybe.isPresent()) {
+                DialogueFutures.addDirectCallback(maybe.get(), updateStats);
+                observability.markRequestMade();
+            } else {
                 inflight.decrementAndGet(); // quickly undo
-                return Optional.empty();
             }
-
-            DialogueFutures.addDirectCallback(maybe.get(), updateStats);
-            observability.markRequestMade();
             return maybe;
         }
 
@@ -477,7 +477,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    static final class RttMeasurementRateLimiter {
+    private static final class RttMeasurementRateLimiter {
         private static final long BETWEEN_SAMPLES = Duration.ofSeconds(1).toNanos();
 
         private final Ticker clock;
