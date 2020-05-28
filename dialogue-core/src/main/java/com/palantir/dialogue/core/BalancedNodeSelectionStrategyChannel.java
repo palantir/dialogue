@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
-    private static final Comparator<ChannelStats> BY_SCORE = Comparator.comparingInt(ChannelStats::getScore);
+    private static final Comparator<SortableChannel> BY_SCORE = Comparator.comparingInt(SortableChannel::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
@@ -107,10 +107,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        ChannelStats[] sortableChannels = computeScores(preShuffled);
+        SortableChannel[] sortableChannels = computeScores(preShuffled);
         Arrays.sort(sortableChannels, BY_SCORE);
 
-        for (ChannelStats channel : sortableChannels) {
+        for (SortableChannel channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 rttSampler.maybeSampleRtts();
@@ -121,19 +121,18 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private static ChannelStats[] computeScores(List<MutableChannelWithStats> preShuffled) {
-        ChannelStats[] snapshotArray = new ChannelStats[preShuffled.size()];
+    private static SortableChannel[] computeScores(List<MutableChannelWithStats> preShuffled) {
+        OptionalLong[] rtts = new OptionalLong[preShuffled.size()];
         for (int i = 0; i < preShuffled.size(); i++) {
-            ChannelStats snapshot = preShuffled.get(i).getSnapshot();
-            snapshotArray[i] = snapshot;
+            rtts[i] = preShuffled.get(i).rtt.getRttNanos();
         }
 
         long bestRttNanos = Long.MAX_VALUE;
         long worstRttNanos = 0;
-        for (ChannelStats snapshot : snapshotArray) {
-            if (snapshot.rttNanos.isPresent()) {
-                bestRttNanos = Math.min(bestRttNanos, snapshot.rttNanos.getAsLong());
-                worstRttNanos = Math.max(worstRttNanos, snapshot.rttNanos.getAsLong());
+        for (OptionalLong rtt : rtts) {
+            if (rtt.isPresent()) {
+                bestRttNanos = Math.min(bestRttNanos, rtt.getAsLong());
+                worstRttNanos = Math.max(worstRttNanos, rtt.getAsLong());
             }
         }
 
@@ -144,12 +143,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have a similar rttScore (near zero).
         // Note, this can only be computed when we have all the snapshots in front of us.
         long rttRange = worstRttNanos - bestRttNanos;
-        if (bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0 && rttRange > 0) {
-            for (ChannelStats snapshot : snapshotArray) {
-                if (snapshot.rttNanos.isPresent()) {
-                    snapshot.rttSpectrum = ((float) snapshot.rttNanos.getAsLong() - bestRttNanos) / rttRange;
-                }
-            }
+        boolean includeRtts = bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0 && rttRange > 0;
+
+        SortableChannel[] snapshotArray = new SortableChannel[preShuffled.size()];
+        for (int i = 0; i < preShuffled.size(); i++) {
+            OptionalLong rtt = rtts[i];
+            float rttSpectrum =
+                    (includeRtts && rtt.isPresent()) ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
+
+            SortableChannel snapshot = preShuffled.get(i).computeScore(rttSpectrum);
+            snapshotArray[i] = snapshot;
         }
 
         return snapshotArray;
@@ -163,7 +166,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    Stream<ChannelStats> getScoresForTesting() {
+    Stream<SortableChannel> getScoresForTesting() {
         return Arrays.stream(computeScores(channels));
     }
 
@@ -234,8 +237,14 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return maybe;
         }
 
-        ChannelStats getSnapshot() {
-            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getRttNanos());
+        SortableChannel computeScore(float rttSpectrum) {
+            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
+            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
+            int score = inflight.get()
+                    + Ints.saturatedCast(Math.round(recentFailuresReservoir.get()))
+                    + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
+
+            return new SortableChannel(score, this);
         }
 
         @Override
@@ -254,33 +263,22 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * might change mid-sort, leading to undefined behaviour.
      */
     @VisibleForTesting
-    static final class ChannelStats {
+    static final class SortableChannel {
+        private final int score;
         private final MutableChannelWithStats delegate;
-        private final int requestsInflight;
-        private final double recentBadness;
 
-        private final OptionalLong rttNanos;
-        private float rttSpectrum = 0; // assigned later once we've figured out the range of rttNanos across channels
-
-        ChannelStats(
-                MutableChannelWithStats delegate, int requestsInflight, double recentBadness, OptionalLong rttNanos) {
+        SortableChannel(int score, MutableChannelWithStats delegate) {
             this.delegate = delegate;
-            this.requestsInflight = requestsInflight;
-            this.recentBadness = recentBadness;
-            this.rttNanos = rttNanos;
+            this.score = score;
         }
 
         int getScore() {
-            // it's important that scores are integers because if we kept the full double precision, then a single 4xx
-            // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            return requestsInflight
-                    + Ints.saturatedCast(Math.round(recentBadness))
-                    + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
+            return score;
         }
 
         @Override
         public String toString() {
-            return "ChannelStats{" + "score=" + getScore() + ", delegate=" + delegate + '}';
+            return "SortableChannel{score=" + score + ", delegate=" + delegate + '}';
         }
     }
 
@@ -302,7 +300,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.getSnapshot().getScore(), // note, this doesn't include rtts
+                    c -> c.computeScore(0).getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
                         if (log.isInfoEnabled() && longs.length > 1) {
