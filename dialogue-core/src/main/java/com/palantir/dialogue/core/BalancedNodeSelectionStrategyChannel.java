@@ -84,6 +84,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
+    private final RttMeasurementRateLimiter shouldMeasureRtts;
 
     BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
@@ -94,6 +95,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
+        this.shouldMeasureRtts = new RttMeasurementRateLimiter(clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
                         channels.get(index),
@@ -118,7 +120,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (ChannelStats channel : sortedChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                sampleRttsForAllChannels();
+                if (shouldMeasureRtts.tryAcquire()) {
+                    sampleAllChannelsRttsNonBlocking();
+                }
                 return maybe;
             }
         }
@@ -158,12 +162,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return snapshotArray;
     }
 
-    private void sampleRttsForAllChannels() {
-        // TODO(dfox): don't do this 100% of the time
-        // if (random.nextDouble() > 0.01f) {
-        //     return;
-        // }
-
+    private void sampleAllChannelsRttsNonBlocking() {
         List<ListenableFuture<Long>> futures = channels.stream()
                 .map(channel -> {
                     long before = clock.read();
@@ -475,6 +474,31 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public String toString() {
             return "RttMeasurement{" + rttNanos + '}';
+        }
+    }
+
+    static final class RttMeasurementRateLimiter {
+        private static final long BETWEEN_SAMPLES = Duration.ofSeconds(1).toNanos();
+
+        private final Ticker clock;
+        private final AtomicLong lastMeasured = new AtomicLong(0);
+
+        private RttMeasurementRateLimiter(Ticker clock) {
+            this.clock = clock;
+        }
+
+        boolean tryAcquire() {
+            long last = lastMeasured.get();
+            long now = clock.read();
+            if (last + BETWEEN_SAMPLES > now) {
+                return false;
+            }
+
+            // TODO(dfox): if we have thousands of requests/sec, maybe we should re-evaluate every 1000 or so?
+            // TODO(dfox): do we care if multiple samples are running at the same time?
+
+            lastMeasured.compareAndSet(last, now);
+            return true;
         }
     }
 }

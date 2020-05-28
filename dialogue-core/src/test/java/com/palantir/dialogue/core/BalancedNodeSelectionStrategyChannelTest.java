@@ -149,6 +149,8 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @Test
     void rtt_is_measured_and_can_influence_choices() {
+        incrementClockBy(Duration.ofHours(1));
+
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
 
@@ -170,10 +172,20 @@ class BalancedNodeSelectionStrategyChannelTest {
         assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                 .describedAs("The poor latency of channel2 imposes a small constant penalty in the score")
                 .containsExactly(0, 3);
+
+        for (int i = 0; i < 500; i++) {
+            incrementClockBy(Duration.ofMillis(10));
+            channel.maybeExecute(endpoint, request);
+        }
+        // rate limiter ensures a sensible amount of rtt sampling
+        verify(chan1, times(6)).maybeExecute(eq(rttEndpoint), any());
+        verify(chan2, times(6)).maybeExecute(eq(rttEndpoint), any());
     }
 
     @Test
     void when_rtt_measurements_are_limited_dont_freak_out() {
+        incrementClockBy(Duration.ofHours(1));
+
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
 
@@ -189,6 +201,7 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @Test
     void when_rtt_measurements_havent_returned_yet_dont_freak_out() {
+        incrementClockBy(Duration.ofHours(1));
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
 
