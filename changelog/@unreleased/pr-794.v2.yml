@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: Balanced channel now biases towards whichever node has the lowest latency,
+    which should reduce AWS spend by routing requests within AZ.
+  links:
+  - https://github.com/palantir/dialogue/pull/794
