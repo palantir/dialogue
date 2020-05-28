@@ -43,6 +43,7 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -75,6 +76,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
+
+    @Nullable
     private final RttSampler rttSampler;
 
     BalancedNodeSelectionStrategyChannel(
@@ -82,21 +85,26 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
-            String channelName) {
+            String channelName,
+            RttSampling samplingEnabled) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.rttSampler = new RttSampler(channels, clock);
+        this.rttSampler = samplingEnabled == RttSampling.DEFAULT_OFF ? null : new RttSampler(channels, clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
                         channels.get(index),
                         clock,
-                        rttSampler.get(index),
                         PerHostObservability.create(channels, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         registerGauges(taggedMetrics, channelName, this.channels);
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
+    }
+
+    enum RttSampling {
+        DEFAULT_OFF,
+        ENABLED
     }
 
     @Override
@@ -107,13 +115,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        SortableChannel[] sortableChannels = computeScores(preShuffled);
+        SortableChannel[] sortableChannels = computeScores(rttSampler, preShuffled);
         Arrays.sort(sortableChannels, BY_SCORE);
 
         for (SortableChannel channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                rttSampler.maybeSampleRtts();
+                if (rttSampler != null) {
+                    rttSampler.maybeSampleRtts();
+                }
                 return maybe;
             }
         }
@@ -121,41 +131,51 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private static SortableChannel[] computeScores(List<MutableChannelWithStats> preShuffled) {
-        OptionalLong[] rtts = new OptionalLong[preShuffled.size()];
-        for (int i = 0; i < preShuffled.size(); i++) {
-            rtts[i] = preShuffled.get(i).rtt.getRttNanos();
-        }
-
-        long bestRttNanos = Long.MAX_VALUE;
-        long worstRttNanos = 0;
-        for (OptionalLong rtt : rtts) {
-            if (rtt.isPresent()) {
-                bestRttNanos = Math.min(bestRttNanos, rtt.getAsLong());
-                worstRttNanos = Math.max(worstRttNanos, rtt.getAsLong());
-            }
-        }
-
-        // Latency (rtt) is measured in nanos, which is a tricky unit to include in our 'score' because adding it
-        // would dominate all the other data (which has the unit of 'num requests'). To avoid the need for a conversion
-        // fudge-factor, we instead figure out where each rtt lies on the spectrum from bestRttNanos to worstRttNanos,
-        // with 0 being best and 1 being worst. This ensures that if several nodes are all within the same AZ and
-        // can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have a similar rttScore (near zero).
-        // Note, this can only be computed when we have all the snapshots in front of us.
-        long rttRange = worstRttNanos - bestRttNanos;
-        boolean includeRtts = bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0 && rttRange > 0;
-
+    private static SortableChannel[] computeScores(
+            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> preShuffled) {
         SortableChannel[] snapshotArray = new SortableChannel[preShuffled.size()];
-        for (int i = 0; i < preShuffled.size(); i++) {
-            OptionalLong rtt = rtts[i];
-            float rttSpectrum =
-                    (includeRtts && rtt.isPresent()) ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
 
-            SortableChannel snapshot = preShuffled.get(i).computeScore(rttSpectrum);
-            snapshotArray[i] = snapshot;
+        if (rttSampler == null) {
+
+            for (int i = 0; i < preShuffled.size(); i++) {
+                SortableChannel snapshot = preShuffled.get(i).computeScore(0);
+                snapshotArray[i] = snapshot;
+            }
+            return snapshotArray;
+
+        } else {
+            // Latency (rtt) is measured in nanos, which is a tricky unit to include in our 'score' because adding
+            // it would dominate all the other data (which has the unit of 'num requests'). To avoid the need for a
+            // conversion fudge-factor, we instead figure out where each rtt lies on the spectrum from bestRttNanos
+            // to worstRttNanos, with 0 being best and 1 being worst. This ensures that if several nodes are all
+            // within the same AZ and can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have
+            // a similar rttScore (near zero). Note, this can only be computed when we have all the snapshots in
+            // front of us.
+            long bestRttNanos = Long.MAX_VALUE;
+            long worstRttNanos = 0;
+
+            OptionalLong[] rtts = new OptionalLong[preShuffled.size()];
+            for (int i = 0; i < preShuffled.size(); i++) {
+                OptionalLong rtt = rttSampler.get(i).getRttNanos();
+                rtts[i] = rtt;
+
+                if (rtt.isPresent()) {
+                    bestRttNanos = Math.min(bestRttNanos, rtt.getAsLong());
+                    worstRttNanos = Math.max(worstRttNanos, rtt.getAsLong());
+                }
+            }
+            long rttRange = worstRttNanos - bestRttNanos;
+
+            for (int i = 0; i < preShuffled.size(); i++) {
+                OptionalLong rtt = rtts[i];
+                float rttSpectrum =
+                        (rttRange > 0 && rtt.isPresent()) ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
+
+                SortableChannel snapshot = preShuffled.get(i).computeScore(rttSpectrum);
+                snapshotArray[i] = snapshot;
+            }
+            return snapshotArray;
         }
-
-        return snapshotArray;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -167,7 +187,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     Stream<SortableChannel> getScoresForTesting() {
-        return Arrays.stream(computeScores(channels));
+        return Arrays.stream(computeScores(rttSampler, channels));
     }
 
     @Override
@@ -178,7 +198,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
-        private final RttSampler.RttSupplier rtt;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
@@ -190,11 +209,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableChannelWithStats(
-                LimitedChannel delegate, Ticker clock, RttSampler.RttSupplier rtt, PerHostObservability observability) {
+        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
-            this.rtt = rtt;
             this.observability = observability;
             // Saves one allocation on each network call
             this.updateStats = new FutureCallback<Response>() {
@@ -253,7 +270,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     + "delegate=" + delegate
                     + ", inflight=" + inflight
                     + ", recentFailures=" + recentFailuresReservoir
-                    + ", rtt=" + rtt
                     + '}';
         }
     }

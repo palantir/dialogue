@@ -33,6 +33,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
@@ -65,7 +66,12 @@ class BalancedNodeSelectionStrategyChannelTest {
     @BeforeEach
     public void before() {
         channel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
+                ImmutableList.of(chan1, chan2),
+                random,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                "channelName",
+                RttSampling.DEFAULT_OFF);
     }
 
     @Test
@@ -149,6 +155,13 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @Test
     void rtt_is_measured_and_can_influence_choices() {
+        channel = new BalancedNodeSelectionStrategyChannel(
+                ImmutableList.of(chan1, chan2),
+                random,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                "channelName",
+                RttSampling.ENABLED);
         incrementClockBy(Duration.ofHours(1));
 
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
@@ -198,7 +211,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
-    void when_rtt_measurements_havent_returned_yet_dont_freak_out() {
+    void when_rtt_measurements_havent_returned_yet_consider_both_far_away() {
         incrementClockBy(Duration.ofHours(1));
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
         when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
