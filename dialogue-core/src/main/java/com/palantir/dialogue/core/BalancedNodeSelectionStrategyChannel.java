@@ -116,9 +116,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        ChannelStats[] sortedChannels = sortByScore(preShuffled);
+        ChannelStats[] sortableChannels = computeScores(preShuffled);
+        Arrays.sort(sortableChannels, BY_SCORE);
 
-        for (ChannelStats channel : sortedChannels) {
+        for (ChannelStats channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
                 maybeSampleAllChannelRttsNonBlocking();
@@ -129,7 +130,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private static ChannelStats[] sortByScore(List<MutableChannelWithStats> preShuffled) {
+    private static ChannelStats[] computeScores(List<MutableChannelWithStats> preShuffled) {
         ChannelStats[] snapshotArray = new ChannelStats[preShuffled.size()];
 
         long bestRttNanos = Long.MAX_VALUE;
@@ -157,7 +158,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        Arrays.sort(snapshotArray, BY_SCORE);
         return snapshotArray;
     }
 
@@ -222,7 +222,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     Stream<ChannelStats> getScoresForTesting() {
-        return Arrays.stream(sortByScore(channels));
+        return Arrays.stream(computeScores(channels));
     }
 
     @Override
@@ -358,7 +358,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.getSnapshot().getScore(),
+                    c -> c.getSnapshot().getScore(), // note, this doesn't include rtts
                     longStream -> {
                         long[] longs = longStream.toArray();
                         if (log.isInfoEnabled() && longs.length > 1) {

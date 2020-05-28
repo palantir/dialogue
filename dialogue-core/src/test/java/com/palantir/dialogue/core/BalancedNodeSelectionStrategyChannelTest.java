@@ -136,7 +136,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         channel.maybeExecute(endpoint, request);
         assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), channel)
-                .containsExactly(0, 1);
+                .containsExactly(1, 0);
 
         incrementClockBy(Duration.ofSeconds(5));
 
