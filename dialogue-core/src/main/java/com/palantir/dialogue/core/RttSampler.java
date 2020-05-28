@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
@@ -63,9 +64,9 @@ final class RttSampler {
     }
 
     /**
-     * The {@link LongSupplier} returns the RTT in nanoseconds, or {@link java.lang.Long#MAX_VALUE} to signify unknown.
+     * The {@link LongSupplier} returns the RTT in nanoseconds, or {@link OptionalLong#empty()} if we have no data.
      */
-    LongSupplier get(int index) {
+    RttSupplier get(int index) {
         return rtts[index];
     }
 
@@ -107,7 +108,7 @@ final class RttSampler {
                     List<Long> millis =
                             result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
                     long[] best = Arrays.stream(rtts)
-                            .mapToLong(rtt -> rtt.getAsLong())
+                            .mapToLong(rtt -> rtt.getRttNanos().orElse(Long.MAX_VALUE))
                             .toArray();
                     log.debug(
                             "RTTs {} {} {}",
@@ -159,7 +160,7 @@ final class RttSampler {
      */
     @VisibleForTesting
     @ThreadSafe
-    static final class RttMeasurement implements LongSupplier {
+    static final class RttMeasurement implements RttSupplier {
         private static final int NUM_MEASUREMENTS = 5;
 
         private final long[] samples;
@@ -171,8 +172,8 @@ final class RttSampler {
         }
 
         @Override
-        public long getAsLong() {
-            return bestRttNanos;
+        public OptionalLong getRttNanos() {
+            return bestRttNanos == Long.MAX_VALUE ? OptionalLong.empty() : OptionalLong.of(bestRttNanos);
         }
 
         synchronized void addMeasurement(long newMeasurement) {
@@ -225,5 +226,9 @@ final class RttSampler {
     private interface RttMeasurementPermit extends Closeable {
         @Override
         void close();
+    }
+
+    interface RttSupplier {
+        OptionalLong getRttNanos();
     }
 }

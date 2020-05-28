@@ -38,9 +38,9 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -123,16 +123,17 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     private static ChannelStats[] computeScores(List<MutableChannelWithStats> preShuffled) {
         ChannelStats[] snapshotArray = new ChannelStats[preShuffled.size()];
-
-        long bestRttNanos = Long.MAX_VALUE;
-        long worstRttNanos = 0;
         for (int i = 0; i < preShuffled.size(); i++) {
             ChannelStats snapshot = preShuffled.get(i).getSnapshot();
             snapshotArray[i] = snapshot;
+        }
 
-            if (snapshot.rttNanos != Long.MAX_VALUE) {
-                bestRttNanos = Math.min(bestRttNanos, snapshot.rttNanos);
-                worstRttNanos = Math.max(worstRttNanos, snapshot.rttNanos);
+        long bestRttNanos = Long.MAX_VALUE;
+        long worstRttNanos = 0;
+        for (ChannelStats snapshot : snapshotArray) {
+            if (snapshot.rttNanos.isPresent()) {
+                bestRttNanos = Math.min(bestRttNanos, snapshot.rttNanos.getAsLong());
+                worstRttNanos = Math.max(worstRttNanos, snapshot.rttNanos.getAsLong());
             }
         }
 
@@ -145,7 +146,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         long rttRange = worstRttNanos - bestRttNanos;
         if (bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0 && rttRange > 0) {
             for (ChannelStats snapshot : snapshotArray) {
-                snapshot.rttSpectrum = ((float) snapshot.rttNanos - bestRttNanos) / rttRange;
+                if (snapshot.rttNanos.isPresent()) {
+                    snapshot.rttSpectrum = ((float) snapshot.rttNanos.getAsLong() - bestRttNanos) / rttRange;
+                }
             }
         }
 
@@ -172,7 +175,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final class MutableChannelWithStats implements LimitedChannel {
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
-        private final LongSupplier rtt;
+        private final RttSampler.RttSupplier rtt;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
@@ -185,7 +188,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
         MutableChannelWithStats(
-                LimitedChannel delegate, Ticker clock, LongSupplier rtt, PerHostObservability observability) {
+                LimitedChannel delegate, Ticker clock, RttSampler.RttSupplier rtt, PerHostObservability observability) {
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.rtt = rtt;
@@ -232,7 +235,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         ChannelStats getSnapshot() {
-            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getAsLong());
+            return new ChannelStats(this, inflight.get(), recentFailuresReservoir.get(), rtt.getRttNanos());
         }
 
         @Override
@@ -256,10 +259,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final int requestsInflight;
         private final double recentBadness;
 
-        private final long rttNanos;
+        private final OptionalLong rttNanos;
         private float rttSpectrum = 0; // assigned later once we've figured out the range of rttNanos across channels
 
-        ChannelStats(MutableChannelWithStats delegate, int requestsInflight, double recentBadness, long rttNanos) {
+        ChannelStats(
+                MutableChannelWithStats delegate, int requestsInflight, double recentBadness, OptionalLong rttNanos) {
             this.delegate = delegate;
             this.requestsInflight = requestsInflight;
             this.recentBadness = recentBadness;

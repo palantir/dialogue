@@ -26,18 +26,18 @@ class RttSamplerTest {
     void rtt_returns_the_min_of_the_last_5_measurements() {
         RttSampler.RttMeasurement rtt = new RttSampler.RttMeasurement();
         rtt.addMeasurement(3);
-        assertThat(rtt.getAsLong()).describedAs("%s", rtt).isEqualTo(3);
+        assertThat(rtt.getRttNanos()).describedAs("%s", rtt).hasValue(3);
         rtt.addMeasurement(1);
         rtt.addMeasurement(2);
-        assertThat(rtt.getAsLong()).describedAs("%s", rtt).isEqualTo(1);
+        assertThat(rtt.getRttNanos()).describedAs("%s", rtt).hasValue(1);
 
         rtt.addMeasurement(500);
-        assertThat(rtt.getAsLong()).describedAs("%s", rtt).isEqualTo(1);
+        assertThat(rtt.getRttNanos()).describedAs("%s", rtt).hasValue(1);
         rtt.addMeasurement(500);
         rtt.addMeasurement(500);
         rtt.addMeasurement(500);
-        assertThat(rtt.getAsLong()).describedAs("%s", rtt).isEqualTo(2);
+        assertThat(rtt.getRttNanos()).describedAs("%s", rtt).hasValue(2);
         rtt.addMeasurement(500);
-        assertThat(rtt.getAsLong()).describedAs("%s", rtt).isEqualTo(500);
+        assertThat(rtt.getRttNanos()).describedAs("%s", rtt).hasValue(500);
     }
 }
