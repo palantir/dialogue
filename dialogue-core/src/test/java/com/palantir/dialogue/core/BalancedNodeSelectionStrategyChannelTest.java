@@ -148,6 +148,61 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
+    void rtt_is_measured_and_can_influence_choices() {
+        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+
+        SettableFuture<Response> chan1OptionsResponse = SettableFuture.create();
+        SettableFuture<Response> chan2OptionsResponse = SettableFuture.create();
+        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
+                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan1OptionsResponse));
+        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan2OptionsResponse));
+
+        channel.maybeExecute(endpoint, request);
+
+        incrementClockBy(Duration.ofNanos(123));
+        chan1OptionsResponse.set(new TestResponse().code(200));
+
+        incrementClockBy(Duration.ofNanos(456));
+        chan2OptionsResponse.set(new TestResponse().code(200));
+
+        assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
+                .describedAs("The poor latency of channel2 imposes a small constant penalty in the score")
+                .containsExactly(0, 3);
+    }
+
+    @Test
+    void when_rtt_measurements_are_limited_dont_freak_out() {
+        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+
+        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
+                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
+        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
+
+        channel.maybeExecute(endpoint, request);
+
+        assertThat(channel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
+    }
+
+    @Test
+    void when_rtt_measurements_havent_returned_yet_dont_freak_out() {
+        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
+
+        BalancedNodeSelectionStrategyChannel.RttEndpoint rttEndpoint =
+                BalancedNodeSelectionStrategyChannel.RttEndpoint.INSTANCE;
+        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
+        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
+
+        channel.maybeExecute(endpoint, request);
+
+        assertThat(channel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
+    }
+
+    @Test
     void rtt_just_remembers_the_min() {
         BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement rtt =
                 new BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement();

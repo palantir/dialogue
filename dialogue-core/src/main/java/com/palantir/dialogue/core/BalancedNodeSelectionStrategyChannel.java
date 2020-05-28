@@ -195,8 +195,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         // with 0 being best and 1 being worst. This ensures that if several nodes are all within the same AZ and
         // can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have a similar rttScore (near zero).
         // Note, this can only be computed when we have all the snapshots in front of us.
-        if (bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0) {
-            long rttRange = worstRttNanos - bestRttNanos;
+        long rttRange = worstRttNanos - bestRttNanos;
+        if (bestRttNanos != Long.MAX_VALUE && worstRttNanos != 0 && rttRange > 0) {
             for (ChannelStats snapshot : snapshotArray) {
                 snapshot.rttSpectrum = ((float) snapshot.rttNanos - bestRttNanos) / rttRange;
             }
@@ -291,9 +291,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public String toString() {
             return "MutableChannelWithStats{"
-                    + "inflight=" + inflight
+                    + "delegate=" + delegate
+                    + ", inflight=" + inflight
                     + ", recentFailures=" + recentFailuresReservoir
-                    + ", delegate=" + delegate
+                    + ", rtt=" + rtt
                     + '}';
         }
     }
@@ -328,7 +329,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         @Override
         public String toString() {
-            return "SortableChannel{" + getScore() + '}';
+            return "ChannelStats{" + "score=" + getScore() + ", delegate=" + delegate + '}';
         }
     }
 
@@ -475,7 +476,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         @Override
         public String toString() {
-            return "RoundTripTimeMeasurement{" + "rttNanos=" + rttNanos + '}';
+            return "RoundTripTimeMeasurement{" + rttNanos + '}';
         }
     }
 }
