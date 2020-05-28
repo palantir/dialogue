@@ -204,8 +204,8 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @Test
     void rtt_just_remembers_the_min() {
-        BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement rtt =
-                new BalancedNodeSelectionStrategyChannel.RoundTripTimeMeasurement();
+        BalancedNodeSelectionStrategyChannel.RttMeasurement rtt =
+                new BalancedNodeSelectionStrategyChannel.RttMeasurement();
         rtt.addMeasurement(3);
         assertThat(rtt.getNanos()).isEqualTo(3);
         rtt.addMeasurement(1);

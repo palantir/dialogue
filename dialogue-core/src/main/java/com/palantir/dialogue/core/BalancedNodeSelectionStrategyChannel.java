@@ -126,54 +126,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private void sampleRttsForAllChannels() {
-        // TODO(dfox): don't do this 100% of the time
-        // if (random.nextDouble() > 0.01f) {
-        //     return;
-        // }
-
-        List<ListenableFuture<Long>> results = new ArrayList<>();
-        for (MutableChannelWithStats channel : channels) {
-            long before = clock.read();
-
-            Optional<ListenableFuture<Response>> future =
-                    channel.delegate.maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST);
-            if (future.isPresent()) {
-                results.add(Futures.transform(
-                        future.get(),
-                        _response -> {
-                            long durationNanos = clock.read() - before;
-                            channel.rtt.addMeasurement(durationNanos);
-                            return durationNanos;
-                        },
-                        MoreExecutors.directExecutor()));
-            } else {
-                results.add(Futures.immediateFuture(Long.MAX_VALUE));
-            }
-        }
-        if (log.isDebugEnabled()) {
-            DialogueFutures.addDirectCallback(Futures.allAsList(results), new FutureCallback<List<Long>>() {
-                @Override
-                public void onSuccess(List<Long> result) {
-                    List<Long> millis =
-                            result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
-                    List<Long> best =
-                            channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
-                    log.debug(
-                            "RTTs {} {} {}",
-                            SafeArg.of("nanos", result),
-                            SafeArg.of("millis", millis),
-                            SafeArg.of("best", best));
-                }
-
-                @Override
-                public void onFailure(Throwable throwable) {
-                    log.info("Failed to sample RTT for channels", throwable);
-                }
-            });
-        }
-    }
-
     private static ChannelStats[] sortByScore(List<MutableChannelWithStats> preShuffled) {
         ChannelStats[] snapshotArray = new ChannelStats[preShuffled.size()];
 
@@ -206,6 +158,52 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return snapshotArray;
     }
 
+    private void sampleRttsForAllChannels() {
+        // TODO(dfox): don't do this 100% of the time
+        // if (random.nextDouble() > 0.01f) {
+        //     return;
+        // }
+
+        List<ListenableFuture<Long>> futures = channels.stream()
+                .map(channel -> {
+                    long before = clock.read();
+                    return channel.delegate
+                            .maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST)
+                            .map(future -> Futures.transform(
+                                    future,
+                                    _response -> {
+                                        long durationNanos = clock.read() - before;
+                                        channel.rtt.addMeasurement(durationNanos);
+                                        return durationNanos;
+                                    },
+                                    MoreExecutors.directExecutor()))
+                            .orElseGet(() -> Futures.immediateFuture(Long.MAX_VALUE));
+                })
+                .collect(ImmutableList.toImmutableList());
+
+        if (log.isDebugEnabled()) {
+            DialogueFutures.addDirectCallback(Futures.allAsList(futures), new FutureCallback<List<Long>>() {
+                @Override
+                public void onSuccess(List<Long> result) {
+                    List<Long> millis =
+                            result.stream().map(TimeUnit.NANOSECONDS::toMillis).collect(Collectors.toList());
+                    List<Long> best =
+                            channels.stream().map(ch -> ch.rtt.getNanos()).collect(Collectors.toList());
+                    log.debug(
+                            "RTTs {} {} {}",
+                            SafeArg.of("nanos", result),
+                            SafeArg.of("millis", millis),
+                            SafeArg.of("best", best));
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    log.info("Failed to sample RTT for channels", throwable);
+                }
+            });
+        }
+    }
+
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
     private static <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList, Random random) {
         List<T> mutableList = new ArrayList<>(sourceList);
@@ -229,7 +227,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
-        private final RoundTripTimeMeasurement rtt = new RoundTripTimeMeasurement();
+        private final RttMeasurement rtt = new RttMeasurement();
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -460,7 +458,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     @ThreadSafe
-    static class RoundTripTimeMeasurement {
+    static final class RttMeasurement {
 
         // TODO(dfox): switch to some exponentially decaying thingy, so we could detect if network topology changes
         private final AtomicLong rttNanos = new AtomicLong(Long.MAX_VALUE);
@@ -476,7 +474,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         @Override
         public String toString() {
-            return "RoundTripTimeMeasurement{" + rttNanos + '}';
+            return "RttMeasurement{" + rttNanos + '}';
         }
     }
 }
