@@ -35,6 +35,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.Closeable;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -45,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
@@ -120,9 +122,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (ChannelStats channel : sortedChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                if (shouldMeasureRtts.tryAcquire()) {
-                    sampleAllChannelsRttsNonBlocking();
-                }
+                maybeSampleAllChannelRttsNonBlocking();
                 return maybe;
             }
         }
@@ -162,7 +162,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return snapshotArray;
     }
 
-    private void sampleAllChannelsRttsNonBlocking() {
+    private void maybeSampleAllChannelRttsNonBlocking() {
+        Optional<RttSamplePermit> maybePermit = shouldMeasureRtts.acquireNonBlocking();
+        if (!maybePermit.isPresent()) {
+            return;
+        }
+
         List<ListenableFuture<Long>> futures = channels.stream()
                 .map(channel -> {
                     long before = clock.read();
@@ -180,8 +185,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 })
                 .collect(ImmutableList.toImmutableList());
 
+        // the RttSamplePermit ensures that if a server black-holes one of our OPTIONS requests, we don't kick off
+        // more and more and more requests and eventually exhaust a threadpool
+        ListenableFuture<List<Long>> allAsList = Futures.allAsList(futures);
+        DialogueFutures.addDirectListener(allAsList, maybePermit.get()::close);
+
         if (log.isDebugEnabled()) {
-            DialogueFutures.addDirectCallback(Futures.allAsList(futures), new FutureCallback<List<Long>>() {
+            DialogueFutures.addDirectCallback(allAsList, new FutureCallback<List<Long>>() {
                 @Override
                 public void onSuccess(List<Long> result) {
                     List<Long> millis =
@@ -482,23 +492,30 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         private final Ticker clock;
         private final AtomicLong lastMeasured = new AtomicLong(0);
+        private final AtomicBoolean currentlySampling = new AtomicBoolean(false);
 
         private RttMeasurementRateLimiter(Ticker clock) {
             this.clock = clock;
         }
 
-        boolean tryAcquire() {
+        Optional<RttSamplePermit> acquireNonBlocking() {
             long last = lastMeasured.get();
-            long now = clock.read();
-            if (last + BETWEEN_SAMPLES > now) {
-                return false;
+            if (last + BETWEEN_SAMPLES > clock.read()) {
+                return Optional.empty();
             }
 
-            // TODO(dfox): if we have thousands of requests/sec, maybe we should re-evaluate every 1000 or so?
-            // TODO(dfox): do we care if multiple samples are running at the same time?
-
-            lastMeasured.compareAndSet(last, now);
-            return true;
+            if (currentlySampling.compareAndSet(false, true)) {
+                lastMeasured.set(clock.read());
+                return Optional.of(() -> currentlySampling.compareAndSet(true, false));
+            } else {
+                log.warn("Wanted to sample RTTs but an existing sample was still in progress");
+                return Optional.empty();
+            }
         }
+    }
+
+    private interface RttSamplePermit extends Closeable {
+        @Override
+        void close();
     }
 }

@@ -210,9 +210,14 @@ class BalancedNodeSelectionStrategyChannelTest {
         when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
         when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
 
-        channel.maybeExecute(endpoint, request);
+        for (int i = 0; i < 20; i++) {
+            incrementClockBy(Duration.ofSeconds(5));
+            channel.maybeExecute(endpoint, request);
+        }
 
         assertThat(channel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
+        verify(chan1, times(1)).maybeExecute(eq(rttEndpoint), any());
+        verify(chan2, times(1)).maybeExecute(eq(rttEndpoint), any());
     }
 
     @Test
