@@ -221,17 +221,23 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
-    void rtt_just_remembers_the_min() {
+    void rtt_returns_the_min_of_the_last_5_measurements() {
         BalancedNodeSelectionStrategyChannel.RttMeasurement rtt =
                 new BalancedNodeSelectionStrategyChannel.RttMeasurement();
         rtt.addMeasurement(3);
-        assertThat(rtt.getNanos()).isEqualTo(3);
+        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(3);
         rtt.addMeasurement(1);
         rtt.addMeasurement(2);
-        assertThat(rtt.getNanos()).isEqualTo(1);
+        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(1);
 
         rtt.addMeasurement(500);
-        assertThat(rtt.getNanos()).isEqualTo(1);
+        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(1);
+        rtt.addMeasurement(500);
+        rtt.addMeasurement(500);
+        rtt.addMeasurement(500);
+        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(2);
+        rtt.addMeasurement(500);
+        assertThat(rtt.getNanos()).describedAs("%s", rtt).isEqualTo(500);
     }
 
     private static void set200(LimitedChannel chan) {

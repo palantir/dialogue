@@ -67,9 +67,8 @@ import org.slf4j.LoggerFactory;
  */
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
-    private static final Request BLANK_REQUEST = Request.builder().build();
-    private static final Comparator<ChannelStats> BY_SCORE = Comparator.comparingInt(ChannelStats::getScore);
 
+    private static final Comparator<ChannelStats> BY_SCORE = Comparator.comparingInt(ChannelStats::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
@@ -163,7 +162,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private void maybeSampleAllChannelRttsNonBlocking() {
-        Optional<RttSamplePermit> maybePermit = shouldMeasureRtts.acquireNonBlocking();
+        Optional<RttMeasurementPermit> maybePermit = shouldMeasureRtts.acquireNonBlocking();
         if (!maybePermit.isPresent()) {
             return;
         }
@@ -172,7 +171,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 .map(channel -> {
                     long before = clock.read();
                     return channel.delegate
-                            .maybeExecute(RttEndpoint.INSTANCE, BLANK_REQUEST)
+                            .maybeExecute(
+                                    RttEndpoint.INSTANCE, Request.builder().build())
                             .map(future -> Futures.transform(
                                     future,
                                     _response -> {
@@ -465,25 +465,44 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
+    /**
+     * Always returns the *minimum* value from the last few samples, so that we exclude slow calls that might include
+     * TLS handshakes.
+     */
     @VisibleForTesting
     @ThreadSafe
     static final class RttMeasurement {
+        private static final int NUM_MEASUREMENTS = 5;
 
-        // TODO(dfox): switch to some exponentially decaying thingy, so we could detect if network topology changes
-        private final AtomicLong rttNanos = new AtomicLong(Long.MAX_VALUE);
+        private final long[] samples;
+        private volatile long bestRttNanos = Long.MAX_VALUE;
 
-        long getNanos() {
-            return rttNanos.get();
+        RttMeasurement() {
+            samples = new long[NUM_MEASUREMENTS];
+            Arrays.fill(samples, Long.MAX_VALUE);
         }
 
-        void addMeasurement(long newMeasurement) {
-            // Only stores the *minimum* values, so that we exclude slow calls that might include TLS handshakes.
-            rttNanos.getAndUpdate(existing -> Math.min(existing, newMeasurement));
+        long getNanos() {
+            return bestRttNanos;
+        }
+
+        synchronized void addMeasurement(long newMeasurement) {
+            Preconditions.checkArgument(newMeasurement > 0, "Must be greater than zero");
+            Preconditions.checkArgument(newMeasurement < Long.MAX_VALUE, "Must be less than MAX_VALUE");
+
+            if (samples[0] == Long.MAX_VALUE) {
+                Arrays.fill(samples, newMeasurement);
+                bestRttNanos = newMeasurement;
+            } else {
+                System.arraycopy(samples, 1, samples, 0, NUM_MEASUREMENTS - 1);
+                samples[NUM_MEASUREMENTS - 1] = newMeasurement;
+                bestRttNanos = Arrays.stream(samples).min().getAsLong();
+            }
         }
 
         @Override
         public String toString() {
-            return "RttMeasurement{" + rttNanos + '}';
+            return "RttMeasurement{" + "bestRttNanos=" + bestRttNanos + ", samples=" + Arrays.toString(samples) + '}';
         }
     }
 
@@ -498,7 +517,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             this.clock = clock;
         }
 
-        Optional<RttSamplePermit> acquireNonBlocking() {
+        Optional<RttMeasurementPermit> acquireNonBlocking() {
             long last = lastMeasured.get();
             if (last + BETWEEN_SAMPLES > clock.read()) {
                 return Optional.empty();
@@ -514,7 +533,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private interface RttSamplePermit extends Closeable {
+    private interface RttMeasurementPermit extends Closeable {
         @Override
         void close();
     }
