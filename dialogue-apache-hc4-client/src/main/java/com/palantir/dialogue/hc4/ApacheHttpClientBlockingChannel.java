@@ -74,6 +74,8 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     endpoint.httpMethod() != HttpMethod.GET, "GET endpoints must not have a request body");
             Preconditions.checkArgument(
                     endpoint.httpMethod() != HttpMethod.HEAD, "HEAD endpoints must not have a request body");
+            Preconditions.checkArgument(
+                    endpoint.httpMethod() != HttpMethod.OPTIONS, "OPTIONS endpoints must not have a request body");
             RequestBody body = request.body().get();
             setBody(builder, body);
         }

@@ -80,6 +80,11 @@ public final class OkHttpChannel implements Channel {
                 Preconditions.checkArgument(!request.body().isPresent(), "HEAD endpoints must not have a request body");
                 okRequest = okRequest.head();
                 break;
+            case OPTIONS:
+                Preconditions.checkArgument(
+                        !request.body().isPresent(), "OPTIONS endpoints must not have a request body");
+                okRequest = okRequest.method("OPTIONS", null);
+                break;
             case POST:
                 okRequest = okRequest.post(toOkHttpBody(request.body()));
                 break;
