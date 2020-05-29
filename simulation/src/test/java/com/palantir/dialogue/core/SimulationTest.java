@@ -25,7 +25,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
+import com.palantir.tracing.Tracers;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -134,7 +136,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(11)
                 .sendUntil(Duration.ofMinutes(20))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();
     }
@@ -169,7 +171,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(20))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .endpoints(getEndpoint)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
@@ -199,7 +201,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(15)) // something weird happens at 1811... bug in DeterministicScheduler?
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -227,7 +229,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(500)
                 .sendUntil(Duration.ofSeconds(90))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -255,7 +257,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofMinutes(1))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -284,7 +286,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(20))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -312,7 +314,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(100)
                 .sendUntil(Duration.ofSeconds(20))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -339,7 +341,7 @@ final class SimulationTest {
                 .requestsPerSecond(200)
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofSeconds(30)) // otherwise the test never terminates!
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .run();
     }
 
@@ -374,7 +376,7 @@ final class SimulationTest {
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
                 .abortAfter(Duration.ofMinutes(1))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .endpoints(endpoint1, endpoint2)
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
@@ -411,7 +413,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(250)
                 .sendUntil(Duration.ofSeconds(10))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofMinutes(10))
                 .run();
     }
@@ -435,7 +437,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond(1000)
                 .sendUntil(Duration.ofSeconds(10))
-                .clients(10, i -> strategy.getChannel(simulation, servers))
+                .clients(10, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofSeconds(10))
                 .run();
     }
@@ -480,7 +482,7 @@ final class SimulationTest {
         servers = servers(IntStream.range(0, numServers)
                 .mapToObj(i -> {
                     Meter requestRate = new Meter(simulation.codahaleClock());
-                    Function<SimulationServer, Response> responseFunc = s -> {
+                    Function<SimulationServer, Response> responseFunc = _s -> {
                         if (requestRate.getOneMinuteRate() < perServerRateLimit) {
                             requestRate.mark();
                             return new TestResponse().code(200);
@@ -501,7 +503,7 @@ final class SimulationTest {
                 .simulation(simulation)
                 .requestsPerSecond((int) totalRateLimit)
                 .sendUntil(Duration.ofMinutes(25))
-                .clients(numClients, i -> strategy.getChannel(simulation, servers))
+                .clients(numClients, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();
     }
@@ -622,6 +624,7 @@ final class SimulationTest {
                         m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
 
         Tracer.setSampler(() -> false);
+        Tracer.initTrace(Observability.DO_NOT_SAMPLE, Tracers.randomId());
     }
 
     @AfterAll

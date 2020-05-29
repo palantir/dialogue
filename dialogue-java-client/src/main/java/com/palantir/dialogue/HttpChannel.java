@@ -68,6 +68,9 @@ public final class HttpChannel implements Channel {
         Preconditions.checkArgument(
                 !(request.body().isPresent() && endpoint.httpMethod() == HttpMethod.HEAD),
                 "HEAD endpoints must not have a request body");
+        Preconditions.checkArgument(
+                !(request.body().isPresent() && endpoint.httpMethod() == HttpMethod.OPTIONS),
+                "OPTIONS endpoints must not have a request body");
         httpRequest.method(endpoint.httpMethod().name(), toBody(request));
 
         // Fill headers

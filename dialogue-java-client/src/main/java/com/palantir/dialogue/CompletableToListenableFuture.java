@@ -34,7 +34,7 @@ class CompletableToListenableFuture<T> implements ListenableFuture<T> {
     @SuppressWarnings("FutureReturnValueIgnored")
     public void addListener(Runnable listener, Executor executor) {
         future.handleAsync(
-                (response, throwable) -> {
+                (_response, _throwable) -> {
                     listener.run();
                     return null;
                 },
