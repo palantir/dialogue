@@ -23,6 +23,9 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.service.UserAgent.Agent;
+import com.palantir.conjure.java.api.config.service.UserAgents;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
@@ -48,6 +51,9 @@ import org.slf4j.LoggerFactory;
 
 final class RttSampler {
     private static final Logger log = LoggerFactory.getLogger(RttSampler.class);
+    private static final String USER_AGENT =
+            UserAgents.format(UserAgent.of(Agent.of(RttEndpoint.INSTANCE.serviceName(), RttEndpoint.INSTANCE.version()))
+                    .addAgent(UserAgentEndpointChannel.DIALOGUE_AGENT));
 
     private final ImmutableList<LimitedChannel> channels;
     private final RttMeasurement[] rtts;
@@ -79,12 +85,16 @@ final class RttSampler {
             return;
         }
 
+        Request rttRequest = Request.builder()
+                // necessary as we've already gone through the UserAgentEndpointChannel
+                .putHeaderParams("user-agent", USER_AGENT)
+                .build();
+
         List<ListenableFuture<Long>> futures = IntStream.range(0, channels.size())
                 .mapToObj(i -> {
                     long before = clock.read();
                     return channels.get(i)
-                            .maybeExecute(
-                                    RttEndpoint.INSTANCE, Request.builder().build())
+                            .maybeExecute(RttEndpoint.INSTANCE, rttRequest)
                             .map(future -> Futures.transform(
                                     future,
                                     _response -> {
@@ -140,7 +150,7 @@ final class RttSampler {
 
         @Override
         public String serviceName() {
-            return "Balanced";
+            return "RttSampler";
         }
 
         @Override
@@ -150,7 +160,7 @@ final class RttSampler {
 
         @Override
         public String version() {
-            return "0.0.0";
+            return UserAgentEndpointChannel.dialogueVersion();
         }
     }
 
