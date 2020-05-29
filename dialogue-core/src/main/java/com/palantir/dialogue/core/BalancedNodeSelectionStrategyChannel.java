@@ -222,12 +222,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         SortableChannel computeScore(float rttSpectrum) {
+            int requestsInflight = inflight.get();
+            double failureReservoir = recentFailuresReservoir.get();
+
             // it's important that scores are integers because if we kept the full double precision, then a single 4xx
             // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            int score = inflight.get()
-                    + Ints.saturatedCast(Math.round(recentFailuresReservoir.get()))
+            int score = requestsInflight
+                    + Ints.saturatedCast(Math.round(failureReservoir))
                     + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
 
+            observability.debugLogComputedScore(requestsInflight, failureReservoir, rttSpectrum, score);
             return new SortableChannel(score, this);
         }
 
@@ -245,14 +249,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
      * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    @VisibleForTesting
-    static final class SortableChannel {
+    private static final class SortableChannel {
         private final int score;
         private final MutableChannelWithStats delegate;
 
         SortableChannel(int score, MutableChannelWithStats delegate) {
-            this.delegate = delegate;
             this.score = score;
+            this.delegate = delegate;
         }
 
         int getScore() {
@@ -329,6 +332,19 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                         channelName,
                         hostIndex,
                         SafeArg.of("status", response.code()));
+            }
+        }
+
+        void debugLogComputedScore(int inflight, double failures, float rttSpectrum, int score) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Computed score",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("score", score),
+                        SafeArg.of("inflight", inflight),
+                        SafeArg.of("failures", failures),
+                        SafeArg.of("rttSpectrum", rttSpectrum));
             }
         }
 
