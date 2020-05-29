@@ -105,7 +105,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(uri -> badUserImplementation)
+                .channelFactory(_uri -> badUserImplementation)
                 .build();
 
         // this should never throw
@@ -127,7 +127,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(uri -> badUserImplementation)
+                .channelFactory(_uri -> badUserImplementation)
                 .build();
 
         // this should never throw
@@ -143,7 +143,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(uri -> mockChannel)
+                .channelFactory(_uri -> mockChannel)
                 .random(new Random(123456L))
                 .maxQueueSize(1)
                 .build();
@@ -172,7 +172,7 @@ public final class DialogueChannelTest {
                         .from(stubConfig)
                         .uris(Collections.emptyList())
                         .build())
-                .channelFactory(uri -> mockChannel)
+                .channelFactory(_uri -> mockChannel)
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
@@ -180,7 +180,7 @@ public final class DialogueChannelTest {
 
     @Test
     void nice_tostring() {
-        ChannelFactory factory = uri -> mockChannel;
+        ChannelFactory factory = _uri -> mockChannel;
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)

@@ -75,7 +75,7 @@ public enum Strategy {
             Supplier<Map<String, SimulationServer>> channelSupplier,
             UnaryOperator<ClientConfiguration.Builder> applyConfig) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                () -> channelSupplier.get().keySet(), uris -> {
+                () -> channelSupplier.get().keySet(), _uris -> {
                     return DialogueChannel.builder()
                             .channelName(SimulationUtils.CHANNEL_NAME)
                             .clientConfiguration(applyConfig

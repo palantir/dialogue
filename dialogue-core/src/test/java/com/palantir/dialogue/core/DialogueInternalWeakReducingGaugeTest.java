@@ -52,7 +52,7 @@ public class DialogueInternalWeakReducingGaugeTest {
         class SomeObject {}
 
         DialogueInternalWeakReducingGauge<SomeObject> gauge =
-                new DialogueInternalWeakReducingGauge<>(item -> 1, LongStream::sum);
+                new DialogueInternalWeakReducingGauge<>(_item -> 1, LongStream::sum);
         gauge.add(new SomeObject());
         gauge.add(new SomeObject());
         SomeObject preserve = new SomeObject();
