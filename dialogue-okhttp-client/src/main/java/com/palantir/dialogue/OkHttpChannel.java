@@ -93,6 +93,11 @@ public final class OkHttpChannel implements Channel {
             case PATCH:
                 okRequest = okRequest.patch(toOkHttpBody(request.body()));
                 break;
+            case OPTIONS:
+                Preconditions.checkArgument(
+                        !request.body().isPresent(), "OPTIONS endpoints must not have a request body");
+                okRequest = okRequest.method("OPTIONS", null);
+                break;
         }
 
         // Fill headers

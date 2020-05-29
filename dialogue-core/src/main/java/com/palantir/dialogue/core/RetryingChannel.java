@@ -375,6 +375,7 @@ final class RetryingChannel implements EndpointChannel {
         switch (httpMethod) {
             case GET:
             case HEAD:
+            case OPTIONS:
                 return true;
             case PUT:
             case DELETE:

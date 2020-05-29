@@ -24,4 +24,5 @@ public enum HttpMethod {
     PATCH,
     POST,
     PUT,
+    OPTIONS
 }
