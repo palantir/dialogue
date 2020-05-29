@@ -63,7 +63,7 @@ final class RttSampler {
         this.rateLimiter = new RttMeasurementRateLimiter(clock);
         this.clock = clock;
         this.rtts = IntStream.range(0, channels.size())
-                .mapToObj(i -> new RttMeasurement())
+                .mapToObj(_i -> new RttMeasurement())
                 .toArray(RttMeasurement[]::new);
     }
 
@@ -247,6 +247,7 @@ final class RttSampler {
         private final AtomicBoolean currentlySampling = new AtomicBoolean(false);
         private volatile long lastMeasured = 0;
 
+        @SuppressWarnings("UnnecessaryLambda") // just let me avoid allocations
         private final RttMeasurementPermit finishedSampling = () -> currentlySampling.set(false);
 
         private RttMeasurementRateLimiter(Ticker clock) {

@@ -41,7 +41,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import java.util.stream.Stream;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -154,8 +153,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    Stream<SortableChannel> getScoresForTesting() {
-        return Arrays.stream(computeScores(rttSampler, channels));
+    IntStream getScoresForTesting() {
+        return Arrays.stream(computeScores(rttSampler, channels)).mapToInt(SortableChannel::getScore);
     }
 
     @Override

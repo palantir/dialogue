@@ -126,7 +126,7 @@ class BalancedNodeSelectionStrategyChannelTest {
                 clock.read() < start + Duration.ofSeconds(10).toNanos();
                 incrementClockBy(Duration.ofMillis(50))) {
             channel.maybeExecute(endpoint, request);
-            assertThat(channel.getScoresForTesting().map(c -> c.getScore()))
+            assertThat(channel.getScoresForTesting())
                     .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
                     .containsExactly(0, 0);
         }
@@ -142,19 +142,19 @@ class BalancedNodeSelectionStrategyChannelTest {
 
         for (int i = 0; i < 11; i++) {
             rttChannel.maybeExecute(endpoint, request);
-            assertThat(rttChannel.getScoresForTesting().map(c -> c.getScore()))
+            assertThat(rttChannel.getScoresForTesting())
                     .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), rttChannel)
                     .containsExactly(0, 0);
             incrementClockBy(Duration.ofMillis(50));
         }
         rttChannel.maybeExecute(endpoint, request);
-        assertThat(rttChannel.getScoresForTesting().map(c -> c.getScore()))
+        assertThat(rttChannel.getScoresForTesting())
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(1, 0);
 
         incrementClockBy(Duration.ofSeconds(5));
 
-        assertThat(rttChannel.getScoresForTesting().map(c -> c.getScore()))
+        assertThat(rttChannel.getScoresForTesting())
                 .describedAs(
                         "%s: We quickly forget about 4xxs and go back to fair shuffling %s",
                         Duration.ofNanos(clock.read()), rttChannel)
@@ -182,7 +182,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         incrementClockBy(Duration.ofNanos(456));
         chan2OptionsResponse.set(new TestResponse().code(200));
 
-        assertThat(rttChannel.getScoresForTesting().map(c -> c.getScore()))
+        assertThat(rttChannel.getScoresForTesting())
                 .describedAs("The poor latency of channel2 imposes a small constant penalty in the score")
                 .containsExactly(0, 3);
 
@@ -208,7 +208,7 @@ class BalancedNodeSelectionStrategyChannelTest {
 
         rttChannel.maybeExecute(endpoint, request);
 
-        assertThat(channel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
+        assertThat(channel.getScoresForTesting()).containsExactly(0, 0);
     }
 
     @Test
@@ -226,7 +226,7 @@ class BalancedNodeSelectionStrategyChannelTest {
             rttChannel.maybeExecute(endpoint, request);
         }
 
-        assertThat(rttChannel.getScoresForTesting().map(c -> c.getScore())).containsExactly(0, 0);
+        assertThat(rttChannel.getScoresForTesting()).containsExactly(0, 0);
         verify(chan1, times(1)).maybeExecute(eq(rttEndpoint), any());
         verify(chan2, times(1)).maybeExecute(eq(rttEndpoint), any());
     }
