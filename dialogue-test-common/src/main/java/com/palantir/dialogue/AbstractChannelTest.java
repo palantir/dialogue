@@ -228,6 +228,14 @@ public abstract class AbstractChannelTest {
     }
 
     @Test
+    public void options_failsWhenBodyIsGiven() {
+        endpoint.method = HttpMethod.OPTIONS;
+        request = Request.builder().from(request).body(body).build();
+        assertThatThrownBy(() -> channel.execute(endpoint, request).get())
+                .hasMessageContaining("OPTIONS endpoints must not have a request body");
+    }
+
+    @Test
     public void head_failsWhenBodyReturned() throws ExecutionException, InterruptedException {
         endpoint.method = HttpMethod.HEAD;
         Response response = channel.execute(endpoint, request).get();
