@@ -38,7 +38,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -133,50 +132,18 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private static SortableChannel[] computeScores(
-            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> preShuffled) {
-        SortableChannel[] snapshotArray = new SortableChannel[preShuffled.size()];
+            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> chans) {
+        // if the feature is disabled (i.e. RttSampling.DEFAULT_OFF), then we just consider every host to have a
+        // rttSpectrum of '0'
+        float[] rttSpectrums = rttSampler != null ? rttSampler.computeRttSpectrums() : new float[chans.size()];
 
-        if (rttSampler == null) {
-
-            for (int i = 0; i < preShuffled.size(); i++) {
-                SortableChannel snapshot = preShuffled.get(i).computeScore(0);
-                snapshotArray[i] = snapshot;
-            }
-            return snapshotArray;
-
-        } else {
-            // Latency (rtt) is measured in nanos, which is a tricky unit to include in our 'score' because adding
-            // it would dominate all the other data (which has the unit of 'num requests'). To avoid the need for a
-            // conversion fudge-factor, we instead figure out where each rtt lies on the spectrum from bestRttNanos
-            // to worstRttNanos, with 0 being best and 1 being worst. This ensures that if several nodes are all
-            // within the same AZ and can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have
-            // a similar rttScore (near zero). Note, this can only be computed when we have all the snapshots in
-            // front of us.
-            long bestRttNanos = Long.MAX_VALUE;
-            long worstRttNanos = 0;
-
-            OptionalLong[] rtts = new OptionalLong[preShuffled.size()];
-            for (int i = 0; i < preShuffled.size(); i++) {
-                OptionalLong rtt = rttSampler.get(i).getRttNanos();
-                rtts[i] = rtt;
-
-                if (rtt.isPresent()) {
-                    bestRttNanos = Math.min(bestRttNanos, rtt.getAsLong());
-                    worstRttNanos = Math.max(worstRttNanos, rtt.getAsLong());
-                }
-            }
-            long rttRange = worstRttNanos - bestRttNanos;
-
-            for (int i = 0; i < preShuffled.size(); i++) {
-                OptionalLong rtt = rtts[i];
-                float rttSpectrum =
-                        (rttRange > 0 && rtt.isPresent()) ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
-
-                SortableChannel snapshot = preShuffled.get(i).computeScore(rttSpectrum);
-                snapshotArray[i] = snapshot;
-            }
-            return snapshotArray;
+        SortableChannel[] snapshotArray = new SortableChannel[chans.size()];
+        for (int i = 0; i < chans.size(); i++) {
+            MutableChannelWithStats channel = chans.get(i);
+            float rttSpectrum = rttSpectrums[i];
+            snapshotArray[i] = channel.computeScore(rttSpectrum);
         }
+        return snapshotArray;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */

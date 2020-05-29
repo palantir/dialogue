@@ -41,7 +41,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.concurrent.ThreadSafe;
@@ -69,14 +68,53 @@ final class RttSampler {
     }
 
     /**
-     * The {@link LongSupplier} returns the RTT in nanoseconds, or {@link OptionalLong#empty()} if we have no data.
+     * Latency (rtt) is measured in nanos, which is a tricky unit to include in our 'score' because adding
+     * it would dominate all the other data (which has the unit of 'num requests'). To avoid the need for a
+     * conversion fudge-factor, we instead figure out where each rtt lies on the spectrum from bestRttNanos
+     * to worstRttNanos, with 0 being best and 1 being worst. This ensures that if several nodes are all
+     * within the same AZ and can return in ~1 ms but others return in ~5ms, the 1ms nodes will all have
+     * a similar rttScore (near zero). Note, this can only be computed when we have all the snapshots in
+     * front of us.
      */
-    RttSupplier get(int index) {
-        return rtts[index];
+    float[] computeRttSpectrums() {
+        long bestRttNanos = Long.MAX_VALUE;
+        long worstRttNanos = 0;
+
+        // first we take a snapshot of all channels' RTT
+        OptionalLong[] snapshots = new OptionalLong[rtts.length];
+        for (int i = 0; i < rtts.length; i++) {
+            OptionalLong rtt = rtts[i].getRttNanos();
+            snapshots[i] = rtt;
+
+            if (rtt.isPresent()) {
+                bestRttNanos = Math.min(bestRttNanos, rtt.getAsLong());
+                worstRttNanos = Math.max(worstRttNanos, rtt.getAsLong());
+            }
+        }
+
+        // given the best & worst values, we can then compute the spectrums
+        float[] spectrums = new float[rtts.length];
+        long rttRange = worstRttNanos - bestRttNanos;
+        if (rttRange <= 0) {
+            return spectrums;
+        }
+
+        for (int i = 0; i < channels.size(); i++) {
+            OptionalLong rtt = snapshots[i];
+            float rttSpectrum = rtt.isPresent() ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
+            Preconditions.checkState(
+                    0 <= rttSpectrum && rttSpectrum <= 1,
+                    "rttSpectrum must be between 0 and 1",
+                    SafeArg.of("value", rttSpectrum),
+                    SafeArg.of("hostIndex", i));
+            spectrums[i] = rttSpectrum;
+        }
+
+        return spectrums;
     }
 
     /**
-     * Non-blocking.
+     * Non-blocking - should return pretty much instantly.
      */
     void maybeSampleRtts() {
         Optional<RttMeasurementPermit> maybePermit = rateLimiter.tryAcquire();
@@ -106,8 +144,6 @@ final class RttSampler {
                 })
                 .collect(ImmutableList.toImmutableList());
 
-        // the RttSamplePermit ensures that if a server black-holes one of our OPTIONS requests, we don't kick off
-        // more and more and more requests and eventually exhaust a threadpool
         DialogueFutures.addDirectCallback(Futures.allAsList(futures), new FutureCallback<List<Long>>() {
             @Override
             public void onSuccess(List<Long> result) {
@@ -169,7 +205,7 @@ final class RttSampler {
      */
     @VisibleForTesting
     @ThreadSafe
-    static final class RttMeasurement implements RttSupplier {
+    static final class RttMeasurement {
         private static final int NUM_MEASUREMENTS = 5;
 
         private final long[] samples;
@@ -180,7 +216,6 @@ final class RttSampler {
             Arrays.fill(samples, Long.MAX_VALUE);
         }
 
-        @Override
         public OptionalLong getRttNanos() {
             return bestRttNanos == Long.MAX_VALUE ? OptionalLong.empty() : OptionalLong.of(bestRttNanos);
         }
@@ -218,6 +253,10 @@ final class RttSampler {
             this.clock = clock;
         }
 
+        /**
+         * The RttSamplePermit ensures that if a server black-holes one of our OPTIONS requests, we don't kick off
+         * more and more and more requests and eventually exhaust a threadpool. Permit is released in a future callback.
+         */
         Optional<RttMeasurementPermit> tryAcquire() {
             if (lastMeasured + BETWEEN_SAMPLES > clock.read()) {
                 return Optional.empty();
@@ -236,9 +275,5 @@ final class RttSampler {
     private interface RttMeasurementPermit extends Closeable {
         @Override
         void close();
-    }
-
-    interface RttSupplier {
-        OptionalLong getRttNanos();
     }
 }
