@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue apache clients use the read timeout as socket timeout
+  links:
+  - https://github.com/palantir/dialogue/pull/803

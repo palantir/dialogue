@@ -355,8 +355,14 @@ public final class ApacheHttpClientChannels {
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
             Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
-            long socketTimeoutMillis =
-                    Math.max(conf.readTimeout().toMillis(), conf.writeTimeout().toMillis());
+            long socketTimeoutMillis = conf.readTimeout().toMillis();
+            if (conf.readTimeout().toMillis() != conf.writeTimeout().toMillis()) {
+                log.warn(
+                        "Read and write timeouts do not match, The value of the readTimeout {} will be used and write "
+                                + "timeout {} will be ignored.",
+                        SafeArg.of("readTimeout", conf.readTimeout()),
+                        SafeArg.of("writeTimeout", conf.writeTimeout()));
+            }
             int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
