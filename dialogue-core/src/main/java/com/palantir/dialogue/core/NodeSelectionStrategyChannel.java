@@ -144,6 +144,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                         .channel(new BalancedNodeSelectionStrategyChannel(
                                 channels, random, tick, metrics, channelName, RttSampling.DEFAULT_OFF))
                         .build();
+            case BALANCED_RTT:
+                return channelBuilder
+                        .channel(new BalancedNodeSelectionStrategyChannel(
+                                channels, random, tick, metrics, channelName, RttSampling.ENABLED))
+                        .build();
             case UNKNOWN:
         }
         throw new SafeRuntimeException("Unknown NodeSelectionStrategy", SafeArg.of("unknown", strategy));
