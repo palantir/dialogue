@@ -41,7 +41,6 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -80,7 +79,7 @@ final class RttSampler {
      * Non-blocking.
      */
     void maybeSampleRtts() {
-        Optional<RttMeasurementPermit> maybePermit = rateLimiter.acquireNonBlocking();
+        Optional<RttMeasurementPermit> maybePermit = rateLimiter.tryAcquire();
         if (!maybePermit.isPresent()) {
             return;
         }
@@ -210,22 +209,23 @@ final class RttSampler {
         private static final long BETWEEN_SAMPLES = Duration.ofSeconds(1).toNanos();
 
         private final Ticker clock;
-        private final AtomicLong lastMeasured = new AtomicLong(0);
         private final AtomicBoolean currentlySampling = new AtomicBoolean(false);
+        private volatile long lastMeasured = 0;
+
+        private final RttMeasurementPermit finishedSampling = () -> currentlySampling.set(false);
 
         private RttMeasurementRateLimiter(Ticker clock) {
             this.clock = clock;
         }
 
-        Optional<RttMeasurementPermit> acquireNonBlocking() {
-            long last = lastMeasured.get();
-            if (last + BETWEEN_SAMPLES > clock.read()) {
+        Optional<RttMeasurementPermit> tryAcquire() {
+            if (lastMeasured + BETWEEN_SAMPLES > clock.read()) {
                 return Optional.empty();
             }
 
-            if (currentlySampling.compareAndSet(false, true)) {
-                lastMeasured.set(clock.read());
-                return Optional.of(() -> currentlySampling.compareAndSet(true, false));
+            if (!currentlySampling.get() && currentlySampling.compareAndSet(false, true)) {
+                lastMeasured = clock.read();
+                return Optional.of(finishedSampling);
             } else {
                 log.warn("Wanted to sample RTTs but an existing sample was still in progress");
                 return Optional.empty();

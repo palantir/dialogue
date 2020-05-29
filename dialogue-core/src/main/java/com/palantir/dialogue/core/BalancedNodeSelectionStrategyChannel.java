@@ -49,7 +49,8 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
- * being served and also how many failures have been seen in the last few seconds.
+ * being served, how many failures have been seen in the last few seconds and (optionally) also what the best latency
+ * to each node is. Use {@link RttSampling#ENABLED} to switch this on.
  *
  * This is intended to be a strict improvement over Round Robin and Random Selection which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node. It is *not* appropriate for transactional
