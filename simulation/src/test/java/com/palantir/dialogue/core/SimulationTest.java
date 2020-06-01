@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.RttSampler.RttEndpoint;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
@@ -504,6 +505,37 @@ final class SimulationTest {
                 .requestsPerSecond((int) totalRateLimit)
                 .sendUntil(Duration.ofMinutes(25))
                 .clients(numClients, _i -> strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofHours(1))
+                .run();
+    }
+
+    @SimulationCase
+    void cross_az(Strategy strategy) {
+        // TODO(dfox): once people can opt-in to BALANCED_RTT on the client side, we don't need this
+        Function<SimulationServer, Response> responseFunction = strategy == Strategy.CONCURRENCY_LIMITER_PIN_UNTIL_ERROR
+                ? _s -> new TestResponse().code(200)
+                : _s -> new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED_RTT");
+
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("nearby")
+                        .simulation(simulation)
+                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(1)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(30)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("faraway")
+                        .simulation(simulation)
+                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(31)))
+                        .build());
+
+        st = strategy;
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(20)
+                .sendUntil(Duration.ofMinutes(25))
+                .client(strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();
     }
