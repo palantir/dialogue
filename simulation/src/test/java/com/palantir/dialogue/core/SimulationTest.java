@@ -522,12 +522,18 @@ final class SimulationTest {
                         .simulation(simulation)
                         .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(1)))
                         .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(30)))
+                        .until(Duration.ofMinutes(15), "slowdown halfway")
+                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(1)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(300)))
                         .build(),
                 SimulationServer.builder()
                         .serverName("faraway")
                         .simulation(simulation)
                         .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(40)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(31)))
+                        .until(Duration.ofMinutes(15), "slowdown halfway")
+                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(301)))
                         .build());
 
         st = strategy;
