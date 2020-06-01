@@ -26,6 +26,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.RttSampler.RttEndpoint;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
@@ -512,9 +513,9 @@ final class SimulationTest {
     @SimulationCase
     void cross_az(Strategy strategy) {
         // TODO(dfox): once people can opt-in to BALANCED_RTT on the client side, we don't need this
-        Function<SimulationServer, Response> responseFunction = strategy == Strategy.CONCURRENCY_LIMITER_PIN_UNTIL_ERROR
-                ? _s -> new TestResponse().code(200)
-                : _s -> new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED_RTT");
+        String nssHeader = serverSideNodeSelectionStrategy(strategy);
+        Function<SimulationServer, Response> responseFunction =
+                _s -> new TestResponse().code(200).withHeader("Node-Selection-Strategy", nssHeader);
 
         servers = servers(
                 SimulationServer.builder()
@@ -544,6 +545,18 @@ final class SimulationTest {
                 .client(strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();
+    }
+
+    private static String serverSideNodeSelectionStrategy(Strategy strategy) {
+        switch (strategy) {
+            case CONCURRENCY_LIMITER_ROUND_ROBIN:
+                return "BALANCED_RTT";
+            case CONCURRENCY_LIMITER_PIN_UNTIL_ERROR:
+                return "PIN_UNTIL_ERROR";
+            case UNLIMITED_ROUND_ROBIN:
+                return "BALANCED";
+        }
+        throw new SafeIllegalArgumentException("Unknown");
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
