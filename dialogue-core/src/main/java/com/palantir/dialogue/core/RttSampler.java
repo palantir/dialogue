@@ -32,6 +32,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import java.io.Closeable;
 import java.time.Duration;
 import java.util.Arrays;
@@ -157,10 +158,11 @@ final class RttSampler {
                             .mapToLong(rtt -> rtt.getRttNanos().orElse(Long.MAX_VALUE))
                             .toArray();
                     log.debug(
-                            "RTTs {} {} {}",
+                            "RTTs {} {} {} {}",
                             SafeArg.of("nanos", result),
                             SafeArg.of("millis", millis),
-                            SafeArg.of("best", Arrays.toString(best)));
+                            SafeArg.of("best", Arrays.toString(best)),
+                            UnsafeArg.of("channels", channels));
                 }
             }
 

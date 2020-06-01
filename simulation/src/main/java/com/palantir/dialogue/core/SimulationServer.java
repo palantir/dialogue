@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
-import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
@@ -75,10 +74,6 @@ final class SimulationServer implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        if (endpoint.httpMethod() == HttpMethod.OPTIONS) {
-            return Futures.immediateFuture(new TestResponse().code(204));
-        }
-
         Meter perEndpointRequests = MetricNames.requestMeter(simulation.taggedMetrics(), serverName, endpoint);
 
         activeRequests.inc();
