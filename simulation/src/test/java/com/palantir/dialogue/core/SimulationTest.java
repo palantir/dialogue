@@ -527,7 +527,7 @@ final class SimulationTest {
                         .serverName("faraway")
                         .simulation(simulation)
                         .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(31)))
+                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(40)))
                         .build());
 
         st = strategy;

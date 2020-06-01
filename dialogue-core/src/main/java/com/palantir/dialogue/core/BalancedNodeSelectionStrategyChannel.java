@@ -338,7 +338,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         void debugLogComputedScore(int inflight, double failures, float rttSpectrum, int score) {
             if (log.isDebugEnabled()) {
                 log.debug(
-                        "Computed score",
+                        "Computed score ({} {}) {}",
                         channelName,
                         hostIndex,
                         SafeArg.of("score", score),
