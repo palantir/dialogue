@@ -41,12 +41,14 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
- * being served and also how many failures have been seen in the last few seconds.
+ * being served, how many failures have been seen in the last few seconds and (optionally) also what the best latency
+ * to each node is. Use {@link RttSampling#ENABLED} to switch this on.
  *
  * This is intended to be a strict improvement over Round Robin and Random Selection which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node. It is *not* appropriate for transactional
@@ -60,19 +62,34 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
+    /**
+     * RTT_WEIGHT determines how sticky we are to the physically nearest node (as measured by RTT). If this is set
+     * too high, then we may deliver suboptimal perf by sending all requests to a slow node that is physically nearby,
+     * when there's actually a faster one further away.
+     * If this is too low, then we may prematurely spill across AZs and pay the $ cost. Keep this lower than
+     * {@link #FAILURE_WEIGHT} to ensure that a single 5xx makes a nearby node less attractive than a faraway node
+     * that exhibited zero failures.
+     */
+    private static final double RTT_WEIGHT = 3;
+
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
+
+    @Nullable
+    private final RttSampler rttSampler;
 
     BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
-            String channelName) {
+            String channelName,
+            RttSampling samplingEnabled) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
+        this.rttSampler = samplingEnabled == RttSampling.DEFAULT_OFF ? null : new RttSampler(channels, clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
                         channels.get(index),
@@ -84,6 +101,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
 
+    enum RttSampling {
+        DEFAULT_OFF,
+        ENABLED
+    }
+
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
@@ -92,11 +114,15 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         // TODO(dfox): P2C optimization when we have high number of nodes to save CPU?
         // http://www.eecs.harvard.edu/~michaelm/NEWWORK/postscripts/twosurvey.pdf
-        SortableChannel[] sortedChannels = sortByScore(preShuffled);
+        SortableChannel[] sortableChannels = computeScores(rttSampler, preShuffled);
+        Arrays.sort(sortableChannels, BY_SCORE);
 
-        for (SortableChannel channel : sortedChannels) {
+        for (SortableChannel channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
+                if (rttSampler != null) {
+                    rttSampler.maybeSampleRtts();
+                }
                 return maybe;
             }
         }
@@ -104,13 +130,19 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         return Optional.empty();
     }
 
-    private static SortableChannel[] sortByScore(List<MutableChannelWithStats> preShuffled) {
-        SortableChannel[] sorted = new SortableChannel[preShuffled.size()];
-        for (int i = 0; i < preShuffled.size(); i++) {
-            sorted[i] = preShuffled.get(i).computeScore();
+    private static SortableChannel[] computeScores(
+            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> chans) {
+        // if the feature is disabled (i.e. RttSampling.DEFAULT_OFF), then we just consider every host to have a
+        // rttSpectrum of '0'
+        float[] rttSpectrums = rttSampler != null ? rttSampler.computeRttSpectrums() : new float[chans.size()];
+
+        SortableChannel[] snapshotArray = new SortableChannel[chans.size()];
+        for (int i = 0; i < chans.size(); i++) {
+            MutableChannelWithStats channel = chans.get(i);
+            float rttSpectrum = rttSpectrums[i];
+            snapshotArray[i] = channel.computeScore(rttSpectrum);
         }
-        Arrays.sort(sorted, BY_SCORE);
-        return sorted;
+        return snapshotArray;
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -121,8 +153,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @VisibleForTesting
-    IntStream getScores() {
-        return channels.stream().mapToInt(c -> c.computeScore().score);
+    IntStream getScoresForTesting() {
+        return Arrays.stream(computeScores(rttSampler, channels)).mapToInt(SortableChannel::getScore);
     }
 
     @Override
@@ -189,30 +221,32 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             return maybe;
         }
 
-        SortableChannel computeScore() {
+        SortableChannel computeScore(float rttSpectrum) {
             int requestsInflight = inflight.get();
             double failureReservoir = recentFailuresReservoir.get();
 
             // it's important that scores are integers because if we kept the full double precision, then a single 4xx
             // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
+            int score = requestsInflight
+                    + Ints.saturatedCast(Math.round(failureReservoir))
+                    + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
 
-            observability.debugLogComputedScore(requestsInflight, failureReservoir, score);
+            observability.debugLogComputedScore(requestsInflight, failureReservoir, rttSpectrum, score);
             return new SortableChannel(score, this);
         }
 
         @Override
         public String toString() {
-            return "MutableChannelWithStats{score=" + computeScore().score
+            return "MutableChannelWithStats{"
+                    + "delegate=" + delegate
                     + ", inflight=" + inflight
                     + ", recentFailures=" + recentFailuresReservoir
-                    + ", delegate=" + delegate
                     + '}';
         }
     }
 
     /**
-     * A dedicated immutable class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
+     * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
     private static final class SortableChannel {
@@ -252,7 +286,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.computeScore().getScore(),
+                    c -> c.computeScore(0).getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
                         if (log.isInfoEnabled() && longs.length > 1) {
@@ -301,7 +335,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, double failures, int score) {
+        void debugLogComputedScore(int inflight, double failures, float rttSpectrum, int score) {
             if (log.isDebugEnabled()) {
                 log.debug(
                         "Computed score",
@@ -309,7 +343,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                         hostIndex,
                         SafeArg.of("score", score),
                         SafeArg.of("inflight", inflight),
-                        SafeArg.of("failures", failures));
+                        SafeArg.of("failures", failures),
+                        SafeArg.of("rttSpectrum", rttSpectrum));
             }
         }
 

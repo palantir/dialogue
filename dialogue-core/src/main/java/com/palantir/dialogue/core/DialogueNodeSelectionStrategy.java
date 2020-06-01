@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.Beta;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -35,6 +36,8 @@ enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,
+    @Beta
+    BALANCED_RTT,
     UNKNOWN;
 
     private static final Logger log = LoggerFactory.getLogger(DialogueNodeSelectionStrategy.class);
@@ -45,17 +48,25 @@ enum DialogueNodeSelectionStrategy {
                 Lists.transform(SPLITTER.splitToList(header), DialogueNodeSelectionStrategy::safeValueOf));
     }
 
-    private static DialogueNodeSelectionStrategy safeValueOf(String value) {
-        String normalizedValue = value.toUpperCase();
-        if (PIN_UNTIL_ERROR.name().equals(normalizedValue)) {
-            return PIN_UNTIL_ERROR;
-        } else if (PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE.name().equals(normalizedValue)) {
-            return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
-        } else if (BALANCED.name().equals(normalizedValue)) {
-            return BALANCED;
+    /**
+     * We allow server-determined headers to access some incubating dialogue-specific strategies (e.g. BALANCED_RTT)
+     * which users can't normally configure.
+     */
+    private static DialogueNodeSelectionStrategy safeValueOf(String string) {
+        String uppercaseString = string.toUpperCase();
+
+        switch (uppercaseString) {
+            case "PIN_UNTIL_ERROR":
+                return PIN_UNTIL_ERROR;
+            case "PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE":
+                return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+            case "BALANCED":
+                return BALANCED;
+            case "BALANCED_RTT":
+                return BALANCED_RTT;
         }
 
-        log.info("Received unknown selection strategy {}", SafeArg.of("strategy", value));
+        log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));
         return UNKNOWN;
     }
 

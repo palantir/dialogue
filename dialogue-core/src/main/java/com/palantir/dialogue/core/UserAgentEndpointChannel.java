@@ -31,7 +31,7 @@ import com.palantir.dialogue.Response;
  * {@link Endpoint}'s target service and endpoint.
  */
 final class UserAgentEndpointChannel implements EndpointChannel {
-    private static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
+    static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
     private final EndpointChannel delegate;
     private final String userAgent;
@@ -62,8 +62,13 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent.Agent extractDialogueAgent() {
+        String version = dialogueVersion();
+        return UserAgent.Agent.of("dialogue", version);
+    }
+
+    static String dialogueVersion() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        return UserAgent.Agent.of("dialogue", maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0");
+        return maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0";
     }
 
     @Override
