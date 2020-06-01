@@ -121,13 +121,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (SortableChannel channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                log.info("Sending request to {}", channel.delegate.delegate);
                 if (rttSampler != null) {
                     rttSampler.maybeSampleRtts();
                 }
                 return maybe;
             }
-            log.info("Limited refused, on to the next one");
         }
 
         return Optional.empty();
@@ -148,7 +146,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             snapshotArray[i] = channel.computeScore(rttSpectrum);
         }
 
-        log.info("Scores on the doors {}", Arrays.asList(snapshotArray));
         return snapshotArray;
     }
 
