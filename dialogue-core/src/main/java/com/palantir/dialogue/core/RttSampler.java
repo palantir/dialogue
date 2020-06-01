@@ -134,9 +134,10 @@ final class RttSampler {
                             .maybeExecute(RttEndpoint.INSTANCE, rttRequest)
                             .map(future -> Futures.transform(
                                     future,
-                                    _response -> {
+                                    response -> {
                                         long durationNanos = clock.read() - before;
                                         rtts[i].addMeasurement(durationNanos);
+                                        response.close();
                                         return durationNanos;
                                     },
                                     MoreExecutors.directExecutor()))
