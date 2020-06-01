@@ -24,10 +24,10 @@
         <Root level="warn">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel" level="info">
+        <Logger name="com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel" level="warn">
             <AppenderRef ref="Console"/>
         </Logger>
-        <Logger name="com.palantir.dialogue.core.RttSampler" level="debug">
+        <Logger name="com.palantir.dialogue.core.RttSampler" level="warn">
             <AppenderRef ref="Console"/>
         </Logger>
     </Loggers>

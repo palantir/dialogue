@@ -8,8 +8,8 @@
                        black_hole[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=91.5%	client_mean=PT0.6S         	server_cpu=PT18M17.4S     	client_received=1829/2000	server_resps=1829	codes={200=1829}
                                  black_hole[UNLIMITED_ROUND_ROBIN].txt:	success=91.4%	client_mean=PT0.6S         	server_cpu=PT18M16.8S     	client_received=1828/2000	server_resps=1828	codes={200=1828}
                      cross_az[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.035846666S 	server_cpu=PT17M55.4S     	client_received=30000/30000	server_resps=30000	codes={200=30000}
-                         cross_az[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.034969333S 	server_cpu=PT17M33.577S   	client_received=30000/30000	server_resps=32998	codes={200=30000}
-                                   cross_az[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.0346S      	server_cpu=PT1.736S       	client_received=50/50	server_resps=54	codes={200=50}
+                         cross_az[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.030003666S 	server_cpu=PT15M4.607S    	client_received=30000/30000	server_resps=32998	codes={200=30000}
+                                   cross_az[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.030003666S 	server_cpu=PT15M4.607S    	client_received=30000/30000	server_resps=32998	codes={200=30000}
              drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.947028083S 	server_cpu=PT41M8.862333314S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                  drastic_slowdown[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.251969999S 	server_cpu=PT16M47.879999984S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                            drastic_slowdown[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.251969999S 	server_cpu=PT16M47.879999984S	client_received=4000/4000	server_resps=4000	codes={200=4000}

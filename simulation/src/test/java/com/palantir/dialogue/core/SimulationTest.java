@@ -534,8 +534,7 @@ final class SimulationTest {
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(20)
-                .numRequests(50)
-                // .sendUntil(Duration.ofMinutes(25))
+                .sendUntil(Duration.ofMinutes(25))
                 .client(strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();

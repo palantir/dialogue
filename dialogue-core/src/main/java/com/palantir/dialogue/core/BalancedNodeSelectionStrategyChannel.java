@@ -92,6 +92,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         this.rttSampler = samplingEnabled == RttSampling.DEFAULT_OFF ? null : new RttSampler(channels, clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
+                        index,
                         channels.get(index),
                         clock,
                         PerHostObservability.create(channels, taggedMetrics, channelName, index)))
@@ -133,15 +134,17 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private static SortableChannel[] computeScores(
-            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> chans) {
+            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> shuffledChannels) {
         // if the feature is disabled (i.e. RttSampling.DEFAULT_OFF), then we just consider every host to have a
         // rttSpectrum of '0'
-        float[] rttSpectrums = rttSampler != null ? rttSampler.computeRttSpectrums() : new float[chans.size()];
+        float[] rttSpectrums =
+                rttSampler != null ? rttSampler.computeRttSpectrums() : new float[shuffledChannels.size()];
 
-        SortableChannel[] snapshotArray = new SortableChannel[chans.size()];
-        for (int i = 0; i < chans.size(); i++) {
-            MutableChannelWithStats channel = chans.get(i);
-            float rttSpectrum = rttSpectrums[i];
+        SortableChannel[] snapshotArray = new SortableChannel[shuffledChannels.size()];
+        for (int i = 0; i < shuffledChannels.size(); i++) {
+            MutableChannelWithStats channel = shuffledChannels.get(i);
+            // beware rttSpectrums have the original order, but shuffledChannels are shuffled, so 'i' won't line up
+            float rttSpectrum = rttSpectrums[channel.hostIndex];
             snapshotArray[i] = channel.computeScore(rttSpectrum);
         }
 
@@ -167,6 +170,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private static final class MutableChannelWithStats implements LimitedChannel {
+        private final int hostIndex;
         private final LimitedChannel delegate;
         private final FutureCallback<Response> updateStats;
         private final PerHostObservability observability;
@@ -180,7 +184,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableChannelWithStats(LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
+        MutableChannelWithStats(
+                int hostIndex, LimitedChannel delegate, Ticker clock, PerHostObservability observability) {
+            this.hostIndex = hostIndex;
             this.delegate = delegate;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
@@ -235,7 +241,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     + Ints.saturatedCast(Math.round(failureReservoir))
                     + Ints.saturatedCast(Math.round(rttSpectrum * RTT_WEIGHT));
 
-            observability.debugLogComputedScore(requestsInflight, failureReservoir, rttSpectrum, score);
+            observability.traceLogComputedScore(requestsInflight, failureReservoir, rttSpectrum, score);
             return new SortableChannel(score, this);
         }
 
@@ -339,9 +345,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
         }
 
-        void debugLogComputedScore(int inflight, double failures, float rttSpectrum, int score) {
-            if (log.isDebugEnabled()) {
-                log.debug(
+        void traceLogComputedScore(int inflight, double failures, float rttSpectrum, int score) {
+            if (log.isTraceEnabled()) {
+                log.trace(
                         "Computed score ({} {}) {}",
                         channelName,
                         hostIndex,
