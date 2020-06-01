@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -75,13 +74,12 @@ public enum Strategy {
             Supplier<Map<String, SimulationServer>> channelSupplier,
             UnaryOperator<ClientConfiguration.Builder> applyConfig) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                () -> channelSupplier.get().keySet(), _uris -> {
+                () -> channelSupplier.get().keySet(), uris -> {
                     return DialogueChannel.builder()
                             .channelName(SimulationUtils.CHANNEL_NAME)
                             .clientConfiguration(applyConfig
                                     .apply(ClientConfiguration.builder()
-                                            .uris(ImmutableList.copyOf(
-                                                    channelSupplier.get().keySet()))
+                                            .uris(uris)
                                             .from(STUB_CONFIG)
                                             .taggedMetricRegistry(sim.taggedMetrics()))
                                     .build())

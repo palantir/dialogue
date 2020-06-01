@@ -24,7 +24,7 @@
         <Root level="warn">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel" level="debug">
+        <Logger name="com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel" level="info">
             <AppenderRef ref="Console"/>
         </Logger>
         <Logger name="com.palantir.dialogue.core.RttSampler" level="debug">
