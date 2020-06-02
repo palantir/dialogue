@@ -33,7 +33,7 @@ org.awaitility:awaitility = 4.0.3
 org.jmock:jmock = 2.12.0
 org.knowm.xchart:xchart = 3.6.1
 com.palantir.conjure.verification:* = 0.18.5
-io.undertow:undertow-core = 2.1.1.Final
+io.undertow:undertow-core = 2.1.2.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
 org.openjdk.jmh:* = 1.23
 
