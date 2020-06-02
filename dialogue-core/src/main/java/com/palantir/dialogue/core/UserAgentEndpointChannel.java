@@ -56,8 +56,19 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
+        String endpointVersion = endpoint.version();
+
+        // Until conjure-java 5.14.2, we mistakenly embedded 0.0.0 in everything. This fallback logic attempts
+        // to work-around this and produce a more helpful user agent
+        if (endpointVersion.equals("0.0.0")) {
+            String jarVersion = endpoint.getClass().getPackage().getImplementationVersion();
+            if (jarVersion != null) {
+                endpointVersion = jarVersion;
+            }
+        }
+
         return baseAgent
-                .addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpoint.version()))
+                .addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion))
                 .addAgent(DIALOGUE_AGENT);
     }
 
