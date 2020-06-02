@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: Embedded user-agents will no longer include 0.0.0 if a version can
+    be found in the relevant dialogue jar
+  links:
+  - https://github.com/palantir/dialogue/pull/809
