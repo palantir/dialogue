@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Improve deprecation slf4j logging
+  links:
+  - https://github.com/palantir/dialogue/pull/812
