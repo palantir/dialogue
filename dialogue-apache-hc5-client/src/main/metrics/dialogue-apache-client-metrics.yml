@@ -1,5 +1,5 @@
 options:
-  javaPackage: com.palantir.dialogue.hc4
+  javaPackage: com.palantir.dialogue.hc5
   javaVisibility: packagePrivate
 namespaces:
 

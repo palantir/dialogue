@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.lenient;

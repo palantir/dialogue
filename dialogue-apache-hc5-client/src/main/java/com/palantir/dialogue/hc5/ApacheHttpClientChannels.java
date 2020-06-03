@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableSet;
@@ -42,12 +42,10 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
@@ -55,35 +53,34 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
+import org.apache.hc.client5.http.AuthenticationStrategy;
+import org.apache.hc.client5.http.auth.AuthChallenge;
+import org.apache.hc.client5.http.auth.AuthScheme;
+import org.apache.hc.client5.http.auth.AuthSchemeFactory;
+import org.apache.hc.client5.http.auth.AuthScope;
+import org.apache.hc.client5.http.auth.ChallengeType;
+import org.apache.hc.client5.http.auth.Credentials;
+import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
+import org.apache.hc.client5.http.impl.IdleConnectionEvictor;
+import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.http.Header;
-import org.apache.http.HttpHost;
-import org.apache.http.HttpResponse;
-import org.apache.http.auth.AuthOption;
-import org.apache.http.auth.AuthScheme;
-import org.apache.http.auth.AuthSchemeProvider;
-import org.apache.http.auth.AuthScope;
-import org.apache.http.auth.Credentials;
-import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.AuthenticationStrategy;
-import org.apache.http.client.CredentialsProvider;
-import org.apache.http.client.config.AuthSchemes;
-import org.apache.http.client.config.RequestConfig;
-import org.apache.http.config.RegistryBuilder;
-import org.apache.http.config.SocketConfig;
-import org.apache.http.conn.socket.ConnectionSocketFactory;
-import org.apache.http.conn.socket.PlainConnectionSocketFactory;
-import org.apache.http.conn.ssl.DefaultHostnameVerifier;
-import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
-import org.apache.http.impl.auth.BasicSchemeFactory;
-import org.apache.http.impl.client.HttpClientBuilder;
-import org.apache.http.impl.client.HttpClients;
-import org.apache.http.impl.client.IdleConnectionEvictor;
-import org.apache.http.impl.client.ProxyAuthenticationStrategy;
-import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
-import org.apache.http.impl.conn.SystemDefaultRoutePlanner;
-import org.apache.http.pool.PoolStats;
-import org.apache.http.protocol.HttpContext;
+import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
+import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
+import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.config.RegistryBuilder;
+import org.apache.hc.core5.http.io.SocketConfig;
+import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.pool.PoolStats;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -185,14 +182,14 @@ public final class ApacheHttpClientChannels {
             closer.register(() -> {
                 connectionEvictor.shutdown();
                 try {
-                    connectionEvictor.awaitTermination(1L, TimeUnit.SECONDS);
+                    connectionEvictor.awaitTermination(Timeout.of(1L, TimeUnit.SECONDS));
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                 }
             });
             connectionEvictor.start();
             closer.register(apacheClient);
-            closer.register(pool::shutdown);
+            closer.register(pool::close);
             closer.register(DialogueClientMetrics.of(taggedMetrics)
                     .close()
                     .clientName(clientName)
@@ -253,7 +250,7 @@ public final class ApacheHttpClientChannels {
             // We intentionally don't close the inner apacheClient here as there might be queued requests which still
             // need to execute on this channel. We rely on finalize() to clean up resources (e.g.
             // IdleConnectionEvictor threads) when this CloseableClient is GC'd.
-            pool.closeIdleConnections(0, TimeUnit.NANOSECONDS);
+            pool.closeIdle(TimeValue.of(0, TimeUnit.NANOSECONDS));
         }
 
         /**
@@ -363,7 +360,8 @@ public final class ApacheHttpClientChannels {
                         SafeArg.of("readTimeout", conf.readTimeout()),
                         SafeArg.of("writeTimeout", conf.writeTimeout()));
             }
-            int connectTimeout = Ints.checkedCast(conf.connectTimeout().toMillis());
+            Timeout connectTimeout =
+                    Timeout.of(Ints.checkedCast(conf.connectTimeout().toMillis()), TimeUnit.MILLISECONDS);
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
             // as clients attempt to use them.
@@ -372,10 +370,13 @@ public final class ApacheHttpClientChannels {
             // retries
             // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
             // are possible when the target closes connections prior to this timeout, and can be safely retried.
-            int connectionPoolInactivityCheckMillis = (int) (idleConnectionTimeoutMillis / 2.5);
+            TimeValue connectionPoolInactivityCheckMillis =
+                    TimeValue.of((int) (idleConnectionTimeoutMillis / 2.5), TimeUnit.MILLISECONDS);
 
-            SocketConfig socketConfig =
-                    SocketConfig.custom().setSoKeepAlive(true).build();
+            SocketConfig socketConfig = SocketConfig.custom()
+                    .setSoKeepAlive(true)
+                    .setSoTimeout(Timeout.of(socketTimeoutMillis, TimeUnit.MILLISECONDS))
+                    .build();
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
@@ -403,16 +404,12 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
+                            // .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
                             .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // Match okhttp, disallow redirects
                             .setRedirectsEnabled(false)
-                            .setRelativeRedirectsAllowed(false)
-                            // Don't attempt to replace duplicated slashes with a single slash, otherwise
-                            // empty path parameters cannot be matched by the server.
-                            .setNormalizeUri(false)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
@@ -430,14 +427,13 @@ public final class ApacheHttpClientChannels {
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(
-                            RegistryBuilder.<AuthSchemeProvider>create().build());
-            conf.proxyCredentials().ifPresent(credentials -> {
-                builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
-                        .setProxyAuthenticationStrategy(ProxyAuthenticationStrategy.INSTANCE)
-                        .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeProvider>create()
-                                .register(AuthSchemes.BASIC, new BasicSchemeFactory())
-                                .build());
-            });
+                            RegistryBuilder.<AuthSchemeFactory>create().build());
+            conf.proxyCredentials().ifPresent(credentials -> builder.setDefaultCredentialsProvider(
+                            new SingleCredentialsProvider(credentials))
+                    .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                    .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
+                            .register("BasicAuth", BasicSchemeFactory.INSTANCE)
+                            .build()));
 
             CloseableHttpClient apacheClient = builder.build();
             IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
@@ -445,10 +441,8 @@ public final class ApacheHttpClientChannels {
                     idleConnectionEvictorThreadFactory(name, conf.taggedMetricRegistry()),
                     // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
                     // stale connections to race the server-side timeout.
-                    Math.min(idleConnectionTimeoutMillis, 5_000),
-                    TimeUnit.MILLISECONDS,
-                    idleConnectionTimeoutMillis,
-                    TimeUnit.MILLISECONDS);
+                    TimeValue.of(Math.min(idleConnectionTimeoutMillis, 5_000), TimeUnit.MILLISECONDS),
+                    TimeValue.of(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictor, conf, executor);
         }
     }
@@ -515,60 +509,32 @@ public final class ApacheHttpClientChannels {
         INSTANCE;
 
         @Override
-        public void setCredentials(AuthScope _authscope, Credentials _credentials) {}
-
-        @Override
-        @Nullable
-        public Credentials getCredentials(AuthScope _authscope) {
+        public Credentials getCredentials(AuthScope _authScope, HttpContext _context) {
             return null;
         }
-
-        @Override
-        public void clear() {}
     }
 
     private static final class SingleCredentialsProvider implements CredentialsProvider {
         private final Credentials credentials;
 
         SingleCredentialsProvider(BasicCredentials basicCredentials) {
-            credentials = new UsernamePasswordCredentials(basicCredentials.username(), basicCredentials.password());
+            credentials = new UsernamePasswordCredentials(
+                    basicCredentials.username(), basicCredentials.password().toCharArray());
         }
 
         @Override
-        public void setCredentials(AuthScope _authscope, Credentials _credentials) {}
-
-        @Override
-        public Credentials getCredentials(AuthScope _authscope) {
+        public Credentials getCredentials(AuthScope _authScope, HttpContext _context) {
             return credentials;
         }
-
-        @Override
-        public void clear() {}
     }
 
     private enum NullAuthenticationStrategy implements AuthenticationStrategy {
         INSTANCE;
 
         @Override
-        public boolean isAuthenticationRequested(HttpHost _authhost, HttpResponse _response, HttpContext _context) {
-            return false;
+        public List<AuthScheme> select(
+                ChallengeType challengeType, Map<String, AuthChallenge> challenges, HttpContext context) {
+            return Collections.emptyList();
         }
-
-        @Override
-        public Map<String, Header> getChallenges(HttpHost _authhost, HttpResponse _response, HttpContext _context) {
-            return Collections.emptyMap();
-        }
-
-        @Override
-        public Queue<AuthOption> select(
-                Map<String, Header> _challenges, HttpHost _authhost, HttpResponse _response, HttpContext _context) {
-            return new ArrayDeque<>(1);
-        }
-
-        @Override
-        public void authSucceeded(HttpHost _authhost, AuthScheme _authScheme, HttpContext _context) {}
-
-        @Override
-        public void authFailed(HttpHost _authhost, AuthScheme _authScheme, HttpContext _context) {}
     }
 }

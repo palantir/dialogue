@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.hc5;
 
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractProxyConfigTest;

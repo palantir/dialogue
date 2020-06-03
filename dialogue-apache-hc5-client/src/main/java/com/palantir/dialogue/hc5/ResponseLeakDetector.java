@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.hc5;
 
 import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.Endpoint;

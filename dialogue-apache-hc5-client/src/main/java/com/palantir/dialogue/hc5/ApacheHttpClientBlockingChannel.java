@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.palantir.dialogue.hc4;
+package com.palantir.dialogue.hc5;
 
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
@@ -213,7 +214,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public Set<String> getTrailerNames() {
-            return null;
+            return Collections.emptySet();
         }
 
         @Override
