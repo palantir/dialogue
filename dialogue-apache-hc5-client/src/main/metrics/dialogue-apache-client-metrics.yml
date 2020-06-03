@@ -1,0 +1,30 @@
+options:
+  javaPackage: com.palantir.dialogue.hc4
+  javaVisibility: packagePrivate
+namespaces:
+
+  dialogue.client.pool:
+    docs: Connection pool metrics from the dialogue Apache client.
+    metrics:
+      size:
+        type: gauge
+        tags: [client-name, state]
+        docs: Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+
+  dialogue.client:
+    docs: Dialogue client response metrics provided by the Apache client channel.
+    metrics:
+      response.leak:
+        type: meter
+        tags: [client-name, service-name, endpoint]
+        docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+
+      create:
+        type: meter
+        tags: [client-name, client-type]
+        docs: Marked every time a new client is created.
+
+      close:
+        type: meter
+        tags: [client-name, client-type]
+        docs: Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
