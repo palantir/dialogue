@@ -85,7 +85,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
             }
 
             meter.mark();
-            if (tryAcquire(channelName, endpoint)) {
+            if (log.isWarnEnabled() && tryAcquire(channelName, endpoint)) {
                 log.warn(
                         "Using a deprecated endpoint when connecting to service",
                         SafeArg.of("channelName", channelName),
@@ -93,7 +93,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
                         SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
                         SafeArg.of("endpointName", endpoint.endpointName()),
                         SafeArg.of("endpointClientVersion", endpoint.version()),
-                        SafeArg.of("service", response.getFirstHeader("server").orElse("no server header provided")));
+                        SafeArg.of("server", response.getFirstHeader("server").orElse("no server header provided")));
             }
         });
     }
