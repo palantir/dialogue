@@ -61,6 +61,7 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.ChallengeType;
 import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.auth.StandardAuthScheme;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
@@ -404,7 +405,6 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            // .setSocketTimeout(Ints.checkedCast(socketTimeoutMillis))
                             .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
@@ -432,7 +432,7 @@ public final class ApacheHttpClientChannels {
                             new SingleCredentialsProvider(credentials))
                     .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
-                            .register("BasicAuth", BasicSchemeFactory.INSTANCE)
+                            .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
                             .build()));
 
             CloseableHttpClient apacheClient = builder.build();
