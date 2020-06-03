@@ -16,7 +16,7 @@ dependencies {
     implementation 'com.palantir.conjure.java.api:service-config'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'io.dropwizard.metrics:metrics-core'
-    implementation 'org.apache.httpcomponents:httpcore'
+    implementation 'org.apache.httpcomponents.core5:httpcore5'
     implementation 'org.slf4j:slf4j-api'
 
     compileOnly 'org.immutables:value::annotations'
