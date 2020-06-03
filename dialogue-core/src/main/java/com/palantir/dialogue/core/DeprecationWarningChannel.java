@@ -29,6 +29,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
+import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,23 +43,25 @@ import org.slf4j.LoggerFactory;
  */
 final class DeprecationWarningChannel implements EndpointChannel {
     private static final Logger log = LoggerFactory.getLogger(DeprecationWarningChannel.class);
+    // Static cache avoids poor interactions with the jaxrs shim and consumers which recreate clients too aggressively.
+    private static final Cache<LoggingRateLimiterKey, Object> loggingRateLimiter =
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
     private static final Object SENTINEL = new Object();
 
     private final EndpointChannel delegate;
     private final ClientMetrics metrics;
-    private final Cache<String, Object> loggingRateLimiter =
-            Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(1)).build();
     private final FutureCallback<Response> callback;
 
-    private DeprecationWarningChannel(EndpointChannel delegate, TaggedMetricRegistry metrics, Endpoint endpoint) {
+    private DeprecationWarningChannel(
+            EndpointChannel delegate, TaggedMetricRegistry metrics, Endpoint endpoint, String channelName) {
         this.delegate = delegate;
         this.metrics = ClientMetrics.of(metrics);
-        this.callback = createCallback(endpoint);
+        this.callback = createCallback(channelName, endpoint);
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
         TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-        return new DeprecationWarningChannel(delegate, metrics, endpoint);
+        return new DeprecationWarningChannel(delegate, metrics, endpoint, cf.channelName());
     }
 
     @Override
@@ -68,7 +71,7 @@ final class DeprecationWarningChannel implements EndpointChannel {
         return future;
     }
 
-    private FutureCallback<Response> createCallback(Endpoint endpoint) {
+    private FutureCallback<Response> createCallback(String channelName, Endpoint endpoint) {
         Meter meter = metrics.deprecations(endpoint.serviceName());
 
         return DialogueFutures.onSuccess(response -> {
@@ -82,9 +85,10 @@ final class DeprecationWarningChannel implements EndpointChannel {
             }
 
             meter.mark();
-            if (tryAcquire(endpoint.serviceName())) {
+            if (tryAcquire(channelName, endpoint)) {
                 log.warn(
                         "Using a deprecated endpoint when connecting to service",
+                        SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpointHttpMethod", endpoint.httpMethod()),
                         SafeArg.of("endpointName", endpoint.endpointName()),
@@ -101,9 +105,11 @@ final class DeprecationWarningChannel implements EndpointChannel {
      * penalty for failing to rate limit correctly is a few extra log lines, and we choose that penalty over the cost
      * of synchronization.
      */
-    private boolean tryAcquire(String serviceName) {
-        if (loggingRateLimiter.getIfPresent(serviceName) == null) {
-            loggingRateLimiter.put(serviceName, SENTINEL);
+    private boolean tryAcquire(String channelName, Endpoint endpoint) {
+        LoggingRateLimiterKey key =
+                LoggingRateLimiterKey.of(channelName, endpoint.serviceName(), endpoint.endpointName());
+        if (loggingRateLimiter.getIfPresent(key) == null) {
+            loggingRateLimiter.put(key, SENTINEL);
             return true;
         }
         return false;
@@ -112,5 +118,21 @@ final class DeprecationWarningChannel implements EndpointChannel {
     @Override
     public String toString() {
         return "DeprecationWarningChannel{" + delegate + '}';
+    }
+
+    @Value.Immutable
+    interface LoggingRateLimiterKey {
+        @Value.Parameter
+        String channelName();
+
+        @Value.Parameter
+        String serviceName();
+
+        @Value.Parameter
+        String endpointName();
+
+        static LoggingRateLimiterKey of(String channel, String service, String endpoint) {
+            return ImmutableLoggingRateLimiterKey.of(channel, service, endpoint);
+        }
     }
 }
