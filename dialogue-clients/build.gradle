@@ -25,6 +25,7 @@ dependencies {
     compileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'

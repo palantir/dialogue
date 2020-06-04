@@ -194,8 +194,8 @@ enum DefaultClients implements Clients {
         private final Channel channel;
 
         EndpointChannelAdapter(Endpoint endpoint, Channel channel) {
-            this.endpoint = endpoint;
-            this.channel = channel;
+            this.endpoint = Preconditions.checkNotNull(endpoint, "Endpoint must not be null");
+            this.channel = Preconditions.checkNotNull(channel, "Channel must not be null");
         }
 
         @Override
