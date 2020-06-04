@@ -37,7 +37,7 @@ enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,
     @Beta
-    BALANCED_RTT,
+    BALANCED_RTT2,
     UNKNOWN;
 
     private static final Logger log = LoggerFactory.getLogger(DialogueNodeSelectionStrategy.class);
@@ -62,8 +62,8 @@ enum DialogueNodeSelectionStrategy {
                 return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
             case "BALANCED":
                 return BALANCED;
-            case "BALANCED_RTT":
-                return BALANCED_RTT;
+            case "BALANCED_RTT2":
+                return BALANCED_RTT2;
         }
 
         log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));

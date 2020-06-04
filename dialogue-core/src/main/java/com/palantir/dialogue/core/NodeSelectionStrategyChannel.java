@@ -144,7 +144,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                         .channel(new BalancedNodeSelectionStrategyChannel(
                                 channels, random, tick, metrics, channelName, RttSampling.DEFAULT_OFF))
                         .build();
-            case BALANCED_RTT:
+            case BALANCED_RTT2:
                 return channelBuilder
                         .channel(new BalancedNodeSelectionStrategyChannel(
                                 channels, random, tick, metrics, channelName, RttSampling.ENABLED))
