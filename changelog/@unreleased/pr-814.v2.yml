@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: BALANCED_RTT uses soft validation on rttSpectrum values
+  links:
+  - https://github.com/palantir/dialogue/pull/814
