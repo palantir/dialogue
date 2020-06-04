@@ -106,7 +106,7 @@ final class RttSampler {
             if (rttSpectrum < 0f || rttSpectrum > 1f) {
                 log.warn(
                         "rttSpectrum should be between 0 and 1",
-                        SafeArg.of("value", rttSpectrum),
+                        SafeArg.of("value", Float.toString(rttSpectrum)),
                         SafeArg.of("hostIndex", i));
                 rttSpectrum = Math.min(1f, Math.max(0f, rttSpectrum));
             }
