@@ -50,7 +50,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
@@ -176,7 +175,7 @@ public final class ApacheHttpClientChannels {
             closer.register(() -> {
                 connectionEvictor.shutdown();
                 try {
-                    connectionEvictor.awaitTermination(Timeout.of(1L, TimeUnit.SECONDS));
+                    connectionEvictor.awaitTermination(Timeout.ofSeconds(1L));
                 } catch (InterruptedException interrupted) {
                     Thread.currentThread().interrupt();
                 }
@@ -244,7 +243,7 @@ public final class ApacheHttpClientChannels {
             // We intentionally don't close the inner apacheClient here as there might be queued requests which still
             // need to execute on this channel. We rely on finalize() to clean up resources (e.g.
             // IdleConnectionEvictor threads) when this CloseableClient is GC'd.
-            pool.closeIdle(TimeValue.of(0, TimeUnit.NANOSECONDS));
+            pool.closeIdle(TimeValue.ZERO_MILLISECONDS);
         }
 
         /**
@@ -354,8 +353,8 @@ public final class ApacheHttpClientChannels {
                         SafeArg.of("readTimeout", conf.readTimeout()),
                         SafeArg.of("writeTimeout", conf.writeTimeout()));
             }
-            Timeout connectTimeout =
-                    Timeout.of(Ints.checkedCast(conf.connectTimeout().toMillis()), TimeUnit.MILLISECONDS);
+            Timeout connectTimeout = Timeout.ofMilliseconds(
+                    Ints.checkedCast(conf.connectTimeout().toMillis()));
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
             // as clients attempt to use them.
@@ -365,7 +364,7 @@ public final class ApacheHttpClientChannels {
             // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
             // are possible when the target closes connections prior to this timeout, and can be safely retried.
             TimeValue connectionPoolInactivityCheck =
-                    TimeValue.of((int) (idleConnectionTimeoutMillis / 2.5), TimeUnit.MILLISECONDS);
+                    TimeValue.ofMilliseconds((int) (idleConnectionTimeoutMillis / 2.5));
 
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
@@ -387,7 +386,7 @@ public final class ApacheHttpClientChannels {
                     .setConnectionTimeToLive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
-                            .setSoTimeout(Timeout.of(socketTimeoutMillis, TimeUnit.MILLISECONDS))
+                            .setSoTimeout(Timeout.ofMilliseconds(socketTimeoutMillis))
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
@@ -405,7 +404,7 @@ public final class ApacheHttpClientChannels {
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setDefaultKeepAlive(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
+                            .setConnectionKeepAlive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
@@ -437,8 +436,8 @@ public final class ApacheHttpClientChannels {
                     idleConnectionEvictorThreadFactory(name, conf.taggedMetricRegistry()),
                     // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
                     // stale connections to race the server-side timeout.
-                    TimeValue.of(Math.min(idleConnectionTimeoutMillis, 5_000), TimeUnit.MILLISECONDS),
-                    TimeValue.of(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS));
+                    TimeValue.ofMilliseconds(Math.min(idleConnectionTimeoutMillis, 5_000)),
+                    TimeValue.ofMilliseconds(idleConnectionTimeoutMillis));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictor, conf, executor);
         }
     }
