@@ -8,7 +8,7 @@ dependencies {
     api project(':dialogue-target') // users might want to provide a ConjureRuntime
     api 'com.palantir.conjure.java.runtime:client-config' // NodeSelectionStrategy etc
 
-    implementation project(':dialogue-apache-hc4-client')
+    implementation project(':dialogue-apache-hc5-client')
     implementation project(':dialogue-core')
     implementation project(':dialogue-serde')
     implementation 'com.github.ben-manes.caffeine:caffeine'

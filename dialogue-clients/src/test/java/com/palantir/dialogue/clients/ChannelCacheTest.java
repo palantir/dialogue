@@ -23,7 +23,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.example.SampleServiceBlocking;
-import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
+import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
