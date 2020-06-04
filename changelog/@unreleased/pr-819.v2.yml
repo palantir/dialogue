@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: The `BALANCED_RTT2` node-selection-strategy header can be used to enable
+    the experimental dialogue feature that prioritises routing traffic towards the
+    lowest latency node.
+  links:
+  - https://github.com/palantir/dialogue/pull/819
