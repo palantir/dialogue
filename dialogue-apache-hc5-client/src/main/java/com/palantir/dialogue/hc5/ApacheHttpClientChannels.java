@@ -72,9 +72,8 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
-import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -365,13 +364,9 @@ public final class ApacheHttpClientChannels {
             // retries
             // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
             // are possible when the target closes connections prior to this timeout, and can be safely retried.
-            TimeValue connectionPoolInactivityCheckMillis =
+            TimeValue connectionPoolInactivityCheck =
                     TimeValue.of((int) (idleConnectionTimeoutMillis / 2.5), TimeUnit.MILLISECONDS);
 
-            SocketConfig socketConfig = SocketConfig.custom()
-                    .setSoKeepAlive(true)
-                    .setSoTimeout(Timeout.of(socketTimeoutMillis, TimeUnit.MILLISECONDS))
-                    .build();
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
@@ -384,21 +379,22 @@ public final class ApacheHttpClientChannels {
                             name),
                     new DefaultHostnameVerifier());
 
-            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
-                    RegistryBuilder.<ConnectionSocketFactory>create()
-                            .register("http", PlainConnectionSocketFactory.getSocketFactory())
-                            .register("https", sslSocketFactory)
-                            .build(),
-                    PoolConcurrencyPolicy.LAX,
-                    PoolReusePolicy.LIFO,
-                    TimeValue.ofMilliseconds(idleConnectionTimeoutMillis));
+            PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
+                    .setSSLSocketFactory(sslSocketFactory)
+                    .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
+                    // Allow unnecessary connections to time out reducing system load.
+                    .setConnPoolPolicy(PoolReusePolicy.LIFO)
+                    .setConnectionTimeToLive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
+                    .setDefaultSocketConfig(SocketConfig.custom()
+                            .setSoKeepAlive(true)
+                            .setSoTimeout(Timeout.of(socketTimeoutMillis, TimeUnit.MILLISECONDS))
+                            .build())
+                    .setMaxConnPerRoute(Integer.MAX_VALUE)
+                    .setMaxConnTotal(Integer.MAX_VALUE)
+                    .setValidateAfterInactivity(connectionPoolInactivityCheck)
+                    .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
-
-            connectionManager.setDefaultSocketConfig(socketConfig);
-            connectionManager.setMaxTotal(Integer.MAX_VALUE);
-            connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
-            connectionManager.setValidateAfterInactivity(connectionPoolInactivityCheckMillis);
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
