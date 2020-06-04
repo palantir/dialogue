@@ -228,6 +228,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        @Nullable
         public String getContentEncoding() {
             return null;
         }
@@ -249,6 +250,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        @Nullable
         public Supplier<List<? extends Header>> getTrailers() {
             return null;
         }
@@ -259,6 +261,6 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
-        public void close() throws IOException {}
+        public void close() {}
     }
 }

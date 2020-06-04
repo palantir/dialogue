@@ -16,6 +16,7 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
@@ -79,6 +80,8 @@ import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
+import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
+import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.pool.PoolStats;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
@@ -90,7 +93,8 @@ public final class ApacheHttpClientChannels {
 
     private ApacheHttpClientChannels() {}
 
-    public static Channel create(ClientConfiguration conf) {
+    @VisibleForTesting
+    static Channel create(ClientConfiguration conf) {
         String channelName = "apache-channel";
         CloseableClient client = createCloseableHttpClient(conf, channelName);
         return DialogueChannel.builder()
@@ -105,16 +109,6 @@ public final class ApacheHttpClientChannels {
         return client.executor == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor);
-    }
-
-    /**
-     * Prefer {@link #clientBuilder()}.
-     *
-     * @deprecated Use the builder
-     */
-    @Deprecated
-    public static CloseableClient createCloseableHttpClient(ClientConfiguration conf) {
-        return createCloseableHttpClient(conf, "apache-channel");
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
@@ -390,11 +384,14 @@ public final class ApacheHttpClientChannels {
                             name),
                     new DefaultHostnameVerifier());
 
-            PoolingHttpClientConnectionManager connectionManager =
-                    new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
+            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
+                    RegistryBuilder.<ConnectionSocketFactory>create()
                             .register("http", PlainConnectionSocketFactory.getSocketFactory())
                             .register("https", sslSocketFactory)
-                            .build());
+                            .build(),
+                    PoolConcurrencyPolicy.LAX,
+                    PoolReusePolicy.LIFO,
+                    TimeValue.ofMilliseconds(idleConnectionTimeoutMillis));
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
@@ -410,6 +407,9 @@ public final class ApacheHttpClientChannels {
                             .setConnectionRequestTimeout(connectTimeout)
                             // Match okhttp, disallow redirects
                             .setRedirectsEnabled(false)
+                            .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
+                            .setExpectContinueEnabled(false)
+                            .setDefaultKeepAlive(idleConnectionTimeoutMillis, TimeUnit.MILLISECONDS)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
@@ -509,6 +509,7 @@ public final class ApacheHttpClientChannels {
         INSTANCE;
 
         @Override
+        @Nullable
         public Credentials getCredentials(AuthScope _authScope, HttpContext _context) {
             return null;
         }
@@ -533,7 +534,7 @@ public final class ApacheHttpClientChannels {
 
         @Override
         public List<AuthScheme> select(
-                ChallengeType challengeType, Map<String, AuthChallenge> challenges, HttpContext context) {
+                ChallengeType _challengeType, Map<String, AuthChallenge> _challenges, HttpContext _context) {
             return Collections.emptyList();
         }
     }
