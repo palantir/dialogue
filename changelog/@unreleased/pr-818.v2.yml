@@ -1,0 +1,9 @@
+type: improvement
+improvement:
+  description: Clients constructed using DialogueClients and modern conjure-java (5.17.0+)
+    now spend slightly fewer CPU cycles on each RPC call, because they use the bind
+    method to do per-endpoint setup once at construction time instead of before every
+    rpc. Benchmarks show a 21k -> 27k request/sec improvement against a trivial ping
+    endpoint.
+  links:
+  - https://github.com/palantir/dialogue/pull/818
