@@ -94,7 +94,7 @@ public class QueuedChannelTest {
         futureResponse.setException(new IllegalArgumentException());
 
         assertThat(response.isDone()).isTrue();
-        assertThatThrownBy(() -> response.get())
+        assertThatThrownBy(response::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
     }

@@ -122,7 +122,7 @@ final class SimulationMetricsReporter {
         List<MetricName> columns = map.keySet().stream()
                 .filter(metric -> !metric.equals(X_AXIS))
                 .filter(metric -> metricNameRegex.asPredicate().test(asString(metric)))
-                .sorted(Comparator.comparing(metric -> asString(metric)))
+                .sorted(Comparator.comparing(SimulationMetricsReporter::asString))
                 .collect(Collectors.toList());
         String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
 
@@ -169,6 +169,7 @@ final class SimulationMetricsReporter {
         return reduceGranularity(maxSamples, halfGranularity);
     }
 
+    @SuppressWarnings("JdkObsolete")
     private static String asString(MetricName metricName) {
         return metricName.safeTags().values().stream().map(v -> '[' + v + "] ").collect(Collectors.joining())
                 + metricName.safeName();

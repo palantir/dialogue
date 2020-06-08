@@ -27,7 +27,7 @@ dependencies {
 }
 
 tasks.withType(JavaCompile) {
-    options.errorprone.errorproneArgs += [ '-Xep:Slf4jLogsafeArgs:OFF', '-Xep:NullAway:OFF' ]
+    options.errorprone.disable 'Slf4jLogsafeArgs', 'NullAway'
 }
 
 tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care

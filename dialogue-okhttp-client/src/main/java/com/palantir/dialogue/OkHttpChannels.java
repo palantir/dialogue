@@ -103,9 +103,9 @@ public final class OkHttpChannels {
                 .followRedirects(false) // We implement our own redirect logic.
                 .sslSocketFactory(config.sslSocketFactory(), config.trustManager())
                 // timeouts
-                .connectTimeout(config.connectTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                .readTimeout(config.readTimeout().toMillis(), TimeUnit.MILLISECONDS)
-                .writeTimeout(config.writeTimeout().toMillis(), TimeUnit.MILLISECONDS)
+                .connectTimeout(config.connectTimeout())
+                .readTimeout(config.readTimeout())
+                .writeTimeout(config.writeTimeout())
                 // proxy
                 .proxySelector(config.proxy())
                 .retryOnConnectionFailure(false);

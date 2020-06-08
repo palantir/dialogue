@@ -112,6 +112,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
     }
 
+    @SuppressWarnings("JdkObsolete")
     private long poolGaugeValue(TaggedMetricRegistry metrics, String clientName, String state) {
         Metric gauge = metrics.getMetrics().entrySet().stream()
                 .filter(entry -> entry.getKey().safeName().equals("dialogue.client.pool.size"))

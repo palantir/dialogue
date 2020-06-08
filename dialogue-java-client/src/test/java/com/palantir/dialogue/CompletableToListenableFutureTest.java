@@ -75,13 +75,13 @@ public class CompletableToListenableFutureTest {
         originalFuture.complete("done");
         failedFuture.completeExceptionally(new IllegalArgumentException());
 
-        assertThatThrownBy(() -> failedFuture.get())
+        assertThatThrownBy(failedFuture::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> derivedFuture.get())
+        assertThatThrownBy(derivedFuture::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> wrappedDerivedFuture.get())
+        assertThatThrownBy(wrappedDerivedFuture::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
     }
