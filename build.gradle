@@ -78,9 +78,11 @@ subprojects {
         }
 
         tasks.withType(JavaCompile).configureEach {
-            options.errorprone.errorproneArgs += [
-                !name.toLowerCase().contains("test") ? '-XepOpt:NullAway:AnnotatedPackages=com.palantir' : '-Xep:NullAway:OFF'
-            ]
+            if (name.toLowerCase().contains("test")) {
+                options.errorprone.disable('NullAway')
+            } else {
+                options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir')
+            }
         }
     })
 
