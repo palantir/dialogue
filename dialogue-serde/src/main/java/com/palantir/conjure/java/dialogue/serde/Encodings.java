@@ -58,7 +58,7 @@ public final class Encodings {
                 try {
                     writer.writeValue(output, value);
                 } catch (IOException e) {
-                    throw new SafeRuntimeException("Failed to serialize payload, this is a bug", e);
+                    throw new SafeRuntimeException("Failed to serialize payload", e);
                 }
             };
         }

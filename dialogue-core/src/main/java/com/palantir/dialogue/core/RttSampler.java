@@ -102,12 +102,14 @@ final class RttSampler {
 
         for (int i = 0; i < channels.size(); i++) {
             OptionalLong rtt = snapshots[i];
-            float rttSpectrum = rtt.isPresent() ? ((float) rtt.getAsLong() - bestRttNanos) / rttRange : 0;
-            Preconditions.checkState(
-                    0 <= rttSpectrum && rttSpectrum <= 1,
-                    "rttSpectrum must be between 0 and 1",
-                    SafeArg.of("value", rttSpectrum),
-                    SafeArg.of("hostIndex", i));
+            float rttSpectrum = rtt.isPresent() ? ((float) (rtt.getAsLong() - bestRttNanos)) / rttRange : 0;
+            if (rttSpectrum < 0f || rttSpectrum > 1f) {
+                log.warn(
+                        "rttSpectrum should be between 0 and 1",
+                        SafeArg.of("value", Float.toString(rttSpectrum)),
+                        SafeArg.of("hostIndex", i));
+                rttSpectrum = Math.min(1f, Math.max(0f, rttSpectrum));
+            }
             spectrums[i] = rttSpectrum;
         }
 

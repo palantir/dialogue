@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -29,8 +30,11 @@ import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
@@ -114,7 +118,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
-        return new LiveReloadingChannel(mapped);
+        return new LiveReloadingChannel(mapped, params.runtime().clients());
     }
 
     @Override
@@ -207,22 +211,53 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
     }
 
-    private static final class LiveReloadingChannel implements Channel {
-        private final Supplier<Channel> supplier;
+    @VisibleForTesting
+    static final class LiveReloadingChannel implements Channel, EndpointChannelFactory {
+        private final Refreshable<Channel> refreshable;
+        private final Clients utils;
 
-        LiveReloadingChannel(Supplier<Channel> supplier) {
-            this.supplier = supplier;
+        LiveReloadingChannel(Refreshable<Channel> refreshable, Clients utils) {
+            this.refreshable = refreshable;
+            this.utils = utils;
         }
 
+        /**
+         * conjure-java generated code can use this to 'bind' to an endpoint upfront, and we live reload under the hood.
+         */
+        @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            Refreshable<EndpointChannel> endpointChannel = refreshable.map(channel -> utils.bind(channel, endpoint));
+            return new SupplierEndpointChannel(endpointChannel);
+        }
+
+        /** Older codepath, not quite as performant. */
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            Channel delegate = supplier.get();
+            Channel delegate = refreshable.get();
             return delegate.execute(endpoint, request);
         }
 
         @Override
         public String toString() {
-            return "LiveReloadingChannel{" + supplier.get() + '}';
+            return "LiveReloadingChannel{" + refreshable.get() + '}';
+        }
+    }
+
+    private static final class SupplierEndpointChannel implements EndpointChannel {
+        private final Supplier<EndpointChannel> supplier;
+
+        SupplierEndpointChannel(Supplier<EndpointChannel> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return supplier.get().execute(request);
+        }
+
+        @Override
+        public String toString() {
+            return "SupplierEndpointChannel{" + supplier.get() + '}';
         }
     }
 }

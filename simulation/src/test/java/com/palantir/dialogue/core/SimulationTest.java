@@ -550,7 +550,7 @@ final class SimulationTest {
     private static String serverSideNodeSelectionStrategy(Strategy strategy) {
         switch (strategy) {
             case CONCURRENCY_LIMITER_ROUND_ROBIN:
-                return "BALANCED_RTT";
+                return "BALANCED_RTT2";
             case CONCURRENCY_LIMITER_PIN_UNTIL_ERROR:
                 return "PIN_UNTIL_ERROR";
             case UNLIMITED_ROUND_ROBIN:

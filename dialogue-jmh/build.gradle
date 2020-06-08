@@ -50,6 +50,6 @@ task jmh(type: JavaExec) {
 }
 
 tasks.withType(JavaCompile) {
-    options.errorprone.errorproneArgs += [ '-Xep:HidingField:OFF',  '-Xep:Slf4jLogsafeArgs:OFF', '-Xep:NullAway:OFF' ]
+    options.errorprone.disable 'HidingField', 'Slf4jLogsafeArgs', 'NullAway'
 }
 tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care
