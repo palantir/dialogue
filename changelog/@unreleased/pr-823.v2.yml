@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix the Encodings.AbstractJacksonEncoding serializer error message
+  links:
+  - https://github.com/palantir/dialogue/pull/823
