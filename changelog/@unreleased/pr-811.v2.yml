@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Upgrade Apache HttpClient to major version 5
+  links:
+  - https://github.com/palantir/dialogue/pull/811
