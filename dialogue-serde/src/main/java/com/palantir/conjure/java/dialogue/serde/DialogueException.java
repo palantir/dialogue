@@ -44,12 +44,16 @@ final class DialogueException extends RuntimeException implements SafeLoggable {
             return MESSAGE;
         }
 
-        switch (cause.getMessage()) {
+        String causeMessage = cause.getMessage();
+        if (causeMessage == null) {
+            return MESSAGE;
+        }
+
+        switch (causeMessage) {
             case "Connection reset":
             case "Connection reset by peer":
             case "Broken pipe (Write failed)":
-            case "The target server failed to respond":
-                return cause.getMessage();
+                return causeMessage;
             default:
                 return MESSAGE;
         }
