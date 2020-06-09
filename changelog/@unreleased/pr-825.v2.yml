@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: DialogueException propagates certain known-safe exception messages
+  links:
+  - https://github.com/palantir/dialogue/pull/825
