@@ -418,6 +418,9 @@ public final class ApacheHttpClientChannels {
                     .disableCookieManagement()
                     // Dialogue handles content-compression with ContentDecodingChannel
                     .disableContentCompression()
+                    // Replace with addExecInterceptorFirst once HTTPCLIENT-2083 is resolved
+                    // .addExecInterceptorFirst("tracing", TracingExecChainHandler.INSTANCE)
+                    .addExecInterceptorBefore("PROTOCOL", "tracing", TracingExecChainHandler.INSTANCE)
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
