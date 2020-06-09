@@ -11,6 +11,7 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.palantir.tracing:tracing'
     implementation 'com.google.code.findbugs:jsr305'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.api:service-config'
