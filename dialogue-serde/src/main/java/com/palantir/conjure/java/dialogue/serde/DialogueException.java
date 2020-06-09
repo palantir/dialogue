@@ -26,7 +26,7 @@ final class DialogueException extends RuntimeException implements SafeLoggable {
     private static final String MESSAGE = "Dialogue transport failure";
 
     DialogueException(Throwable cause) {
-        super(MESSAGE, cause);
+        super(copyWhitelistedSafeMessages(cause), cause);
     }
 
     @Override
@@ -37,5 +37,25 @@ final class DialogueException extends RuntimeException implements SafeLoggable {
     @Override
     public List<Arg<?>> getArgs() {
         return ImmutableList.of();
+    }
+
+    private static String copyWhitelistedSafeMessages(Throwable cause) {
+        if (cause == null) {
+            return MESSAGE;
+        }
+
+        String causeMessage = cause.getMessage();
+        if (causeMessage == null) {
+            return MESSAGE;
+        }
+
+        switch (causeMessage) {
+            case "Connection reset":
+            case "Connection reset by peer":
+            case "Broken pipe (Write failed)":
+                return causeMessage;
+            default:
+                return MESSAGE;
+        }
     }
 }
