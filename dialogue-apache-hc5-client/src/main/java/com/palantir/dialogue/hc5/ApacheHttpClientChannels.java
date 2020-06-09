@@ -409,7 +409,7 @@ public final class ApacheHttpClientChannels {
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
-                    .setConnectionManager(connectionManager)
+                    .setConnectionManager(new TracedPoolingHttpClientConnectionManager(connectionManager))
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
