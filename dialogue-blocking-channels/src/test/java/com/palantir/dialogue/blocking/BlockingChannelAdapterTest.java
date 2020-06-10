@@ -34,6 +34,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -120,5 +121,20 @@ public class BlockingChannelAdapterTest {
         Awaitility.waitAtMost(Duration.ofSeconds(3))
                 .untilAsserted(() -> verify(response).close());
         assertThat(invocationInterrupted).isTrue();
+    }
+
+    @Test
+    void testAlreadyShutdown() {
+        executor.shutdown();
+        BlockingChannel delegate = mock(BlockingChannel.class);
+        Channel channel = BlockingChannelAdapter.of(delegate, executor);
+
+        ListenableFuture<Response> future =
+                channel.execute(TestEndpoint.POST, Request.builder().build());
+
+        assertThat(future).isDone();
+        assertThatThrownBy(future::get)
+                .isInstanceOf(ExecutionException.class)
+                .hasCauseInstanceOf(RejectedExecutionException.class);
     }
 }

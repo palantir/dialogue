@@ -79,23 +79,28 @@ public final class BlockingChannelAdapter {
             SettableFuture<Response> settableFuture = SettableFuture.create();
             BlockingChannelAdapterTask runnable =
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
-            Future<?> future = executor.submit(runnable);
-            // The executor task should be interrupted on termination
-            Futures.addCallback(
-                    settableFuture,
-                    new FutureCallback<Response>() {
-                        @Override
-                        public void onSuccess(Response _result) {}
+            try {
+                Future<?> future = executor.submit(runnable);
+                // The executor task should be interrupted on termination
+                Futures.addCallback(
+                        settableFuture,
+                        new FutureCallback<Response>() {
+                            @Override
+                            public void onSuccess(Response _result) {}
 
-                        @Override
-                        public void onFailure(Throwable throwable) {
-                            if (throwable instanceof CancellationException) {
-                                future.cancel(true);
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                if (throwable instanceof CancellationException) {
+                                    future.cancel(true);
+                                }
                             }
-                        }
-                    },
-                    MoreExecutors.directExecutor());
-            return settableFuture;
+                        },
+                        MoreExecutors.directExecutor());
+                return settableFuture;
+            } catch (RuntimeException | Error e) {
+                // user-provided executor could throw exceptions when we try to submit runnables
+                return Futures.immediateFailedFuture(e);
+            }
         }
 
         @Override
