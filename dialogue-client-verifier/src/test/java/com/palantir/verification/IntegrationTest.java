@@ -17,6 +17,7 @@
 package com.palantir.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
@@ -39,6 +40,7 @@ import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -165,6 +167,32 @@ public class IntegrationTest {
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();
         assertThat(requests).hasValue(2);
+    }
+
+    @Test
+    public void when_thread_is_interrupted_no_requests_are_made() {
+        AtomicInteger served = new AtomicInteger();
+        undertowHandler = exchange -> {
+            served.getAndIncrement();
+            exchange.setStatusCode(204);
+        };
+
+        Thread.currentThread().interrupt();
+
+        assertThatThrownBy(blocking::getMyAlias)
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("Interrupted waiting for future")
+                .hasCauseInstanceOf(InterruptedException.class);
+
+        ListenableFuture<AliasOfOptional> future = async.getMyAlias();
+        assertThat(future).isDone();
+        assertThat(future).isNotCancelled();
+        assertThatThrownBy(future::get)
+                .isInstanceOf(SafeRuntimeException.class)
+                .hasMessage("Interrupted waiting for future")
+                .hasCauseInstanceOf(InterruptedException.class);
+
+        assertThat(served).hasValue(0);
     }
 
     @Test
