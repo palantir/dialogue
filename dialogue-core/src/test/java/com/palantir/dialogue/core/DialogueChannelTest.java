@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.Futures;
@@ -135,6 +137,24 @@ public final class DialogueChannelTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(NoClassDefFoundError.class);
+    }
+
+    @Test
+    public void when_thread_is_interrupted_no_calls_to_delegate() {
+        Channel delegate = mock(Channel.class);
+
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(_uri -> delegate)
+                .build();
+
+        Thread.currentThread().interrupt();
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        assertThat(future).isDone();
+        assertThat(future).isNotCancelled();
+        verifyNoInteractions(delegate);
     }
 
     @Test

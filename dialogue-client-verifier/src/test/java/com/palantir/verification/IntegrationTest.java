@@ -17,6 +17,7 @@
 package com.palantir.verification;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterables;
@@ -165,6 +166,29 @@ public class IntegrationTest {
         Optional<String> maybeString = myAlias.get();
         assertThat(maybeString).isNotPresent();
         assertThat(requests).hasValue(2);
+    }
+
+    @Test
+    public void when_thread_is_interrupted_no_requests_are_made() {
+        AtomicInteger served = new AtomicInteger();
+        undertowHandler = exchange -> {
+            served.getAndIncrement();
+            exchange.setStatusCode(204);
+        };
+
+        Thread.currentThread().interrupt();
+
+        assertThatThrownBy(blocking::getMyAlias)
+                .satisfies(throwable ->
+                        assertThat(throwable.getClass().getSimpleName()).isEqualTo("DialogueException"))
+                .hasCauseInstanceOf(InterruptedException.class);
+
+        ListenableFuture<AliasOfOptional> future = async.getMyAlias();
+        assertThat(future).isDone();
+        assertThat(future).isNotCancelled();
+        assertThatThrownBy(future::get).isInstanceOf(InterruptedException.class);
+
+        assertThat(served).hasValue(0);
     }
 
     @Test
