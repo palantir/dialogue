@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: When the `interrupted` flag is set on a thread, any attempt to make
+    Dialogue network calls from that thread will immediately short-circuit and return
+    a `SafeRuntimeException`.
+  links:
+  - https://github.com/palantir/dialogue/pull/831
