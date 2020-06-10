@@ -5,7 +5,6 @@ com.google.guava:guava = 29.0-jre
 com.palantir.conjure:conjure = 4.10.1
 com.palantir.conjure.java:* = 5.18.0
 com.palantir.conjure.java.api:* = 2.14.0
-com.palantir.conjure.java.runtime:* = 6.0.1
 com.palantir.refreshable:* = 1.0.0
 com.palantir.ri:resource-identifier = 1.1.0
 com.palantir.safe-logging:* = 1.13.0
@@ -40,4 +39,7 @@ org.openjdk.jmh:* = 1.23
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
 com.squareup.okhttp3:* = 3.13.1
+
+# Don't want to impose a major upgrade on people
+com.palantir.conjure.java.runtime:* = 5.10.0
 # dependency-upgrader:ON
