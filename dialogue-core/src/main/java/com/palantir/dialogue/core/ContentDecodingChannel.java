@@ -118,6 +118,14 @@ final class ContentDecodingChannel implements EndpointChannel {
             return headers;
         }
 
+        @Override
+        public Optional<String> getFirstHeader(String header) {
+            if (!allowHeader(header)) {
+                return Optional.empty();
+            }
+            return delegate.getFirstHeader(header);
+        }
+
         // Remove the content-encoding header once content is decompressed, otherwise consumers may attempt
         // to decode again.
         private static boolean allowHeader(String headerName) {

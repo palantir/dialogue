@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Response implementations provide a delegating getFirstHeader override
+  links:
+  - https://github.com/palantir/dialogue/pull/832

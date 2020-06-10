@@ -295,6 +295,11 @@ final class SimulationServer implements Channel {
             }
 
             @Override
+            public Optional<String> getFirstHeader(String header) {
+                return delegate.getFirstHeader(header);
+            }
+
+            @Override
             public void close() {
                 sim.globalResponseClose.inc();
                 delegate.close();
