@@ -104,8 +104,8 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> future = SettableFuture.create();
         Thread.currentThread().interrupt();
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Interrupted waiting for future");
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         // Clear interrupted state as well as test.
         assertThat(Thread.interrupted())
                 .as("getUnchecked should not clear interrupted state")
@@ -120,8 +120,8 @@ public class DefaultClientsBlockingTest {
         future.set(responseBody);
         Thread.currentThread().interrupt();
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Interrupted waiting for future");
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         // Clear interrupted state as well as test.
         assertThat(Thread.interrupted())
                 .as("getUnchecked should not clear interrupted state")
@@ -136,8 +136,8 @@ public class DefaultClientsBlockingTest {
         future.set(Optional.of(responseBody));
         Thread.currentThread().interrupt();
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(future))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Interrupted waiting for future");
+                .isInstanceOf(DialogueException.class)
+                .hasCauseInstanceOf(InterruptedException.class);
         // Clear interrupted state as well as test.
         assertThat(Thread.interrupted())
                 .as("getUnchecked should not clear interrupted state")

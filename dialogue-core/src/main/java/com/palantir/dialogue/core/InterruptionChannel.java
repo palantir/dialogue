@@ -40,6 +40,6 @@ final class InterruptionChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "DetectInterruptionChannel{" + endpointChannel + '}';
+        return "InterruptionChannel{" + endpointChannel + '}';
     }
 }
