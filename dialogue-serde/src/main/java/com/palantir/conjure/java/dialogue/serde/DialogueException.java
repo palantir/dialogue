@@ -53,6 +53,8 @@ final class DialogueException extends RuntimeException implements SafeLoggable {
             case "Connection reset":
             case "Connection reset by peer":
             case "Broken pipe (Write failed)":
+            case "Remote host terminated the handshake":
+            case "SSL peer shut down incorrectly":
                 return causeMessage;
             default:
                 return MESSAGE;
