@@ -153,6 +153,7 @@ public final class DialogueChannelTest {
         ListenableFuture<Response> future = channel.execute(endpoint, request);
 
         assertThat(future).isDone();
+        assertThat(future).isNotCancelled();
         verifyNoInteractions(delegate);
     }
 

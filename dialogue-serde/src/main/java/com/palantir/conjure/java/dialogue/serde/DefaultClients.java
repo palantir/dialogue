@@ -102,7 +102,7 @@ enum DefaultClients implements Clients {
             if (!future.cancel(true)) {
                 Futures.addCallback(future, CancelListener.INSTANCE, MoreExecutors.directExecutor());
             }
-            throw new SafeRuntimeException("Interrupted waiting for future", e);
+            throw new DialogueException(e);
         } catch (ExecutionException e) {
             Throwable cause = e.getCause();
 

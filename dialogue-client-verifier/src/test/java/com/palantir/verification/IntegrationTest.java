@@ -40,7 +40,6 @@ import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -180,17 +179,14 @@ public class IntegrationTest {
         Thread.currentThread().interrupt();
 
         assertThatThrownBy(blocking::getMyAlias)
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Interrupted waiting for future")
+                .satisfies(throwable ->
+                        assertThat(throwable.getClass().getSimpleName()).isEqualTo("DialogueException"))
                 .hasCauseInstanceOf(InterruptedException.class);
 
         ListenableFuture<AliasOfOptional> future = async.getMyAlias();
         assertThat(future).isDone();
         assertThat(future).isNotCancelled();
-        assertThatThrownBy(future::get)
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessage("Interrupted waiting for future")
-                .hasCauseInstanceOf(InterruptedException.class);
+        assertThatThrownBy(future::get).isInstanceOf(InterruptedException.class);
 
         assertThat(served).hasValue(0);
     }
