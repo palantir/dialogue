@@ -148,7 +148,7 @@ public final class ApacheHttpClientChannels {
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
-        private static final String APACHE = "apache";
+        private static final String CLIENT_TYPE = "apache-hc5";
 
         private final String clientName;
         private final CloseableHttpClient apacheClient;
@@ -187,7 +187,7 @@ public final class ApacheHttpClientChannels {
             closer.register(DialogueClientMetrics.of(taggedMetrics)
                     .close()
                     .clientName(clientName)
-                    .clientType(APACHE)
+                    .clientType(CLIENT_TYPE)
                     .build()::mark);
         }
 
@@ -217,7 +217,7 @@ public final class ApacheHttpClientChannels {
             Meter createMeter = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
                     .create()
                     .clientName(clientName)
-                    .clientType("apache")
+                    .clientType(CLIENT_TYPE)
                     .build();
             createMeter.mark();
             return newInstance;

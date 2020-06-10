@@ -17,6 +17,7 @@ package com.palantir.dialogue.hc5;
 
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
+import com.google.common.collect.Multimaps;
 import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
@@ -163,7 +164,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                         tmpHeaders.put(header.getName(), value);
                     }
                 }
-                headers = tmpHeaders;
+                headers = Multimaps.unmodifiableListMultimap(tmpHeaders);
             }
             return headers;
         }

@@ -33,7 +33,7 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class ResponseLeakDetector {
+final class ResponseLeakDetector {
 
     private static final Logger log = LoggerFactory.getLogger(ResponseLeakDetector.class);
 
@@ -42,7 +42,7 @@ public final class ResponseLeakDetector {
     private final Random random;
     private final DoubleSupplier leakDetectionProbabilitySupplier;
 
-    public static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
+    static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
         return new ResponseLeakDetector(
                 clientName,
                 DialogueClientMetrics.of(metrics),
@@ -61,7 +61,7 @@ public final class ResponseLeakDetector {
         this.leakDetectionProbabilitySupplier = leakDetectionProbabilitySupplier;
     }
 
-    public Response wrap(Response input, Endpoint endpoint) {
+    Response wrap(Response input, Endpoint endpoint) {
         if (shouldApplyLeakDetection()) {
             return new LeakDetectingResponse(input, new LeakDetector(input, endpoint));
         }
