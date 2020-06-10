@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -136,5 +137,18 @@ public class BlockingChannelAdapterTest {
         assertThatThrownBy(future::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(RejectedExecutionException.class);
+    }
+
+    @Test
+    void testAlreadyInterrupted() {
+        BlockingChannel delegate = mock(BlockingChannel.class);
+        Channel channel = BlockingChannelAdapter.of(delegate, executor);
+
+        Thread.currentThread().interrupt();
+        ListenableFuture<Response> future =
+                channel.execute(TestEndpoint.POST, Request.builder().build());
+
+        verifyNoInteractions(delegate);
+        assertThat(future).isCancelled();
     }
 }
