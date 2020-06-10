@@ -76,11 +76,6 @@ public final class BlockingChannelAdapter {
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            if (Thread.currentThread().isInterrupted()) {
-                // is someone asked to interrupt this thread, we abort early to avoid kicking off network requests
-                return Futures.immediateCancelledFuture();
-            }
-
             SettableFuture<Response> settableFuture = SettableFuture.create();
             BlockingChannelAdapterTask runnable =
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
