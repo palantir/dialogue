@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Reduce IdleConnectionEvictor metrics fanout
+  links:
+  - https://github.com/palantir/dialogue/pull/833
