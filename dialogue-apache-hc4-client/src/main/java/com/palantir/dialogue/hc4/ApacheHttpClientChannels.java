@@ -462,7 +462,7 @@ public final class ApacheHttpClientChannels {
                         .setNameFormat(clientName + "-IdleConnectionEvictor-%d")
                         .setDaemon(true)
                         .build(),
-                clientName + "-IdleConnectionEvictor");
+                "DialogueIdleConnectionEvictor");
     }
 
     /**
