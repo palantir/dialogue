@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Drop the log level of RttSampler bounds checking because there's nothing
+    to worry about.
+  links:
+  - https://github.com/palantir/dialogue/pull/839
