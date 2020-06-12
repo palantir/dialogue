@@ -104,7 +104,7 @@ final class RttSampler {
             OptionalLong rtt = snapshots[i];
             float rttSpectrum = rtt.isPresent() ? ((float) (rtt.getAsLong() - bestRttNanos)) / rttRange : 0;
             if (rttSpectrum < 0f || rttSpectrum > 1f) {
-                log.warn(
+                log.info(
                         "rttSpectrum should be between 0 and 1",
                         SafeArg.of("value", Float.toString(rttSpectrum)),
                         SafeArg.of("hostIndex", i));
