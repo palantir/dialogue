@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix hc5 module publications
+  links:
+  - https://github.com/palantir/dialogue/pull/840
