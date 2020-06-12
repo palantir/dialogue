@@ -83,7 +83,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
         return new NodeSelectionStrategyChannel(
                 NodeSelectionStrategyChannel::getFirstKnownStrategy,
-                DialogueNodeSelectionStrategy.of(cf.clientConf().nodeSelectionStrategy()),
+                DialogueNodeSelectionStrategy.fromClientConfiguration(
+                        cf.clientConf().nodeSelectionStrategy()),
                 cf.channelName(),
                 cf.random(),
                 cf.ticker(),
@@ -137,14 +138,9 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                                     channelName))
                             .build();
                 }
-            case BALANCED:
+            case BALANCED_RTT2:
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
-                return channelBuilder
-                        .channel(new BalancedNodeSelectionStrategyChannel(
-                                channels, random, tick, metrics, channelName, RttSampling.DEFAULT_OFF))
-                        .build();
-            case BALANCED_RTT2:
                 return channelBuilder
                         .channel(new BalancedNodeSelectionStrategyChannel(
                                 channels, random, tick, metrics, channelName, RttSampling.ENABLED))

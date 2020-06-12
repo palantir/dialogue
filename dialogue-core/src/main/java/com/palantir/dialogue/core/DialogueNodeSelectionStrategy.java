@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.annotations.Beta;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -35,8 +34,6 @@ import org.slf4j.LoggerFactory;
 enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
-    BALANCED,
-    @Beta
     BALANCED_RTT2,
     UNKNOWN;
 
@@ -45,39 +42,37 @@ enum DialogueNodeSelectionStrategy {
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {
         return ImmutableList.copyOf(
-                Lists.transform(SPLITTER.splitToList(header), DialogueNodeSelectionStrategy::safeValueOf));
+                Lists.transform(SPLITTER.splitToList(header), DialogueNodeSelectionStrategy::fromHeaderSegment));
     }
 
-    /**
-     * We allow server-determined headers to access some incubating dialogue-specific strategies (e.g. BALANCED_RTT)
-     * which users can't normally configure.
-     */
-    private static DialogueNodeSelectionStrategy safeValueOf(String string) {
-        String uppercaseString = string.toUpperCase();
+    private static DialogueNodeSelectionStrategy fromHeaderSegment(String serverProvidedString) {
+        String uppercaseString = serverProvidedString.toUpperCase();
 
         switch (uppercaseString) {
             case "PIN_UNTIL_ERROR":
                 return PIN_UNTIL_ERROR;
             case "PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE":
                 return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+
             case "BALANCED":
-                return BALANCED;
+            case "BALANCED_RTT":
             case "BALANCED_RTT2":
+                // things asking for early versions of BALANCED_RTT2 just get the latest and greatest logic
                 return BALANCED_RTT2;
         }
 
-        log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));
+        log.info("Received unknown selection strategy {}", SafeArg.of("strategy", serverProvidedString));
         return UNKNOWN;
     }
 
-    static DialogueNodeSelectionStrategy of(NodeSelectionStrategy strategy) {
+    static DialogueNodeSelectionStrategy fromClientConfiguration(NodeSelectionStrategy strategy) {
         switch (strategy) {
             case PIN_UNTIL_ERROR:
                 return PIN_UNTIL_ERROR;
             case PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE:
                 return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
             case ROUND_ROBIN:
-                return BALANCED;
+                return BALANCED_RTT2;
         }
         throw new SafeIllegalStateException("Unknown node selection strategy", SafeArg.of("strategy", strategy));
     }

@@ -25,22 +25,25 @@ class DialogueNodeSelectionStrategyTest {
     @Test
     void parses_single_strategy() {
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED"))
-                .containsExactly(DialogueNodeSelectionStrategy.BALANCED);
+                .containsExactly(DialogueNodeSelectionStrategy.BALANCED_RTT2);
     }
 
     @Test
     void parses_multiple_strategies() {
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED, PIN_UNTIL_ERROR"))
-                .containsExactly(DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
+                .containsExactly(
+                        DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED_RTT2,BALANCED"))
-                .containsExactly(DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.BALANCED);
+                .containsExactly(
+                        DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.BALANCED_RTT2);
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED_FUTURE_EXPERIMENT, BALANCED"))
-                .containsExactly(DialogueNodeSelectionStrategy.UNKNOWN, DialogueNodeSelectionStrategy.BALANCED);
+                .containsExactly(DialogueNodeSelectionStrategy.UNKNOWN, DialogueNodeSelectionStrategy.BALANCED_RTT2);
     }
 
     @Test
     void case_insensitive() {
         assertThat(DialogueNodeSelectionStrategy.fromHeader("balanced, PIN_UNTIL_ERROR"))
-                .containsExactly(DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
+                .containsExactly(
+                        DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
     }
 }

@@ -84,6 +84,6 @@ class NodeSelectionStrategyChannelTest {
         channel.maybeExecute(null, null).get();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
-                        DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
+                        DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.UNKNOWN)));
     }
 }
