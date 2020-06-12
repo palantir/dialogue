@@ -55,9 +55,7 @@ enum DialogueNodeSelectionStrategy {
                 return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
 
             case "BALANCED":
-            case "BALANCED_RTT":
             case "BALANCED_RTT2":
-                // things asking for early versions of BALANCED_RTT2 just get the latest and greatest logic
                 return BALANCED_RTT2;
         }
 
