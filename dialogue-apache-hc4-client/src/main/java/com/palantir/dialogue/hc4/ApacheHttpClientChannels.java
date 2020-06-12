@@ -41,7 +41,6 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -309,6 +308,8 @@ public final class ApacheHttpClientChannels {
 
     public static final class ClientBuilder {
 
+        private static final long DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS = 50_000;
+
         @Nullable
         private ClientConfiguration clientConfiguration;
 
@@ -367,7 +368,10 @@ public final class ApacheHttpClientChannels {
             // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
             // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
             // as clients attempt to use them.
-            long idleConnectionTimeoutMillis = Math.min(Duration.ofSeconds(50).toMillis(), socketTimeoutMillis);
+            // If the socket timeout is non-positive (unbounded) we must use the default value.
+            long idleConnectionTimeoutMillis = socketTimeoutMillis > 0
+                    ? Math.min(DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS, socketTimeoutMillis)
+                    : DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS;
             // Increased from two seconds to 40% of the idle connection timeout because we have strong support for
             // retries
             // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
