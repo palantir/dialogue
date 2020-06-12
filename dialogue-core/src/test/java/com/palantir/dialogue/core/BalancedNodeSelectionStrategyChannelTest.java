@@ -33,7 +33,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
@@ -67,19 +66,9 @@ class BalancedNodeSelectionStrategyChannelTest {
     @BeforeEach
     public void before() {
         channel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2),
-                random,
-                clock,
-                new DefaultTaggedMetricRegistry(),
-                "channelName",
-                RttSampling.DEFAULT_OFF);
+                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
         rttChannel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2),
-                random,
-                clock,
-                new DefaultTaggedMetricRegistry(),
-                "channelName",
-                RttSampling.ENABLED);
+                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
     }
 
     @Test

@@ -41,14 +41,13 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
  * being served, how many failures have been seen in the last few seconds and (optionally) also what the best latency
- * to each node is. Use {@link RttSampling#ENABLED} to switch this on.
+ * to each node is.
  *
  * This is intended to be a strict improvement over Round Robin and Random Selection which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node. It is *not* appropriate for transactional
@@ -75,8 +74,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<MutableChannelWithStats> channels;
     private final Random random;
     private final Ticker clock;
-
-    @Nullable
     private final RttSampler rttSampler;
 
     BalancedNodeSelectionStrategyChannel(
@@ -84,12 +81,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
-            String channelName,
-            RttSampling samplingEnabled) {
+            String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.rttSampler = samplingEnabled == RttSampling.DEFAULT_OFF ? null : new RttSampler(channels, clock);
+        this.rttSampler = new RttSampler(channels, clock);
         this.channels = IntStream.range(0, channels.size())
                 .mapToObj(index -> new MutableChannelWithStats(
                         index,
@@ -100,11 +96,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
         registerGauges(taggedMetrics, channelName, this.channels);
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
-    }
-
-    enum RttSampling {
-        DEFAULT_OFF,
-        ENABLED
     }
 
     @Override
@@ -121,9 +112,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         for (SortableChannel channel : sortableChannels) {
             Optional<ListenableFuture<Response>> maybe = channel.delegate.maybeExecute(endpoint, request);
             if (maybe.isPresent()) {
-                if (rttSampler != null) {
-                    rttSampler.maybeSampleRtts();
-                }
+                rttSampler.maybeSampleRtts();
                 return maybe;
             }
         }
@@ -132,11 +121,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private static SortableChannel[] computeScores(
-            @Nullable RttSampler rttSampler, List<MutableChannelWithStats> shuffledChannels) {
-        // if the feature is disabled (i.e. RttSampling.DEFAULT_OFF), then we just consider every host to have a
-        // rttSpectrum of '0'
-        float[] rttSpectrums =
-                rttSampler != null ? rttSampler.computeRttSpectrums() : new float[shuffledChannels.size()];
+            RttSampler rttSampler, List<MutableChannelWithStats> shuffledChannels) {
+        float[] rttSpectrums = rttSampler.computeRttSpectrums();
 
         SortableChannel[] snapshotArray = new SortableChannel[shuffledChannels.size()];
         for (int i = 0; i < shuffledChannels.size(); i++) {

@@ -24,7 +24,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -143,7 +142,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
                 return channelBuilder
                         .channel(new BalancedNodeSelectionStrategyChannel(
-                                channels, random, tick, metrics, channelName, RttSampling.ENABLED))
+                                channels, random, tick, metrics, channelName))
                         .build();
             case UNKNOWN:
         }
