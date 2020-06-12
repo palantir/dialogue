@@ -23,7 +23,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.core.DialogueChannel;
-import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
+import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;

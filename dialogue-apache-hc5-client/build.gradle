@@ -1,0 +1,30 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.metric-schema'
+apply plugin: 'com.palantir.revapi'
+
+dependencies {
+    api project(':dialogue-core')
+    api project(':dialogue-target')
+    api 'com.palantir.conjure.java.runtime:client-config'
+    api 'org.apache.httpcomponents.client5:httpclient5'
+    implementation project(':dialogue-blocking-channels')
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
+    implementation 'com.palantir.tracing:tracing'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.api:service-config'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'io.dropwizard.metrics:metrics-core'
+    implementation 'org.apache.httpcomponents.core5:httpcore5'
+    implementation 'org.slf4j:slf4j-api'
+
+    compileOnly 'org.immutables:value::annotations'
+    testCompileOnly 'org.immutables:value::annotations'
+
+    testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
+    testImplementation 'org.awaitility:awaitility'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}

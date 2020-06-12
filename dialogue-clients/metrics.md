@@ -1,8 +1,8 @@
 # Metrics
 
-## Dialogue Apache Hc4 Client
+## Dialogue Apache Hc5 Client
 
-`com.palantir.dialogue:dialogue-apache-hc4-client`
+`com.palantir.dialogue:dialogue-apache-hc5-client`
 
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
