@@ -1,0 +1,7 @@
+type: feature
+feature:
+  description: When users select ROUND_ROBIN, they now get Dialogue's BALANCED_RTT2
+    strategy, which measures the round trip time (RTT) to each host using OPTIONS
+    requests and prefers the lowest latency host.
+  links:
+  - https://github.com/palantir/dialogue/pull/843
