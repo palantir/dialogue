@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Prevent clients from being collected while streams are read
+  links:
+  - https://github.com/palantir/dialogue/pull/844
