@@ -30,6 +30,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -89,7 +90,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         // for example HttpClientResponse allocation may throw an OutOfMemoryError.
         boolean close = true;
         try {
-            Response dialogueResponse = new HttpClientResponse(httpClientResponse);
+            Response dialogueResponse = new HttpClientResponse(client, httpClientResponse);
             Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
             close = false;
             return leakDetectingResponse;
@@ -124,11 +125,15 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
+        // Client reference is used to prevent premature termination
+        @Nullable
+        private ApacheHttpClientChannels.CloseableClient client;
 
         @Nullable
         private ListMultimap<String, String> headers;
 
-        HttpClientResponse(CloseableHttpResponse response) {
+        HttpClientResponse(ApacheHttpClientChannels.CloseableClient client, CloseableHttpResponse response) {
+            this.client = client;
             this.response = response;
         }
 
@@ -137,7 +142,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
                 try {
-                    return entity.getContent();
+                    return new ResponseInputStream(client, entity.getContent());
                 } catch (IOException e) {
                     throw new SafeRuntimeException("Failed to get response stream", e);
                 }
@@ -176,6 +181,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public void close() {
+            client = null;
             try {
                 response.close();
             } catch (IOException | RuntimeException e) {
@@ -185,7 +191,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public String toString() {
-            return "HttpClientResponse{response=" + response + '}';
+            return "HttpClientResponse{response=" + response + ", client=" + client + '}';
         }
     }
 
@@ -263,5 +269,28 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public void close() {}
+    }
+
+    private static final class ResponseInputStream extends FilterInputStream {
+
+        // Client reference is used to prevent premature termination
+        @Nullable
+        private ApacheHttpClientChannels.CloseableClient client;
+
+        ResponseInputStream(@Nullable ApacheHttpClientChannels.CloseableClient client, InputStream stream) {
+            super(stream);
+            this.client = client;
+        }
+
+        @Override
+        public void close() throws IOException {
+            client = null;
+            super.close();
+        }
+
+        @Override
+        public String toString() {
+            return "ResponseInputStream{client=" + client + ", in=" + in + '}';
+        }
     }
 }
