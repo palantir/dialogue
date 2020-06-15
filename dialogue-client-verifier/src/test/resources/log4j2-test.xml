@@ -21,12 +21,6 @@
         </Console>
     </Appenders>
     <Loggers>
-        <Logger name="com.palantir.dialogue.core.ConcurrencyLimitedChannel" level="debug">
-            <AppenderRef ref="Console"/>
-        </Logger>
-        <Logger name="com.palantir.dialogue.core.AimdConcurrencyLimiter" level="debug">
-            <AppenderRef ref="Console"/>
-        </Logger>
         <Root level="info">
             <AppenderRef ref="Console"/>
         </Root>
