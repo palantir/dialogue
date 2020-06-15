@@ -123,8 +123,8 @@ public class NodeSelectionBenchmark {
                             "channelName");
                     break;
                 case ROUND_ROBIN:
-                    channel = new BalancedNodeSelectionStrategyChannel(
-                            channels, random, ticker, metrics, "channelName");
+                    channel =
+                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
