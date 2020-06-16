@@ -22,11 +22,8 @@ import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
-import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.blocking.BlockingChannel;
-import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueInternalWeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
@@ -66,17 +63,14 @@ import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
 import org.apache.hc.client5.http.impl.IdleConnectionEvictor;
+import org.apache.hc.client5.http.impl.async.CloseableHttpAsyncClient;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClientBuilder;
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManager;
+import org.apache.hc.client5.http.impl.nio.PoolingAsyncClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
-import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.config.RegistryBuilder;
-import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.pool.PoolConcurrencyPolicy;
 import org.apache.hc.core5.pool.PoolReusePolicy;
@@ -103,10 +97,7 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(client, url(uri), client.leakDetector);
-        return client.executor == null
-                ? BlockingChannelAdapter.of(blockingChannel)
-                : BlockingChannelAdapter.of(blockingChannel, client.executor);
+        return new ApacheHttpClientChannel(client, url(uri), client.leakDetector);
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
@@ -116,7 +107,7 @@ public final class ApacheHttpClientChannels {
     private static void setupConnectionPoolMetrics(
             TaggedMetricRegistry taggedMetrics,
             String clientName,
-            PoolingHttpClientConnectionManager connectionManager) {
+            PoolingAsyncClientConnectionManager connectionManager) {
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
                 clientPoolSizeMetricName(clientName, "idle"),
@@ -150,8 +141,8 @@ public final class ApacheHttpClientChannels {
         private static final String CLIENT_TYPE = "apache-hc5";
 
         private final String clientName;
-        private final CloseableHttpClient apacheClient;
-        private final PoolingHttpClientConnectionManager pool;
+        private final CloseableHttpAsyncClient apacheClient;
+        private final PoolingAsyncClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
 
         @Nullable
@@ -160,9 +151,9 @@ public final class ApacheHttpClientChannels {
         private final Closer closer = Closer.create();
 
         private CloseableClient(
-                CloseableHttpClient apacheClient,
+                CloseableHttpAsyncClient apacheClient,
                 @Safe String clientName,
-                PoolingHttpClientConnectionManager pool,
+                PoolingAsyncClientConnectionManager pool,
                 IdleConnectionEvictor connectionEvictor,
                 TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
@@ -196,9 +187,9 @@ public final class ApacheHttpClientChannels {
         }
 
         static CloseableClient wrap(
-                CloseableHttpClient apacheClient,
+                CloseableHttpAsyncClient apacheClient,
                 @Safe String clientName,
-                PoolingHttpClientConnectionManager pool,
+                PoolingAsyncClientConnectionManager pool,
                 IdleConnectionEvictor connectionEvictor,
                 ClientConfiguration clientConfiguration,
                 @Nullable ExecutorService executor) {
@@ -227,7 +218,7 @@ public final class ApacheHttpClientChannels {
             return newInstance;
         }
 
-        CloseableHttpClient apacheClient() {
+        CloseableHttpAsyncClient apacheClient() {
             return apacheClient;
         }
 
@@ -376,28 +367,11 @@ public final class ApacheHttpClientChannels {
             TimeValue connectionPoolInactivityCheck =
                     TimeValue.ofMilliseconds((int) (idleConnectionTimeoutMillis / 2.5));
 
-            SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
-                    new String[] {"TLSv1.2"},
-                    supportedCipherSuites(
-                            conf.enableGcmCipherSuites()
-                                    ? CipherSuites.allCipherSuites()
-                                    : CipherSuites.fastCipherSuites(),
-                            rawSocketFactory,
-                            name),
-                    new DefaultHostnameVerifier());
-
-            PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
-                    .setSSLSocketFactory(sslSocketFactory)
+            PoolingAsyncClientConnectionManager connectionManager = PoolingAsyncClientConnectionManagerBuilder.create()
                     .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
                     // Allow unnecessary connections to time out reducing system load.
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
                     .setConnectionTimeToLive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
-                    .setDefaultSocketConfig(SocketConfig.custom()
-                            .setSoKeepAlive(true)
-                            .setSoTimeout(Timeout.ofMilliseconds(socketTimeoutMillis))
-                            .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
                     .setValidateAfterInactivity(connectionPoolInactivityCheck)
@@ -406,7 +380,7 @@ public final class ApacheHttpClientChannels {
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
-            HttpClientBuilder builder = HttpClients.custom()
+            HttpAsyncClientBuilder builder = HttpAsyncClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
                             .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
@@ -420,18 +394,13 @@ public final class ApacheHttpClientChannels {
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
-                    .setConnectionManager(new TracedPoolingHttpClientConnectionManager(connectionManager))
+                    .setConnectionManager(connectionManager)
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
                     .disableConnectionState()
                     // Match okhttp behavior disabling cookies
                     .disableCookieManagement()
-                    // Dialogue handles content-compression with ContentDecodingChannel
-                    .disableContentCompression()
-                    // Replace with addExecInterceptorFirst once HTTPCLIENT-2083 is resolved
-                    // .addExecInterceptorFirst("tracing", TracingExecChainHandler.INSTANCE)
-                    .addExecInterceptorBefore("PROTOCOL", "tracing", TracingExecChainHandler.INSTANCE)
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
@@ -444,7 +413,8 @@ public final class ApacheHttpClientChannels {
                             .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
                             .build()));
 
-            CloseableHttpClient apacheClient = builder.build();
+            CloseableHttpAsyncClient apacheClient = builder.build();
+            apacheClient.start();
             IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
                     connectionManager,
                     idleConnectionEvictorThreadFactory(name, conf.taggedMetricRegistry()),
