@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
+import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.logsafe.Preconditions;
@@ -64,7 +65,7 @@ final class BalancedScoreTracker {
                 .collect(ImmutableList.toImmutableList());
     }
 
-    public RequestListener[] getChannelsByScore() {
+    public ScoreTracker[] getChannelsByScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
         List<MutableStats> shuffledMutableStats = shuffleImmutableList(stats, random);
@@ -76,7 +77,7 @@ final class BalancedScoreTracker {
 
         Arrays.sort(snapshotArray, BY_SCORE);
 
-        RequestListener[] returnArray = new RequestListener[snapshotArray.length];
+        ScoreTracker[] returnArray = new ScoreTracker[snapshotArray.length];
         for (int i = 0; i < snapshotArray.length; i++) {
             returnArray[i] = snapshotArray[i].delegate;
         }
@@ -95,7 +96,9 @@ final class BalancedScoreTracker {
         return "NewBalanced{channels=" + stats + '}';
     }
 
-    interface RequestListener {
+    interface ScoreTracker extends FutureCallback<Response> {
+        int hostIndex();
+
         void onFailure(Throwable _throwable);
 
         void onSuccess(Response response);
@@ -105,7 +108,7 @@ final class BalancedScoreTracker {
         void startRequest();
     }
 
-    private static final class MutableStats implements RequestListener {
+    private static final class MutableStats implements ScoreTracker {
         private final int hostIndex;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
@@ -145,6 +148,11 @@ final class BalancedScoreTracker {
                 // drastically less than 5xx responses.
                 recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
             }
+        }
+
+        @Override
+        public int hostIndex() {
+            return hostIndex;
         }
 
         @Override
