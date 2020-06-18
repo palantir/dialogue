@@ -18,26 +18,23 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreTracker;
 import com.palantir.random.SafeThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 
-public final class InternalSkiProduct {
+/** For internal ski product, where all requests for a 'transaction' should land on one host. */
+public final class StickyChannels {
 
+    private final ImmutableList<Channel> channels; // TODO(dfox): List<LimitedChannel>??
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<Channel> channels; // TODO(dfox): should probably be List<LimitedChannel>
 
-    public InternalSkiProduct(ImmutableList<Channel> channels) {
+    public StickyChannels(ImmutableList<Channel> channels) {
         this.channels = channels;
         this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
     }
@@ -49,39 +46,45 @@ public final class InternalSkiProduct {
     @NotThreadSafe
     private static final class StickyChannel implements Channel {
 
-        private final InternalSkiProduct parent;
-        private final AtomicBoolean firstRequest = new AtomicBoolean(true);
-        private final SettableFuture<Channel> stickyChannel = SettableFuture.create();
+        private final StickyChannels parent;
 
         @Nullable
-        private volatile ScoreTracker scoreTracker;
+        private volatile ScoreTrackingChannel channel;
 
-        private StickyChannel(InternalSkiProduct parent) {
+        private StickyChannel(StickyChannels parent) {
             this.parent = parent;
         }
 
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            if (firstRequest.compareAndSet(true, false)) {
-                ScoreTracker tracker = parent.tracker.getChannelsByScore()[0];
-                scoreTracker = tracker;
+            if (channel == null) {
+                ScoreTracker scoreTracker = parent.tracker.getBestChannel();
+                int i = scoreTracker.hostIndex();
+                Channel delegate = parent.channels.get(i);
+                ScoreTrackingChannel scoreTrackingChannel = new ScoreTrackingChannel(delegate, scoreTracker);
+                channel = scoreTrackingChannel;
 
-                Channel channel = parent.channels.get(tracker.hostIndex());
-                stickyChannel.set(channel);
-
-                return trackRequest(channel, endpoint, request);
-            } else {
-                return Futures.transformAsync(
-                        stickyChannel,
-                        channel -> trackRequest(channel, endpoint, request),
-                        MoreExecutors.directExecutor());
+                return scoreTrackingChannel.execute(endpoint, request);
             }
+
+            return channel.execute(endpoint, request);
+        }
+    }
+
+    private static final class ScoreTrackingChannel implements Channel {
+        private final Channel delegate;
+        private final ScoreTracker tracker;
+
+        ScoreTrackingChannel(Channel delegate, ScoreTracker tracker) {
+            this.delegate = delegate;
+            this.tracker = tracker;
         }
 
-        private ListenableFuture<Response> trackRequest(Channel channel, Endpoint endpoint, Request request) {
-            scoreTracker.startRequest();
-            ListenableFuture<Response> future = channel.execute(endpoint, request);
-            DialogueFutures.addDirectCallback(future, scoreTracker);
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            tracker.startRequest();
+            ListenableFuture<Response> future = delegate.execute(endpoint, request);
+            DialogueFutures.addDirectCallback(future, tracker);
             return future;
         }
     }

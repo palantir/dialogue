@@ -65,6 +65,10 @@ final class BalancedScoreTracker {
                 .collect(ImmutableList.toImmutableList());
     }
 
+    public ScoreTracker getBestChannel() {
+        return getChannelsByScore()[0];
+    }
+
     public ScoreTracker[] getChannelsByScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
