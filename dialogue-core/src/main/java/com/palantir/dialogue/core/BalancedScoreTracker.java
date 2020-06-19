@@ -65,7 +65,7 @@ final class BalancedScoreTracker {
                 .collect(ImmutableList.toImmutableList());
     }
 
-    public ScoreTracker getBestChannel() {
+    public ScoreTracker getBestHost() {
         return getChannelsByScore()[0];
     }
 

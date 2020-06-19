@@ -22,6 +22,8 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreTracker;
@@ -30,53 +32,64 @@ import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
 
 /** For internal ski product, where all requests for a 'transaction' should land on one host. */
-public final class StickyChannels {
+public final class StickyEndpointChannels {
 
-    private final ImmutableList<Channel> channels; // TODO(dfox): List<LimitedChannel>??
+    private final ImmutableList<EndpointChannelFactory> channels;
     private final BalancedScoreTracker tracker;
 
-    public StickyChannels(ImmutableList<Channel> channels) {
+    public StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels) {
         this.channels = channels;
         this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
     }
 
-    public Channel getStickyChannel() {
-        return new StickyChannel(this);
+    public Channel getSticky() {
+        return new Sticky(this);
     }
 
     @ThreadSafe
-    private static final class StickyChannel implements Channel {
-        private final Supplier<ScoreTrackingChannel> channel;
+    private static final class Sticky implements EndpointChannelFactory, Channel {
 
-        private StickyChannel(StickyChannels parent) {
-            this.channel = Suppliers.memoize(() -> {
-                ScoreTracker scoreTracker = parent.tracker.getBestHost();
-                int i = scoreTracker.hostIndex();
-                Channel delegate = parent.channels.get(i);
+        private final StickyEndpointChannels parent;
+        private final Supplier<ScoreTracker> currentHost;
 
-                return new ScoreTrackingChannel(delegate, scoreTracker);
-            });
+        private Sticky(StickyEndpointChannels parent) {
+            this.parent = parent;
+            this.currentHost = Suppliers.memoize(parent.tracker::getBestHost);
         }
 
         @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            ScoreTracker tracker = currentHost.get();
+            int i = tracker.hostIndex();
+            EndpointChannel delegate = parent.channels.get(i).endpoint(endpoint);
+            return new ScoreTrackingEndpointChannel(delegate, tracker);
+        }
+
+        /**
+         * .
+         * @deprecated prefer {@link #endpoint}, as it allows binding work upfront
+         */
+        @Deprecated
+        @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-            return channel.get().execute(endpoint, request);
+            // TODO(dfox): could we delete this entirely?
+            return endpoint(endpoint).execute(request);
         }
     }
 
-    private static final class ScoreTrackingChannel implements Channel {
-        private final Channel delegate;
+    private static final class ScoreTrackingEndpointChannel implements EndpointChannel {
+        private final EndpointChannel delegate;
         private final ScoreTracker tracker;
 
-        ScoreTrackingChannel(Channel delegate, ScoreTracker tracker) {
+        ScoreTrackingEndpointChannel(EndpointChannel delegate, ScoreTracker tracker) {
             this.delegate = delegate;
             this.tracker = tracker;
         }
 
         @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        public ListenableFuture<Response> execute(Request request) {
             tracker.startRequest();
-            ListenableFuture<Response> future = delegate.execute(endpoint, request);
+            ListenableFuture<Response> future = delegate.execute(request);
             DialogueFutures.addDirectCallback(future, tracker);
             return future;
         }
