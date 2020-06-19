@@ -37,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 
+@SuppressWarnings("FutureReturnValueIgnored") // intentionally kicking off requests without caring about responses
 class StickyEndpointChannelsTest {
 
     private final AtomicLong ticker = new AtomicLong();

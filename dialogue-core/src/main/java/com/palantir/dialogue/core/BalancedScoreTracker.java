@@ -104,9 +104,11 @@ final class BalancedScoreTracker {
     interface ScoreTracker extends FutureCallback<Response> {
         int hostIndex();
 
-        @Override void onFailure(Throwable _throwable);
+        @Override
+        void onFailure(Throwable _throwable);
 
-        @Override void onSuccess(Response response);
+        @Override
+        void onSuccess(Response response);
 
         void undoStartRequest();
 
