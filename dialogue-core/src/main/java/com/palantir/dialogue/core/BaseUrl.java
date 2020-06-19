@@ -219,12 +219,14 @@ public final class BaseUrl {
         private static final CharMatcher UNRESERVED = DIGIT.or(ALPHA).or(CharMatcher.anyOf("-._~"));
         private static final CharMatcher SUB_DELIMS = CharMatcher.anyOf("!$&'()*+,;=");
         private static final CharMatcher IS_HOST = UNRESERVED.or(SUB_DELIMS);
-        private static final CharMatcher IS_P_CHAR = UNRESERVED.or(SUB_DELIMS);
+        private static final CharMatcher IS_P_CHAR = UNRESERVED;
         private static final CharMatcher IS_PATH = UNRESERVED.or(SUB_DELIMS).or(CharMatcher.anyOf("/"));
-        // The RFC permits percent-encoding any character. We also percent encode '+' because otherwise most servers
-        // interpret it as an url encoded space.
-        private static final CharMatcher IS_QUERY_CHAR =
-                IS_P_CHAR.or(CharMatcher.anyOf("/?")).and(CharMatcher.noneOf("=&+"));
+        // The RFC permits percent-encoding any character. We also percent encode sub-delimiters to avoid
+        // incompatibilities with http specification beyond the general URI definition per
+        // https://tools.ietf.org/html/rfc3986#section-3.3
+        // > URI producing applications often use the reserved characters allowed in a segment to
+        // > delimit scheme-specific or dereference-handler-specific subcomponents.
+        private static final CharMatcher IS_QUERY_CHAR = IS_P_CHAR.or(CharMatcher.anyOf("/?"));
 
         static boolean isHost(String maybeHost) {
             return IS_HOST.matchesAllOf(maybeHost) || isIpv6Host(maybeHost);

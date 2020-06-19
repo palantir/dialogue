@@ -1,0 +1,14 @@
+type: fix
+fix:
+  description: |-
+    Dialogue url encoding escapes Uri sub-delimiter characters.
+    The BaseUrl encoder was implemented to strictly follow rfc3986
+    URI generic syntax, however it did not take into account the
+    [section-3.3](https://tools.ietf.org/html/rfc3986#section-3.3)
+    which describes scheme-specific (http, in our case) reserved
+    characters.
+    We ensure broader compatibility with existing http infrastructure
+    by encoding characters that may be used by some http client and
+    server implementations.
+  links:
+  - https://github.com/palantir/dialogue/pull/854
