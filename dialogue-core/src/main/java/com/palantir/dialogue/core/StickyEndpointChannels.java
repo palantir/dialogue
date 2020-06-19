@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -28,6 +29,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreTracker;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.util.Random;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -40,6 +42,12 @@ public final class StickyEndpointChannels {
     public StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels) {
         this.channels = channels;
         this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
+    }
+
+    @VisibleForTesting
+    StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels, Random random, Ticker ticker) {
+        this.channels = channels;
+        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker);
     }
 
     public Channel getSticky() {
@@ -71,9 +79,9 @@ public final class StickyEndpointChannels {
          */
         @Deprecated
         @Override
-        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
             // TODO(dfox): could we delete this entirely?
-            return endpoint(endpoint).execute(request);
+            throw new UnsupportedOperationException("Not implemented");
         }
     }
 

@@ -30,6 +30,7 @@ dependencies {
     testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl'
     testRuntimeOnly 'org.apache.logging.log4j:log4j-core'
     testImplementation project(':dialogue-test-common')
+    testImplementation project(':dialogue-serde')
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'

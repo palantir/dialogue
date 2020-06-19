@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
 final class BalancedScoreTracker {
-    private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
+    private static final Logger log = LoggerFactory.getLogger(BalancedScoreTracker.class);
 
     private static final Comparator<Snapshot> BY_SCORE = Comparator.comparingInt(Snapshot::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
@@ -66,6 +66,7 @@ final class BalancedScoreTracker {
     }
 
     public ScoreTracker getBestHost() {
+        // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
         return getChannelsByScore()[0];
     }
 
@@ -103,9 +104,9 @@ final class BalancedScoreTracker {
     interface ScoreTracker extends FutureCallback<Response> {
         int hostIndex();
 
-        void onFailure(Throwable _throwable);
+        @Override void onFailure(Throwable _throwable);
 
-        void onSuccess(Response response);
+        @Override void onSuccess(Response response);
 
         void undoStartRequest();
 
