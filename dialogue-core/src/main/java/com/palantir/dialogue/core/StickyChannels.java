@@ -51,8 +51,8 @@ public final class StickyChannels {
         private StickyChannel(StickyChannels parent) {
             this.channel = Suppliers.memoize(() -> {
                 ScoreTracker scoreTracker = parent.tracker.getBestHost();
-                int i = scoreTracker.hostIndex();
-                Channel delegate = parent.channels.get(i);
+                int hostIndex = scoreTracker.hostIndex();
+                Channel delegate = parent.channels.get(hostIndex);
 
                 return new ScoreTrackingChannel(delegate, scoreTracker);
             });

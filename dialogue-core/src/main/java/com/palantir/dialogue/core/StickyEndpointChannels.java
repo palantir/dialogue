@@ -68,8 +68,8 @@ public final class StickyEndpointChannels {
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
             ScoreTracker tracker = currentHost.get();
-            int i = tracker.hostIndex();
-            EndpointChannel delegate = parent.channels.get(i).endpoint(endpoint);
+            int hostIndex = tracker.hostIndex();
+            EndpointChannel delegate = parent.channels.get(hostIndex).endpoint(endpoint);
             return new ScoreTrackingEndpointChannel(delegate, tracker);
         }
 
