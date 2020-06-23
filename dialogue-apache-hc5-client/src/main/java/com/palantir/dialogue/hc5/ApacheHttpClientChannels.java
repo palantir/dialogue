@@ -39,6 +39,7 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
+import java.net.ProxySelector;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -398,7 +399,12 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            .setConnectTimeout(connectTimeout)
+                            // HTTPCLIENT-1478: Work around the connection timeout being used to negotiate proxy
+                            // traffic.
+                            .setConnectTimeout(
+                                    ProxySelector.getDefault().equals(conf.proxy())
+                                            ? connectTimeout
+                                            : Timeout.ofMilliseconds(socketTimeoutMillis))
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // Match okhttp, disallow redirects
