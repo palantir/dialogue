@@ -75,7 +75,7 @@ final class RetryingChannel implements EndpointChannel {
                     SharedTaggedMetricRegistries.getSingleton(),
                     new ThreadFactoryBuilder()
                             .setNameFormat(SCHEDULER_NAME + "-%d")
-                            .setDaemon(false)
+                            .setDaemon(true)
                             .build(),
                     SCHEDULER_NAME)));
 
