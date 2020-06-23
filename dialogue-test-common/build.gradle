@@ -19,6 +19,7 @@ dependencies {
     api 'org.junit.jupiter:junit-jupiter-migrationsupport'
     api 'org.mockito:mockito-core'
     api 'org.mockito:mockito-junit-jupiter'
+    api 'io.undertow:undertow-core'
 }
 
 tasks.withType(JavaCompile) {
