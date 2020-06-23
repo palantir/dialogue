@@ -1,0 +1,6 @@
+type: fix
+fix:
+  description: RetryingChannel scheduler uses daemon threads and no longer keeps the
+    JVM alive on its own.
+  links:
+  - https://github.com/palantir/dialogue/pull/858
