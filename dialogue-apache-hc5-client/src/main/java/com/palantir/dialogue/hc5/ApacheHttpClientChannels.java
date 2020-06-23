@@ -42,12 +42,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
@@ -65,7 +67,6 @@ import org.apache.hc.client5.http.auth.StandardAuthScheme;
 import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
-import org.apache.hc.client5.http.impl.IdleConnectionEvictor;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
@@ -163,7 +164,7 @@ public final class ApacheHttpClientChannels {
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
-                IdleConnectionEvictor connectionEvictor,
+                ScheduledFuture<?> connectionEvictorFuture,
                 TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
@@ -172,20 +173,7 @@ public final class ApacheHttpClientChannels {
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
-            closer.register(() -> {
-                connectionEvictor.shutdown();
-                try {
-                    connectionEvictor.awaitTermination(Timeout.ofSeconds(1L));
-                } catch (InterruptedException interrupted) {
-                    Thread.currentThread().interrupt();
-                }
-                if (connectionEvictor.isRunning()) {
-                    log.warn(
-                            "IdleConnectionEvictor for client {} is still running after termination was requested",
-                            SafeArg.of("client", clientName));
-                }
-            });
-            connectionEvictor.start();
+            closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
             closer.register(pool::close);
             closer.register(DialogueClientMetrics.of(taggedMetrics)
@@ -199,7 +187,7 @@ public final class ApacheHttpClientChannels {
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
-                IdleConnectionEvictor connectionEvictor,
+                ScheduledFuture<?> connectionEvictorFuture,
                 ClientConfiguration clientConfiguration,
                 @Nullable ExecutorService executor) {
             ResponseLeakDetector leakDetector =
@@ -208,7 +196,7 @@ public final class ApacheHttpClientChannels {
                     apacheClient,
                     clientName,
                     pool,
-                    connectionEvictor,
+                    connectionEvictorFuture,
                     clientConfiguration.taggedMetricRegistry(),
                     leakDetector,
                     executor);
@@ -445,14 +433,13 @@ public final class ApacheHttpClientChannels {
                             .build()));
 
             CloseableHttpClient apacheClient = builder.build();
-            IdleConnectionEvictor connectionEvictor = new IdleConnectionEvictor(
+            ScheduledFuture<?> connectionEvictorFuture = ScheduledIdleConnectionEvictor.schedule(
                     connectionManager,
-                    idleConnectionEvictorThreadFactory(name, conf.taggedMetricRegistry()),
                     // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
                     // stale connections to race the server-side timeout.
-                    TimeValue.ofMilliseconds(Math.min(idleConnectionTimeoutMillis, 5_000)),
-                    TimeValue.ofMilliseconds(idleConnectionTimeoutMillis));
-            return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictor, conf, executor);
+                    Duration.ofMillis(Math.min(idleConnectionTimeoutMillis, 5_000)),
+                    Duration.ofMillis(idleConnectionTimeoutMillis));
+            return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
     }
 
