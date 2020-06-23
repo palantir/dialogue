@@ -77,11 +77,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
         weakGauge(
                 taggedMetrics,
-                MetricName.builder()
-                        .safeName("dialogue.concurrencylimiter.max")
-                        .putSafeTags("channel-name", channelName)
-                        .putSafeTags("hostIndex", Integer.toString(uriIndex))
-                        .build(),
+                DialogueConcurrencylimiterMetrics.of(taggedMetrics)
+                        .max()
+                        .channelName(channelName)
+                        .hostIndex(Integer.toString(uriIndex))
+                        .buildMetricName(),
                 this,
                 ConcurrencyLimitedChannel::getMax);
     }

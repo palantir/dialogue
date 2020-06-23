@@ -283,11 +283,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         for (int hostIndex = 0; hostIndex < channels.size(); hostIndex++) {
-            MetricName metricName = MetricName.builder()
-                    .safeName("dialogue.balanced.score")
-                    .putSafeTags("channel-name", channelName)
-                    .putSafeTags("hostIndex", Integer.toString(hostIndex))
-                    .build();
+            MetricName metricName = DialogueBalancedMetrics.of(taggedMetrics)
+                    .score()
+                    .channelName(channelName)
+                    .hostIndex(Integer.toString(hostIndex))
+                    .buildMetricName();
             // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
             // Defensive averaging for the possibility that people create multiple channels with the same channelName.
             DialogueInternalWeakReducingGauge.getOrCreate(
