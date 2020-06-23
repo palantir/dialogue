@@ -30,7 +30,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -151,14 +150,13 @@ public class ConcurrencyLimitedChannelTest {
         when(mockLimiter.acquire()).thenReturn(Optional.empty());
     }
 
+    @SuppressWarnings("unchecked")
     private Number getMax() {
-        MetricName metricName = MetricName.builder()
-                .safeName("dialogue.concurrencylimiter.max")
-                .putSafeTags("channel-name", "channel")
-                .putSafeTags("hostIndex", "0")
-                .build();
-        assertThat(metrics.getMetrics().keySet()).contains(metricName);
-        Gauge<Object> gauge = metrics.gauge(metricName).get();
-        return (Number) gauge.getValue();
+        Gauge<Number> metric = (Gauge<Number>) metrics.getMetrics().entrySet().stream()
+                .filter(entry -> entry.getKey().safeName().equals("dialogue.concurrencylimiter.max"))
+                .findFirst()
+                .get()
+                .getValue();
+        return metric.getValue();
     }
 }
