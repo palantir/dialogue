@@ -20,7 +20,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -50,7 +49,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ThreadFactory;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
@@ -441,18 +439,6 @@ public final class ApacheHttpClientChannels {
                     Duration.ofMillis(idleConnectionTimeoutMillis));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
-    }
-
-    private static ThreadFactory idleConnectionEvictorThreadFactory(String clientName, TaggedMetricRegistry metrics) {
-        Preconditions.checkNotNull(clientName, "Client name is required");
-        Preconditions.checkNotNull(metrics, "TaggedMetricRegistry is required");
-        return MetricRegistries.instrument(
-                metrics,
-                new ThreadFactoryBuilder()
-                        .setNameFormat(clientName + "-IdleConnectionEvictor-%d")
-                        .setDaemon(true)
-                        .build(),
-                "DialogueIdleConnectionEvictor");
     }
 
     /**
