@@ -74,4 +74,6 @@ final class ScheduledIdleConnectionEvictor {
                 delayBetweenChecks.toMillis(),
                 TimeUnit.MILLISECONDS);
     }
+
+    private ScheduledIdleConnectionEvictor() {}
 }
