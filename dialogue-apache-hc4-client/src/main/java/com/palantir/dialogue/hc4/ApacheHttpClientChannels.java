@@ -35,7 +35,6 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
@@ -126,32 +125,37 @@ public final class ApacheHttpClientChannels {
             TaggedMetricRegistry taggedMetrics,
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
+
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "idle"),
+                DialogueClientPoolMetrics.of(taggedMetrics)
+                        .size()
+                        .clientName(clientName)
+                        .state("idle")
+                        .buildMetricName(),
                 pool -> pool.getTotalStats().getAvailable(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "leased"),
+                DialogueClientPoolMetrics.of(taggedMetrics)
+                        .size()
+                        .clientName(clientName)
+                        .state("leased")
+                        .buildMetricName(),
                 pool -> pool.getTotalStats().getLeased(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                clientPoolSizeMetricName(clientName, "pending"),
+                DialogueClientPoolMetrics.of(taggedMetrics)
+                        .size()
+                        .clientName(clientName)
+                        .state("pending")
+                        .buildMetricName(),
                 pool -> pool.getTotalStats().getPending(),
                 LongStream::sum,
                 connectionManager);
-    }
-
-    private static MetricName clientPoolSizeMetricName(String clientName, String state) {
-        return MetricName.builder()
-                .safeName("dialogue.client.pool.size")
-                .putSafeTags("client-name", clientName)
-                .putSafeTags("state", state)
-                .build();
     }
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
