@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
@@ -311,8 +310,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private static int countDistinct(long[] longs) {
-        return Arrays.stream(longs).boxed().collect(Collectors.toSet()).size();
+    private static long countDistinct(long[] longs) {
+        return Arrays.stream(longs).distinct().count();
     }
 
     private abstract static class PerHostObservability {
