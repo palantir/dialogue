@@ -115,7 +115,7 @@ final class BalancedScoreTracker {
 
     @Override
     public String toString() {
-        return "NewBalanced{channels=" + channelStats + '}';
+        return "BalancedScoreTracker{" + channelStats + '}';
     }
 
     public static final class ChannelScoreInfo implements FutureCallback<Response> {
@@ -192,7 +192,7 @@ final class BalancedScoreTracker {
 
         @Override
         public String toString() {
-            return "MutableStats{"
+            return "ChannelScoreInfo{"
                     + "hostIndex=" + hostIndex
                     + ", inflight=" + inflight
                     + ", recentFailures=" + recentFailuresReservoir
@@ -219,7 +219,7 @@ final class BalancedScoreTracker {
 
         @Override
         public String toString() {
-            return "Snapshot{score=" + score + ", delegate=" + delegate + '}';
+            return "ScoreSnapshot{score=" + score + ", delegate=" + delegate + '}';
         }
     }
 
