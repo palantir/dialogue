@@ -27,8 +27,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.BalancedScoreTracker.ScoreTracker;
-import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
 import java.util.Random;
 import java.util.function.Supplier;
 import javax.annotation.concurrent.ThreadSafe;
@@ -41,13 +40,15 @@ public final class StickyEndpointChannels {
 
     public StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels) {
         this.channels = channels;
-        this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
+        // this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
+        this.tracker = null;
     }
 
     @VisibleForTesting
     StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels, Random random, Ticker ticker) {
         this.channels = channels;
-        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker);
+        // this.tracker = new BalancedScoreTracker(channels.size(), random, ticker);
+        this.tracker = null;
     }
 
     public Channel getSticky() {
@@ -58,7 +59,7 @@ public final class StickyEndpointChannels {
     private static final class Sticky implements EndpointChannelFactory, Channel {
 
         private final StickyEndpointChannels parent;
-        private final Supplier<ScoreTracker> currentHost;
+        private final Supplier<ChannelScoreInfo> currentHost;
 
         private Sticky(StickyEndpointChannels parent) {
             this.parent = parent;
@@ -67,8 +68,8 @@ public final class StickyEndpointChannels {
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            ScoreTracker tracker = currentHost.get();
-            int hostIndex = tracker.hostIndex();
+            ChannelScoreInfo tracker = currentHost.get();
+            int hostIndex = tracker.channelIndex();
             EndpointChannel delegate = parent.channels.get(hostIndex).endpoint(endpoint);
             return new ScoreTrackingEndpointChannel(delegate, tracker);
         }
@@ -87,9 +88,9 @@ public final class StickyEndpointChannels {
 
     private static final class ScoreTrackingEndpointChannel implements EndpointChannel {
         private final EndpointChannel delegate;
-        private final ScoreTracker tracker;
+        private final ChannelScoreInfo tracker;
 
-        ScoreTrackingEndpointChannel(EndpointChannel delegate, ScoreTracker tracker) {
+        ScoreTrackingEndpointChannel(EndpointChannel delegate, ChannelScoreInfo tracker) {
             this.delegate = delegate;
             this.tracker = tracker;
         }

@@ -16,13 +16,16 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,8 +40,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
- * being served, how many failures have been seen in the last few seconds and (optionally) also what the best latency
- * to each node is. Use {@link RttSampling#ENABLED} to switch this on.
+ * being served, how many failures have been seen in the last few seconds.
  *
  * This is intended to be a strict improvement over Round Robin and Random Selection which can leave fast servers
  * underutilized, as it sends the same number to both a slow and fast node. It is *not* appropriate for transactional
@@ -52,28 +54,32 @@ final class BalancedScoreTracker {
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
-    private final ImmutableList<MutableStats> stats;
+    private final ImmutableList<MutableStats> channelStats;
     private final Random random;
     private final Ticker clock;
 
-    BalancedScoreTracker(int channelCount, Random random, Ticker ticker) {
+    BalancedScoreTracker(
+            int channelCount, Random random, Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName) {
         Preconditions.checkState(channelCount >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.stats = IntStream.range(0, channelCount)
-                .mapToObj(index -> new MutableStats(index, clock))
+        this.channelStats = IntStream.range(0, channelCount)
+                .mapToObj(index -> new MutableStats(
+                        index, clock, PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
+
+        registerGauges(taggedMetrics, channelName, channelStats);
     }
 
-    public ScoreTracker getBestHost() {
+    public ChannelScoreInfo getBestHost() {
         // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
         return getChannelsByScore()[0];
     }
 
-    public ScoreTracker[] getChannelsByScore() {
+    public ChannelScoreInfo[] getChannelsByScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
-        List<MutableStats> shuffledMutableStats = shuffleImmutableList(stats, random);
+        List<MutableStats> shuffledMutableStats = shuffleImmutableList(channelStats, random);
 
         Snapshot[] snapshotArray = new Snapshot[shuffledMutableStats.size()];
         for (int i = 0; i < snapshotArray.length; i++) {
@@ -82,7 +88,7 @@ final class BalancedScoreTracker {
 
         Arrays.sort(snapshotArray, BY_SCORE);
 
-        ScoreTracker[] returnArray = new ScoreTracker[snapshotArray.length];
+        ChannelScoreInfo[] returnArray = new ChannelScoreInfo[snapshotArray.length];
         for (int i = 0; i < snapshotArray.length; i++) {
             returnArray[i] = snapshotArray[i].delegate;
         }
@@ -98,11 +104,11 @@ final class BalancedScoreTracker {
 
     @Override
     public String toString() {
-        return "NewBalanced{channels=" + stats + '}';
+        return "NewBalanced{channels=" + channelStats + '}';
     }
 
-    interface ScoreTracker extends FutureCallback<Response> {
-        int hostIndex();
+    interface ChannelScoreInfo extends FutureCallback<Response> {
+        int channelIndex();
 
         @Override
         void onFailure(Throwable _throwable);
@@ -113,10 +119,13 @@ final class BalancedScoreTracker {
         void undoStartRequest();
 
         void startRequest();
+
+        PerHostObservability observability();
     }
 
-    private static final class MutableStats implements ScoreTracker {
+    private static final class MutableStats implements ChannelScoreInfo {
         private final int hostIndex;
+        private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
 
@@ -127,14 +136,20 @@ final class BalancedScoreTracker {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableStats(int hostIndex, Ticker clock) {
+        MutableStats(int hostIndex, Ticker clock, PerHostObservability observability) {
             this.hostIndex = hostIndex;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
+            this.observability = observability;
         }
 
         @Override
         public void startRequest() {
             inflight.incrementAndGet();
+        }
+
+        @Override
+        public PerHostObservability observability() {
+            return observability;
         }
 
         @Override
@@ -148,24 +163,27 @@ final class BalancedScoreTracker {
 
             if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                 recentFailuresReservoir.update(FAILURE_WEIGHT);
+                observability.debugLogStatusFailure(response);
             } else if (Responses.isClientError(response)) {
                 // We track 4xx responses because bugs in the server might cause one node to erroneously
                 // throw 401/403s when another node could actually return 200s. Empirically, healthy servers
                 // do actually return a continuous background rate of 4xx responses, so we weight these
                 // drastically less than 5xx responses.
                 recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
+                observability.debugLogStatusFailure(response);
             }
         }
 
         @Override
-        public int hostIndex() {
+        public int channelIndex() {
             return hostIndex;
         }
 
         @Override
-        public void onFailure(Throwable _throwable) {
+        public void onFailure(Throwable throwable) {
             inflight.decrementAndGet();
             recentFailuresReservoir.update(FAILURE_WEIGHT);
+            observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
         }
 
         private Snapshot computeScore() {
@@ -176,6 +194,7 @@ final class BalancedScoreTracker {
             // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
+            observability.traceLogComputedScore(requestsInflight, failureReservoir, score);
             return new Snapshot(score, this);
         }
 
@@ -209,6 +228,112 @@ final class BalancedScoreTracker {
         @Override
         public String toString() {
             return "Snapshot{score=" + score + ", delegate=" + delegate + '}';
+        }
+    }
+
+    private static void registerGauges(
+            TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableStats> channels) {
+        if (channels.size() > 10) {
+            log.info("Not registering gauges as there are too many nodes {}", SafeArg.of("count", channels.size()));
+            return;
+        }
+
+        for (int hostIndex = 0; hostIndex < channels.size(); hostIndex++) {
+            MetricName metricName = MetricName.builder()
+                    .safeName("dialogue.balanced.score")
+                    .putSafeTags("channel-name", channelName)
+                    .putSafeTags("hostIndex", Integer.toString(hostIndex))
+                    .build();
+            // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
+            // Defensive averaging for the possibility that people create multiple channels with the same channelName.
+            DialogueInternalWeakReducingGauge.getOrCreate(
+                    taggedMetrics,
+                    metricName,
+                    c -> c.computeScore().getScore(),
+                    longStream -> {
+                        long[] longs = longStream.toArray();
+                        if (log.isInfoEnabled() && longs.length > 1) {
+                            log.info(
+                                    "Multiple ({}) objects contribute to the same gauge, taking the average "
+                                            + "(beware this may be misleading) {} {}",
+                                    SafeArg.of("count", longs.length),
+                                    SafeArg.of("metricName", metricName),
+                                    SafeArg.of("values", Arrays.toString(longs)));
+                        }
+                        return Arrays.stream(longs).average().orElse(0);
+                    },
+                    channels.get(hostIndex));
+        }
+    }
+
+    public abstract static class PerHostObservability {
+        private final SafeArg<String> channelName;
+        private final SafeArg<Integer> hostIndex;
+
+        PerHostObservability(String channelName, int hostIndex) {
+            this.channelName = SafeArg.of("channelName", channelName);
+            this.hostIndex = SafeArg.of("hostIndex", hostIndex);
+        }
+
+        public abstract void markRequestMade();
+
+        void debugLogThrowableFailure(CoarseExponentialDecayReservoir reservoir, Throwable throwable) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (throwable)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("recentFailures", reservoir.get()),
+                        throwable);
+            }
+        }
+
+        void debugLogStatusFailure(Response response) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Recorded recent failure (status)",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("status", response.code()));
+            }
+        }
+
+        void traceLogComputedScore(int inflight, double failures, int score) {
+            if (log.isTraceEnabled()) {
+                log.trace(
+                        "Computed score ({} {}) {}",
+                        channelName,
+                        hostIndex,
+                        SafeArg.of("score", score),
+                        SafeArg.of("inflight", inflight),
+                        SafeArg.of("failures", failures));
+            }
+        }
+
+        static PerHostObservability create(
+                int numChannels, TaggedMetricRegistry taggedMetrics, String channelName, int index) {
+            // hard limit ensures we don't create unbounded tags
+            if (numChannels > 10) {
+                return new PerHostObservability(channelName, index) {
+                    @Override
+                    public void markRequestMade() {
+                        // noop
+                    }
+                };
+            }
+
+            // pre-creating meters avoids allocating builders on hot codepaths
+            Meter meter = DialogueRoundrobinMetrics.of(taggedMetrics)
+                    .success()
+                    .channelName(channelName)
+                    .hostIndex(Integer.toString(index))
+                    .build();
+            return new PerHostObservability(channelName, index) {
+                @Override
+                public void markRequestMade() {
+                    meter.mark();
+                }
+            };
         }
     }
 }
