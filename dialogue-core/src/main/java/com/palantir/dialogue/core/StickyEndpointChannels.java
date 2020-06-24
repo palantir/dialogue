@@ -28,50 +28,58 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.List;
 import java.util.Random;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-/** For internal ski product, where all requests for a 'transaction' should land on one host. */
+/** Allows requests for a 'transaction' should land on one host. */
 public final class StickyEndpointChannels {
 
-    private final ImmutableList<EndpointChannelFactory> channels;
+    private final ImmutableList<? extends EndpointChannelFactory> channels;
     private final BalancedScoreTracker tracker;
 
-    public StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels) {
-        this.channels = channels;
-        // this.tracker = new BalancedScoreTracker(channels.size(), SafeThreadLocalRandom.get(), Ticker.systemTicker());
-        this.tracker = null;
+    private StickyEndpointChannels(Builder params) {
+        this.channels = params.channels;
+        // TODO(dfox): handle 'channels' of size 0/1 (balanced tracker will barf)
+        this.tracker = new BalancedScoreTracker(
+                params.channels.size(),
+                params.random,
+                params.ticker,
+                Preconditions.checkNotNull(params.taggedMetrics, "taggedMetricRegistry"),
+                Preconditions.checkNotNull(params.channelName, "channelName"));
     }
 
-    @VisibleForTesting
-    StickyEndpointChannels(ImmutableList<EndpointChannelFactory> channels, Random random, Ticker ticker) {
-        this.channels = channels;
-        // this.tracker = new BalancedScoreTracker(channels.size(), random, ticker);
-        this.tracker = null;
-    }
-
-    public Channel getSticky() {
-        return new Sticky(this);
+    /**
+     * Returns the current 'best' channel based on its Balanced score. If the underlying host is completely offline,
+     * callers are responsible for getting a new sticky channel by calling this method again, relying on the
+     * {@link BalancedScoreTracker} to avoid returning the same broken channel again.
+     */
+    public Channel getStickyChannel() {
+        return new Sticky(channels, tracker);
     }
 
     @ThreadSafe
     private static final class Sticky implements EndpointChannelFactory, Channel {
 
-        private final StickyEndpointChannels parent;
-        private final Supplier<ChannelScoreInfo> currentHost;
+        private final ImmutableList<? extends EndpointChannelFactory> channels;
+        private final Supplier<ChannelScoreInfo> getSingleBestChannel;
 
-        private Sticky(StickyEndpointChannels parent) {
-            this.parent = parent;
-            this.currentHost = Suppliers.memoize(parent.tracker::getSingleBestChannelByScore);
+        public Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
+            this.channels = channels;
+            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore);
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            ChannelScoreInfo tracker = currentHost.get();
-            int hostIndex = tracker.channelIndex();
-            EndpointChannel delegate = parent.channels.get(hostIndex).endpoint(endpoint);
-            return new ScoreTrackingEndpointChannel(delegate, tracker);
+            ChannelScoreInfo channelScoreInfo = getSingleBestChannel.get();
+            int hostIndex = channelScoreInfo.channelIndex();
+            EndpointChannel delegate = channels.get(hostIndex).endpoint(endpoint);
+            return new ScoreTrackingEndpointChannel(delegate, channelScoreInfo);
         }
 
         /**
@@ -99,8 +107,57 @@ public final class StickyEndpointChannels {
         public ListenableFuture<Response> execute(Request request) {
             tracker.startRequest();
             ListenableFuture<Response> future = delegate.execute(request);
+            tracker.observability().markRequestMade();
             DialogueFutures.addDirectCallback(future, tracker);
             return future;
+        }
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private ImmutableList<? extends EndpointChannelFactory> channels = ImmutableList.of();
+
+        @Nullable
+        private String channelName;
+
+        @Nullable
+        private TaggedMetricRegistry taggedMetrics;
+
+        private Random random = SafeThreadLocalRandom.get();
+        private Ticker ticker = Ticker.systemTicker();
+
+        public Builder channels(List<? extends EndpointChannelFactory> channels) {
+            this.channels = ImmutableList.copyOf(channels);
+            return this;
+        }
+
+        public Builder channelName(String value) {
+            this.channelName = Preconditions.checkNotNull(value, "channelName");
+            return this;
+        }
+
+        public Builder taggedMetricRegistry(TaggedMetricRegistry value) {
+            this.taggedMetrics = Preconditions.checkNotNull(value, "taggedMetrics");
+            return this;
+        }
+
+        @VisibleForTesting
+        Builder random(Random value) {
+            this.random = value;
+            return this;
+        }
+
+        @VisibleForTesting
+        Builder ticker(Ticker value) {
+            this.ticker = value;
+            return this;
+        }
+
+        StickyEndpointChannels build() {
+            return new StickyEndpointChannels(this);
         }
     }
 }

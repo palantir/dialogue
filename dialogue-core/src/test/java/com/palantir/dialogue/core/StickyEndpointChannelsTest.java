@@ -30,6 +30,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
@@ -50,15 +51,22 @@ class StickyEndpointChannelsTest {
     private final Supplier<ListenableFuture<Response>> immediate429 =
             () -> Futures.immediateFuture(new TestResponse().code(429));
 
+    private StickyEndpointChannels.Builder builder() {
+        return StickyEndpointChannels.builder()
+                .random(new Random(11))
+                .ticker(ticker::getAndIncrement)
+                .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
+                .channelName("channelName");
+    }
+
     @Test
     void all_calls_on_a_sticky_channel_go_to_one_host() {
-        StickyEndpointChannels channels = new StickyEndpointChannels(
-                ImmutableList.of(
-                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", serve204)),
-                new Random(11),
-                ticker::getAndIncrement);
+        StickyEndpointChannels channels = builder()
+                .channels(ImmutableList.of(
+                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", serve204)))
+                .build();
 
-        Channel sticky1 = channels.getSticky();
+        Channel sticky1 = channels.getStickyChannel();
 
         SampleServiceAsync async1 = SampleServiceAsync.of(sticky1, runtime);
         async1.voidToVoid();
@@ -73,7 +81,7 @@ class StickyEndpointChannelsTest {
                 .allSatisfy(string -> assertThat(string).startsWith("[three]"));
         requests.clear();
 
-        Channel sticky2 = channels.getSticky();
+        Channel sticky2 = channels.getStickyChannel();
         SampleServiceAsync async2 = SampleServiceAsync.of(sticky2, runtime);
         async2.voidToVoid();
         async2.getMyAlias();
@@ -86,13 +94,12 @@ class StickyEndpointChannelsTest {
 
     @Test
     void sticky_channel_stays_put_despite_429s() {
-        StickyEndpointChannels channels = new StickyEndpointChannels(
-                ImmutableList.of(
-                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate429)),
-                new Random(11),
-                ticker::getAndIncrement);
+        StickyEndpointChannels channels = builder()
+                .channels(ImmutableList.of(
+                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate429)))
+                .build();
 
-        SampleServiceAsync async1 = SampleServiceAsync.of(channels.getSticky(), runtime);
+        SampleServiceAsync async1 = SampleServiceAsync.of(channels.getStickyChannel(), runtime);
         async1.voidToVoid();
         async1.getMyAlias();
         async1.getOptionalBinary();
@@ -104,7 +111,7 @@ class StickyEndpointChannelsTest {
         requests.clear();
 
         for (int i = 0; i < 200; i++) {
-            SampleServiceAsync async = SampleServiceAsync.of(channels.getSticky(), runtime);
+            SampleServiceAsync async = SampleServiceAsync.of(channels.getStickyChannel(), runtime);
             async.voidToVoid();
             async.getMyAlias();
             async.getOptionalBinary();
