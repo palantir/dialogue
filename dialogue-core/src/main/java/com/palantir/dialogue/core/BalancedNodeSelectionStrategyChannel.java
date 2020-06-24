@@ -296,7 +296,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     c -> c.computeScore(0).getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
-                        if (log.isInfoEnabled() && longs.length > 1) {
+                        if (log.isInfoEnabled() && longs.length > 1 && countDistinct(longs) > 1) {
                             log.info(
                                     "Multiple ({}) objects contribute to the same gauge, taking the average "
                                             + "(beware this may be misleading) {} {}",
@@ -308,6 +308,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     },
                     channels.get(hostIndex));
         }
+    }
+
+    private static long countDistinct(long[] longs) {
+        return Arrays.stream(longs).distinct().count();
     }
 
     private abstract static class PerHostObservability {
