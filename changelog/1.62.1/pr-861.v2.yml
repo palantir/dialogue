@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Work around http proxy timeouts caused by HTTPCLIENT-1478
+  links:
+  - https://github.com/palantir/dialogue/pull/861
