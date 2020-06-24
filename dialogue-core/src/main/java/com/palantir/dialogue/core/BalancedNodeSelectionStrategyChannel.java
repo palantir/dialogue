@@ -56,7 +56,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName,
-            RttSampling samplingEnabled) {
+            RttSampling _samplingEnabled) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
         this.channels = channels;
@@ -92,7 +92,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @VisibleForTesting
     IntStream getScoresForTesting() {
-        throw new UnsupportedOperationException("TODO");
+        return tracker.getScoresForTesting();
     }
 
     @Override

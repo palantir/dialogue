@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
@@ -98,6 +99,11 @@ final class BalancedScoreTracker {
     public ChannelScoreInfo getSingleBestChannelByScore() {
         // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
         return getChannelsByScore()[0];
+    }
+
+    @VisibleForTesting
+    IntStream getScoresForTesting() {
+        return channelStats.stream().mapToInt(c -> c.computeScoreSnapshot().score);
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
