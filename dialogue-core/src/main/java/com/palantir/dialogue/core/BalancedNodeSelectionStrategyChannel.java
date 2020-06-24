@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
@@ -296,7 +297,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     c -> c.computeScore(0).getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
-                        if (log.isInfoEnabled() && longs.length > 1) {
+                        if (log.isInfoEnabled() && longs.length > 1 && countDistinct(longs) > 1) {
                             log.info(
                                     "Multiple ({}) objects contribute to the same gauge, taking the average "
                                             + "(beware this may be misleading) {} {}",
@@ -308,6 +309,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                     },
                     channels.get(hostIndex));
         }
+    }
+
+    private static int countDistinct(long[] longs) {
+        return Arrays.stream(longs).boxed().collect(Collectors.toSet()).size();
     }
 
     private abstract static class PerHostObservability {
