@@ -50,11 +50,11 @@ import org.slf4j.LoggerFactory;
 final class BalancedScoreTracker {
     private static final Logger log = LoggerFactory.getLogger(BalancedScoreTracker.class);
 
-    private static final Comparator<Snapshot> BY_SCORE = Comparator.comparingInt(Snapshot::getScore);
+    private static final Comparator<ScoreSnapshot> BY_SCORE = Comparator.comparingInt(ScoreSnapshot::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);
     private static final double FAILURE_WEIGHT = 10;
 
-    private final ImmutableList<MutableStats> channelStats;
+    private final ImmutableList<ChannelScoreInfo> channelStats;
     private final Random random;
     private final Ticker clock;
 
@@ -64,26 +64,26 @@ final class BalancedScoreTracker {
         this.random = random;
         this.clock = ticker;
         this.channelStats = IntStream.range(0, channelCount)
-                .mapToObj(index -> new MutableStats(
+                .mapToObj(index -> new ChannelScoreInfo(
                         index, clock, PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         registerGauges(taggedMetrics, channelName, channelStats);
     }
 
-    public ChannelScoreInfo getBestHost() {
-        // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
-        return getChannelsByScore()[0];
-    }
-
+    /**
+     * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
+     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
+     * methods to feed information back into the tracker.
+     */
     public ChannelScoreInfo[] getChannelsByScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
-        List<MutableStats> shuffledMutableStats = shuffleImmutableList(channelStats, random);
+        List<ChannelScoreInfo> shuffledMutableStats = shuffleImmutableList(channelStats, random);
 
-        Snapshot[] snapshotArray = new Snapshot[shuffledMutableStats.size()];
+        ScoreSnapshot[] snapshotArray = new ScoreSnapshot[shuffledMutableStats.size()];
         for (int i = 0; i < snapshotArray.length; i++) {
-            snapshotArray[i] = shuffledMutableStats.get(i).computeScore();
+            snapshotArray[i] = shuffledMutableStats.get(i).computeScoreSnapshot();
         }
 
         Arrays.sort(snapshotArray, BY_SCORE);
@@ -93,6 +93,11 @@ final class BalancedScoreTracker {
             returnArray[i] = snapshotArray[i].delegate;
         }
         return returnArray;
+    }
+
+    public ChannelScoreInfo getSingleBestChannelByScore() {
+        // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
+        return getChannelsByScore()[0];
     }
 
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
@@ -107,23 +112,7 @@ final class BalancedScoreTracker {
         return "NewBalanced{channels=" + channelStats + '}';
     }
 
-    interface ChannelScoreInfo extends FutureCallback<Response> {
-        int channelIndex();
-
-        @Override
-        void onFailure(Throwable _throwable);
-
-        @Override
-        void onSuccess(Response response);
-
-        void undoStartRequest();
-
-        void startRequest();
-
-        PerHostObservability observability();
-    }
-
-    private static final class MutableStats implements ChannelScoreInfo {
+    public static final class ChannelScoreInfo implements FutureCallback<Response> {
         private final int hostIndex;
         private final PerHostObservability observability;
 
@@ -136,23 +125,21 @@ final class BalancedScoreTracker {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        MutableStats(int hostIndex, Ticker clock, PerHostObservability observability) {
+        ChannelScoreInfo(int hostIndex, Ticker clock, PerHostObservability observability) {
             this.hostIndex = hostIndex;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
         }
 
-        @Override
         public void startRequest() {
             inflight.incrementAndGet();
         }
 
-        @Override
         public PerHostObservability observability() {
             return observability;
         }
 
-        @Override
+        /** Only necessary for the {@link LimitedChannel} case, where a request might just be refused. */
         public void undoStartRequest() {
             inflight.decrementAndGet();
         }
@@ -174,7 +161,6 @@ final class BalancedScoreTracker {
             }
         }
 
-        @Override
         public int channelIndex() {
             return hostIndex;
         }
@@ -186,7 +172,7 @@ final class BalancedScoreTracker {
             observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
         }
 
-        private Snapshot computeScore() {
+        private ScoreSnapshot computeScoreSnapshot() {
             int requestsInflight = inflight.get();
             double failureReservoir = recentFailuresReservoir.get();
 
@@ -195,7 +181,7 @@ final class BalancedScoreTracker {
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.traceLogComputedScore(requestsInflight, failureReservoir, score);
-            return new Snapshot(score, this);
+            return new ScoreSnapshot(score, this);
         }
 
         @Override
@@ -212,11 +198,11 @@ final class BalancedScoreTracker {
      * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class Snapshot {
+    private static final class ScoreSnapshot {
         private final int score;
-        private final MutableStats delegate;
+        private final ChannelScoreInfo delegate;
 
-        Snapshot(int score, MutableStats delegate) {
+        ScoreSnapshot(int score, ChannelScoreInfo delegate) {
             this.score = score;
             this.delegate = delegate;
         }
@@ -232,7 +218,7 @@ final class BalancedScoreTracker {
     }
 
     private static void registerGauges(
-            TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<MutableStats> channels) {
+            TaggedMetricRegistry taggedMetrics, String channelName, ImmutableList<ChannelScoreInfo> channels) {
         if (channels.size() > 10) {
             log.info("Not registering gauges as there are too many nodes {}", SafeArg.of("count", channels.size()));
             return;
@@ -249,7 +235,7 @@ final class BalancedScoreTracker {
             DialogueInternalWeakReducingGauge.getOrCreate(
                     taggedMetrics,
                     metricName,
-                    c -> c.computeScore().getScore(),
+                    c -> c.computeScoreSnapshot().getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
                         if (log.isInfoEnabled() && longs.length > 1) {

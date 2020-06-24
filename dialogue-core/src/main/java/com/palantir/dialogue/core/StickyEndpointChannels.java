@@ -63,7 +63,7 @@ public final class StickyEndpointChannels {
 
         private Sticky(StickyEndpointChannels parent) {
             this.parent = parent;
-            this.currentHost = Suppliers.memoize(parent.tracker::getBestHost);
+            this.currentHost = Suppliers.memoize(parent.tracker::getSingleBestChannelByScore);
         }
 
         @Override
