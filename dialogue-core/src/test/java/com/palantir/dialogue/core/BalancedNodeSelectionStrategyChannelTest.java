@@ -39,6 +39,7 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -162,6 +163,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
+    @Disabled("RTT functionality is not wired up right now")
     void rtt_is_measured_and_can_influence_choices() {
         incrementClockBy(Duration.ofHours(1));
 
@@ -196,6 +198,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
+    @Disabled("RTT functionality is not wired up right now")
     void when_rtt_measurements_are_limited_dont_freak_out() {
         incrementClockBy(Duration.ofHours(1));
 
@@ -212,6 +215,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     @Test
+    @Disabled("RTT functionality is not wired up right now")
     void when_rtt_measurements_havent_returned_yet_consider_both_far_away() {
         incrementClockBy(Duration.ofHours(1));
         // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
