@@ -18,6 +18,7 @@ package com.palantir.dialogue.otherpackage;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -26,13 +27,21 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.clients.ConjureClients;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannels;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.UnknownHostException;
 import java.security.Provider;
 import java.time.Duration;
 import org.junit.jupiter.api.Test;
@@ -56,6 +65,8 @@ class DialogueClientsTest {
                     PartialServiceConfiguration.builder()
                             .addUris("https://email-service")
                             .build())
+            .putServices(
+                    "zero-uris-service", PartialServiceConfiguration.builder().build())
             .build();
 
     @Test
@@ -80,6 +91,69 @@ class DialogueClientsTest {
 
         Alternative alternativeFactory = new Alternative();
         new LibraryClassWithMixins<>(alternativeFactory).doSomething();
+    }
+
+    @Test
+    void getStickyChannels_behaves_when_service_doesnt_exist() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withMaxNumRetries(0);
+
+        StickyChannels stickyChannels2 = factory.getStickyChannels("asldjaslkdjslad");
+        ListenableFuture<Response> future2 = stickyChannels2
+                .getSingleHostChannel()
+                .execute(TestEndpoint.POST, Request.builder().build());
+        assertThatThrownBy(future2::get)
+                .describedAs("Nice error message when services doesn't exist")
+                .hasCauseInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured (config block not present)");
+    }
+
+    @Test
+    void getStickyChannels_behaves_when_just_one_uri() {
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withMaxNumRetries(0);
+
+        StickyChannels stickyChannels = factory.getStickyChannels("multipass");
+
+        ListenableFuture<Response> future = stickyChannels
+                .getSingleHostChannel()
+                .execute(TestEndpoint.POST, Request.builder().build());
+        assertThatThrownBy(future::get)
+                .describedAs("Made a real network call")
+                .hasCauseInstanceOf(UnknownHostException.class);
+    }
+
+    @Test
+    void getStickyChannels_live_reloads_nicely() {
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
+        ReloadingFactory factory = DialogueClients.create(refreshable)
+                .withUserAgent(TestConfigurations.AGENT)
+                .withMaxNumRetries(0);
+
+        StickyChannels stickyChannels = factory.getStickyChannels("zero-uris-service");
+        ListenableFuture<Response> future = stickyChannels
+                .getSingleHostChannel()
+                .execute(TestEndpoint.POST, Request.builder().build());
+        assertThatThrownBy(future::get)
+                .describedAs("Nice error message when service exists but has zero uris")
+                .hasCauseInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured (no URIs)");
+
+        refreshable.update(ServicesConfigBlock.builder()
+                .from(scb)
+                .putServices(
+                        "zero-uris-service", PartialServiceConfiguration.builder()
+                                .addUris("https://live-reloaded-uri-appeared")
+                                .build())
+                .build());
+        ListenableFuture<Response> future2 = stickyChannels
+                .getSingleHostChannel()
+                .execute(TestEndpoint.POST, Request.builder().build());
+        assertThatThrownBy(future2::get)
+                .describedAs("Made a real network call")
+                .hasCauseInstanceOf(UnknownHostException.class);
     }
 
     // this is the recommended way to depend on a clientfactory
