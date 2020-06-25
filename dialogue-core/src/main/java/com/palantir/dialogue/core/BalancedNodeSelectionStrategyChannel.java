@@ -91,6 +91,6 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public String toString() {
-        return "BalancedNodeSelectionStrategyChannel{channels=" + channels + '}';
+        return "BalancedNodeSelectionStrategyChannel{channels=" + channels + ", tracker=" + tracker + '}';
     }
 }
