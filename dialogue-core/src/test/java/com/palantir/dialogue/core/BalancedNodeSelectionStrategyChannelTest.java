@@ -33,13 +33,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -68,19 +66,9 @@ class BalancedNodeSelectionStrategyChannelTest {
     @BeforeEach
     public void before() {
         channel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2),
-                random,
-                clock,
-                new DefaultTaggedMetricRegistry(),
-                "channelName",
-                RttSampling.DEFAULT_OFF);
+                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
         rttChannel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2),
-                random,
-                clock,
-                new DefaultTaggedMetricRegistry(),
-                "channelName",
-                RttSampling.ENABLED);
+                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
     }
 
     @Test
@@ -160,79 +148,6 @@ class BalancedNodeSelectionStrategyChannelTest {
                         "%s: We quickly forget about 4xxs and go back to fair shuffling %s",
                         Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(0, 0);
-    }
-
-    @Test
-    @Disabled("RTT functionality is not wired up right now")
-    void rtt_is_measured_and_can_influence_choices() {
-        incrementClockBy(Duration.ofHours(1));
-
-        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-
-        SettableFuture<Response> chan1OptionsResponse = SettableFuture.create();
-        SettableFuture<Response> chan2OptionsResponse = SettableFuture.create();
-        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
-        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan1OptionsResponse));
-        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(chan2OptionsResponse));
-
-        rttChannel.maybeExecute(endpoint, request);
-
-        incrementClockBy(Duration.ofNanos(123));
-        chan1OptionsResponse.set(new TestResponse().code(200));
-
-        incrementClockBy(Duration.ofNanos(456));
-        chan2OptionsResponse.set(new TestResponse().code(200));
-
-        assertThat(rttChannel.getScoresForTesting())
-                .describedAs("The poor latency of channel2 imposes a small constant penalty in the score")
-                .containsExactly(0, 3);
-
-        for (int i = 0; i < 500; i++) {
-            incrementClockBy(Duration.ofMillis(10));
-            rttChannel.maybeExecute(endpoint, request);
-        }
-        // rate limiter ensures a sensible amount of rtt sampling
-        verify(chan1, times(6)).maybeExecute(eq(rttEndpoint), any());
-        verify(chan2, times(6)).maybeExecute(eq(rttEndpoint), any());
-    }
-
-    @Test
-    @Disabled("RTT functionality is not wired up right now")
-    void when_rtt_measurements_are_limited_dont_freak_out() {
-        incrementClockBy(Duration.ofHours(1));
-
-        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-
-        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
-        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
-        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.empty());
-
-        rttChannel.maybeExecute(endpoint, request);
-
-        assertThat(channel.getScoresForTesting()).containsExactly(0, 0);
-    }
-
-    @Test
-    @Disabled("RTT functionality is not wired up right now")
-    void when_rtt_measurements_havent_returned_yet_consider_both_far_away() {
-        incrementClockBy(Duration.ofHours(1));
-        // when(chan1.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-        when(chan2.maybeExecute(eq(endpoint), any())).thenReturn(http(200));
-
-        RttSampler.RttEndpoint rttEndpoint = RttSampler.RttEndpoint.INSTANCE;
-        when(chan1.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
-        when(chan2.maybeExecute(eq(rttEndpoint), any())).thenReturn(Optional.of(SettableFuture.create()));
-
-        for (int i = 0; i < 20; i++) {
-            incrementClockBy(Duration.ofSeconds(5));
-            rttChannel.maybeExecute(endpoint, request);
-        }
-
-        assertThat(rttChannel.getScoresForTesting()).containsExactly(0, 0);
-        verify(chan1, times(1)).maybeExecute(eq(rttEndpoint), any());
-        verify(chan2, times(1)).maybeExecute(eq(rttEndpoint), any());
     }
 
     private static void set200(LimitedChannel chan) {

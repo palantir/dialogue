@@ -55,17 +55,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
-            String channelName,
-            RttSampling _samplingEnabled) {
+            String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
         this.channels = channels;
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
-    }
-
-    enum RttSampling {
-        DEFAULT_OFF,
-        ENABLED
     }
 
     @Override

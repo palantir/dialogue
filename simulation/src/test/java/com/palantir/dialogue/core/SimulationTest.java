@@ -25,7 +25,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.RttSampler.RttEndpoint;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
@@ -550,7 +549,7 @@ final class SimulationTest {
     private static String serverSideNodeSelectionStrategy(Strategy strategy) {
         switch (strategy) {
             case CONCURRENCY_LIMITER_ROUND_ROBIN:
-                return "BALANCED_RTT2";
+                return "BALANCED";
             case CONCURRENCY_LIMITER_PIN_UNTIL_ERROR:
                 return "PIN_UNTIL_ERROR";
             case UNLIMITED_ROUND_ROBIN:
