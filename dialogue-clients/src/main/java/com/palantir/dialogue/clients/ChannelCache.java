@@ -21,7 +21,6 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
@@ -62,7 +61,7 @@ final class ChannelCache {
      */
     private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
 
-    private final LoadingCache<ChannelCacheKey, Channel> channelCache =
+    private final LoadingCache<ChannelCacheKey, DialogueChannel> channelCache =
             Caffeine.newBuilder().maximumSize(MAX_CACHED_CHANNELS).build(this::createNonLiveReloadingChannel);
     private final int instanceNumber;
 
@@ -87,7 +86,7 @@ final class ChannelCache {
         return newCache;
     }
 
-    Channel getNonReloadingChannel(
+    DialogueChannel getNonReloadingChannel(
             ReloadingClientFactory.ReloadingParams reloadingParams,
             ServiceConfiguration serviceConf,
             @Safe String channelName) {
@@ -103,7 +102,7 @@ final class ChannelCache {
                 .build());
     }
 
-    private Channel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
+    private DialogueChannel createNonLiveReloadingChannel(ChannelCacheKey channelCacheRequest) {
         ImmutableApacheClientRequest request = ImmutableApacheClientRequest.builder()
                 .from(channelCacheRequest)
                 .channelName(channelCacheRequest.channelName())
@@ -120,7 +119,7 @@ final class ChannelCache {
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()))
-                .buildNonLiveReloading();
+                .build();
     }
 
     @VisibleForTesting
