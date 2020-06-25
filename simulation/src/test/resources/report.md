@@ -8,7 +8,7 @@
                        black_hole[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=91.5%	client_mean=PT0.6S         	server_cpu=PT18M17.4S     	client_received=1829/2000	server_resps=1829	codes={200=1829}
                                  black_hole[UNLIMITED_ROUND_ROBIN].txt:	success=91.4%	client_mean=PT0.6S         	server_cpu=PT18M16.8S     	client_received=1828/2000	server_resps=1828	codes={200=1828}
                      cross_az[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT0.138584666S 	server_cpu=PT1H9M17.54S   	client_received=30000/30000	server_resps=30000	codes={200=30000}
-                         cross_az[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.138103933S 	server_cpu=PT1H9M7.615S   	client_received=30000/30000	server_resps=32998	codes={200=30000}
+                         cross_az[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.138486133S 	server_cpu=PT1H9M14.584S  	client_received=30000/30000	server_resps=30000	codes={200=30000}
                                    cross_az[UNLIMITED_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.138486133S 	server_cpu=PT1H9M14.584S  	client_received=30000/30000	server_resps=30000	codes={200=30000}
              drastic_slowdown[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=100.0%	client_mean=PT2.947028083S 	server_cpu=PT41M8.862333314S	client_received=4000/4000	server_resps=4000	codes={200=4000}
                  drastic_slowdown[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=100.0%	client_mean=PT0.251969999S 	server_cpu=PT16M47.879999984S	client_received=4000/4000	server_resps=4000	codes={200=4000}
