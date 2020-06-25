@@ -65,13 +65,27 @@ public final class DialogueClients {
         Channel getChannel(String serviceName);
     }
 
+    public interface ReloadingStickyFactory {
+        StickyChannels getStickyChannels(String serviceName);
+    }
+
+    /** A stateful object - should only need one of these. */
+    public interface StickyChannels {
+        /**
+         * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
+         * Each successive call to this method may get a different channel (or it may return the same one).
+         */
+        Channel getSingleHostChannel();
+    }
+
     public interface ReloadingFactory
             extends ConjureClients.ReloadingClientFactory,
                     WithClientOptions<ReloadingFactory>,
-                    WithDialogueOptions<ReloadingFactory>,
+            WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ReloadingChannelFactory {}
+            ReloadingStickyFactory,
+            ReloadingChannelFactory {}
 
     private DialogueClients() {}
 }
