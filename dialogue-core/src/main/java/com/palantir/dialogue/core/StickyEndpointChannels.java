@@ -69,7 +69,7 @@ public final class StickyEndpointChannels {
         private final ImmutableList<? extends EndpointChannelFactory> channels;
         private final Supplier<ChannelScoreInfo> getSingleBestChannel;
 
-        public Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
+        private Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
             this.channels = channels;
             this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore);
         }
@@ -131,8 +131,8 @@ public final class StickyEndpointChannels {
 
         private Builder() {}
 
-        public Builder channels(List<? extends EndpointChannelFactory> channels) {
-            this.channels = ImmutableList.copyOf(channels);
+        public Builder channels(List<? extends EndpointChannelFactory> chans) {
+            this.channels = ImmutableList.copyOf(chans);
             return this;
         }
 

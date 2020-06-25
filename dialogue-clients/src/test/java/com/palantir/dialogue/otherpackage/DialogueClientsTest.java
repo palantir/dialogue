@@ -144,7 +144,8 @@ class DialogueClientsTest {
         refreshable.update(ServicesConfigBlock.builder()
                 .from(scb)
                 .putServices(
-                        "zero-uris-service", PartialServiceConfiguration.builder()
+                        "zero-uris-service",
+                        PartialServiceConfiguration.builder()
                                 .addUris("https://live-reloaded-uri-appeared")
                                 .build())
                 .build());

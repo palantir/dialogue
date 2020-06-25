@@ -81,11 +81,11 @@ public final class DialogueClients {
     public interface ReloadingFactory
             extends ConjureClients.ReloadingClientFactory,
                     WithClientOptions<ReloadingFactory>,
-            WithDialogueOptions<ReloadingFactory>,
+                    WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-            ReloadingStickyFactory,
-            ReloadingChannelFactory {}
+                    ReloadingStickyFactory,
+                    ReloadingChannelFactory {}
 
     private DialogueClients() {}
 }
