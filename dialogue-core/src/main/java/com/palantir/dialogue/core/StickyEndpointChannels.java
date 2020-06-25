@@ -117,7 +117,7 @@ public final class StickyEndpointChannels {
         return new Builder();
     }
 
-    public static class Builder {
+    public static final class Builder {
         private ImmutableList<? extends EndpointChannelFactory> channels = ImmutableList.of();
 
         @Nullable
@@ -128,6 +128,8 @@ public final class StickyEndpointChannels {
 
         private Random random = SafeThreadLocalRandom.get();
         private Ticker ticker = Ticker.systemTicker();
+
+        private Builder() {}
 
         public Builder channels(List<? extends EndpointChannelFactory> channels) {
             this.channels = ImmutableList.copyOf(channels);
@@ -156,7 +158,7 @@ public final class StickyEndpointChannels {
             return this;
         }
 
-        StickyEndpointChannels build() {
+        public StickyEndpointChannels build() {
             return new StickyEndpointChannels(this);
         }
     }
