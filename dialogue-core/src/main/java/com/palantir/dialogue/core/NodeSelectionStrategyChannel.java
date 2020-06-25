@@ -140,8 +140,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 // When people ask for 'ROUND_ROBIN', they usually just want something to load balance better.
                 // We used to have a naive RoundRobinChannel, then tried RandomSelection and now use this heuristic:
                 return channelBuilder
-                        .channel(new BalancedNodeSelectionStrategyChannel(
-                                channels, random, tick, metrics, channelName))
+                        .channel(new BalancedNodeSelectionStrategyChannel(channels, random, tick, metrics, channelName))
                         .build();
             case UNKNOWN:
         }

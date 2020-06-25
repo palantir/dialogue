@@ -25,7 +25,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
@@ -507,55 +506,6 @@ final class SimulationTest {
                 .clients(numClients, _i -> strategy.getChannel(simulation, servers))
                 .abortAfter(Duration.ofHours(1))
                 .run();
-    }
-
-    @SimulationCase
-    void cross_az(Strategy strategy) {
-        // TODO(dfox): once people can opt-in to BALANCED_RTT on the client side, we don't need this
-        String nssHeader = serverSideNodeSelectionStrategy(strategy);
-        Function<SimulationServer, Response> responseFunction =
-                _s -> new TestResponse().code(200).withHeader("Node-Selection-Strategy", nssHeader);
-
-        servers = servers(
-                SimulationServer.builder()
-                        .serverName("nearby")
-                        .simulation(simulation)
-                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(1)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(30)))
-                        .until(Duration.ofMinutes(15), "slowdown halfway")
-                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(1)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(300)))
-                        .build(),
-                SimulationServer.builder()
-                        .serverName("faraway")
-                        .simulation(simulation)
-                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(31)))
-                        .until(Duration.ofMinutes(15), "slowdown halfway")
-                        .handler(RttEndpoint.INSTANCE, h -> h.response(200).responseTime(Duration.ofMillis(2)))
-                        .handler(h -> h.response(responseFunction).responseTime(Duration.ofMillis(301)))
-                        .build());
-
-        st = strategy;
-        result = Benchmark.builder()
-                .simulation(simulation)
-                .requestsPerSecond(20)
-                .sendUntil(Duration.ofMinutes(25))
-                .client(strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofHours(1))
-                .run();
-    }
-
-    private static String serverSideNodeSelectionStrategy(Strategy strategy) {
-        switch (strategy) {
-            case CONCURRENCY_LIMITER_ROUND_ROBIN:
-                return "BALANCED";
-            case CONCURRENCY_LIMITER_PIN_UNTIL_ERROR:
-                return "PIN_UNTIL_ERROR";
-            case UNLIMITED_ROUND_ROBIN:
-                return "BALANCED";
-        }
-        throw new SafeIllegalArgumentException("Unknown");
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
