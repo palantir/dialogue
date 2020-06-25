@@ -26,7 +26,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel.RttSampling;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -124,8 +123,8 @@ public class NodeSelectionBenchmark {
                             "channelName");
                     break;
                 case ROUND_ROBIN:
-                    channel = new BalancedNodeSelectionStrategyChannel(
-                            channels, random, ticker, metrics, "channelName", RttSampling.DEFAULT_OFF);
+                    channel =
+                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");

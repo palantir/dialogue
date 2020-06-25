@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.annotations.Beta;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -36,8 +35,6 @@ enum DialogueNodeSelectionStrategy {
     PIN_UNTIL_ERROR,
     PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
     BALANCED,
-    @Beta
-    BALANCED_RTT2,
     UNKNOWN;
 
     private static final Logger log = LoggerFactory.getLogger(DialogueNodeSelectionStrategy.class);
@@ -62,8 +59,6 @@ enum DialogueNodeSelectionStrategy {
                 return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
             case "BALANCED":
                 return BALANCED;
-            case "BALANCED_RTT2":
-                return BALANCED_RTT2;
         }
 
         log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));

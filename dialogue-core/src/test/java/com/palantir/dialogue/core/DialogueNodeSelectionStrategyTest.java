@@ -32,8 +32,6 @@ class DialogueNodeSelectionStrategyTest {
     void parses_multiple_strategies() {
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED, PIN_UNTIL_ERROR"))
                 .containsExactly(DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR);
-        assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED_RTT2,BALANCED"))
-                .containsExactly(DialogueNodeSelectionStrategy.BALANCED_RTT2, DialogueNodeSelectionStrategy.BALANCED);
         assertThat(DialogueNodeSelectionStrategy.fromHeader("BALANCED_FUTURE_EXPERIMENT, BALANCED"))
                 .containsExactly(DialogueNodeSelectionStrategy.UNKNOWN, DialogueNodeSelectionStrategy.BALANCED);
     }
