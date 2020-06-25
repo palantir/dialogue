@@ -69,7 +69,7 @@ public final class DialogueClients {
         StickyChannels getStickyChannels(String serviceName);
     }
 
-    /** A stateful object - should only need one of these. */
+    /** A stateful object - should only need one of these. Live reloads under the hood. */
     public interface StickyChannels {
         /**
          * Returns a channel which will route all requests to a single host, even if that host returns some 429s.

@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -37,6 +38,9 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannels;
+import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -119,6 +123,80 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
         return new LiveReloadingChannel(mapped, params.runtime().clients());
+    }
+
+    @Override
+    public StickyChannels getStickyChannels(String serviceName) {
+        Preconditions.checkNotNull(serviceName, "serviceName");
+        String channelName = ChannelNames.reloading(serviceName, params);
+
+        // Naive live-reloading means if any config changes (e.g. a node is added/removed or timeouts modified), we'll
+        // throw away the old scores and start again from scratch. In practise, this happens infrequently enough that
+        // the simplicity is worth it
+        Refreshable<StickyChannels> refreshable = params.scb().map(block -> {
+            if (!block.services().containsKey(serviceName)) {
+                AlwaysThrowingChannel chan = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)",
+                        SafeArg.of("serviceName", serviceName),
+                        SafeArg.of("available", block.services().keySet())));
+                return () -> chan;
+            }
+
+            if (block.services().get(serviceName).uris().isEmpty()) {
+                AlwaysThrowingChannel chan = new AlwaysThrowingChannel(() -> {
+                    Map<String, PartialServiceConfiguration> servicesWithUris =
+                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
+                    return new SafeIllegalStateException(
+                            "Service not configured (no URIs)",
+                            SafeArg.of("serviceName", serviceName),
+                            SafeArg.of("available", servicesWithUris.keySet()));
+                });
+                return () -> chan;
+            }
+
+            ServiceConfiguration serviceConfiguration =
+                    ServiceConfigurationFactory.of(block).get(serviceName);
+
+            if (block.services().get(serviceName).uris().size() == 1) {
+                DialogueChannel singleUriChannel =
+                        cache.getNonReloadingChannel(params, serviceConfiguration, channelName);
+                return () -> singleUriChannel;
+            } else {
+                ImmutableList<DialogueChannel> singleUriChannels = serviceConfiguration.uris().stream()
+                        .map(uri -> ServiceConfiguration.builder()
+                                .from(serviceConfiguration)
+                                .uris(ImmutableList.of(uri))
+                                .build())
+                        .map(singleUriServiceConf ->
+                                cache.getNonReloadingChannel(params, singleUriServiceConf, channelName))
+                        .collect(ImmutableList.toImmutableList());
+
+                StickyEndpointChannels stickyEndpointChannels = StickyEndpointChannels.builder()
+                        .channels(singleUriChannels)
+                        .channelName(channelName)
+                        .taggedMetricRegistry(params.taggedMetrics())
+                        .build();
+
+                return new StickyChannels() {
+                    @Override
+                    public Channel getSingleHostChannel() {
+                        return stickyEndpointChannels.getStickyChannel();
+                    }
+                };
+            }
+        });
+
+        return new StickyChannels() {
+            @Override
+            public Channel getSingleHostChannel() {
+                return refreshable.get().getSingleHostChannel();
+            }
+
+            @Override
+            public String toString() {
+                return "ReloadingStickyChannels{" + refreshable.get() + '}';
+            }
+        };
     }
 
     @Override
