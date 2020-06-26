@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -37,6 +38,10 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
+import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -44,10 +49,12 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
@@ -119,6 +126,97 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
         return new LiveReloadingChannel(mapped, params.runtime().clients());
+    }
+
+    @Override
+    public PerHostClientFactory perHost(String serviceName) {
+        Preconditions.checkNotNull(serviceName, "serviceName");
+        String channelName = ChannelNames.reloading(serviceName, params);
+
+        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
+                .map(block -> {
+                    if (!block.services().containsKey(serviceName)) {
+                        return ImmutableList.of();
+                    }
+
+                    ServiceConfiguration serviceConfiguration =
+                            ServiceConfigurationFactory.of(block).get(serviceName);
+
+                    return serviceConfiguration.uris().stream()
+                            .map(uri -> ServiceConfiguration.builder()
+                                    .from(serviceConfiguration)
+                                    .uris(ImmutableList.of(uri))
+                                    .build())
+                            .map(singleUriServiceConf -> {
+                                // subtle gotcha here is that every single one of these has the same channelName,
+                                // which means metrics like the QueuedChannel counter will end up being the sum of all
+                                // of them.
+                                return cache.getNonReloadingChannel(params, singleUriServiceConf, channelName);
+                            })
+                            .collect(ImmutableList.toImmutableList());
+                });
+
+        return new PerHostClientFactory() {
+            @Override
+            public Refreshable<List<Channel>> getPerHostChannels() {
+                return perHostDialogueChannels.map(ImmutableList::copyOf);
+            }
+
+            @Override
+            public <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
+                return getPerHostChannels().map(channels -> channels.stream()
+                        .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
+                        .collect(ImmutableList.toImmutableList()));
+            }
+
+            @Override
+            public String toString() {
+                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostDialogueChannels.get()
+                        + '}';
+            }
+        };
+    }
+
+    @Override
+    public StickyChannelFactory getStickyChannels(String serviceName) {
+        Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
+
+        Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
+            if (singleHostChannels.isEmpty()) {
+                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured", SafeArg.of("serviceName", serviceName)));
+                return () -> alwaysThrowing;
+            }
+
+            if (singleHostChannels.size() == 1) {
+                return () -> singleHostChannels.get(0);
+            }
+
+            return StickyEndpointChannels.builder()
+                    .channels(singleHostChannels.stream()
+                            .map(c -> (DialogueChannel) c)
+                            .collect(Collectors.toList()))
+                    .channelName(ChannelNames.reloading(serviceName, params))
+                    .taggedMetricRegistry(params.taggedMetrics())
+                    .build();
+        });
+
+        return new StickyChannelFactory() {
+            @Override
+            public Channel getStickyChannel() {
+                return bestSupplier.get().get();
+            }
+
+            @Override
+            public <T> T getCurrentBest(Class<T> clientInterface) {
+                return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
+            }
+
+            @Override
+            public String toString() {
+                return "StickyChannelFactory{" + bestSupplier.get() + '}';
+            }
+        };
     }
 
     @Override

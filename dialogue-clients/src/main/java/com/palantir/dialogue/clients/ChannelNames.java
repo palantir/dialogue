@@ -22,6 +22,10 @@ final class ChannelNames {
         return "dialogue-" + serviceName + summarizeOptions(params);
     }
 
+    static String sticky(String serviceName, ImmutableReloadingParams params) {
+        return "dialogue-sticky-" + serviceName + summarizeOptions(params);
+    }
+
     static String nonReloading(Class<?> clazz, AugmentClientConfig augment) {
         return "dialogue-nonreloading-" + clazz.getSimpleName() + summarizeOptions(augment);
     }
