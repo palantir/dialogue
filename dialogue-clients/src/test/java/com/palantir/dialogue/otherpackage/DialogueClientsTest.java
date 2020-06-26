@@ -32,7 +32,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
-import com.palantir.dialogue.clients.DialogueClients.BestStickyChannels;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
@@ -94,13 +94,13 @@ class DialogueClientsTest {
 
     @Test
     void getStickyChannels_behaves_when_service_doesnt_exist() {
-        BestStickyChannels stickyChannels = DialogueClients.create(Refreshable.only(scb))
+        StickyChannelFactory stickyChannels = DialogueClients.create(Refreshable.only(scb))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0)
-                .getBestStickyChannels("asldjaslkdjslad");
+                .getStickyChannels("asldjaslkdjslad");
 
         ListenableFuture<Response> future = stickyChannels
-                .getCurrentBestChannel()
+                .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future::get)
                 .describedAs("Nice error message when services doesn't exist")
@@ -110,13 +110,13 @@ class DialogueClientsTest {
 
     @Test
     void getStickyChannels_behaves_when_just_one_uri() {
-        BestStickyChannels stickyChannels = DialogueClients.create(Refreshable.only(scb))
+        StickyChannelFactory stickyChannels = DialogueClients.create(Refreshable.only(scb))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0)
-                .getBestStickyChannels("multipass");
+                .getStickyChannels("multipass");
 
         ListenableFuture<Response> future = stickyChannels
-                .getCurrentBestChannel()
+                .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future::get)
                 .describedAs("Made a real network call")
@@ -126,13 +126,13 @@ class DialogueClientsTest {
     @Test
     void getStickyChannels_live_reloads_nicely() {
         SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
-        BestStickyChannels stickyChannels = DialogueClients.create(refreshable)
+        StickyChannelFactory stickyChannels = DialogueClients.create(refreshable)
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0)
-                .getBestStickyChannels("zero-uris-service");
+                .getStickyChannels("zero-uris-service");
 
         ListenableFuture<Response> future = stickyChannels
-                .getCurrentBestChannel()
+                .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future::get)
                 .describedAs("Nice error message when service exists but has zero uris")
@@ -148,7 +148,7 @@ class DialogueClientsTest {
                                 .build())
                 .build());
         ListenableFuture<Response> future2 = stickyChannels
-                .getCurrentBestChannel()
+                .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future2::get)
                 .describedAs("Made a real network call")

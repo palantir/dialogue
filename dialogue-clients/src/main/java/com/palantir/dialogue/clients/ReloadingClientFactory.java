@@ -38,7 +38,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.clients.DialogueClients.BestStickyChannels;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
@@ -168,7 +168,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public BestStickyChannels getBestStickyChannels(String serviceName) {
+    public StickyChannelFactory getStickyChannels(String serviceName) {
         Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
 
         Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
@@ -191,15 +191,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     .build();
         });
 
-        return new BestStickyChannels() {
+        return new StickyChannelFactory() {
             @Override
-            public Channel getCurrentBestChannel() {
+            public Channel getStickyChannel() {
                 return bestSupplier.get().get();
             }
 
             @Override
             public <T> T getCurrentBest(Class<T> clientInterface) {
-                return Reflection.callStaticFactoryMethod(clientInterface, getCurrentBestChannel(), params.runtime());
+                return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
             }
         };
     }

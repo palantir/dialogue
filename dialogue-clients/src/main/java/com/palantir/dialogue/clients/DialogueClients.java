@@ -66,23 +66,17 @@ public final class DialogueClients {
         Channel getChannel(String serviceName);
     }
 
-    public interface ToPerHostClientFactory {
-        BestStickyChannels getBestStickyChannels(String serviceName);
-
-        PerHostClientFactory perHost(String serviceName);
-    }
-
-    public interface BestStickyChannels {
+    /** A stateful object - should only need one of these. Live reloads under the hood. */
+    public interface StickyChannelFactory {
         /**
          * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
          * Each successive call to this method may get a different channel (or it may return the same one).
          */
-        Channel getCurrentBestChannel();
+        Channel getStickyChannel();
 
         <T> T getCurrentBest(Class<T> clientInterface);
     }
 
-    /** A stateful object - should only need one of these. Live reloads under the hood. */
     public interface PerHostClientFactory {
 
         /** Single-uri channels. */
@@ -97,8 +91,12 @@ public final class DialogueClients {
                     WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ToPerHostClientFactory,
-                    ReloadingChannelFactory {}
+                    ReloadingChannelFactory {
+
+        StickyChannelFactory getStickyChannels(String serviceName);
+
+        PerHostClientFactory perHost(String serviceName);
+    }
 
     private DialogueClients() {}
 }
