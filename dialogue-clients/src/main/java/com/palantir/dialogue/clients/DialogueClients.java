@@ -24,6 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.refreshable.Refreshable;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -65,19 +66,25 @@ public final class DialogueClients {
         Channel getChannel(String serviceName);
     }
 
-    public interface ReloadingStickyFactory {
-        StickyChannels getStickyChannels(String serviceName);
+    public interface ToPerHostClientFactory {
+        PerHostClientFactory perHost(String serviceName);
     }
 
     /** A stateful object - should only need one of these. Live reloads under the hood. */
-    public interface StickyChannels {
+    public interface PerHostClientFactory {
+
         /**
          * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
          * Each successive call to this method may get a different channel (or it may return the same one).
          */
-        Channel getSingleHostChannel();
+        Channel getCurrentBestChannel();
 
-        <T> T get(Class<T> clientInterface);
+        <T> T getCurrentBest(Class<T> clientInterface);
+
+        /** Single-uri channels. */
+        Refreshable<List<Channel>> getPerHostChannels();
+
+        <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface);
     }
 
     public interface ReloadingFactory
@@ -86,7 +93,7 @@ public final class DialogueClients {
                     WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ReloadingStickyFactory,
+                    ToPerHostClientFactory,
                     ReloadingChannelFactory {}
 
     private DialogueClients() {}

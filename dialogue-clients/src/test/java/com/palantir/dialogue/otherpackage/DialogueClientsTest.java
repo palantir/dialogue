@@ -33,7 +33,7 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
-import com.palantir.dialogue.clients.DialogueClients.StickyChannels;
+import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
@@ -99,9 +99,9 @@ class DialogueClientsTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0);
 
-        StickyChannels stickyChannels2 = factory.getStickyChannels("asldjaslkdjslad");
+        PerHostClientFactory stickyChannels2 = factory.perHost("asldjaslkdjslad");
         ListenableFuture<Response> future2 = stickyChannels2
-                .getSingleHostChannel()
+                .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future2::get)
                 .describedAs("Nice error message when services doesn't exist")
@@ -115,10 +115,10 @@ class DialogueClientsTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0);
 
-        StickyChannels stickyChannels = factory.getStickyChannels("multipass");
+        PerHostClientFactory stickyChannels = factory.perHost("multipass");
 
         ListenableFuture<Response> future = stickyChannels
-                .getSingleHostChannel()
+                .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future::get)
                 .describedAs("Made a real network call")
@@ -132,9 +132,9 @@ class DialogueClientsTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0);
 
-        StickyChannels stickyChannels = factory.getStickyChannels("zero-uris-service");
+        PerHostClientFactory stickyChannels = factory.perHost("zero-uris-service");
         ListenableFuture<Response> future = stickyChannels
-                .getSingleHostChannel()
+                .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future::get)
                 .describedAs("Nice error message when service exists but has zero uris")
@@ -150,7 +150,7 @@ class DialogueClientsTest {
                                 .build())
                 .build());
         ListenableFuture<Response> future2 = stickyChannels
-                .getSingleHostChannel()
+                .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
         assertThatThrownBy(future2::get)
                 .describedAs("Made a real network call")

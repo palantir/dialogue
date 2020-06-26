@@ -38,7 +38,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.clients.DialogueClients.StickyChannels;
+import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
@@ -48,6 +48,7 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
@@ -126,97 +127,76 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public StickyChannels getStickyChannels(String serviceName) {
+    public PerHostClientFactory perHost(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
-
-        abstract class AbstractStickyChannels implements StickyChannels {
-            @Override
-            public <T> T get(Class<T> clientInterface) {
-                return Reflection.callStaticFactoryMethod(clientInterface, getSingleHostChannel(), params.runtime());
-            }
-
-            @Override
-            public String toString() {
-                return "StickyChannels{channelName=" + channelName + '}';
-            }
-        }
 
         // Naive live-reloading means if any config changes (e.g. a node is added/removed or timeouts modified), we'll
         // throw away the old scores and start again from scratch. In practise, this happens infrequently enough that
         // the simplicity is worth it
-        Refreshable<StickyChannels> refreshable = params.scb().map(block -> {
-            if (!block.services().containsKey(serviceName)) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)",
-                        SafeArg.of("serviceName", serviceName),
-                        SafeArg.of("available", block.services().keySet())));
-                return new AbstractStickyChannels() {
-                    @Override
-                    public Channel getSingleHostChannel() {
-                        return alwaysThrowing;
+        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
+                .map(block -> {
+                    if (!block.services().containsKey(serviceName)) {
+                        return ImmutableList.of();
                     }
-                };
-            }
 
-            if (block.services().get(serviceName).uris().isEmpty()) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> {
-                    Map<String, PartialServiceConfiguration> servicesWithUris =
-                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
-                    return new SafeIllegalStateException(
-                            "Service not configured (no URIs)",
-                            SafeArg.of("serviceName", serviceName),
-                            SafeArg.of("available", servicesWithUris.keySet()));
+                    ServiceConfiguration serviceConfiguration =
+                            ServiceConfigurationFactory.of(block).get(serviceName);
+
+                    return serviceConfiguration.uris().stream()
+                            .map(uri -> ServiceConfiguration.builder()
+                                    .from(serviceConfiguration)
+                                    .uris(ImmutableList.of(uri))
+                                    .build())
+                            .map(singleUriServiceConf ->
+                                    cache.getNonReloadingChannel(params, singleUriServiceConf, channelName))
+                            .collect(ImmutableList.toImmutableList());
                 });
-                return new AbstractStickyChannels() {
-                    @Override
-                    public Channel getSingleHostChannel() {
-                        return alwaysThrowing;
-                    }
-                };
+
+        Refreshable<Supplier<Channel>> bestSupplier = perHostDialogueChannels.map(singleHostChannels -> {
+            if (singleHostChannels.isEmpty()) {
+                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)", SafeArg.of("serviceName", serviceName)));
+                return () -> alwaysThrowing;
             }
 
-            ServiceConfiguration serviceConfiguration =
-                    ServiceConfigurationFactory.of(block).get(serviceName);
-
-            if (block.services().get(serviceName).uris().size() == 1) {
-                DialogueChannel singleUriChannel =
-                        cache.getNonReloadingChannel(params, serviceConfiguration, channelName);
-                return new AbstractStickyChannels() {
-                    @Override
-                    public Channel getSingleHostChannel() {
-                        return singleUriChannel;
-                    }
-                };
-            } else {
-                ImmutableList<DialogueChannel> singleUriChannels = serviceConfiguration.uris().stream()
-                        .map(uri -> ServiceConfiguration.builder()
-                                .from(serviceConfiguration)
-                                .uris(ImmutableList.of(uri))
-                                .build())
-                        .map(singleUriServiceConf ->
-                                cache.getNonReloadingChannel(params, singleUriServiceConf, channelName))
-                        .collect(ImmutableList.toImmutableList());
-
-                StickyEndpointChannels stickyEndpointChannels = StickyEndpointChannels.builder()
-                        .channels(singleUriChannels)
-                        .channelName(channelName)
-                        .taggedMetricRegistry(params.taggedMetrics())
-                        .build();
-
-                return new AbstractStickyChannels() {
-                    @Override
-                    public Channel getSingleHostChannel() {
-                        return stickyEndpointChannels.getStickyChannel();
-                    }
-                };
+            if (singleHostChannels.size() == 1) {
+                return () -> singleHostChannels.get(0);
             }
+
+            return StickyEndpointChannels.builder()
+                    .channels(singleHostChannels)
+                    .channelName(channelName)
+                    .taggedMetricRegistry(params.taggedMetrics())
+                    .build()::getStickyChannel;
         });
 
-        return new AbstractStickyChannels() {
+        return new PerHostClientFactory() {
             @Override
-            public Channel getSingleHostChannel() {
-                return refreshable.get().getSingleHostChannel();
+            public Channel getCurrentBestChannel() {
+                return bestSupplier.get().get();
+            }
+
+            @Override
+            public <T> T getCurrentBest(Class<T> clientInterface) {
+                return Reflection.callStaticFactoryMethod(clientInterface, getCurrentBestChannel(), params.runtime());
+            }
+
+            @Override
+            public Refreshable<List<Channel>> getPerHostChannels() {
+                return perHostDialogueChannels.map(ImmutableList::copyOf); // map just to appease java's type system
+            }
+
+            @Override
+            public <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
+                return getPerHostChannels().map(channels -> channels.stream()
+                        .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
+                        .collect(ImmutableList.toImmutableList()));
+            }
+
+            @Override
+            public String toString() {
+                return "PerHostClientFactory{channelName=" + channelName + '}';
             }
         };
     }
