@@ -38,6 +38,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.clients.DialogueClients.BestStickyChannels;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
@@ -131,9 +133,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        // Naive live-reloading means if any config changes (e.g. a node is added/removed or timeouts modified), we'll
-        // throw away the old scores and start again from scratch. In practise, this happens infrequently enough that
-        // the simplicity is worth it
         Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
                 .map(block -> {
                     if (!block.services().containsKey(serviceName)) {
@@ -153,38 +152,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             .collect(ImmutableList.toImmutableList());
                 });
 
-        Refreshable<Supplier<Channel>> bestSupplier = perHostDialogueChannels.map(singleHostChannels -> {
-            if (singleHostChannels.isEmpty()) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)", SafeArg.of("serviceName", serviceName)));
-                return () -> alwaysThrowing;
-            }
-
-            if (singleHostChannels.size() == 1) {
-                return () -> singleHostChannels.get(0);
-            }
-
-            return StickyEndpointChannels.builder()
-                    .channels(singleHostChannels)
-                    .channelName(channelName)
-                    .taggedMetricRegistry(params.taggedMetrics())
-                    .build()::getStickyChannel;
-        });
-
         return new PerHostClientFactory() {
             @Override
-            public Channel getCurrentBestChannel() {
-                return bestSupplier.get().get();
-            }
-
-            @Override
-            public <T> T getCurrentBest(Class<T> clientInterface) {
-                return Reflection.callStaticFactoryMethod(clientInterface, getCurrentBestChannel(), params.runtime());
-            }
-
-            @Override
             public Refreshable<List<Channel>> getPerHostChannels() {
-                return perHostDialogueChannels.map(ImmutableList::copyOf); // map just to appease java's type system
+                return perHostDialogueChannels.map(ImmutableList::copyOf);
             }
 
             @Override
@@ -193,10 +164,42 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
                         .collect(ImmutableList.toImmutableList()));
             }
+        };
+    }
+
+    @Override
+    public BestStickyChannels getBestStickyChannels(String serviceName) {
+        Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
+
+        Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
+            if (singleHostChannels.isEmpty()) {
+                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured", SafeArg.of("serviceName", serviceName)));
+                return () -> alwaysThrowing;
+            }
+
+            if (singleHostChannels.size() == 1) {
+                return () -> singleHostChannels.get(0);
+            }
+
+            return StickyEndpointChannels.builder()
+                    .channels(singleHostChannels.stream()
+                            .map(c -> (DialogueChannel) c)
+                            .collect(Collectors.toList()))
+                    .channelName(ChannelNames.reloading(serviceName, params))
+                    .taggedMetricRegistry(params.taggedMetrics())
+                    .build()::getStickyChannel;
+        });
+
+        return new BestStickyChannels() {
+            @Override
+            public Channel getCurrentBestChannel() {
+                return bestSupplier.get().get();
+            }
 
             @Override
-            public String toString() {
-                return "PerHostClientFactory{channelName=" + channelName + '}';
+            public <T> T getCurrentBest(Class<T> clientInterface) {
+                return Reflection.callStaticFactoryMethod(clientInterface, getCurrentBestChannel(), params.runtime());
             }
         };
     }

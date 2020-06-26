@@ -32,8 +32,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
-import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
-import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
+import com.palantir.dialogue.clients.DialogueClients.BestStickyChannels;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
@@ -95,15 +94,15 @@ class DialogueClientsTest {
 
     @Test
     void getStickyChannels_behaves_when_service_doesnt_exist() {
-        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+        BestStickyChannels stickyChannels = DialogueClients.create(Refreshable.only(scb))
                 .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0);
+                .withMaxNumRetries(0)
+                .getBestStickyChannels("asldjaslkdjslad");
 
-        PerHostClientFactory stickyChannels2 = factory.perHost("asldjaslkdjslad");
-        ListenableFuture<Response> future2 = stickyChannels2
+        ListenableFuture<Response> future = stickyChannels
                 .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(future2::get)
+        assertThatThrownBy(future::get)
                 .describedAs("Nice error message when services doesn't exist")
                 .hasCauseInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured (config block not present)");
@@ -111,11 +110,10 @@ class DialogueClientsTest {
 
     @Test
     void getStickyChannels_behaves_when_just_one_uri() {
-        ReloadingFactory factory = DialogueClients.create(Refreshable.only(scb))
+        BestStickyChannels stickyChannels = DialogueClients.create(Refreshable.only(scb))
                 .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0);
-
-        PerHostClientFactory stickyChannels = factory.perHost("multipass");
+                .withMaxNumRetries(0)
+                .getBestStickyChannels("multipass");
 
         ListenableFuture<Response> future = stickyChannels
                 .getCurrentBestChannel()
@@ -128,11 +126,11 @@ class DialogueClientsTest {
     @Test
     void getStickyChannels_live_reloads_nicely() {
         SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
-        ReloadingFactory factory = DialogueClients.create(refreshable)
+        BestStickyChannels stickyChannels = DialogueClients.create(refreshable)
                 .withUserAgent(TestConfigurations.AGENT)
-                .withMaxNumRetries(0);
+                .withMaxNumRetries(0)
+                .getBestStickyChannels("zero-uris-service");
 
-        PerHostClientFactory stickyChannels = factory.perHost("zero-uris-service");
         ListenableFuture<Response> future = stickyChannels
                 .getCurrentBestChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());

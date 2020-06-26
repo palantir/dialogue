@@ -67,12 +67,12 @@ public final class DialogueClients {
     }
 
     public interface ToPerHostClientFactory {
+        BestStickyChannels getBestStickyChannels(String serviceName);
+
         PerHostClientFactory perHost(String serviceName);
     }
 
-    /** A stateful object - should only need one of these. Live reloads under the hood. */
-    public interface PerHostClientFactory {
-
+    public interface BestStickyChannels {
         /**
          * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
          * Each successive call to this method may get a different channel (or it may return the same one).
@@ -80,6 +80,10 @@ public final class DialogueClients {
         Channel getCurrentBestChannel();
 
         <T> T getCurrentBest(Class<T> clientInterface);
+    }
+
+    /** A stateful object - should only need one of these. Live reloads under the hood. */
+    public interface PerHostClientFactory {
 
         /** Single-uri channels. */
         Refreshable<List<Channel>> getPerHostChannels();
