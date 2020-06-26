@@ -188,7 +188,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             .collect(Collectors.toList()))
                     .channelName(ChannelNames.reloading(serviceName, params))
                     .taggedMetricRegistry(params.taggedMetrics())
-                    .build()::getStickyChannel;
+                    .build();
         });
 
         return new BestStickyChannels() {

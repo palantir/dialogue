@@ -38,7 +38,7 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 /** Allows requests for a 'transaction' should land on one host. */
-public final class StickyEndpointChannels {
+public final class StickyEndpointChannels implements Supplier<Channel> {
 
     private final ImmutableList<? extends EndpointChannelFactory> channels;
     private final BalancedScoreTracker tracker;
@@ -60,6 +60,11 @@ public final class StickyEndpointChannels {
      */
     public Channel getStickyChannel() {
         return new Sticky(channels, tracker);
+    }
+
+    @Override
+    public Channel get() {
+        return getStickyChannel();
     }
 
     @Override
