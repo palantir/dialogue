@@ -38,8 +38,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
@@ -147,8 +147,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                     .from(serviceConfiguration)
                                     .uris(ImmutableList.of(uri))
                                     .build())
-                            .map(singleUriServiceConf ->
-                                    cache.getNonReloadingChannel(params, singleUriServiceConf, channelName))
+                            .map(singleUriServiceConf -> {
+                                // subtle gotcha here is that every single one of these has the same channelName,
+                                // which means metrics like the QueuedChannel counter will end up being the sum of all
+                                // of them.
+                                return cache.getNonReloadingChannel(params, singleUriServiceConf, channelName);
+                            })
                             .collect(ImmutableList.toImmutableList());
                 });
 
@@ -163,6 +167,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 return getPerHostChannels().map(channels -> channels.stream()
                         .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
                         .collect(ImmutableList.toImmutableList()));
+            }
+
+            @Override
+            public String toString() {
+                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostDialogueChannels.get()
+                        + '}';
             }
         };
     }
@@ -200,6 +210,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             @Override
             public <T> T getCurrentBest(Class<T> clientInterface) {
                 return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
+            }
+
+            @Override
+            public String toString() {
+                return "StickyChannelFactory{" + bestSupplier.get() + '}';
             }
         };
     }
