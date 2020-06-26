@@ -76,6 +76,8 @@ public final class DialogueClients {
          * Each successive call to this method may get a different channel (or it may return the same one).
          */
         Channel getSingleHostChannel();
+
+        <T> T get(Class<T> clientInterface);
     }
 
     public interface ReloadingFactory

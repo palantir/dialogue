@@ -130,20 +130,37 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
+        abstract class AbstractStickyChannels implements StickyChannels {
+            @Override
+            public <T> T get(Class<T> clientInterface) {
+                return Reflection.callStaticFactoryMethod(clientInterface, getSingleHostChannel(), params.runtime());
+            }
+
+            @Override
+            public String toString() {
+                return "StickyChannels{channelName=" + channelName + '}';
+            }
+        }
+
         // Naive live-reloading means if any config changes (e.g. a node is added/removed or timeouts modified), we'll
         // throw away the old scores and start again from scratch. In practise, this happens infrequently enough that
         // the simplicity is worth it
         Refreshable<StickyChannels> refreshable = params.scb().map(block -> {
             if (!block.services().containsKey(serviceName)) {
-                AlwaysThrowingChannel chan = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
                         "Service not configured (config block not present)",
                         SafeArg.of("serviceName", serviceName),
                         SafeArg.of("available", block.services().keySet())));
-                return () -> chan;
+                return new AbstractStickyChannels() {
+                    @Override
+                    public Channel getSingleHostChannel() {
+                        return alwaysThrowing;
+                    }
+                };
             }
 
             if (block.services().get(serviceName).uris().isEmpty()) {
-                AlwaysThrowingChannel chan = new AlwaysThrowingChannel(() -> {
+                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> {
                     Map<String, PartialServiceConfiguration> servicesWithUris =
                             Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
                     return new SafeIllegalStateException(
@@ -151,7 +168,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             SafeArg.of("serviceName", serviceName),
                             SafeArg.of("available", servicesWithUris.keySet()));
                 });
-                return () -> chan;
+                return new AbstractStickyChannels() {
+                    @Override
+                    public Channel getSingleHostChannel() {
+                        return alwaysThrowing;
+                    }
+                };
             }
 
             ServiceConfiguration serviceConfiguration =
@@ -160,7 +182,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             if (block.services().get(serviceName).uris().size() == 1) {
                 DialogueChannel singleUriChannel =
                         cache.getNonReloadingChannel(params, serviceConfiguration, channelName);
-                return () -> singleUriChannel;
+                return new AbstractStickyChannels() {
+                    @Override
+                    public Channel getSingleHostChannel() {
+                        return singleUriChannel;
+                    }
+                };
             } else {
                 ImmutableList<DialogueChannel> singleUriChannels = serviceConfiguration.uris().stream()
                         .map(uri -> ServiceConfiguration.builder()
@@ -177,7 +204,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         .taggedMetricRegistry(params.taggedMetrics())
                         .build();
 
-                return new StickyChannels() {
+                return new AbstractStickyChannels() {
                     @Override
                     public Channel getSingleHostChannel() {
                         return stickyEndpointChannels.getStickyChannel();
@@ -186,15 +213,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             }
         });
 
-        return new StickyChannels() {
+        return new AbstractStickyChannels() {
             @Override
             public Channel getSingleHostChannel() {
                 return refreshable.get().getSingleHostChannel();
-            }
-
-            @Override
-            public String toString() {
-                return "ReloadingStickyChannels{" + refreshable.get() + '}';
             }
         };
     }
