@@ -45,7 +45,6 @@ public final class StickyEndpointChannels {
 
     private StickyEndpointChannels(Builder params) {
         this.channels = params.channels;
-        // TODO(dfox): handle 'channels' of size 0/1 (balanced tracker will barf)
         this.tracker = new BalancedScoreTracker(
                 params.channels.size(),
                 params.random,
