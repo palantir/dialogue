@@ -191,13 +191,13 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method <T> com.google.common.util.concurrent.ListenableFuture<T> com.palantir.dialogue.Clients::call(com.palantir.dialogue.EndpointChannel,\
         \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
-      justification: "We make no guarantees for custom implementations of ConjureRuntime, and this is a compile-time\
-        \ break not ABI break."
+      justification: "We make no guarantees for custom implementations of ConjureRuntime,\
+        \ and this is a compile-time break not ABI break."
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.EndpointChannel com.palantir.dialogue.Clients::bind(com.palantir.dialogue.Channel,\
         \ com.palantir.dialogue.Endpoint)"
-      justification: "We make no guarantees for custom implementations of ConjureRuntime, and this is a compile-time\
-        \ break not ABI break."
+      justification: "We make no guarantees for custom implementations of ConjureRuntime,\
+        \ and this is a compile-time break not ABI break."
   "1.46.0":
     com.palantir.dialogue:dialogue-core:
     - code: "java.method.removed"
@@ -210,3 +210,15 @@ acceptedBreaks:
       old: "class com.palantir.dialogue.core.RefreshingChannelFactory"
       justification: "No remaining users of this method, everyone has switched to\
         \ 'DialogueClients' instead"
+  "1.62.1":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::perHost(java.lang.String)"
+      justification: "Adding methods to Dialogue.ReloadingFactory is not an ABI break\
+        \ (just API)"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::getStickyChannels(java.lang.String)"
+      justification: "Adding methods to Dialogue.ReloadingFactory is not an ABI break\
+        \ (just API)"
