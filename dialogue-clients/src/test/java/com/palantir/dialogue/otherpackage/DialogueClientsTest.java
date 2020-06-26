@@ -105,7 +105,7 @@ class DialogueClientsTest {
         assertThatThrownBy(future::get)
                 .describedAs("Nice error message when services doesn't exist")
                 .hasCauseInstanceOf(SafeIllegalStateException.class)
-                .hasMessageContaining("Service not configured (config block not present)");
+                .hasMessageContaining("Service not configured");
     }
 
     @Test
@@ -137,7 +137,7 @@ class DialogueClientsTest {
         assertThatThrownBy(future::get)
                 .describedAs("Nice error message when service exists but has zero uris")
                 .hasCauseInstanceOf(SafeIllegalStateException.class)
-                .hasMessageContaining("Service not configured (no URIs)");
+                .hasMessageContaining("Service not configured");
 
         refreshable.update(ServicesConfigBlock.builder()
                 .from(scb)

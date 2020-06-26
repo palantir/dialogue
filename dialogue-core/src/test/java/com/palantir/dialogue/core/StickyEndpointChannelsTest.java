@@ -66,7 +66,7 @@ class StickyEndpointChannelsTest {
                         miniServer("one", serve204), miniServer("two", serve204), miniServer("three", serve204)))
                 .build();
 
-        Channel sticky1 = channels.getStickyChannel();
+        Channel sticky1 = channels.get();
 
         SampleServiceAsync async1 = SampleServiceAsync.of(sticky1, runtime);
         async1.voidToVoid();
@@ -81,7 +81,7 @@ class StickyEndpointChannelsTest {
                 .allSatisfy(string -> assertThat(string).startsWith("[three]"));
         requests.clear();
 
-        Channel sticky2 = channels.getStickyChannel();
+        Channel sticky2 = channels.get();
         SampleServiceAsync async2 = SampleServiceAsync.of(sticky2, runtime);
         async2.voidToVoid();
         async2.getMyAlias();
@@ -99,7 +99,7 @@ class StickyEndpointChannelsTest {
                         miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate429)))
                 .build();
 
-        SampleServiceAsync async1 = SampleServiceAsync.of(channels.getStickyChannel(), runtime);
+        SampleServiceAsync async1 = SampleServiceAsync.of(channels.get(), runtime);
         async1.voidToVoid();
         async1.getMyAlias();
         async1.getOptionalBinary();
@@ -111,7 +111,7 @@ class StickyEndpointChannelsTest {
         requests.clear();
 
         for (int i = 0; i < 200; i++) {
-            SampleServiceAsync async = SampleServiceAsync.of(channels.getStickyChannel(), runtime);
+            SampleServiceAsync async = SampleServiceAsync.of(channels.get(), runtime);
             async.voidToVoid();
             async.getMyAlias();
             async.getOptionalBinary();

@@ -37,7 +37,10 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-/** Allows requests for a 'transaction' should land on one host. */
+/**
+ * Stateful object which provides a Channel to routes all requests to one host, using the
+ * {@link BalancedScoreTracker} heuristic under the hood.
+ */
 public final class StickyEndpointChannels implements Supplier<Channel> {
 
     private final ImmutableList<? extends EndpointChannelFactory> channels;
@@ -58,13 +61,9 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
      * callers are responsible for getting a new sticky channel by calling this method again, relying on the
      * {@link BalancedScoreTracker} to avoid returning the same broken channel again.
      */
-    public Channel getStickyChannel() {
-        return new Sticky(channels, tracker);
-    }
-
     @Override
     public Channel get() {
-        return getStickyChannel();
+        return new Sticky(channels, tracker);
     }
 
     @Override
@@ -98,7 +97,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
         @Deprecated
         @Override
         public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
-            // TODO(dfox): could we delete this entirely?
+            // TODO(dfox): remove this by adding client factory method taking a 'EndpointChannelFactory' not a 'Channel'
             throw new UnsupportedOperationException("Not implemented");
         }
 
