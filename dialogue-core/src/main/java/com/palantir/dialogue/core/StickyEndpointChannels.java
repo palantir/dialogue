@@ -91,6 +91,11 @@ public final class StickyEndpointChannels {
             // TODO(dfox): could we delete this entirely?
             throw new UnsupportedOperationException("Not implemented");
         }
+
+        @Override
+        public String toString() {
+            return "Sticky{" + channels + '}';
+        }
     }
 
     private static final class ScoreTrackingEndpointChannel implements EndpointChannel {
