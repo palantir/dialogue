@@ -62,6 +62,11 @@ public final class StickyEndpointChannels {
         return new Sticky(channels, tracker);
     }
 
+    @Override
+    public String toString() {
+        return "StickyEndpointChannels{" + "tracker=" + tracker + ", channels=" + channels + '}';
+    }
+
     @ThreadSafe
     private static final class Sticky implements EndpointChannelFactory, Channel {
 
@@ -114,6 +119,11 @@ public final class StickyEndpointChannels {
             tracker.observability().markRequestMade();
             DialogueFutures.addDirectCallback(future, tracker);
             return future;
+        }
+
+        @Override
+        public String toString() {
+            return "ScoreTrackingEndpointChannel{" + "delegate=" + delegate + ", tracker=" + tracker + '}';
         }
     }
 
