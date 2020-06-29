@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Allow dialogue-hc5 to support TLSv1.3 when ciphers are available
+  links:
+  - https://github.com/palantir/dialogue/pull/870
