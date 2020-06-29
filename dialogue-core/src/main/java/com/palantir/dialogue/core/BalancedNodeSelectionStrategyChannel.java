@@ -24,6 +24,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
+import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -46,6 +47,10 @@ import org.slf4j.LoggerFactory;
  */
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
+    private static final int INFLIGHT_COMPARISON_THRESHOLD = 10;
+    // When a channel has UNHEALTHY_SCORE_MULTIPLIER times the score of a channel with INFLIGHT_COMPARISON_THRESHOLD
+    // active requests, it's considered unhealthy and may not be attempted.
+    private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
     private final ImmutableList<LimitedChannel> channels;
@@ -64,9 +69,21 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        ChannelScoreInfo[] channelsByScore = tracker.getChannelsByScore();
+        ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsByScore();
 
-        for (ChannelScoreInfo channelInfo : channelsByScore) {
+        // Track the most recent score of a channel with ten or more active requests.
+        int lastSaturatedScore = Integer.MAX_VALUE;
+        for (ScoreSnapshot snapshot : snapshotsByScore) {
+            ChannelScoreInfo channelInfo = snapshot.getDelegate();
+            int score = snapshot.getScore();
+            int inflight = snapshot.getInflight();
+            if (score / UNHEALTHY_SCORE_MULTIPLIER > lastSaturatedScore) {
+                return Optional.empty();
+            }
+            if (inflight > INFLIGHT_COMPARISON_THRESHOLD) {
+                lastSaturatedScore = score;
+            }
+
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
