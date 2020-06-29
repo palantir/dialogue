@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Resolve low success rate of balanced node selection when concurrency
+    limiters are enabled by queueing requests rather than sending them to a known
+    unhealthy channel.
+  links:
+  - https://github.com/palantir/dialogue/pull/873
