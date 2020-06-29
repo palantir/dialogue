@@ -263,6 +263,34 @@ final class SimulationTest {
     }
 
     @SimulationCase
+    public void short_outage_on_one_node(Strategy strategy) {
+        servers = servers(
+                SimulationServer.builder()
+                        .serverName("stable")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
+                        .build(),
+                SimulationServer.builder()
+                        .serverName("has_short_outage")
+                        .simulation(simulation)
+                        .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
+                        .until(Duration.ofSeconds(30), "20s_outage")
+                        .handler(h -> h.response(500).responseTime(Duration.ofNanos(10)))
+                        .until(Duration.ofSeconds(50), "revert")
+                        .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
+                        .build());
+
+        st = strategy;
+        result = Benchmark.builder()
+                .simulation(simulation)
+                .requestsPerSecond(20)
+                .sendUntil(Duration.ofSeconds(80))
+                .client(strategy.getChannel(simulation, servers))
+                .abortAfter(Duration.ofMinutes(3))
+                .run();
+    }
+
+    @SimulationCase
     public void drastic_slowdown(Strategy strategy) {
         int capacity = 60;
         servers = servers(
