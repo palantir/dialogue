@@ -370,6 +370,10 @@ public final class ApacheHttpClientChannels {
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
+                    // Use 'null' to allow the supported protocols that hc5 considers secure: TLSv1.2 and (if
+                    // available) TLSv1.3.
+                    // We don't have the data to discover supported protocols directly here, which would require
+                    // either an SSLContext instance, or a Socket.
                     null,
                     supportedCipherSuites(
                             conf.enableGcmCipherSuites()
