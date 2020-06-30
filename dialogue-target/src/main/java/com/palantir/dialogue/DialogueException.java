@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-package com.palantir.conjure.java.dialogue.serde;
+package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import java.util.List;
 
-/** Internal marker type for failure legibility, this type is not meant to be handled directly. */
-final class DialogueException extends RuntimeException implements SafeLoggable {
+/** Internal marker type for Dialogue network layer failures where no response is returned. */
+public final class DialogueException extends RuntimeException implements SafeLoggable {
     private static final String MESSAGE = "Dialogue transport failure";
 
-    DialogueException(Throwable cause) {
+    public DialogueException(Throwable cause) {
         super(MESSAGE, cause);
     }
 
