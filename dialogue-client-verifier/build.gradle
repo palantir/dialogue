@@ -28,8 +28,7 @@ dependencies {
     verifier "com.palantir.conjure.verification:verification-server::${osClassifier}@tgz"
 
     testImplementation project('verification-server-api')
-    testImplementation project(':dialogue-apache-hc4-client')
-    testImplementation project(':dialogue-serde')
+    testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-example:dialogue-example-dialogue')
     testImplementation 'junit:junit'
     testImplementation 'org.assertj:assertj-core'

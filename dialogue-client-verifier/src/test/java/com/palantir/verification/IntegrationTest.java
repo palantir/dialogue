@@ -27,19 +27,17 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.clients.DialogueClients;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
-import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.refreshable.Refreshable;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
@@ -82,10 +80,19 @@ public class IntegrationTest {
                         0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
         undertow.start();
-        Channel dialogueChannel = ApacheHttpClientChannels.create(clientConf(getUri(undertow)));
-        ConjureRuntime runtime = DefaultConjureRuntime.builder().build();
-        blocking = SampleServiceBlocking.of(dialogueChannel, runtime);
-        async = SampleServiceAsync.of(dialogueChannel, runtime);
+        ServiceConfiguration config = ServiceConfiguration.builder()
+                .addUris(getUri(undertow))
+                .security(SSL_CONFIG)
+                .readTimeout(Duration.ofSeconds(1))
+                .writeTimeout(Duration.ofSeconds(1))
+                .connectTimeout(Duration.ofSeconds(1))
+                .build();
+        ReloadingFactory factory = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder().build()))
+                .withUserAgent(USER_AGENT);
+
+        blocking = factory.getNonReloading(SampleServiceBlocking.class, config);
+        async = factory.getNonReloading(SampleServiceAsync.class, config);
     }
 
     @Test
@@ -244,19 +251,6 @@ public class IntegrationTest {
 
     private static ByteArrayInputStream asInputStream(String string) {
         return new ByteArrayInputStream(string.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static ClientConfiguration clientConf(String uri) {
-        return ClientConfiguration.builder()
-                .from(ClientConfigurations.of(ServiceConfiguration.builder()
-                        .addUris(uri)
-                        .security(SSL_CONFIG)
-                        .readTimeout(Duration.ofSeconds(1))
-                        .writeTimeout(Duration.ofSeconds(1))
-                        .connectTimeout(Duration.ofSeconds(1))
-                        .build()))
-                .userAgent(USER_AGENT)
-                .build();
     }
 
     private static byte[] gzipCompress(String stringToCompress) throws IOException {
