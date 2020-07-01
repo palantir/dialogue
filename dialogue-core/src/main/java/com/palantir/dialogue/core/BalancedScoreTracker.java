@@ -77,7 +77,7 @@ final class BalancedScoreTracker {
      * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
      * methods to feed information back into the tracker.
      */
-    ScoreSnapshot[] getSnapshotsByScore() {
+    ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
         List<ChannelScoreInfo> shuffledMutableStats = shuffleImmutableList(channelStats, random);
@@ -94,7 +94,7 @@ final class BalancedScoreTracker {
 
     public ChannelScoreInfo getSingleBestChannelByScore() {
         // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
-        return getSnapshotsByScore()[0].getDelegate();
+        return getSnapshotsInOrderOfIncreasingScore()[0].getDelegate();
     }
 
     @VisibleForTesting
