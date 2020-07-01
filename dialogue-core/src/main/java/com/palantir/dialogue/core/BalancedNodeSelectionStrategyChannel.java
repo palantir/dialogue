@@ -80,6 +80,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
              * think it's much worse), then we can often get better outcomes by just refusing to send a
              * request (and queueing) rather than sending something to this known-bad channel.
              *
+             * This allows us to avoid sending requests to an unhealthy channel after a node has failed while
+             * the concurrency limit on the healthy channel is slowly expanded to meet increased load. Otherwise
+             * the assumed concurrency limit base don lower request load on the healthy channel may result in requests
+             * being sent to a node that's no longer alive.
+             *
              * Note that this functionality is not safe if the preferred channel had zero inflight requests (as this
              * could result in infinite queuing).
              */
