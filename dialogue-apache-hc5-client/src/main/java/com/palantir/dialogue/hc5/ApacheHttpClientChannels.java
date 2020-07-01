@@ -90,9 +90,25 @@ public final class ApacheHttpClientChannels {
 
     private ApacheHttpClientChannels() {}
 
+    /**
+     * Simple cjr-style factory method. Prefer using {@code dialogue-clients} general purpose factory where possible.
+     * This method exists to ease of migration from hc4 to hc5.
+     *
+     * @deprecated Prefer dialogue-clients if possible, otherwise please provide a channel name for more accurate
+     * metrics using {@link #create(ClientConfiguration, String)}.
+     */
+    @Deprecated
     @VisibleForTesting
-    static Channel create(ClientConfiguration conf) {
-        String channelName = "apache-channel";
+    public static Channel create(ClientConfiguration conf) {
+        return create(conf, "apache-channel");
+    }
+
+    /**
+     * Simple cjr-style factory method. Prefer using {@code dialogue-clients} general purpose factory where possible.
+     * This method exists to ease of migration from hc4 to hc5.
+     */
+    @VisibleForTesting
+    public static Channel create(ClientConfiguration conf, String channelName) {
         CloseableClient client = createCloseableHttpClient(conf, channelName);
         return DialogueChannel.builder()
                 .channelName(channelName)
