@@ -77,7 +77,7 @@ final class BalancedScoreTracker {
      * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
      * methods to feed information back into the tracker.
      */
-    public ChannelScoreInfo[] getChannelsByScore() {
+    ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
         List<ChannelScoreInfo> shuffledMutableStats = shuffleImmutableList(channelStats, random);
@@ -89,16 +89,12 @@ final class BalancedScoreTracker {
 
         Arrays.sort(snapshotArray, BY_SCORE);
 
-        ChannelScoreInfo[] returnArray = new ChannelScoreInfo[snapshotArray.length];
-        for (int i = 0; i < snapshotArray.length; i++) {
-            returnArray[i] = snapshotArray[i].delegate;
-        }
-        return returnArray;
+        return snapshotArray;
     }
 
     public ChannelScoreInfo getSingleBestChannelByScore() {
         // TODO(dfox): in theory we could optimize this by just looping manually and keeping track of the max
-        return getChannelsByScore()[0];
+        return getSnapshotsInOrderOfIncreasingScore()[0].getDelegate();
     }
 
     @VisibleForTesting
@@ -187,7 +183,7 @@ final class BalancedScoreTracker {
             int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.traceLogComputedScore(requestsInflight, failureReservoir, score);
-            return new ScoreSnapshot(score, this);
+            return new ScoreSnapshot(score, requestsInflight, this);
         }
 
         @Override
@@ -204,17 +200,27 @@ final class BalancedScoreTracker {
      * A dedicated value class ensures safe sorting, as otherwise there's a risk that the inflight AtomicInteger
      * might change mid-sort, leading to undefined behaviour.
      */
-    private static final class ScoreSnapshot {
+    static final class ScoreSnapshot {
         private final int score;
+        private final int inflight;
         private final ChannelScoreInfo delegate;
 
-        ScoreSnapshot(int score, ChannelScoreInfo delegate) {
+        ScoreSnapshot(int score, int inflight, ChannelScoreInfo delegate) {
             this.score = score;
+            this.inflight = inflight;
             this.delegate = delegate;
         }
 
         int getScore() {
             return score;
+        }
+
+        int getInflight() {
+            return inflight;
+        }
+
+        ChannelScoreInfo getDelegate() {
+            return delegate;
         }
 
         @Override

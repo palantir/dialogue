@@ -19,11 +19,13 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
+import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -47,6 +49,11 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
+    private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
+    // When a channel has UNHEALTHY_SCORE_MULTIPLIER times the score of a channel with INFLIGHT_COMPARISON_THRESHOLD
+    // active requests, it's considered unhealthy and may not be attempted.
+    private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
+
     private final BalancedScoreTracker tracker;
     private final ImmutableList<LimitedChannel> channels;
 
@@ -64,9 +71,47 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        ChannelScoreInfo[] channelsByScore = tracker.getChannelsByScore();
+        ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
-        for (ChannelScoreInfo channelInfo : channelsByScore) {
+        int giveUpThreshold = Integer.MAX_VALUE;
+        for (ScoreSnapshot snapshot : snapshotsByScore) {
+            /*
+             * If we're considering a channel that has a *drastically* higher score than the last one (i.e. we
+             * think it's much worse), then we can often get better outcomes by just refusing to send a
+             * request (and queueing) rather than sending something to this known-bad channel.
+             *
+             * This allows us to avoid sending requests to an unhealthy channel after a node has failed while
+             * the concurrency limit on the healthy channel is slowly expanded to meet increased load. Otherwise
+             * the assumed concurrency limit base don lower request load on the healthy channel may result in requests
+             * being sent to a node that's no longer alive.
+             *
+             * Note that this functionality is not safe if the preferred channel had zero inflight requests (as this
+             * could result in infinite queuing).
+             */
+            if (snapshot.getScore() > giveUpThreshold) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Giving up and queueing because channel score ({}) for channel {} is not worth sending a "
+                                    + "request to ({})",
+                            SafeArg.of("score", snapshot.getScore()),
+                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of("giveUpScore", giveUpThreshold));
+                }
+                return Optional.empty();
+            }
+            if (snapshot.getInflight() > INFLIGHT_COMPARISON_THRESHOLD) {
+                int newThreshold = IntMath.saturatedMultiply(snapshot.getScore(), UNHEALTHY_SCORE_MULTIPLIER);
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "When considering channel {}, giveUpThreshold {} -> {}",
+                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of("old", giveUpThreshold),
+                            SafeArg.of("new", newThreshold));
+                }
+                giveUpThreshold = newThreshold;
+            }
+
+            ChannelScoreInfo channelInfo = snapshot.getDelegate();
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
