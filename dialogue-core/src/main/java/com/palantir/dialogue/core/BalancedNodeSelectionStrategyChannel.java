@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -47,6 +48,7 @@ import org.slf4j.LoggerFactory;
  */
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
+
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 10;
     // When a channel has UNHEALTHY_SCORE_MULTIPLIER times the score of a channel with INFLIGHT_COMPARISON_THRESHOLD
     // active requests, it's considered unhealthy and may not be attempted.
@@ -69,21 +71,42 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsByScore();
+        ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
-        // Track the most recent score of a channel with ten or more active requests.
-        int lastSaturatedScore = Integer.MAX_VALUE;
+        int giveUpThreshold = Integer.MAX_VALUE;
         for (ScoreSnapshot snapshot : snapshotsByScore) {
-            ChannelScoreInfo channelInfo = snapshot.getDelegate();
-            int score = snapshot.getScore();
-            int inflight = snapshot.getInflight();
-            if (score / UNHEALTHY_SCORE_MULTIPLIER > lastSaturatedScore) {
+            /*
+             * If we're considering a channel that has a *drastically* higher score than the last one (i.e. we
+             * think it's much worse), then we can often get better outcomes by just refusing to send a
+             * request (and queueing) rather than sending something to this known-bad channel.
+             *
+             * Note that this functionality is not safe if the preferred channel had zero inflight requests (as this
+             * could result in infinite queuing).
+             */
+            if (snapshot.getScore() > giveUpThreshold) {
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Giving up and queueing because channel score ({}) for channel {} is not worth sending a "
+                                    + "request to ({})",
+                            SafeArg.of("score", snapshot.getScore()),
+                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of("giveUpScore", giveUpThreshold));
+                }
                 return Optional.empty();
             }
-            if (inflight > INFLIGHT_COMPARISON_THRESHOLD) {
-                lastSaturatedScore = score;
+            if (snapshot.getInflight() > INFLIGHT_COMPARISON_THRESHOLD) {
+                int newThreshold = IntMath.saturatedMultiply(snapshot.getScore(), UNHEALTHY_SCORE_MULTIPLIER);
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "When considering channel {}, giveUpThreshold {} -> {}",
+                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of("old", giveUpThreshold),
+                            SafeArg.of("new", newThreshold));
+                }
+                giveUpThreshold = newThreshold;
             }
 
+            ChannelScoreInfo channelInfo = snapshot.getDelegate();
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
