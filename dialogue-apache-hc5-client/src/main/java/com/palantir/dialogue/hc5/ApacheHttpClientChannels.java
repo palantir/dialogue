@@ -16,7 +16,6 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
@@ -98,7 +97,6 @@ public final class ApacheHttpClientChannels {
      * metrics using {@link #create(ClientConfiguration, String)}.
      */
     @Deprecated
-    @VisibleForTesting
     public static Channel create(ClientConfiguration conf) {
         return create(conf, "apache-channel");
     }
@@ -107,7 +105,6 @@ public final class ApacheHttpClientChannels {
      * Simple cjr-style factory method. Prefer using {@code dialogue-clients} general purpose factory where possible.
      * This method exists to ease of migration from hc4 to hc5.
      */
-    @VisibleForTesting
     public static Channel create(ClientConfiguration conf, String channelName) {
         CloseableClient client = createCloseableHttpClient(conf, channelName);
         return DialogueChannel.builder()
