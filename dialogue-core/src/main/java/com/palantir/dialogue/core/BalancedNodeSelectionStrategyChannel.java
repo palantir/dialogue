@@ -49,7 +49,7 @@ import org.slf4j.LoggerFactory;
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
-    private static final int INFLIGHT_COMPARISON_THRESHOLD = 10;
+    private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
     // When a channel has UNHEALTHY_SCORE_MULTIPLIER times the score of a channel with INFLIGHT_COMPARISON_THRESHOLD
     // active requests, it's considered unhealthy and may not be attempted.
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
