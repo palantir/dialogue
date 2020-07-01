@@ -1,0 +1,6 @@
+type: deprecation
+deprecation:
+  description: Remove dialogue-apache-hc4-client in favor of hc5. Known consumers
+    have already been migrated.
+  links:
+  - https://github.com/palantir/dialogue/pull/884
