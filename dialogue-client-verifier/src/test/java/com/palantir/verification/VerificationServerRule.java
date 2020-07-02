@@ -16,13 +16,13 @@
 
 package com.palantir.verification;
 
-import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
-import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.refreshable.Refreshable;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -46,18 +46,18 @@ public final class VerificationServerRule extends ExternalResource {
             .build();
     private static final int PORT = 16298;
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("test", "0.0.0"));
-    private static final ClientConfiguration clientConfiguration = ClientConfiguration.builder()
-            .from(ClientConfigurations.of(
-                    ImmutableList.of("http://localhost:" + PORT + "/"),
-                    SslSocketFactories.createSslSocketFactory(TRUST_STORE_CONFIGURATION),
-                    SslSocketFactories.createX509TrustManager(TRUST_STORE_CONFIGURATION)))
-            .userAgent(USER_AGENT)
-            .build();
-
     private Process process;
 
-    public ClientConfiguration getClientConfiguration() {
-        return clientConfiguration;
+    public <T> T client(Class<T> service) {
+        return DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder().build()))
+                .withUserAgent(USER_AGENT)
+                .getNonReloading(
+                        service,
+                        ServiceConfiguration.builder()
+                                .addUris("http://localhost:" + PORT + "/")
+                                .security(TRUST_STORE_CONFIGURATION)
+                                .build());
     }
 
     @Override

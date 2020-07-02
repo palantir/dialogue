@@ -1,6 +1,5 @@
 rootProject.name = 'dialogue'
 
-include 'dialogue-apache-hc4-client'
 include 'dialogue-apache-hc5-client'
 include 'dialogue-blocking-channels'
 include 'dialogue-test-common'

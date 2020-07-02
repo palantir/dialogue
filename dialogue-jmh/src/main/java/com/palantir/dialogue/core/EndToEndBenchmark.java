@@ -35,7 +35,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceBlocking;
-import com.palantir.dialogue.hc4.ApacheHttpClientChannels;
+import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;

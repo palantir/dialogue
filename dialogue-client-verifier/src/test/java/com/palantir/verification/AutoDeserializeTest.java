@@ -43,9 +43,9 @@ public class AutoDeserializeTest {
 
     private static final Logger log = LoggerFactory.getLogger(AutoDeserializeTest.class);
     private static final AutoDeserializeServiceBlocking testService =
-            VerificationClients.autoDeserializeServiceJersey(server);
+            server.client(AutoDeserializeServiceBlocking.class);
     private static final AutoDeserializeConfirmServiceBlocking confirmService =
-            VerificationClients.confirmService(server);
+            server.client(AutoDeserializeConfirmServiceBlocking.class);
 
     @Parameterized.Parameter(0)
     public EndpointName endpointName;

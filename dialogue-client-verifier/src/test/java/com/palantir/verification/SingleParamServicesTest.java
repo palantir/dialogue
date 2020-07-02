@@ -21,6 +21,9 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.EndpointName;
+import com.palantir.dialogue.com.palantir.conjure.verification.server.SingleHeaderServiceBlocking;
+import com.palantir.dialogue.com.palantir.conjure.verification.server.SinglePathParamServiceBlocking;
+import com.palantir.dialogue.com.palantir.conjure.verification.server.SingleQueryParamServiceBlocking;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -47,11 +50,11 @@ public class SingleParamServicesTest {
     private static final ObjectMapper objectMapper = ObjectMappers.newClientObjectMapper();
     private static ImmutableMap<String, Object> servicesMaps = ImmutableMap.of(
             "singlePathParamService",
-            VerificationClients.singlePathParamService(server),
+            server.client(SinglePathParamServiceBlocking.class),
             "singleHeaderService",
-            VerificationClients.singleHeaderService(server),
+            server.client(SingleHeaderServiceBlocking.class),
             "singleQueryParamService",
-            VerificationClients.singleQueryParamService(server));
+            server.client(SingleQueryParamServiceBlocking.class));
 
     @Parameterized.Parameter(0)
     public String serviceName;
