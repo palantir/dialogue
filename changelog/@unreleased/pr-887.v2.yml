@@ -1,0 +1,17 @@
+type: fix
+fix:
+  description: |-
+    Dialogue validates connections after four seconds of inactivity.
+
+    This value is reduced from twenty seconds, which is longer than
+    some servers keepalive timeout. Unfortunately servers with low
+    timeouts don't necessarily send keepalive response headers to
+    the client describing expected limits.
+
+    Note that this may result in a performance penalty for services
+    which often handle traffic in waves as there's a ~1ms cost to
+    validate connection health. Timelock, for example, expects to
+    make several requests per millisecond per thread, so an increase
+    in validation could impede performance.
+  links:
+  - https://github.com/palantir/dialogue/pull/887
