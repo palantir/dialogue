@@ -57,12 +57,12 @@ class DialogueClientsTest {
             .putServices(
                     "multipass",
                     PartialServiceConfiguration.builder()
-                            .addUris("https://multipass")
+                            .addUris("https://multipass.fake.palantir.com")
                             .build())
             .putServices(
                     "email-service",
                     PartialServiceConfiguration.builder()
-                            .addUris("https://email-service")
+                            .addUris("https://email-service.fake.palantir.com")
                             .build())
             .putServices(
                     "zero-uris-service", PartialServiceConfiguration.builder().build())
