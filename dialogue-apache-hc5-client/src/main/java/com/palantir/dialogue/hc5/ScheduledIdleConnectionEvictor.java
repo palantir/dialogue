@@ -43,13 +43,16 @@ final class ScheduledIdleConnectionEvictor {
      */
     @SuppressWarnings("deprecation") // Singleton registry for a singleton executor
     private static final Supplier<ScheduledExecutorService> sharedScheduler =
-            Suppliers.memoize(() -> Executors.newSingleThreadScheduledExecutor(MetricRegistries.instrument(
+            Suppliers.memoize(() -> MetricRegistries.instrument(
                     SharedTaggedMetricRegistries.getSingleton(),
-                    new ThreadFactoryBuilder()
-                            .setNameFormat(EXECUTOR_NAME + "-%d")
-                            .setDaemon(true)
-                            .build(),
-                    EXECUTOR_NAME)));
+                    Executors.newSingleThreadScheduledExecutor(MetricRegistries.instrument(
+                            SharedTaggedMetricRegistries.getSingleton(),
+                            new ThreadFactoryBuilder()
+                                    .setNameFormat(EXECUTOR_NAME + "-%d")
+                                    .setDaemon(true)
+                                    .build(),
+                            EXECUTOR_NAME)),
+                    EXECUTOR_NAME));
 
     static ScheduledFuture<?> schedule(
             ConnPoolControl<?> connectionManager, Duration delayBetweenChecks, Duration maxIdleTime) {
