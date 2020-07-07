@@ -310,6 +310,23 @@ public final class ApacheHttpClientChannels {
 
         private static final long DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS = 50_000;
 
+        // Increased from two seconds to four seconds because we have strong support for retries
+        // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
+        // are possible when the target closes connections prior to this timeout, and can be safely retried.
+        // Ideally this value would be larger for RPC, however some servers use relatively low defaults:
+        // apache httpd versions 1.3 and 2.0: 15 seconds:
+        // https://httpd.apache.org/docs/2.0/mod/core.html#keepalivetimeout
+        // apache httpd version 2.2 and above: 5 seconds
+        // https://httpd.apache.org/docs/2.2/mod/core.html#keepalivetimeout
+        // nodejs http server: 5 seconds
+        // https://nodejs.org/api/http.html#http_server_keepalivetimeout
+        // nginx: 75 seconds (good)
+        // https://nginx.org/en/docs/http/ngx_http_core_module.html#keepalive_timeout
+        // dropwizard: 30 seconds (see idleTimeout in the linked docs)
+        // https://www.dropwizard.io/en/latest/manual/configuration.html#Connectors
+        // wc: 60 seconds (internal)
+        private static final TimeValue CONNECTION_INACTIVITY_CHECK = TimeValue.ofSeconds(4);
+
         @Nullable
         private ClientConfiguration clientConfiguration;
 
@@ -373,12 +390,6 @@ public final class ApacheHttpClientChannels {
             long idleConnectionTimeoutMillis = socketTimeoutMillis > 0
                     ? Math.min(DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS, socketTimeoutMillis)
                     : DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS;
-            // Increased from two seconds to 40% of the idle connection timeout because we have strong support for
-            // retries
-            // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
-            // are possible when the target closes connections prior to this timeout, and can be safely retried.
-            TimeValue connectionPoolInactivityCheck =
-                    TimeValue.ofMilliseconds((int) (idleConnectionTimeoutMillis / 2.5));
 
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
@@ -408,7 +419,7 @@ public final class ApacheHttpClientChannels {
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
-                    .setValidateAfterInactivity(connectionPoolInactivityCheck)
+                    .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
                     .build();
 
