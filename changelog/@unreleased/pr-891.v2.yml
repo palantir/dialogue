@@ -1,0 +1,10 @@
+type: fix
+fix:
+  description: |-
+    Dialogue POST requests with no body set `Content-Length: 0`
+
+    https://tools.ietf.org/html/rfc7230#section-3.3.2 recommends setting
+    a content-length on POST requests with no body. Some proxies strictly
+    validate this and respond 411 when the content-length is not specified.
+  links:
+  - https://github.com/palantir/dialogue/pull/891
