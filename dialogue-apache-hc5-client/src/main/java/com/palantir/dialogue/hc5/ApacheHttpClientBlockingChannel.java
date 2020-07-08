@@ -86,9 +86,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     endpoint.httpMethod() != HttpMethod.OPTIONS, "OPTIONS endpoints must not have a request body");
             RequestBody body = request.body().get();
             setBody(builder, body);
-        } else if (endpoint.httpMethod() == HttpMethod.POST) {
-            // https://tools.ietf.org/html/rfc7230#section-3.3.2 recommends setting a content-length
-            // on empty post requests. Some components may respond 411 if the content-length is not present.
+        } else if (requiresEmptyBody(endpoint)) {
             builder.setEntity(EMPTY_ENTITY);
         }
         CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
@@ -105,6 +103,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 httpClientResponse.close();
             }
         }
+    }
+
+    // https://tools.ietf.org/html/rfc7230#section-3.3.2 recommends setting a content-length
+    // on empty post requests. Some components may respond 411 if the content-length is not present.
+    private static boolean requiresEmptyBody(Endpoint endpoint) {
+        HttpMethod method = endpoint.httpMethod();
+        return method == HttpMethod.POST || method == HttpMethod.PUT;
     }
 
     private static void setBody(ClassicRequestBuilder builder, RequestBody body) {
