@@ -46,6 +46,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.io.entity.ByteArrayEntity;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.slf4j.Logger;
@@ -53,6 +54,7 @@ import org.slf4j.LoggerFactory;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
+    private static final HttpEntity EMPTY_ENTITY = new ByteArrayEntity(new byte[0], 0, 0, null, null, false);
 
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
@@ -84,6 +86,8 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     endpoint.httpMethod() != HttpMethod.OPTIONS, "OPTIONS endpoints must not have a request body");
             RequestBody body = request.body().get();
             setBody(builder, body);
+        } else if (endpoint.httpMethod() == HttpMethod.POST) {
+            builder.setEntity(EMPTY_ENTITY);
         }
         CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
         // Defensively ensure that resources are closed if failures occur within this block,

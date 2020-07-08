@@ -403,6 +403,13 @@ public abstract class AbstractChannelTest {
         assertThat(result.get().code()).isEqualTo(200);
     }
 
+    @Test
+    public void postIncludesZeroContentLength() throws InterruptedException {
+        endpoint.method = HttpMethod.POST;
+        channel.execute(endpoint, request);
+        assertThat(server.takeRequest().getHeader("Content-Length")).isEqualTo("0");
+    }
+
     private static Buffer zip(String content) throws IOException {
         Buffer gzipBytes = new Buffer();
         Buffer rawBytes = new Buffer();
