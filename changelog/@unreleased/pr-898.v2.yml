@@ -1,5 +1,5 @@
-type: break
-break:
+type: fix
+fix:
   description: |-
     The system default proxy selector is never used
 
