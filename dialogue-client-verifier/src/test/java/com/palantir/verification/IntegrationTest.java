@@ -19,19 +19,25 @@ package com.palantir.verification;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.base.Splitter;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.io.ByteStreams;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.RateLimiter;
+import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
+import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -51,6 +57,7 @@ import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -72,6 +79,7 @@ public class IntegrationTest {
     private HttpHandler undertowHandler;
     private SampleServiceBlocking blocking;
     private SampleServiceAsync async;
+    private ServiceConfiguration config;
 
     @Before
     public void before() {
@@ -80,7 +88,7 @@ public class IntegrationTest {
                         0, "localhost", new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
                 .build();
         undertow.start();
-        ServiceConfiguration config = ServiceConfiguration.builder()
+        config = ServiceConfiguration.builder()
                 .addUris(getUri(undertow))
                 .security(SSL_CONFIG)
                 .readTimeout(Duration.ofSeconds(1))
@@ -226,6 +234,75 @@ public class IntegrationTest {
         // the entire batch.
         ListenableFuture<List<Void>> all = Futures.allAsList(futures);
         all.get();
+    }
+
+    @Test
+    public void sticky_sessions_with_multiple_rate_limited_upstreams() throws Exception {
+        int permitsPerSecond = 300;
+
+        ImmutableList<String> nodes = ImmutableList.of("node0", "node1", "node2", "node3");
+        Map<String, RateLimiter> limiters =
+                nodes.stream().collect(Collectors.toMap(node -> node, _node -> RateLimiter.create(permitsPerSecond)));
+        Map<String, AtomicInteger> successResponses =
+                nodes.stream().collect(Collectors.toMap(node -> node, _node -> new AtomicInteger()));
+        Map<String, AtomicInteger> limitedResponses =
+                nodes.stream().collect(Collectors.toMap(node -> node, _node -> new AtomicInteger()));
+
+        undertowHandler = exchange -> {
+            String firstSegment =
+                    Splitter.on('/').splitToList(exchange.getRequestPath()).get(1);
+
+            // These thread.sleep times are taken from a prod instance of internal-ski-product.
+            // They're not really crucial to the test, feel free to dial them up or down or omit them entirely.
+            if (limiters.get(firstSegment).tryAcquire()) {
+                Thread.sleep(7);
+                successResponses.get(firstSegment).incrementAndGet();
+                exchange.setStatusCode(200);
+            } else {
+                Thread.sleep(22);
+                limitedResponses.get(firstSegment).incrementAndGet();
+                exchange.setStatusCode(429);
+            }
+        };
+
+        StickyChannelFactory stickyChannels = DialogueClients.create(Refreshable.only(ServicesConfigBlock.builder()
+                        .defaultSecurity(SSL_CONFIG)
+                        .putServices(
+                                "my-service",
+                                PartialServiceConfiguration.builder()
+                                        .uris(nodes.stream()
+                                                .map(prefix -> getUri(undertow) + "/" + prefix)
+                                                .collect(Collectors.toList()))
+                                        .build())
+                        .build()))
+                .withUserAgent(USER_AGENT)
+                .withNodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .getStickyChannels("my-service");
+
+        // kick off a big spike of requests (so that we actually max out our concurrency limiter).
+        int numRequests = nodes.size() * permitsPerSecond * 10;
+        int numIndependentTransactions = 30;
+        int requestsPerBatch = numRequests / numIndependentTransactions;
+
+        List<ListenableFuture<Void>> all = IntStream.range(0, numIndependentTransactions)
+                .mapToObj(_batch -> {
+                    SampleServiceAsync async = stickyChannels.getCurrentBest(SampleServiceAsync.class);
+                    List<ListenableFuture<Void>> futures = IntStream.range(0, requestsPerBatch)
+                            .mapToObj(_reqNum -> async.voidToVoid())
+                            .collect(Collectors.toList());
+                    ListenableFuture<List<Void>> list = Futures.allAsList(futures);
+                    ListenableFuture<Void> transform =
+                            Futures.transform(list, l -> null, MoreExecutors.directExecutor());
+                    return transform;
+                })
+                .collect(Collectors.toList());
+
+        Futures.allAsList(all).get();
+
+        System.out.printf(
+                "Completed %s transactions, each making %s requests.%n", numIndependentTransactions, requestsPerBatch);
+        System.out.println("successResponses = " + successResponses);
+        System.out.println("limitedResponses = " + limitedResponses);
     }
 
     private void set204Response() {
