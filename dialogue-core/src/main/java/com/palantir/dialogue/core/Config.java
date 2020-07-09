@@ -19,7 +19,10 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import org.immutables.value.Value;
@@ -62,6 +65,8 @@ interface Config {
         return 100_000;
     }
 
+    OptionalInt overrideSingleHostIndex();
+
     @Value.Check
     default void check() {
         Preconditions.checkArgument(maxQueueSize() > 0, "maxQueueSize must be positive");
@@ -69,5 +74,11 @@ interface Config {
         Preconditions.checkArgument(
                 rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
+
+        if (rawConfig().uris().size() > 1 && overrideSingleHostIndex().isPresent()) {
+            throw new SafeIllegalArgumentException(
+                    "overrideHostIndex is only permitted when there is a single uri",
+                    SafeArg.of("numUris", rawConfig().uris().size()));
+        }
     }
 }

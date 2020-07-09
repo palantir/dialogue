@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableList.Builder;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -52,6 +53,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -87,7 +89,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
-        Channel channel = cache.getNonReloadingChannel(params, serviceConf, ChannelNames.nonReloading(clazz, params));
+        Channel channel = cache.getNonReloadingChannel(
+                params, serviceConf, ChannelNames.nonReloading(clazz, params), OptionalInt.empty());
 
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
@@ -121,7 +124,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ServiceConfiguration serviceConf =
                     ServiceConfigurationFactory.of(block).get(serviceName);
 
-            return cache.getNonReloadingChannel(params, serviceConf, channelName);
+            return cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
         });
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
 
@@ -142,18 +145,20 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     ServiceConfiguration serviceConfiguration =
                             ServiceConfigurationFactory.of(block).get(serviceName);
 
-                    return serviceConfiguration.uris().stream()
-                            .map(uri -> ServiceConfiguration.builder()
-                                    .from(serviceConfiguration)
-                                    .uris(ImmutableList.of(uri))
-                                    .build())
-                            .map(singleUriServiceConf -> {
-                                // subtle gotcha here is that every single one of these has the same channelName,
-                                // which means metrics like the QueuedChannel counter will end up being the sum of all
-                                // of them.
-                                return cache.getNonReloadingChannel(params, singleUriServiceConf, channelName);
-                            })
-                            .collect(ImmutableList.toImmutableList());
+                    ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
+                    for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
+                        ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
+                                .from(serviceConfiguration)
+                                .uris(ImmutableList.of(
+                                        serviceConfiguration.uris().get(i)))
+                                .build();
+
+                        // subtle gotcha here is that every single one of these has the same channelName,
+                        // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
+                        list.add(cache.getNonReloadingChannel(
+                                params, singleUriServiceConf, channelName, OptionalInt.of(i)));
+                    }
+                    return list.build();
                 });
 
         return new PerHostClientFactory() {

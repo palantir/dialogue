@@ -31,6 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -89,7 +90,8 @@ final class ChannelCache {
     DialogueChannel getNonReloadingChannel(
             ReloadingClientFactory.ReloadingParams reloadingParams,
             ServiceConfiguration serviceConf,
-            @Safe String channelName) {
+            @Safe String channelName,
+            OptionalInt overrideHostIndex) {
         if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CACHED_CHANNELS * 0.75) {
             log.warn("channelCache nearing capacity - possible bug? {}", SafeArg.of("cache", this));
         }
@@ -99,6 +101,7 @@ final class ChannelCache {
                 .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
                 .channelName(channelName)
+                .overrideHostIndex(overrideHostIndex)
                 .build());
     }
 
@@ -119,6 +122,7 @@ final class ChannelCache {
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
                 .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()))
+                .overrideHostIndex(channelCacheRequest.overrideHostIndex())
                 .build();
     }
 
@@ -189,9 +193,11 @@ final class ChannelCache {
     interface ChannelCacheKey extends AugmentClientConfig {
         ServiceConfiguration serviceConf();
 
+        Optional<ExecutorService> blockingExecutor();
+
         String channelName();
 
-        Optional<ExecutorService> blockingExecutor();
+        OptionalInt overrideHostIndex();
     }
 
     @Value.Immutable

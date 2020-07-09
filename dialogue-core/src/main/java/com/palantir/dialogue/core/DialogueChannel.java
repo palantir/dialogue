@@ -30,6 +30,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -87,6 +88,15 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        /**
+         * Metrics for a channel with a single uri can be attributed to a different hostIndex.
+         * Otherwise, metrics from all single-uri channels would be attributed to hostIndex 0, making them misleading.
+         */
+        public Builder overrideHostIndex(OptionalInt maybeUriIndex) {
+            builder.overrideSingleHostIndex(maybeUriIndex);
+            return this;
+        }
+
         @VisibleForTesting
         Builder random(Random value) {
             builder.random(value);
@@ -122,7 +132,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 channel = new TraceEnrichingChannel(channel);
                 LimitedChannel limited = new ChannelToLimitedChannelAdapter(channel);
-                perUriChannels.add(ConcurrencyLimitedChannel.create(cf, limited, uriIndex));
+                perUriChannels.add(ConcurrencyLimitedChannel.create(
+                        cf, limited, cf.overrideSingleHostIndex().orElse(uriIndex)));
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
