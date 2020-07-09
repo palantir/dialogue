@@ -24,5 +24,8 @@
         <Root level="info">
             <AppenderRef ref="Console"/>
         </Root>
+        <Logger name="com.palantir.dialogue.core.ConcurrencyLimitedChannel" level="debug">
+            <AppenderRef ref="Console"/>
+        </Logger>
     </Loggers>
 </Configuration>
