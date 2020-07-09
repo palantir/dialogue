@@ -1,0 +1,11 @@
+type: break
+break:
+  description: |-
+    The system default proxy selector is never used
+
+    Previously jvm configuration could result in dialogue traffic
+    using an unexpected proxy. Now when the system-default proxy
+    selector is provided it is ignored to avoid failures due to
+    unexpected environment configuration.
+  links:
+  - https://github.com/palantir/dialogue/pull/898
