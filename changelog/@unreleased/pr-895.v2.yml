@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: For users of `getStickyChannels`, ConcurrencyLimiter metrics are now
+    correctly attributed to each hostIndex. Previously, they were all attributed to
+    `hostIndex:0`.
+  links:
+  - https://github.com/palantir/dialogue/pull/895

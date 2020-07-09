@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.otherpackage;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.util.concurrent.ListenableFuture;
@@ -39,6 +40,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.security.Provider;
@@ -153,6 +155,30 @@ class DialogueClientsTest {
         assertThatThrownBy(future2::get)
                 .describedAs("Made a real network call")
                 .hasCauseInstanceOf(UnknownHostException.class);
+    }
+
+    @Test
+    void perHost_attributes_concurrencylimiter_metrics_to_the_right_host() {
+        DefaultTaggedMetricRegistry taggedMetrics = new DefaultTaggedMetricRegistry();
+        DialogueClients.create(Refreshable.only(ServicesConfigBlock.builder()
+                        .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                        .putServices(
+                                "my-service",
+                                PartialServiceConfiguration.builder()
+                                        .addUris("https://my-service-0.fake.palantir.com")
+                                        .addUris("https://my-service-1.fake.palantir.com")
+                                        .addUris("https://my-service-2.fake.palantir.com")
+                                        .build())
+                        .build()))
+                .withUserAgent(TestConfigurations.AGENT)
+                .withMaxNumRetries(0)
+                .withTaggedMetrics(taggedMetrics)
+                .perHost("my-service");
+
+        assertThat(taggedMetrics.getMetrics().keySet().stream()
+                        .filter(metricName -> metricName.safeName().equals("dialogue.concurrencylimiter.max")))
+                .describedAs("One concurrencylimiter metric per host")
+                .hasSize(3);
     }
 
     // this is the recommended way to depend on a clientfactory
