@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: ConcurrencyLimiter is a little more conservative when the limit is
+    quite low. This should result in fewer 429s, fewer retries and fewer wasted requests.
+  links:
+  - https://github.com/palantir/dialogue/pull/897
