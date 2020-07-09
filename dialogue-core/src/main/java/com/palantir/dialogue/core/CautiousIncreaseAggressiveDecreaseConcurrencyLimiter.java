@@ -142,7 +142,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         SUCCESS() {
             @Override
             public double applyAsDouble(double originalLimit, double inFlightSnapshot) {
-                if (inFlightSnapshot >= originalLimit * BACKOFF_RATIO) {
+                if (inFlightSnapshot >= Math.floor(originalLimit) * BACKOFF_RATIO) {
                     // The limit is raised more easily when the maximum limit is low, and becomes linearly more
                     // stubborn as the limit increases. Given a fixed rate of traffic this should result in
                     // linear slope as opposed to the exponential slope expected from a static increment
