@@ -70,6 +70,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.client5.http.impl.routing.DefaultRoutePlanner;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
@@ -425,14 +426,13 @@ public final class ApacheHttpClientChannels {
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
+            ProxySelector configuredSelector = conf.proxy();
+            boolean noProxy = ProxySelector.getDefault().equals(configuredSelector);
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
                             // HTTPCLIENT-1478: Work around the connection timeout being used to negotiate proxy
                             // traffic.
-                            .setConnectTimeout(
-                                    ProxySelector.getDefault().equals(conf.proxy())
-                                            ? connectTimeout
-                                            : Timeout.ofMilliseconds(socketTimeoutMillis))
+                            .setConnectTimeout(noProxy ? connectTimeout : Timeout.ofMilliseconds(socketTimeoutMillis))
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
                             // Match okhttp, disallow redirects
@@ -445,7 +445,10 @@ public final class ApacheHttpClientChannels {
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
                     .setConnectionManager(new TracedPoolingHttpClientConnectionManager(connectionManager))
-                    .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
+                    .setRoutePlanner(
+                            noProxy
+                                    ? new DefaultRoutePlanner(null)
+                                    : new SystemDefaultRoutePlanner(null, configuredSelector))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
                     .disableConnectionState()
