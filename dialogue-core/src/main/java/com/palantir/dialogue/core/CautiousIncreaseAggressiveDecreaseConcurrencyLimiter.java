@@ -70,14 +70,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit of
         // 1, we'll still hand out a permit
         if (currentInFlight <= getLimit() - 1) {
-            return Optional.of(createToken());
+            int inFlightSnapshot = inFlight.incrementAndGet();
+            return Optional.of(new Permit(inFlightSnapshot));
         }
         return Optional.empty();
-    }
-
-    private Permit createToken() {
-        int inFlightSnapshot = inFlight.incrementAndGet();
-        return new Permit(inFlightSnapshot);
     }
 
     final class Permit implements FutureCallback<Response> {
@@ -142,7 +138,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         SUCCESS() {
             @Override
             public double applyAsDouble(double originalLimit, double inFlightSnapshot) {
-                if (inFlightSnapshot >= Math.floor(originalLimit) * BACKOFF_RATIO) {
+                if (inFlightSnapshot >= Math.floor(originalLimit * BACKOFF_RATIO)) {
                     // The limit is raised more easily when the maximum limit is low, and becomes linearly more
                     // stubborn as the limit increases. Given a fixed rate of traffic this should result in
                     // linear slope as opposed to the exponential slope expected from a static increment
