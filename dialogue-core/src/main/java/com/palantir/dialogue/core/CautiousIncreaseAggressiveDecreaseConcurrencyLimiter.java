@@ -64,10 +64,15 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * */
     Optional<Permit> acquire() {
         int currentInFlight = getInflight();
-        if (currentInFlight >= getLimit()) {
-            return Optional.empty();
+
+        // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately send
+        // our inflight number to 5, which is clearly above the limit.  Instead, we wait until there is capacity for
+        // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit of
+        // 1, we'll still hand out a permit
+        if (currentInFlight <= getLimit() - 1) {
+            return Optional.of(createToken());
         }
-        return Optional.of(createToken());
+        return Optional.empty();
     }
 
     private Permit createToken() {
