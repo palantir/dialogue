@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Fix unexpected socket timeouts when configured as unlimited by using
+    a 1-day socket timeout
+  links:
+  - https://github.com/palantir/dialogue/pull/901
+  - https://issues.apache.org/jira/browse/HTTPCLIENT-2099
