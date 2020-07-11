@@ -39,7 +39,6 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.ProxySelector;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -410,7 +409,10 @@ public final class ApacheHttpClientChannels {
                     .setConnectionTimeToLive(idleConnectionTimeout)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
-                            .setSoTimeout(socketTimeout)
+                            // The default socket configuration socket timeout only applies prior to request execution.
+                            // By using the connect timeout here, we apply it to the handshake in addition to the
+                            // socket.connect call.
+                            .setSoTimeout(connectTimeout)
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
@@ -420,13 +422,14 @@ public final class ApacheHttpClientChannels {
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
-            boolean proxyConfigured = !ProxySelector.getDefault().equals(conf.proxy());
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            // HTTPCLIENT-2091: Work around the connection timeout being applied to proxy traffic.
-                            .setConnectTimeout(proxyConfigured ? socketTimeout : connectTimeout)
+                            .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
+                            // The response timeout is used as the socket timeout for the duration of
+                            // an exchange.
+                            .setResponseTimeout(socketTimeout)
                             // Match okhttp, disallow redirects
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())

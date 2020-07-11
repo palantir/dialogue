@@ -171,7 +171,12 @@ public class DialogueClientsIntegrationTest {
                                 .readTimeout(Duration.ZERO)
                                 .writeTimeout(Duration.ZERO)
                                 .build());
-        assertThatCode(client::voidToVoid).doesNotThrowAnyException();
+        assertThatCode(client::voidToVoid)
+                .as("initial request should not throw")
+                .doesNotThrowAnyException();
+        assertThatCode(client::voidToVoid)
+                .as("subsequent requests reusing the connection should not throw")
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -190,7 +195,12 @@ public class DialogueClientsIntegrationTest {
                                 .readTimeout(Duration.ZERO)
                                 .writeTimeout(Duration.ZERO)
                                 .build());
-        assertThatCode(client::voidToVoid).doesNotThrowAnyException();
+        assertThatCode(client::voidToVoid)
+                .as("initial request should not throw")
+                .doesNotThrowAnyException();
+        assertThatCode(client::voidToVoid)
+                .as("subsequent requests reusing the connection should not throw")
+                .doesNotThrowAnyException();
     }
 
     private static String getUri(Undertow undertow) {
