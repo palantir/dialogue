@@ -16,7 +16,6 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
@@ -308,7 +307,12 @@ public final class ApacheHttpClientChannels {
 
     public static final class ClientBuilder {
 
-        private static final Timeout DEFAULT_IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
+        // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
+        // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
+        // as clients attempt to use them.
+        // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
+        // this value with configured timeouts.
+        private static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
 
         // Increased from two seconds to four seconds because we have strong support for retries
         // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
@@ -377,13 +381,6 @@ public final class ApacheHttpClientChannels {
 
             Timeout connectTimeout = Timeout.ofMilliseconds(
                     Ints.checkedCast(conf.connectTimeout().toMillis()));
-            // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-            // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-            // as clients attempt to use them.
-            // If the socket timeout is non-positive (unbounded) we must use the default value.
-            Timeout idleConnectionTimeout = socketTimeout.isEnabled()
-                    ? Collections.min(ImmutableList.of(DEFAULT_IDLE_CONNECTION_TIMEOUT, socketTimeout))
-                    : DEFAULT_IDLE_CONNECTION_TIMEOUT;
 
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
@@ -406,7 +403,7 @@ public final class ApacheHttpClientChannels {
                     .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
                     // Allow unnecessary connections to time out reducing system load.
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                    .setConnectionTimeToLive(idleConnectionTimeout)
+                    .setConnectionTimeToLive(IDLE_CONNECTION_TIMEOUT)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
                             // The default socket configuration socket timeout only applies prior to request execution.
@@ -434,7 +431,7 @@ public final class ApacheHttpClientChannels {
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setConnectionKeepAlive(idleConnectionTimeout)
+                            .setConnectionKeepAlive(IDLE_CONNECTION_TIMEOUT)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
@@ -468,8 +465,8 @@ public final class ApacheHttpClientChannels {
                     connectionManager,
                     // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
                     // stale connections to race the server-side timeout.
-                    Duration.ofMillis(Math.min(idleConnectionTimeout.toMilliseconds(), 5_000)),
-                    Duration.ofMillis(idleConnectionTimeout.toMilliseconds()));
+                    Duration.ofMillis(Math.min(IDLE_CONNECTION_TIMEOUT.toMilliseconds(), 5_000)),
+                    Duration.ofMillis(IDLE_CONNECTION_TIMEOUT.toMilliseconds()));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
     }
