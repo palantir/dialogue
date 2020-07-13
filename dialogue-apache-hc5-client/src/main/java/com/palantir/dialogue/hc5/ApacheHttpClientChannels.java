@@ -38,7 +38,6 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.net.ProxySelector;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -308,7 +307,12 @@ public final class ApacheHttpClientChannels {
 
     public static final class ClientBuilder {
 
-        private static final long DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS = 50_000;
+        // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
+        // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
+        // as clients attempt to use them.
+        // Note that pooled idle connections use an infinite socket timeout so there is no reason to scale
+        // this value with configured timeouts.
+        private static final Timeout IDLE_CONNECTION_TIMEOUT = Timeout.ofSeconds(50);
 
         // Increased from two seconds to four seconds because we have strong support for retries
         // and can optimistically avoid expensive connection checks. Failures caused by NoHttpResponseExceptions
@@ -373,23 +377,10 @@ public final class ApacheHttpClientChannels {
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
             Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
-            long socketTimeoutMillis = conf.readTimeout().toMillis();
-            if (conf.readTimeout().toMillis() != conf.writeTimeout().toMillis()) {
-                log.warn(
-                        "Read and write timeouts do not match, The value of the readTimeout {} will be used and write "
-                                + "timeout {} will be ignored.",
-                        SafeArg.of("readTimeout", conf.readTimeout()),
-                        SafeArg.of("writeTimeout", conf.writeTimeout()));
-            }
+            Timeout socketTimeout = getSocketTimeout(conf);
+
             Timeout connectTimeout = Timeout.ofMilliseconds(
                     Ints.checkedCast(conf.connectTimeout().toMillis()));
-            // Most of our servers use a keep-alive timeout of one minute, by using a slightly lower value on the
-            // client side we can avoid unnecessary retries due to race conditions when servers close idle connections
-            // as clients attempt to use them.
-            // If the socket timeout is non-positive (unbounded) we must use the default value.
-            long idleConnectionTimeoutMillis = socketTimeoutMillis > 0
-                    ? Math.min(DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS, socketTimeoutMillis)
-                    : DEFAULT_IDLE_CONNECTION_TIMEOUT_MILLIS;
 
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
@@ -412,10 +403,13 @@ public final class ApacheHttpClientChannels {
                     .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
                     // Allow unnecessary connections to time out reducing system load.
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                    .setConnectionTimeToLive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
+                    .setConnectionTimeToLive(IDLE_CONNECTION_TIMEOUT)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
-                            .setSoTimeout(Timeout.ofMilliseconds(socketTimeoutMillis))
+                            // The default socket configuration socket timeout only applies prior to request execution.
+                            // By using the connect timeout here, we apply it to the handshake in addition to the
+                            // socket.connect call.
+                            .setSoTimeout(connectTimeout)
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
@@ -427,19 +421,17 @@ public final class ApacheHttpClientChannels {
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
-                            // HTTPCLIENT-1478: Work around the connection timeout being used to negotiate proxy
-                            // traffic.
-                            .setConnectTimeout(
-                                    ProxySelector.getDefault().equals(conf.proxy())
-                                            ? connectTimeout
-                                            : Timeout.ofMilliseconds(socketTimeoutMillis))
+                            .setConnectTimeout(connectTimeout)
                             // Don't allow clients to block forever waiting on a connection to become available
                             .setConnectionRequestTimeout(connectTimeout)
+                            // The response timeout is used as the socket timeout for the duration of
+                            // an exchange.
+                            .setResponseTimeout(socketTimeout)
                             // Match okhttp, disallow redirects
                             .setRedirectsEnabled(false)
                             .setAuthenticationEnabled(conf.proxyCredentials().isPresent())
                             .setExpectContinueEnabled(false)
-                            .setConnectionKeepAlive(TimeValue.ofMilliseconds(idleConnectionTimeoutMillis))
+                            .setConnectionKeepAlive(IDLE_CONNECTION_TIMEOUT)
                             .build())
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
@@ -473,10 +465,27 @@ public final class ApacheHttpClientChannels {
                     connectionManager,
                     // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
                     // stale connections to race the server-side timeout.
-                    Duration.ofMillis(Math.min(idleConnectionTimeoutMillis, 5_000)),
-                    Duration.ofMillis(idleConnectionTimeoutMillis));
+                    Duration.ofMillis(Math.min(IDLE_CONNECTION_TIMEOUT.toMilliseconds(), 5_000)),
+                    Duration.ofMillis(IDLE_CONNECTION_TIMEOUT.toMilliseconds()));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
+    }
+
+    private static Timeout getSocketTimeout(ClientConfiguration conf) {
+        long socketTimeoutMillis = conf.readTimeout().toMillis();
+        if (conf.readTimeout().toMillis() != conf.writeTimeout().toMillis()) {
+            log.warn(
+                    "Read and write timeouts do not match, The value of the readTimeout {} will be used and write "
+                            + "timeout {} will be ignored.",
+                    SafeArg.of("readTimeout", conf.readTimeout()),
+                    SafeArg.of("writeTimeout", conf.writeTimeout()));
+        }
+        if (socketTimeoutMillis == 0) {
+            // https://issues.apache.org/jira/browse/HTTPCLIENT-2099
+            log.debug("Working around HTTPCLIENT-2099 by using a 1 day socket timeout instead of zero (unlimited)");
+            socketTimeoutMillis = Duration.ofDays(1).toMillis();
+        }
+        return Timeout.ofMilliseconds(socketTimeoutMillis);
     }
 
     /**

@@ -1,0 +1,21 @@
+changes:
+  - type: fix
+    fix:
+      description: Fix unexpected socket timeouts when configured as unlimited by using
+        a 1-day socket timeout.
+      links:
+      - https://github.com/palantir/dialogue/pull/901
+      - https://issues.apache.org/jira/browse/HTTPCLIENT-2099
+  - type: improvement
+    improvement:
+      description: Updated socket timeout control to use the RequestConfig,
+        allowing us to cover the entire handshake with the connect-timeout rather than
+        only the `socket.connect` portion.
+      links:
+        - https://github.com/palantir/dialogue/pull/901
+  - type: improvement
+    improvement:
+      description: Idle connection keepalive time is no longer bounded by the socket timeout,
+        allowing low-latency clients to reuse connections without penalty.
+      links:
+        - https://github.com/palantir/dialogue/pull/901
