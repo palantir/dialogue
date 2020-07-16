@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix massive synchronization and gc cost of jaxrs clients
+  links:
+  - https://github.com/palantir/dialogue/pull/908

@@ -53,8 +53,9 @@ enum DefaultClients implements Clients {
     @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
-        EndpointChannel endpointChannel = bind(channel, endpoint);
-        return call(endpointChannel, request, deserializer);
+        // When this method is called, the EndpointChannel can be used at most once. Do not use the bind function
+        // because the reloadable state setup cost will never be recovered in this case.
+        return call(new EndpointChannelAdapter(endpoint, channel), request, deserializer);
     }
 
     @Override
