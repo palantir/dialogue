@@ -96,9 +96,8 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
          */
         @Deprecated
         @Override
-        public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
-            // TODO(dfox): remove this by adding client factory method taking a 'EndpointChannelFactory' not a 'Channel'
-            throw new UnsupportedOperationException("Not implemented");
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return endpoint(endpoint).execute(request);
         }
 
         @Override
