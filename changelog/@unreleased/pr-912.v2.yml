@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix UnsupportedOperationException with old dialouge bindings
+  links:
+  - https://github.com/palantir/dialogue/pull/912
