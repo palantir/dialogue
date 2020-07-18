@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Clients respect the server Keep-Alive timeout when present
+  links:
+  - https://github.com/palantir/dialogue/pull/913
