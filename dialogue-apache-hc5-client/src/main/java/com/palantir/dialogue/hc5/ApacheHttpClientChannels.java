@@ -403,7 +403,6 @@ public final class ApacheHttpClientChannels {
                     .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
                     // Allow unnecessary connections to time out reducing system load.
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                    .setConnectionTimeToLive(IDLE_CONNECTION_TIMEOUT)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
                             // The default socket configuration socket timeout only applies prior to request execution.
@@ -461,12 +460,8 @@ public final class ApacheHttpClientChannels {
                             .build()));
 
             CloseableHttpClient apacheClient = builder.build();
-            ScheduledFuture<?> connectionEvictorFuture = ScheduledIdleConnectionEvictor.schedule(
-                    connectionManager,
-                    // Use a shorter check duration than idle connection timeout duration in order to avoid allowing
-                    // stale connections to race the server-side timeout.
-                    Duration.ofMillis(Math.min(IDLE_CONNECTION_TIMEOUT.toMilliseconds(), 5_000)),
-                    Duration.ofMillis(IDLE_CONNECTION_TIMEOUT.toMilliseconds()));
+            ScheduledFuture<?> connectionEvictorFuture =
+                    ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
     }
