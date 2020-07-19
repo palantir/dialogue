@@ -1,0 +1,11 @@
+type: improvement
+improvement:
+  description: |-
+    The validateAfterInactivity duration may be modified via a sysprop.
+    The `dialogue.experimental.inactivity.check.threshold.millis` property
+    can be used to modify the inactivity timeout for connection health
+    checks. This is not meant to be a permanent fixture, but to allow
+    us to assess the tradeoff between our current four second value and
+    a higher value for less frequent hiccups.
+  links:
+  - https://github.com/palantir/dialogue/pull/915
