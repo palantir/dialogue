@@ -1,0 +1,11 @@
+changes:
+  - type: fix
+    fix:
+      description: Connection reuse is no longer limited to a global timeout, reducing handshake rates on high-load servers.
+      links:
+        - https://github.com/palantir/dialogue/pull/913
+  - type: improvement
+    improvement:
+      description: Clients respect the server Keep-Alive timeout when present
+      links:
+        - https://github.com/palantir/dialogue/pull/913

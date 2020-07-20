@@ -27,7 +27,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.hc.core5.pool.ConnPoolControl;
-import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,21 +53,16 @@ final class ScheduledIdleConnectionEvictor {
                             EXECUTOR_NAME)),
                     EXECUTOR_NAME));
 
-    static ScheduledFuture<?> schedule(
-            ConnPoolControl<?> connectionManager, Duration delayBetweenChecks, Duration maxIdleTime) {
-        return schedule(connectionManager, delayBetweenChecks, maxIdleTime, sharedScheduler.get());
+    static ScheduledFuture<?> schedule(ConnPoolControl<?> connectionManager, Duration delayBetweenChecks) {
+        return schedule(connectionManager, delayBetweenChecks, sharedScheduler.get());
     }
 
     private static ScheduledFuture<?> schedule(
-            ConnPoolControl<?> connectionManager,
-            Duration delayBetweenChecks,
-            Duration maxIdleTime,
-            ScheduledExecutorService scheduler) {
+            ConnPoolControl<?> connectionManager, Duration delayBetweenChecks, ScheduledExecutorService scheduler) {
         return scheduler.scheduleWithFixedDelay(
                 () -> {
                     try {
                         connectionManager.closeExpired();
-                        connectionManager.closeIdle(TimeValue.ofMilliseconds(maxIdleTime.toMillis()));
                     } catch (RuntimeException | Error e) {
                         log.warn("Exception caught while evicting idle connections", e);
                     }
