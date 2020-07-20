@@ -329,7 +329,8 @@ public final class ApacheHttpClientChannels {
         // dropwizard: 30 seconds (see idleTimeout in the linked docs)
         // https://www.dropwizard.io/en/latest/manual/configuration.html#Connectors
         // wc: 60 seconds (internal)
-        private static final TimeValue CONNECTION_INACTIVITY_CHECK = TimeValue.ofSeconds(4);
+        private static final TimeValue CONNECTION_INACTIVITY_CHECK = TimeValue.ofMilliseconds(
+                Integer.getInteger("dialogue.experimental.inactivity.check.threshold.millis", 4_000));
 
         @Nullable
         private ClientConfiguration clientConfiguration;
