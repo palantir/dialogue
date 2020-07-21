@@ -67,6 +67,7 @@ import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
@@ -415,6 +416,8 @@ public final class ApacheHttpClientChannels {
                     .setMaxConnTotal(Integer.MAX_VALUE)
                     .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
+                    .setConnectionFactory(
+                            new TracedManagedHttpConnectionFactory(ManagedHttpClientConnectionFactory.INSTANCE))
                     .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
