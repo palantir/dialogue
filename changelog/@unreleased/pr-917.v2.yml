@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Disable the response-out-of-order check introduced by httpclient 5
+  links:
+  - https://github.com/palantir/dialogue/pull/917
