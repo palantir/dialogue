@@ -17,8 +17,12 @@
 package com.palantir.dialogue.hc5;
 
 import com.palantir.tracing.CloseableTracer;
+import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.Tracer;
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -54,7 +58,7 @@ final class TracedPoolingHttpClientConnectionManager
     @Override
     public LeaseRequest lease(String id, HttpRoute route, Timeout requestTimeout, Object state) {
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.lease")) {
-            return manager.lease(id, route, requestTimeout, state);
+            return TracedLeaseRequest.wrap(manager.lease(id, route, requestTimeout, state));
         }
     }
 
@@ -141,5 +145,38 @@ final class TracedPoolingHttpClientConnectionManager
     @Override
     public String toString() {
         return "TracedPoolingHttpClientConnectionManager{" + manager + '}';
+    }
+
+    private static final class TracedLeaseRequest implements LeaseRequest {
+
+        private final LeaseRequest delegate;
+        private final DetachedSpan span;
+
+        static LeaseRequest wrap(LeaseRequest request) {
+            if (Tracer.hasTraceId() && Tracer.isTraceObservable()) {
+                return new TracedLeaseRequest(request, DetachedSpan.start("Dialogue ConnectionManager LeaseRequest"));
+            }
+            return request;
+        }
+
+        private TracedLeaseRequest(LeaseRequest delegate, DetachedSpan span) {
+            this.delegate = delegate;
+            this.span = span;
+        }
+
+        @Override
+        public ConnectionEndpoint get(Timeout timeout)
+                throws InterruptedException, ExecutionException, TimeoutException {
+            try {
+                return delegate.get(timeout);
+            } finally {
+                span.complete();
+            }
+        }
+
+        @Override
+        public boolean cancel() {
+            return delegate.cancel();
+        }
     }
 }
