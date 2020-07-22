@@ -125,12 +125,6 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
     }
 
     @Override
-    protected void onResponseReceived(ClassicHttpResponse _response) {}
-
-    @Override
-    protected void onRequestSubmitted(ClassicHttpRequest _request) {}
-
-    @Override
     public void passivate() {
         super.setSocketTimeout(Timeout.DISABLED);
     }
