@@ -44,6 +44,9 @@ import org.apache.hc.core5.util.Timeout;
  * Connection which produces behavior matching the default managed connection from httpcore while
  * providing the functionality proposed in
  * <a href="https://issues.apache.org/jira/browse/HTTPCORE-639">HTTPCORE-639</a>.
+ *
+ * This class provides functionality matching
+ * {@code org.apache.hc.client5.http.impl.io.DefaultManagedHttpClientConnection}
  */
 final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnection
         implements ManagedHttpClientConnection, Identifiable {
@@ -75,11 +78,13 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
         this.id = id;
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.getId}. */
     @Override
     public String getId() {
         return id;
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.bind}. */
     @Override
     public void bind(SocketHolder socketHolder) throws IOException {
         if (closed.get()) {
@@ -90,12 +95,14 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
         socketTimeout = Timeout.ofMilliseconds(socketHolder.getSocket().getSoTimeout());
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.bind}. */
     @Override
     public void bind(Socket socket) throws IOException {
         super.bind(new SocketHolder(socket));
         socketTimeout = Timeout.ofMilliseconds(socket.getSoTimeout());
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.getSocket}. */
     @Nullable
     @Override
     public Socket getSocket() {
@@ -103,6 +110,7 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
         return socketHolder != null ? socketHolder.getSocket() : null;
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.getSSLSession}. */
     @Nullable
     @Override
     public SSLSession getSSLSession() {
@@ -110,6 +118,7 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
         return socket instanceof SSLSocket ? ((SSLSocket) socket).getSession() : null;
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.close}. */
     @Override
     public void close() throws IOException {
         if (!closed.getAndSet(true)) {
@@ -117,6 +126,7 @@ final class DialogueManagedHttpClientConnection extends DefaultBHttpClientConnec
         }
     }
 
+    /** Matches {@code DefaultManagedHttpClientConnection.close}. */
     @Override
     public void close(CloseMode closeMode) {
         if (!closed.getAndSet(true)) {
