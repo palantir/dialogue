@@ -28,6 +28,7 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -42,6 +43,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import javax.annotation.Nullable;
+import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
@@ -89,19 +91,24 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         } else if (requiresEmptyBody(endpoint)) {
             builder.setEntity(EMPTY_ENTITY);
         }
-        CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
-        // Defensively ensure that resources are closed if failures occur within this block,
-        // for example HttpClientResponse allocation may throw an OutOfMemoryError.
-        boolean close = true;
         try {
-            Response dialogueResponse = new HttpClientResponse(client, httpClientResponse);
-            Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
-            close = false;
-            return leakDetectingResponse;
-        } finally {
-            if (close) {
-                httpClientResponse.close();
+            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
+            // Defensively ensure that resources are closed if failures occur within this block,
+            // for example HttpClientResponse allocation may throw an OutOfMemoryError.
+            boolean close = true;
+            try {
+                Response dialogueResponse = new HttpClientResponse(client, httpClientResponse);
+                Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
+                close = false;
+                return leakDetectingResponse;
+            } finally {
+                if (close) {
+                    httpClientResponse.close();
+                }
             }
+        } catch (ConnectTimeoutException e) {
+            // ConnectTimeoutException must be wrapped so it may be retried
+            throw new SafeIoException("Connect timed out", e);
         }
     }
 
