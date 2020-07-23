@@ -17,7 +17,13 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
+import com.codahale.metrics.Gauge;
+import com.palantir.tritium.metrics.registry.MetricName;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.stream.LongStream;
 import org.junit.jupiter.api.Test;
 
@@ -62,5 +68,23 @@ public class DialogueInternalWeakReducingGaugeTest {
         System.gc();
 
         assertThat(gauge.getValue()).isEqualTo(1L);
+    }
+
+    @Test
+    void tolerates_strange_gauges() {
+        TaggedMetricRegistry weirdRegistry = mock(TaggedMetricRegistry.class);
+        when(weirdRegistry.gauge(any(), any())).thenReturn(new Gauge<Object>() {
+            @Override
+            public Integer getValue() {
+                return 4;
+            }
+        });
+
+        DialogueInternalWeakReducingGauge.register(
+                weirdRegistry,
+                MetricName.builder().safeName("safeName").build(),
+                String::length,
+                longStream -> longStream.max().orElse(0),
+                "HELLO");
     }
 }
