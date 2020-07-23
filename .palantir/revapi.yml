@@ -222,3 +222,12 @@ acceptedBreaks:
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::getStickyChannels(java.lang.String)"
       justification: "Adding methods to Dialogue.ReloadingFactory is not an ABI break\
         \ (just API)"
+  "1.73.1":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.removed"
+      old: "method <T> com.palantir.dialogue.core.DialogueInternalWeakReducingGauge<T>\
+        \ com.palantir.dialogue.core.DialogueInternalWeakReducingGauge<T>::getOrCreate(com.palantir.tritium.metrics.registry.TaggedMetricRegistry,\
+        \ com.palantir.tritium.metrics.registry.MetricName, java.util.function.ToLongFunction<T>,\
+        \ java.util.function.Function<java.util.stream.LongStream, java.lang.Number>,\
+        \ T)"
+      justification: "Type is named DialogueInternal and documented as internal-only"
