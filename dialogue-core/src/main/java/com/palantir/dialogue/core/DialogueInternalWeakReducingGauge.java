@@ -61,16 +61,27 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
         return operator.apply(weakSet.stream().mapToLong(gaugeFunction));
     }
 
-    public static <T> DialogueInternalWeakReducingGauge<T> getOrCreate(
+    public static <T> void register(
             TaggedMetricRegistry taggedMetricRegistry,
             MetricName metricName,
             ToLongFunction<T> toLongFunc,
             Function<LongStream, Number> reducingFunction,
             T initialObject) {
+
+        DialogueInternalWeakReducingGauge<T> freshInstance =
+                new DialogueInternalWeakReducingGauge<>(toLongFunc, reducingFunction);
+
         // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
-        DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) taggedMetricRegistry.gauge(
-                metricName, new DialogueInternalWeakReducingGauge<>(toLongFunc, reducingFunction));
+        Gauge<Number> fromRegistry = taggedMetricRegistry.gauge(metricName, freshInstance);
+
+        // anyone can implemented TaggedMetricRegistry, and there's no guarantee we get the same thing out that we
+        // put in. If this happens, the fancy 'summarising across many instances' behaviour probably won't work.
+        if (!(fromRegistry instanceof DialogueInternalWeakReducingGauge)) {
+            freshInstance.add(initialObject);
+            return;
+        }
+
+        DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) fromRegistry;
         gauge.add(initialObject);
-        return gauge;
     }
 }

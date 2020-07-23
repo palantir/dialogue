@@ -244,7 +244,7 @@ final class BalancedScoreTracker {
                     .buildMetricName();
             // Weak gauge ensures this object can be GCd. Itherwise the tagged metric registry could hold the last ref!
             // Defensive averaging for the possibility that people create multiple channels with the same channelName.
-            DialogueInternalWeakReducingGauge.getOrCreate(
+            DialogueInternalWeakReducingGauge.register(
                     taggedMetrics,
                     metricName,
                     c -> c.computeScoreSnapshot().getScore(),

@@ -129,7 +129,7 @@ public final class ApacheHttpClientChannels {
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
 
-        DialogueInternalWeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.register(
                 taggedMetrics,
                 DialogueClientPoolMetrics.of(taggedMetrics)
                         .size()
@@ -139,7 +139,7 @@ public final class ApacheHttpClientChannels {
                 pool -> pool.getTotalStats().getAvailable(),
                 LongStream::sum,
                 connectionManager);
-        DialogueInternalWeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.register(
                 taggedMetrics,
                 DialogueClientPoolMetrics.of(taggedMetrics)
                         .size()
@@ -149,7 +149,7 @@ public final class ApacheHttpClientChannels {
                 pool -> pool.getTotalStats().getLeased(),
                 LongStream::sum,
                 connectionManager);
-        DialogueInternalWeakReducingGauge.getOrCreate(
+        DialogueInternalWeakReducingGauge.register(
                 taggedMetrics,
                 DialogueClientPoolMetrics.of(taggedMetrics)
                         .size()
