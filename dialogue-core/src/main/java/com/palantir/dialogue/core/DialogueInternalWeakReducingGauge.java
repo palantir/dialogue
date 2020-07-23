@@ -18,6 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Gauge;
 import com.google.common.annotations.VisibleForTesting;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Collections;
@@ -28,6 +30,8 @@ import java.util.function.ToLongFunction;
 import java.util.stream.LongStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * An internally-mutable gauge which computes an integer value by applying a gaugeFunction to 0 or more
@@ -38,6 +42,7 @@ import javax.annotation.concurrent.ThreadSafe;
  */
 @ThreadSafe
 public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number> {
+    private static final Logger log = LoggerFactory.getLogger(DialogueInternalWeakReducingGauge.class);
 
     @GuardedBy("this")
     private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
@@ -77,6 +82,10 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
         // anyone can implemented TaggedMetricRegistry, and there's no guarantee we get the same thing out that we
         // put in. If this happens, the fancy 'summarising across many instances' behaviour probably won't work.
         if (!(fromRegistry instanceof DialogueInternalWeakReducingGauge)) {
+            log.debug(
+                    "Unable to set up weak reducing gauge",
+                    SafeArg.of("metricName", metricName),
+                    UnsafeArg.of("registry", taggedMetricRegistry));
             freshInstance.add(initialObject);
             return;
         }
