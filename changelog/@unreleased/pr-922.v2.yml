@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: DialogueInternalWeakReducingGauge tolerates unusual tagged metric registries
+  links:
+  - https://github.com/palantir/dialogue/pull/922
