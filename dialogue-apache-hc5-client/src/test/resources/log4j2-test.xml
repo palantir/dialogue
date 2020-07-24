@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="INFO">
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%highlight{%d [%t] %p %c - %msg%n%ex}{INFO=normal}"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <Logger name="com.palantir.dialogue.hc5.ResponseLeakDetector" level="trace"/>
+        <Logger name="okhttp3.OkHttpClient" level="trace"/>
+        <Logger name="org.xnio.listener" level="debug"/>
+        <Root level="info">
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>

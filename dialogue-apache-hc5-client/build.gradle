@@ -26,4 +26,11 @@ dependencies {
     testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // Logging infra
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-core:2.13.2'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-slf4j-impl:2.13.2'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-jcl:2.13.2'
+    testRuntimeOnly 'org.apache.logging.log4j:log4j-jul:2.13.2'
+    testRuntimeOnly 'com.lmax:disruptor:3.4.2'
 }
