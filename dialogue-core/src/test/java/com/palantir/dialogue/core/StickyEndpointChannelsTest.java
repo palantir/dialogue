@@ -30,6 +30,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.ArrayList;
 import java.util.List;

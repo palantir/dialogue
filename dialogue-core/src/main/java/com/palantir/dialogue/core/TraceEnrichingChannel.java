@@ -21,6 +21,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TraceMetadata;

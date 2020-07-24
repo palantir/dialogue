@@ -4,6 +4,7 @@ versionsLock {
 
 dependencies {
     implementation project(':dialogue-core')
+    implementation project(':dialogue-futures')
     implementation project(':dialogue-target')
     implementation project(':dialogue-test-common')
     implementation project(':dialogue-serde')

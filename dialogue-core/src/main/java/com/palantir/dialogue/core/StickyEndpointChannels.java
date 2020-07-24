@@ -28,6 +28,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;

@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;

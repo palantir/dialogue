@@ -26,6 +26,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;

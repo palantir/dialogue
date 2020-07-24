@@ -1,0 +1,13 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
+
+dependencies {
+    api 'com.google.guava:guava'
+    implementation 'com.google.errorprone:error_prone_annotations'
+
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.assertj:assertj-guava'
+    testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api'
+}
