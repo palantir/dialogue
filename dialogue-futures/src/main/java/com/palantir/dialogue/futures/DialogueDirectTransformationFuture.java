@@ -21,11 +21,13 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 
 /**
  * This {@link ListenableFuture} implementation differs from
@@ -37,9 +39,14 @@ import java.util.function.Function;
  * which allows dialogue to close responses properly without leaking resources.
  */
 final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture<O>, FutureCallback<I> {
-    private final ListenableFuture<I> input;
+    /** Freed upon completion to allow inputs to be garbage collected. */
+    @Nullable
+    private ListenableFuture<I> input;
+
+    @Nullable
+    private Function<? super I, ? extends O> function;
+
     private final SettableFuture<O> output;
-    private final Function<? super I, ? extends O> function;
 
     DialogueDirectTransformationFuture(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
         this.input = input;
@@ -55,14 +62,22 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
-        // Cancel apples to the input future which will update the output future immediately.
-        return input.cancel(mayInterruptIfRunning);
+        ListenableFuture<I> inputSnapshot = input;
+        if (inputSnapshot != null) {
+            // Cancel apples to the input future which will update the output future immediately.
+            return inputSnapshot.cancel(mayInterruptIfRunning);
+        }
+        return false;
     }
 
     @Override
     public boolean isCancelled() {
-        // isCancelled reflects the state of the original input.
-        return input.isCancelled();
+        ListenableFuture<I> inputSnapshot = input;
+        if (inputSnapshot != null) {
+            // isCancelled reflects the state of the original input.
+            return inputSnapshot.isCancelled();
+        }
+        return output.isCancelled();
     }
 
     @Override
@@ -85,18 +100,24 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
     @Override
     public void onSuccess(I result) {
         try {
-            output.set(function.apply(result));
+            output.set(Preconditions.checkNotNull(function, "transformation function")
+                    .apply(result));
         } catch (Throwable t) {
             output.setException(t);
         }
+        input = null;
+        function = null;
     }
 
     @Override
     public void onFailure(Throwable throwable) {
-        if (input.isCancelled()) {
+        ListenableFuture<I> inputSnapshot = input;
+        if (inputSnapshot != null && inputSnapshot.isCancelled()) {
             output.cancel(false);
         } else {
             output.setException(throwable);
         }
+        input = null;
+        function = null;
     }
 }

@@ -36,7 +36,7 @@ import java.util.concurrent.TimeoutException;
  * Note that this means it's possible for a cancel invocation to return false and fail to terminate the future,
  * which allows dialogue to close responses properly without leaking resources.
  */
-final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T> {
+final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>, Runnable {
     private volatile ListenableFuture<T> currentFuture;
     private final ListenableFuture<T> output;
 
@@ -55,6 +55,7 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T> 
                     return future;
                 },
                 MoreExecutors.directExecutor());
+        output.addListener(this, MoreExecutors.directExecutor());
     }
 
     @Override
@@ -87,5 +88,11 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T> 
     @Override
     public T get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
         return output.get(timeout, unit);
+    }
+
+    /** Output completion listener. When the output future is completed, previous futures can be garbage collected. */
+    @Override
+    public void run() {
+        this.currentFuture = output;
     }
 }
