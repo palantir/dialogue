@@ -34,6 +34,7 @@ import com.palantir.tracing.DetachedSpan;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Deque;
 import java.util.Optional;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -277,7 +278,11 @@ final class QueuedChannel implements Channel {
         @Override
         public void onFailure(Throwable throwable) {
             if (!response.setException(throwable)) {
-                log.info("Call failed after the future completed", throwable);
+                if (throwable instanceof CancellationException) {
+                    log.debug("Call was canceled", throwable);
+                } else {
+                    log.info("Call failed after the future completed", throwable);
+                }
             }
             schedule();
         }

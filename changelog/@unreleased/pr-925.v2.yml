@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: QueuedChannel logs cancellation exceptions at debug to reduce noise.
+  links:
+  - https://github.com/palantir/dialogue/pull/925
