@@ -100,8 +100,9 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
     @Override
     public void onSuccess(I result) {
         try {
-            output.set(Preconditions.checkNotNull(function, "transformation function")
-                    .apply(result));
+            O transformed = Preconditions.checkNotNull(function, "transformation function")
+                    .apply(result);
+            output.set(transformed);
         } catch (Throwable t) {
             output.setException(t);
         }

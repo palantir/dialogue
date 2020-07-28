@@ -25,7 +25,12 @@ import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-/** Internal utility functionality used by Dialogue modules. */
+/**
+ * Internal utility functionality used by Dialogue modules.
+ *
+ * The transformation methods do not leak closeable resources when cancel is called while the function executes.
+ * @see <a href="https://github.com/google/guava/issues/3975">guava#3975</a>
+ */
 public final class DialogueFutures {
 
     /**

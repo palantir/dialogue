@@ -19,45 +19,55 @@ package com.palantir.dialogue.futures;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import java.util.concurrent.CancellationException;
+import java.util.function.Function;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 class DialogueFuturesTest {
 
-    @Test
-    void testTransform_success() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransform_success(Transformer transformer) throws Exception {
         SettableFuture<String> original = SettableFuture.create();
-        ListenableFuture<String> doubled = DialogueFutures.transform(original, value -> value + value);
+        ListenableFuture<String> doubled = transformer.transform(original, value -> value + value);
         original.set("a");
         assertThat(doubled.get()).isEqualTo("aa");
     }
 
-    @Test
-    void testTransform_originalCancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransform_originalCancel(Transformer transformer) {
         SettableFuture<String> original = SettableFuture.create();
-        ListenableFuture<String> doubled = DialogueFutures.transform(original, value -> value + value);
-        assertThat(doubled.cancel(false)).isTrue();
+        ListenableFuture<String> doubled = transformer.transform(original, value -> value + value);
+        assertThat(original.cancel(false)).isTrue();
         assertThat(doubled).isCancelled();
         assertThatThrownBy(doubled::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testTransform_resultCancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransform_resultCancel(Transformer transformer) {
         SettableFuture<String> original = SettableFuture.create();
-        ListenableFuture<String> doubled = DialogueFutures.transform(original, value -> value + value);
+        ListenableFuture<String> doubled = transformer.transform(original, value -> value + value);
         assertThat(doubled.cancel(false)).isTrue();
         assertThat(doubled).isCancelled();
         assertThatThrownBy(doubled::get).isInstanceOf(CancellationException.class);
+        assertThat(original).isCancelled();
     }
 
-    @Test
-    void testTransformAsync_success() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_success(Transformer transformer) throws Exception {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         one.set("a");
         assertThat(transformed).isNotDone();
@@ -66,25 +76,26 @@ class DialogueFuturesTest {
         assertThat(transformed.get()).isEqualTo("b");
     }
 
-    @Test
-    void testTransformAsync_originalCancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_originalCancel(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         assertThat(one.cancel(false)).isTrue();
         assertThat(transformed).isCancelled();
         assertThat(transformed).isDone();
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
-        // The intermediate future is not impacted
-        assertThat(two).isNotDone();
+        assertThat(two).as("The intermediate future is not impacted").isNotDone();
     }
 
-    @Test
-    void testTransformAsync_intermediateCancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_intermediateCancel(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         one.set("a");
         assertThat(transformed).isNotDone();
@@ -94,21 +105,23 @@ class DialogueFuturesTest {
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testTransformAsync_resultCancel_othersUnset() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_resultCancel_othersUnset(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         assertThat(transformed.cancel(false)).isTrue();
         assertThat(one).isCancelled();
     }
 
-    @Test
-    void testTransformAsync_resultCancel_afterFirstSet() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_resultCancel_afterFirstSet(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         one.set("a");
         assertThat(transformed).isNotDone();
         assertThat(transformed.cancel(false)).isTrue();
@@ -116,41 +129,45 @@ class DialogueFuturesTest {
         assertThat(two).isCancelled();
     }
 
-    @Test
-    void testTransformAsync_resultCancel_completed() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testTransformAsync_resultCancel_completed(Transformer transformer) throws Exception {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.transformAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.transformAsync(one, _value -> two);
         one.set("a");
         two.set("b");
         assertThat(transformed.cancel(false)).isFalse();
         assertThat(transformed.get()).isEqualTo("b");
     }
 
-    //
-
-    @Test
-    void testCatchingAllAsync_success() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_success(Transformer transformer) throws Exception {
         SettableFuture<String> one = SettableFuture.create();
         ListenableFuture<String> transformed =
-                DialogueFutures.catchingAllAsync(one, _value -> Futures.immediateFuture("failed"));
+                transformer.catchingAllAsync(one, _value -> Futures.immediateFuture("failed"));
         assertThat(transformed).isNotDone();
         one.set("a");
         assertThat(transformed).isDone();
         assertThat(transformed.get()).isEqualTo("a");
     }
 
-    @Test
-    void testCatchingAllAsync_catch() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_catch(Transformer transformer) throws Exception {
         SettableFuture<String> one = SettableFuture.create();
         ListenableFuture<String> transformed =
-                DialogueFutures.catchingAllAsync(one, value -> Futures.immediateFuture(value.getMessage()));
+                transformer.catchingAllAsync(one, value -> Futures.immediateFuture(value.getMessage()));
         assertThat(transformed).isNotDone();
         one.setException(new RuntimeException("a"));
         assertThat(transformed).isDone();
         assertThat(transformed.get()).isEqualTo("a");
     }
 
+    // Note: this test is not parameterized due to subtle differences in the 'catching' methods.
+    // Guava catching Throwable will catch cancellation, which doesn't match the design of
+    // catchingAllAsync.
     @Test
     void testCatchingAllAsync_originalCancel() {
         SettableFuture<String> one = SettableFuture.create();
@@ -163,11 +180,12 @@ class DialogueFuturesTest {
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testCatchingAllAsync_intermediateCancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_intermediateCancel(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.catchingAllAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.catchingAllAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         one.setException(new RuntimeException("a"));
         assertThat(transformed).isNotDone();
@@ -177,22 +195,24 @@ class DialogueFuturesTest {
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testCatchingAllAsync_cancel() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_cancel(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         ListenableFuture<String> transformed =
-                DialogueFutures.catchingAllAsync(one, value -> Futures.immediateFuture(value.getMessage()));
+                transformer.catchingAllAsync(one, value -> Futures.immediateFuture(value.getMessage()));
         assertThat(transformed).isNotDone();
         assertThat(transformed.cancel(false)).isTrue();
         assertThat(transformed).isDone();
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testCatchingAllAsync_resultCancel_afterFirstSet() {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_resultCancel_afterFirstSet(Transformer transformer) {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.catchingAllAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.catchingAllAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         one.setException(new RuntimeException("a"));
         assertThat(transformed).isNotDone();
@@ -202,15 +222,62 @@ class DialogueFuturesTest {
         assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
     }
 
-    @Test
-    void testCatchingAllAsync_resultCancel_completed() throws Exception {
+    @ParameterizedTest
+    @EnumSource(Transformer.class)
+    void testCatchingAllAsync_resultCancel_completed(Transformer transformer) throws Exception {
         SettableFuture<String> one = SettableFuture.create();
         SettableFuture<String> two = SettableFuture.create();
-        ListenableFuture<String> transformed = DialogueFutures.catchingAllAsync(one, _value -> two);
+        ListenableFuture<String> transformed = transformer.catchingAllAsync(one, _value -> two);
         assertThat(transformed).isNotDone();
         one.setException(new RuntimeException("a"));
         two.set("b");
         assertThat(transformed.cancel(false)).isFalse();
         assertThat(transformed.get()).isEqualTo("b");
+    }
+
+    public enum Transformer {
+        DIALOGUE() {
+            @Override
+            <I, O> ListenableFuture<O> transform(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
+                return DialogueFutures.transform(input, function);
+            }
+
+            @Override
+            <I, O> ListenableFuture<O> transformAsync(
+                    ListenableFuture<I> input, AsyncFunction<? super I, ? extends O> function) {
+                return DialogueFutures.transformAsync(input, function);
+            }
+
+            @Override
+            <T> ListenableFuture<T> catchingAllAsync(ListenableFuture<T> input, AsyncFunction<Throwable, T> function) {
+                return DialogueFutures.catchingAllAsync(input, function);
+            }
+        },
+        GUAVA() {
+            @Override
+            <I, O> ListenableFuture<O> transform(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
+                return Futures.transform(input, function::apply, MoreExecutors.directExecutor());
+            }
+
+            @Override
+            <I, O> ListenableFuture<O> transformAsync(
+                    ListenableFuture<I> input, AsyncFunction<? super I, ? extends O> function) {
+                return Futures.transformAsync(input, function, MoreExecutors.directExecutor());
+            }
+
+            @Override
+            <T> ListenableFuture<T> catchingAllAsync(ListenableFuture<T> input, AsyncFunction<Throwable, T> function) {
+                return Futures.catchingAsync(input, Throwable.class, function, MoreExecutors.directExecutor());
+            }
+        };
+
+        abstract <I, O> ListenableFuture<O> transform(
+                ListenableFuture<I> input, Function<? super I, ? extends O> function);
+
+        abstract <I, O> ListenableFuture<O> transformAsync(
+                ListenableFuture<I> input, AsyncFunction<? super I, ? extends O> function);
+
+        abstract <T> ListenableFuture<T> catchingAllAsync(
+                ListenableFuture<T> input, AsyncFunction<Throwable, T> function);
     }
 }
