@@ -24,7 +24,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
-import com.palantir.dialogue.AbstractHandshakeTimeoutTest;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
@@ -50,7 +49,7 @@ import org.junit.jupiter.api.Test;
 import org.xnio.Xnio;
 import org.xnio.XnioWorker;
 
-public final class ApacheHandshakeTimeoutTest extends AbstractHandshakeTimeoutTest {
+public final class ApacheHandshakeTimeoutTest {
 
     private Channel create(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config, "test");
@@ -92,6 +91,10 @@ public final class ApacheHandshakeTimeoutTest extends AbstractHandshakeTimeoutTe
     public void beforeEach() {
         SSLContext sslContext = SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG);
         Xnio xnio = Xnio.getInstance(Undertow.class.getClassLoader());
+        // This test operates based on the understanding that handshakes complete by executing
+        // the Runnable from SSLEngine.getDelegatedTask on the worker executor. Each handshake
+        // executes at least one of these tasks, and we can prolong the handshake by introducing
+        // a delay.
         executor = new DelayingNextTaskExecutorService(Executors.newCachedThreadPool());
         worker = xnio.createWorkerBuilder()
                 .setWorkerIoThreads(1)
