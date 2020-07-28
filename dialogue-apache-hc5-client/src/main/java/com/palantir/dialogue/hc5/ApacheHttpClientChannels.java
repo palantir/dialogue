@@ -406,6 +406,9 @@ public final class ApacheHttpClientChannels {
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
+                            // Ideally we would provide a smaller timeout which bounds the handshake duration,
+                            // however reusing the connect timeout can result in handshake storms when the value
+                            // is too low.
                             .setSoTimeout(socketTimeout)
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
