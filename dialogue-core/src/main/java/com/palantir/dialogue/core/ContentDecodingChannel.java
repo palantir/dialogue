@@ -18,12 +18,11 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.BufferedInputStream;
@@ -63,8 +62,7 @@ final class ContentDecodingChannel implements EndpointChannel {
     @Override
     public ListenableFuture<Response> execute(Request request) {
         Request augmentedRequest = acceptEncoding(request);
-        return Futures.transform(
-                delegate.execute(augmentedRequest), ContentDecodingChannel::decompress, MoreExecutors.directExecutor());
+        return DialogueFutures.transform(delegate.execute(augmentedRequest), ContentDecodingChannel::decompress);
     }
 
     private static Request acceptEncoding(Request request) {

@@ -33,6 +33,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -64,7 +65,7 @@ enum DefaultClients implements Clients {
         Request outgoingRequest = accepts.isPresent() ? accepting(request, accepts.get()) : request;
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
-        return Futures.transform(response, deserializer::deserialize, MoreExecutors.directExecutor());
+        return DialogueFutures.transform(response, deserializer::deserialize);
     }
 
     @Override
@@ -90,7 +91,7 @@ enum DefaultClients implements Clients {
             ListenableFuture<Response> responseFuture, Request request) {
         Optional<RequestBody> requestBody = request.body();
         if (requestBody.isPresent()) {
-            responseFuture.addListener(requestBody.get()::close, MoreExecutors.directExecutor());
+            DialogueFutures.addDirectListener(responseFuture, requestBody.get()::close);
         }
         return responseFuture;
     }

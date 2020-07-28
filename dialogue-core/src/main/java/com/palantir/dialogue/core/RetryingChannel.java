@@ -32,6 +32,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -231,9 +232,8 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
-            result = Futures.transformAsync(result, this::handleHttpResponse, MoreExecutors.directExecutor());
-            result = Futures.catchingAsync(
-                    result, Throwable.class, this::handleThrowable, MoreExecutors.directExecutor());
+            result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
+            result = DialogueFutures.catchingAllAsync(result, this::handleThrowable);
             return result;
         }
 
