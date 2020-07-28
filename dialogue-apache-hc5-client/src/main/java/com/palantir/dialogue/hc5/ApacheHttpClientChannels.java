@@ -406,10 +406,10 @@ public final class ApacheHttpClientChannels {
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
-                            // The default socket configuration socket timeout only applies prior to request execution.
-                            // By using the connect timeout here, we apply it to the handshake in addition to the
-                            // socket.connect call.
-                            .setSoTimeout(connectTimeout)
+                            // Ideally we would provide a smaller timeout which bounds the handshake duration,
+                            // however reusing the connect timeout can result in handshake storms when the value
+                            // is too low.
+                            .setSoTimeout(socketTimeout)
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)

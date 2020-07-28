@@ -28,7 +28,6 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -105,8 +104,10 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 }
             }
         } catch (ConnectTimeoutException e) {
-            // ConnectTimeoutException must be wrapped so it may be retried
-            throw new SafeIoException("Connect timed out", e);
+            // ConnectTimeoutException must be wrapped so it may be retried. SocketTimeoutExceptions are
+            // not retried by default, so ours implements SafeLoggable and retains the simple-name for
+            // cleaner metrics.
+            throw new SafeConnectTimeoutException(e);
         }
     }
 
