@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Handshake duration is no longer bounded by the connect timeout, allowing
+    connect to potentially take longer, but no longer resulting in additional load
+    on servers as handshakes are retried.
+  links:
+  - https://github.com/palantir/dialogue/pull/930
