@@ -85,7 +85,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
     @Override
     public void connect(ConnectionEndpoint endpoint, TimeValue connectTimeout, HttpContext context) throws IOException {
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect");
-                Context _timer = connectTimer.time()) {
+                Context timer = connectTimer.time()) {
             manager.connect(endpoint, connectTimeout, context);
         }
     }
