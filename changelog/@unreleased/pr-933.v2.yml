@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue explicitly sets enabled TLS protocols
+  links:
+  - https://github.com/palantir/dialogue/pull/933
