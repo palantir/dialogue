@@ -158,7 +158,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public String toString() {
-        return "TracedPoolingHttpClientConnectionManager{" + manager + '}';
+        return "InstrumentedPoolingHttpClientConnectionManager{" + manager + '}';
     }
 
     private static final class TracedLeaseRequest implements LeaseRequest {
