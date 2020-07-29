@@ -16,9 +16,12 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Timer;
+import com.codahale.metrics.Timer.Context;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracer;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -35,14 +38,24 @@ import org.apache.hc.core5.pool.PoolStats;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 
-/** A simple wrapper around a {@link PoolingHttpClientConnectionManager} which provides tracing information. */
-final class TracedPoolingHttpClientConnectionManager
+/** A simple wrapper around a {@link PoolingHttpClientConnectionManager} which provides instrumentation. */
+final class InstrumentedPoolingHttpClientConnectionManager
         implements HttpClientConnectionManager, ConnPoolControl<HttpRoute> {
 
     private final PoolingHttpClientConnectionManager manager;
+    private final Timer connectTimer;
 
-    TracedPoolingHttpClientConnectionManager(PoolingHttpClientConnectionManager manager) {
+    InstrumentedPoolingHttpClientConnectionManager(
+            PoolingHttpClientConnectionManager manager,
+            TaggedMetricRegistry registry,
+            String clientName,
+            String clientType) {
         this.manager = manager;
+        this.connectTimer = DialogueClientMetrics.of(registry)
+                .connectionCreate()
+                .clientName(clientName)
+                .clientType(clientType)
+                .build();
     }
 
     @Override
@@ -71,7 +84,8 @@ final class TracedPoolingHttpClientConnectionManager
 
     @Override
     public void connect(ConnectionEndpoint endpoint, TimeValue connectTimeout, HttpContext context) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect")) {
+        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect");
+                Context _timer = connectTimer.time()) {
             manager.connect(endpoint, connectTimeout, context);
         }
     }

@@ -85,6 +85,7 @@ import org.slf4j.LoggerFactory;
 
 public final class ApacheHttpClientChannels {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
+    private static final String CLIENT_TYPE = "apache-hc5";
 
     private ApacheHttpClientChannels() {}
 
@@ -163,7 +164,6 @@ public final class ApacheHttpClientChannels {
 
     /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
     public static final class CloseableClient implements Closeable {
-        private static final String CLIENT_TYPE = "apache-hc5";
 
         private final String clientName;
         private final CloseableHttpClient apacheClient;
@@ -433,7 +433,8 @@ public final class ApacheHttpClientChannels {
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
-                    .setConnectionManager(new TracedPoolingHttpClientConnectionManager(connectionManager))
+                    .setConnectionManager(new InstrumentedPoolingHttpClientConnectionManager(
+                            connectionManager, conf.taggedMetricRegistry(), name, CLIENT_TYPE))
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
