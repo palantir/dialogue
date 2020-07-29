@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Report metrics describing the time spent creating a new connection
+    using the `dialogue.client.connection.create` timer.
+  links:
+  - https://github.com/palantir/dialogue/pull/935

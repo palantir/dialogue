@@ -28,3 +28,8 @@ namespaces:
         type: meter
         tags: [client-name, client-type]
         docs: Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
+
+      connection.create:
+        type: timer
+        tags: [client-name, client-type]
+        docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
