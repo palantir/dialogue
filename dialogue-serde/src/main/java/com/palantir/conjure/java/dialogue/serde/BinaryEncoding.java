@@ -17,10 +17,17 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import java.io.FilterInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Package-private internal api.
@@ -73,7 +80,7 @@ enum BinaryEncoding implements Encoding {
         @Override
         public Optional<InputStream> deserialize(InputStream input) {
             // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
-            return Optional.of(input);
+            return Optional.of(InputStreamDeserializer.INSTANCE.deserialize(input));
         }
 
         @Override
@@ -88,12 +95,72 @@ enum BinaryEncoding implements Encoding {
         @Override
         public InputStream deserialize(InputStream input) {
             // intentionally not closing this, otherwise users wouldn't be able to get any data out of it!
-            return input;
+            return detectLeaks(input);
         }
 
         @Override
         public String toString() {
             return "InputStreamDeserializer{}";
+        }
+    }
+
+    private static InputStream detectLeaks(InputStream in) {
+        if (CleanerSupport.enabled()) {
+            AtomicBoolean isClosed = new AtomicBoolean();
+            CloseTrackingInputStream stream = new CloseTrackingInputStream(in, isClosed);
+            CleanerSupport.register(stream, new CleanerRunnable(in, isClosed));
+            return stream;
+        }
+        return in;
+    }
+
+    private static final class CleanerRunnable implements Runnable {
+        private static final Logger log = LoggerFactory.getLogger(CleanerRunnable.class);
+
+        @Nullable
+        private InputStream stream;
+
+        private final AtomicBoolean isClosed;
+
+        CleanerRunnable(InputStream stream, AtomicBoolean isClosed) {
+            Preconditions.checkArgument(
+                    !(stream instanceof CloseTrackingInputStream),
+                    "The delegate stream is required, not the CloseTrackingInputStream");
+            this.stream = stream;
+            this.isClosed = isClosed;
+        }
+
+        @Override
+        public void run() {
+            if (!isClosed.get()) {
+                log.warn("Detected a leaked streaming binary response. "
+                        + "This is a product bug, please use try-with-resource everywhere.");
+                InputStream value = stream;
+                if (value != null) {
+                    stream = null;
+                    try {
+                        value.close();
+                    } catch (IOException | RuntimeException e) {
+                        log.warn("Failed to close leaked binary response stream", e);
+                    }
+                }
+            }
+        }
+    }
+
+    private static final class CloseTrackingInputStream extends FilterInputStream {
+
+        private final AtomicBoolean closed;
+
+        private CloseTrackingInputStream(InputStream in, AtomicBoolean closed) {
+            super(in);
+            this.closed = closed;
+        }
+
+        @Override
+        public void close() throws IOException {
+            closed.set(true);
+            super.close();
         }
     }
 }
