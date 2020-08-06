@@ -242,13 +242,7 @@ final class ResponseLeakDetector {
 
         @Override
         public double getAsDouble() {
-            if (log.isDebugEnabled()) {
-                if (log.isTraceEnabled()) {
-                    return 1D;
-                }
-                return .01D;
-            }
-            return 0D;
+            return 1D;
         }
     }
 }
