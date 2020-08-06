@@ -23,7 +23,6 @@ dependencies {
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')
-    testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.immutables:value::annotations'

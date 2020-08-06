@@ -63,12 +63,17 @@ final class ResponseLeakDetector {
 
     Response wrap(Response input, Endpoint endpoint) {
         if (shouldApplyLeakDetection()) {
-            return new LeakDetectingResponse(input, new LeakDetector(input, endpoint));
+            LeakDetector detector = new LeakDetector(input, endpoint, clientName, metrics);
+            LeakDetectingResponse response = new LeakDetectingResponse(input, detector);
+            return response;
         }
         return input;
     }
 
     private boolean shouldApplyLeakDetection() {
+        if (!CleanerSupport.enabled()) {
+            return false;
+        }
         double leakDetectionProbability = leakDetectionProbabilitySupplier.getAsDouble();
         if (leakDetectionProbability >= 1) {
             return true;
@@ -92,19 +97,23 @@ final class ResponseLeakDetector {
      * {@link LeakDetector} object is shared between the {@link Response} and {@link Response#body()} to ensure
      * at least one of the two has been closed.
      */
-    private final class LeakDetector {
+    private static final class LeakDetector implements Runnable {
 
         private final Endpoint endpoint;
         private final Response response;
+        private final String clientName;
+        private final DialogueClientMetrics metrics;
 
         @Nullable
         private final Throwable creationTrace;
 
         private boolean armed = true;
 
-        LeakDetector(Response response, Endpoint endpoint) {
+        LeakDetector(Response response, Endpoint endpoint, String clientName, DialogueClientMetrics metrics) {
             this.response = response;
             this.endpoint = endpoint;
+            this.clientName = clientName;
+            this.metrics = metrics;
             this.creationTrace = log.isTraceEnabled() ? new SafeRuntimeException("created here") : null;
         }
 
@@ -113,8 +122,7 @@ final class ResponseLeakDetector {
         }
 
         @Override
-        @SuppressWarnings("NoFinalizer")
-        protected void finalize() throws Throwable {
+        public void run() {
             if (armed) {
                 metrics.responseLeak()
                         .clientName(clientName)
@@ -139,7 +147,6 @@ final class ResponseLeakDetector {
                 }
                 response.close();
             }
-            super.finalize();
         }
 
         @Override
@@ -150,22 +157,25 @@ final class ResponseLeakDetector {
 
     private static final class LeakDetectingInputStream extends FilterInputStream {
 
-        private final LeakDetector leakDetector;
+        private final LeakDetectingResponse leakDetectingResponse;
 
-        LeakDetectingInputStream(InputStream delegate, LeakDetector leakDetector) {
+        LeakDetectingInputStream(InputStream delegate, LeakDetectingResponse leakDetectingResponse) {
             super(delegate);
-            this.leakDetector = leakDetector;
+            this.leakDetectingResponse = leakDetectingResponse;
         }
 
         @Override
         public void close() throws IOException {
-            leakDetector.disarm();
-            super.close();
+            try {
+                leakDetectingResponse.disarm();
+            } finally {
+                super.close();
+            }
         }
 
         @Override
         public String toString() {
-            return "LeakDetectingInputStream{leakDetector=" + leakDetector + ", in=" + in + '}';
+            return "LeakDetectingInputStream{leakDetectingResponse=" + leakDetectingResponse + ", in=" + in + '}';
         }
     }
 
@@ -173,6 +183,7 @@ final class ResponseLeakDetector {
 
         private final Response delegate;
         private final LeakDetector leakDetector;
+        private final Runnable clean;
 
         @Nullable
         private InputStream leakDetectingStream;
@@ -180,12 +191,13 @@ final class ResponseLeakDetector {
         LeakDetectingResponse(Response delegate, LeakDetector leakDetector) {
             this.delegate = delegate;
             this.leakDetector = leakDetector;
+            clean = CleanerSupport.register(this, leakDetector);
         }
 
         @Override
         public InputStream body() {
             if (leakDetectingStream == null) {
-                leakDetectingStream = new LeakDetectingInputStream(delegate.body(), leakDetector);
+                leakDetectingStream = new LeakDetectingInputStream(delegate.body(), this);
             }
             return leakDetectingStream;
         }
@@ -207,8 +219,16 @@ final class ResponseLeakDetector {
 
         @Override
         public void close() {
+            try {
+                disarm();
+            } finally {
+                delegate.close();
+            }
+        }
+
+        void disarm() {
             leakDetector.disarm();
-            delegate.close();
+            clean.run();
         }
 
         @Override
