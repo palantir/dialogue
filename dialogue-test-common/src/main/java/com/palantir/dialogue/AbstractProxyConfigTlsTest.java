@@ -20,7 +20,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import io.undertow.Undertow;
@@ -28,6 +30,8 @@ import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import io.undertow.server.handlers.ConnectHandler;
 import io.undertow.server.handlers.ResponseCodeHandler;
+import io.undertow.util.HeaderMap;
+import io.undertow.util.Headers;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -38,6 +42,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.SSLContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,11 +50,12 @@ import org.junit.jupiter.api.Test;
 
 public abstract class AbstractProxyConfigTlsTest {
 
+    private static final String REQUEST_BODY = "Hello, World";
     private static final Request request = Request.builder()
             .body(new RequestBody() {
                 @Override
                 public void writeTo(OutputStream output) throws IOException {
-                    output.write("Hello, World".getBytes(StandardCharsets.UTF_8));
+                    output.write(REQUEST_BODY.getBytes(StandardCharsets.UTF_8));
                 }
 
                 @Override
@@ -70,6 +76,7 @@ public abstract class AbstractProxyConfigTlsTest {
     private int serverPort;
     private Undertow server;
     private volatile HttpHandler serverHandler;
+    private volatile HttpHandler proxyHandler;
 
     private int proxyPort;
     private Undertow proxyServer;
@@ -86,7 +93,7 @@ public abstract class AbstractProxyConfigTlsTest {
         server.start();
         serverPort = getPort(server);
         proxyServer = Undertow.builder()
-                .setHandler(new ConnectHandler(ResponseCodeHandler.HANDLE_500))
+                .setHandler(exchange -> proxyHandler.handleRequest(exchange))
                 .addHttpListener(0, null)
                 .build();
         proxyServer.start();
@@ -114,6 +121,7 @@ public abstract class AbstractProxyConfigTlsTest {
             Uninterruptibles.sleepUninterruptibly(Duration.ofSeconds(2));
             exchange.getResponseSender().send("server");
         });
+        proxyHandler = new ConnectHandler(ResponseCodeHandler.HANDLE_500);
 
         ClientConfiguration directConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("https://localhost:" + serverPort))
@@ -137,6 +145,50 @@ public abstract class AbstractProxyConfigTlsTest {
                 proxiedChannel.execute(TestEndpoint.POST, request).get()) {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("server");
+        }
+    }
+
+    @Test
+    public void testAuthenticatedProxy() throws Exception {
+        AtomicInteger requestIndex = new AtomicInteger();
+        proxyHandler = exchange -> {
+            HeaderMap requestHeaders = exchange.getRequestHeaders();
+            HeaderMap responseHeaders = exchange.getResponseHeaders();
+
+            switch (requestIndex.getAndIncrement()) {
+                case 0:
+                    // okhttp and hc5 differ in this case, okhttp always sends credentials over the wire
+                    // while hc5 does not expose credentials until the server provides a challenge.
+                    // assertThat(requestHeaders.getHeaderNames()).doesNotContain(Headers.PROXY_AUTHORIZATION);
+                    responseHeaders.put(Headers.PROXY_AUTHENTICATE, "Basic realm=test");
+                    exchange.setStatusCode(407); // indicates authenticated proxy
+                    return;
+                case 1:
+                    assertThat(requestHeaders.get(Headers.PROXY_AUTHORIZATION))
+                            .containsExactly("Basic ZmFrZVVzZXJAZmFrZS5jb206ZmFrZTpQYXNzd29yZA==");
+                    new ConnectHandler(ResponseCodeHandler.HANDLE_500).handleRequest(exchange);
+                    return;
+            }
+            throw new IllegalStateException("Expected exactly two requests");
+        };
+        serverHandler = new BlockingHandler(exchange -> {
+            String requestBody = new String(ByteStreams.toByteArray(exchange.getInputStream()), StandardCharsets.UTF_8);
+            assertThat(requestBody).isEqualTo(REQUEST_BODY);
+            exchange.getResponseSender().send("proxyServer");
+        });
+
+        ClientConfiguration proxiedConfig = ClientConfiguration.builder()
+                .from(TestConfigurations.create("https://localhost:" + serverPort))
+                .maxNumRetries(0)
+                .proxy(createProxySelector("localhost", proxyPort))
+                .proxyCredentials(BasicCredentials.of("fakeUser@fake.com", "fake:Password"))
+                .build();
+        Channel proxiedChannel = create(proxiedConfig);
+
+        try (Response response =
+                proxiedChannel.execute(TestEndpoint.POST, request).get()) {
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body()).hasContent("proxyServer");
         }
     }
 
