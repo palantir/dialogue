@@ -17,13 +17,42 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
 class CleanerSupportTest {
 
     @Test
-    void testEneabled() {
-        assertThat(CleanerSupport.enabled()).isFalse();
+    void testEnabled() {
+        boolean isJava8 = "1.8".equals(System.getProperty("java.specification.version"));
+        assertThat(CleanerSupport.enabled()).isNotEqualTo(isJava8);
+    }
+
+    @Test
+    void testCleaner() {
+        assumeThat(CleanerSupport.enabled()).isTrue();
+        AtomicInteger counter = new AtomicInteger();
+        CleanerSupport.register(new byte[1024 * 1024], counter::incrementAndGet);
+        Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+            attemptToGarbageCollect();
+            assertThat(counter).hasValue(1);
+        });
+    }
+
+    private static void attemptToGarbageCollect() {
+        // Create some garbage to entice the collector
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        while (baos.toString().length() < 4096) {
+            byte[] buf = "Hello, World!".getBytes(StandardCharsets.UTF_8);
+            baos.write(buf, 0, buf.length);
+        }
+        // System.gc is disabled in some environments, so it alone cannot be relied upon.
+        System.gc();
     }
 }

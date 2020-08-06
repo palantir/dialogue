@@ -1,14 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
 
-sourceSets {
-    java9 {
-        java {
-            srcDirs = ['src/main/java9']
-        }
-    }
-}
-
 dependencies {
     api project(':dialogue-target')
     api 'com.google.guava:guava' // ListenableFuture
@@ -31,6 +23,7 @@ dependencies {
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')
+    testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.immutables:value::annotations'
@@ -40,18 +33,3 @@ dependencies {
 }
 
 configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5
-
-compileJava9Java {
-    sourceCompatibility = 9
-    targetCompatibility = 9
-}
-
-jar {
-    into('META-INF/versions/9') {
-        from sourceSets.java9.output
-    }
-    manifest.attributes(
-            'Manifest-Version': '1.0',
-            'Multi-Release': 'true',
-    )
-}
