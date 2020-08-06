@@ -106,7 +106,7 @@ public abstract class AbstractProxyConfigTest {
         ClientConfiguration proxiedConfig = ClientConfiguration.builder()
                 .from(TestConfigurations.create("http://localhost:" + server.getPort()))
                 .proxy(createProxySelector("localhost", proxyServer.getPort()))
-                .proxyCredentials(BasicCredentials.of("fakeUser", "fakePassword"))
+                .proxyCredentials(BasicCredentials.of("fakeUser@fake.com", "fake:Password"))
                 .build();
         Channel proxiedChannel = create(proxiedConfig);
 
@@ -118,7 +118,8 @@ public abstract class AbstractProxyConfigTest {
         RecordedRequest firstRequest = proxyServer.takeRequest();
         assertThat(firstRequest.getHeader("Proxy-Authorization")).isNull();
         RecordedRequest secondRequest = proxyServer.takeRequest();
-        assertThat(secondRequest.getHeader("Proxy-Authorization")).isEqualTo("Basic ZmFrZVVzZXI6ZmFrZVBhc3N3b3Jk");
+        assertThat(secondRequest.getHeader("Proxy-Authorization"))
+                .isEqualTo("Basic ZmFrZVVzZXJAZmFrZS5jb206ZmFrZTpQYXNzd29yZA==");
     }
 
     private static ProxySelector createProxySelector(String host, int port) {
