@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 
 import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +24,8 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledForJreRange;
+import org.junit.jupiter.api.condition.JRE;
 
 class CleanerSupportTest {
 
@@ -35,8 +36,8 @@ class CleanerSupportTest {
     }
 
     @Test
+    @EnabledForJreRange(min = JRE.JAVA_9)
     void testCleaner() {
-        assumeThat(CleanerSupport.enabled()).isTrue();
         AtomicInteger counter = new AtomicInteger();
         CleanerSupport.register(new byte[1024 * 1024], counter::incrementAndGet);
         Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
