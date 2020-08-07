@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Report the delta between client and server call time
+  links:
+  - https://github.com/palantir/dialogue/pull/946
