@@ -16,6 +16,7 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
@@ -130,33 +131,22 @@ public final class ApacheHttpClientChannels {
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
 
+        DialogueClientPoolMetrics poolMetrics = DialogueClientPoolMetrics.of(taggedMetrics);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("idle")
-                        .buildMetricName(),
+                poolMetrics.size().clientName(clientName).state("idle").buildMetricName(),
                 pool -> pool.getTotalStats().getAvailable(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("leased")
-                        .buildMetricName(),
+                poolMetrics.size().clientName(clientName).state("leased").buildMetricName(),
                 pool -> pool.getTotalStats().getLeased(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("pending")
-                        .buildMetricName(),
+                poolMetrics.size().clientName(clientName).state("pending").buildMetricName(),
                 pool -> pool.getTotalStats().getPending(),
                 LongStream::sum,
                 connectionManager);
@@ -169,6 +159,7 @@ public final class ApacheHttpClientChannels {
         private final CloseableHttpClient apacheClient;
         private final PoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
+        private final Timer responseDeltaTimer;
 
         @Nullable
         private final ExecutorService executor;
@@ -183,16 +174,17 @@ public final class ApacheHttpClientChannels {
                 TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor) {
+            DialogueClientMetrics metrics = DialogueClientMetrics.of(taggedMetrics);
             this.clientName = clientName;
             this.apacheClient = apacheClient;
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
+            this.responseDeltaTimer = metrics.responseDelta(clientName);
             closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
             closer.register(pool::close);
-            closer.register(DialogueClientMetrics.of(taggedMetrics)
-                    .close()
+            closer.register(metrics.close()
                     .clientName(clientName)
                     .clientType(CLIENT_TYPE)
                     .build()::mark);
@@ -232,6 +224,10 @@ public final class ApacheHttpClientChannels {
 
         CloseableHttpClient apacheClient() {
             return apacheClient;
+        }
+
+        Timer responseDeltaTimer() {
+            return responseDeltaTimer;
         }
 
         @Override
@@ -411,7 +407,8 @@ public final class ApacheHttpClientChannels {
                     .setMaxConnTotal(Integer.MAX_VALUE)
                     .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
-                    .setConnectionFactory(new TracedManagedHttpConnectionFactory(DialogueConnectionFactory.INSTANCE))
+                    .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
+                            DialogueConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
                     .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);

@@ -7,6 +7,7 @@
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.response.delta` tagged `client-name` (timer): Difference in request time reported by the client and by the server. This metric is only reported when the remote server provides a `Server-Timing` response header with a timing value for `server`.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 - `dialogue.client.connection.create` tagged `client-name`, `client-type` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
@@ -14,6 +15,7 @@ Dialogue client response metrics provided by the Apache client channel.
 ### dialogue.client.pool
 Connection pool metrics from the dialogue Apache client.
 - `dialogue.client.pool.size` tagged `client-name`, `state` (gauge): Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+- `dialogue.client.pool.stale.check` tagged `client-name` (meter): Reports the rate that stale connection checks occur. These checks require a full millisecond to validate the connection is still alive and healthy, which is significant for some workflows.
 
 ## Dialogue Core
 

@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Multimaps;
@@ -41,10 +42,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.function.Supplier;
+import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
@@ -58,12 +61,14 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
     private final ResponseLeakDetector responseLeakDetector;
+    private final Timer responseDeltaTimer;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
         this.responseLeakDetector = responseLeakDetector;
+        this.responseDeltaTimer = client.responseDeltaTimer();
     }
 
     @Override
@@ -88,12 +93,15 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         } else if (requiresEmptyBody(endpoint)) {
             builder.setEntity(EmptyHttpEntity.INSTANCE);
         }
+        ClassicHttpRequest classicHttpRequest = builder.build();
+        long startTimeNanos = System.nanoTime();
         try {
-            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
+            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(classicHttpRequest);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.
             boolean close = true;
             try {
+                recordTimingDelta(httpClientResponse, startTimeNanos);
                 Response dialogueResponse = new HttpClientResponse(client, httpClientResponse);
                 Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
                 close = false;
@@ -108,6 +116,23 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // not retried by default, so ours implements SafeLoggable and retains the simple-name for
             // cleaner metrics.
             throw new SafeConnectTimeoutException(e);
+        }
+    }
+
+    // Report metrics describing the difference between client and server request time.
+    // This wraps the client as closely to the wire as possible in order to account for every
+    // millisecond we reasonably can. After sufficient investigation this may be moved to a
+    // generic dialogue channel much like tracing.
+    private void recordTimingDelta(CloseableHttpResponse httpClientResponse, long startTimeNanos) {
+        Header serverTimingValue = httpClientResponse.getFirstHeader(HttpHeaders.SERVER_TIMING);
+        if (serverTimingValue != null) {
+            long clientDurationNanos = System.nanoTime() - startTimeNanos;
+            long serverNanoseconds = ServerTimingParser.getServerDurationNanos(serverTimingValue.getValue(), "server");
+            if (serverNanoseconds >= 0) {
+                // avoid reporting negative values if the server yields an incorrect value
+                long delta = Math.max(clientDurationNanos - serverNanoseconds, 0);
+                responseDeltaTimer.update(delta, TimeUnit.NANOSECONDS);
+            }
         }
     }
 

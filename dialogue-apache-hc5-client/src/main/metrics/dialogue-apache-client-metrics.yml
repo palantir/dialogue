@@ -10,6 +10,11 @@ namespaces:
         type: gauge
         tags: [client-name, state]
         docs: Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+      stale.check:
+        type: meter
+        tags: [client-name]
+        docs: Reports the rate that stale connection checks occur. These checks require a full millisecond
+              to validate the connection is still alive and healthy, which is significant for some workflows.
 
   dialogue.client:
     docs: Dialogue client response metrics provided by the Apache client channel.
@@ -18,6 +23,12 @@ namespaces:
         type: meter
         tags: [client-name, service-name, endpoint]
         docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+
+      response.delta:
+        type: timer
+        tags: [client-name]
+        docs: Difference in request time reported by the client and by the server. This metric is only reported when
+              the remote server provides a `Server-Timing` response header with a timing value for `server`.
 
       create:
         type: meter

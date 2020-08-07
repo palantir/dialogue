@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Meter;
 import com.palantir.tracing.CloseableTracer;
 import java.io.IOException;
 import java.net.Socket;
@@ -30,13 +31,15 @@ import org.apache.hc.core5.http.ProtocolVersion;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.util.Timeout;
 
-/** A simple wrapper around a {@link ManagedHttpClientConnection} which provides tracing information. */
-final class TracedManagedHttpClientConnection implements ManagedHttpClientConnection {
+/** A simple wrapper around a {@link ManagedHttpClientConnection} which provides instrumentation. */
+final class InstrumentedManagedHttpClientConnection implements ManagedHttpClientConnection {
 
     private final ManagedHttpClientConnection delegate;
+    private final Meter isStaleMeter;
 
-    TracedManagedHttpClientConnection(ManagedHttpClientConnection delegate) {
+    InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Meter isStaleMeter) {
         this.delegate = delegate;
+        this.isStaleMeter = isStaleMeter;
     }
 
     @Override
@@ -115,6 +118,7 @@ final class TracedManagedHttpClientConnection implements ManagedHttpClientConnec
 
     @Override
     public boolean isStale() throws IOException {
+        isStaleMeter.mark();
         return delegate.isStale();
     }
 
@@ -176,6 +180,6 @@ final class TracedManagedHttpClientConnection implements ManagedHttpClientConnec
 
     @Override
     public String toString() {
-        return "TracedManagedHttpClientConnection{" + delegate + '}';
+        return "InstrumentedManagedHttpClientConnection{" + delegate + '}';
     }
 }
