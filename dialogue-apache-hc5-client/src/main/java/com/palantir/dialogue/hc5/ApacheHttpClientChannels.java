@@ -400,7 +400,7 @@ public final class ApacheHttpClientChannels {
                     .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
                     .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
-                            DialogueConnectionFactory.INSTANCE, clientConfiguration.taggedMetricRegistry(), name))
+                            DialogueConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
                     .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
