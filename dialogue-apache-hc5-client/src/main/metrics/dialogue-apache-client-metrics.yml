@@ -19,6 +19,12 @@ namespaces:
         tags: [client-name, service-name, endpoint]
         docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 
+      response.delta:
+        type: timer
+        tags: [client-name]
+        docs: Difference in request time reported by the client and by the server. This metric is only reported when
+          the remote server provides a `Server-Timing` response header with a timing value for `server`.
+
       create:
         type: meter
         tags: [client-name, client-type]

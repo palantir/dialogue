@@ -399,7 +399,8 @@ public final class ApacheHttpClientChannels {
                     .setMaxConnTotal(Integer.MAX_VALUE)
                     .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
-                    .setConnectionFactory(new TracedManagedHttpConnectionFactory(DialogueConnectionFactory.INSTANCE))
+                    .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
+                            DialogueConnectionFactory.INSTANCE, clientConfiguration.taggedMetricRegistry(), name))
                     .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);

@@ -16,27 +16,33 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Timer;
+import com.google.common.net.HttpHeaders;
 import com.palantir.tracing.CloseableTracer;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLSession;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.ClassicHttpRequest;
 import org.apache.hc.core5.http.ClassicHttpResponse;
 import org.apache.hc.core5.http.EndpointDetails;
+import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpException;
 import org.apache.hc.core5.http.ProtocolVersion;
 import org.apache.hc.core5.io.CloseMode;
 import org.apache.hc.core5.util.Timeout;
 
-/** A simple wrapper around a {@link ManagedHttpClientConnection} which provides tracing information. */
-final class TracedManagedHttpClientConnection implements ManagedHttpClientConnection {
+/** A simple wrapper around a {@link ManagedHttpClientConnection} which provides instrumentation. */
+final class InstrumentedManagedHttpClientConnection implements ManagedHttpClientConnection {
 
     private final ManagedHttpClientConnection delegate;
+    private final Timer responseDeltaTimer;
 
-    TracedManagedHttpClientConnection(ManagedHttpClientConnection delegate) {
+    InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Timer responseDeltaTimer) {
         this.delegate = delegate;
+        this.responseDeltaTimer = responseDeltaTimer;
     }
 
     @Override
@@ -95,7 +101,29 @@ final class TracedManagedHttpClientConnection implements ManagedHttpClientConnec
     @Override
     public ClassicHttpResponse receiveResponseHeader() throws HttpException, IOException {
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.receiveResponseHeader")) {
-            return delegate.receiveResponseHeader();
+            long startTimeNanos = System.nanoTime();
+            ClassicHttpResponse response = delegate.receiveResponseHeader();
+            recordTimingDelta(response, startTimeNanos);
+            return response;
+        }
+    }
+
+    // Report metrics describing the difference between client and server request time.
+    // This wraps the client as closely to the wire as possible in order to account for every
+    // millisecond we reasonably can.
+    private void recordTimingDelta(ClassicHttpResponse httpClientResponse, long startTimeNanos) {
+        Header serverTimingValue = httpClientResponse.getFirstHeader(HttpHeaders.SERVER_TIMING);
+        if (serverTimingValue != null) {
+            long clientDurationNanos = System.nanoTime() - startTimeNanos;
+            long serverNanos = ServerTimingParser.getServerDurationNanos(serverTimingValue.getValue(), "server");
+            long deltaNanos = clientDurationNanos - serverNanos;
+            // avoid reporting negative values if the server yields an incorrect value.
+            // In the case of large request bodies the server may have begun counting prior to
+            // the client. Theres's not a great way to measure the difference in that case
+            // so values may not be recorded.
+            if (serverNanos >= 0 && deltaNanos >= 0) {
+                responseDeltaTimer.update(deltaNanos, TimeUnit.NANOSECONDS);
+            }
         }
     }
 
@@ -176,6 +204,6 @@ final class TracedManagedHttpClientConnection implements ManagedHttpClientConnec
 
     @Override
     public String toString() {
-        return "TracedManagedHttpClientConnection{" + delegate + '}';
+        return "InstrumentedManagedHttpClientConnection{" + delegate + '}';
     }
 }

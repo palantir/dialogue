@@ -16,27 +16,34 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Timer;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.net.Socket;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.io.HttpConnectionFactory;
 
-/** Wrapper around another {@link HttpConnectionFactory} which adds tracing spans to the returned connection. */
-final class TracedManagedHttpConnectionFactory implements HttpConnectionFactory<ManagedHttpClientConnection> {
+/** Wrapper around another {@link HttpConnectionFactory} which adds instrumentation to the returned connection. */
+final class InstrumentedManagedHttpConnectionFactory implements HttpConnectionFactory<ManagedHttpClientConnection> {
 
     private final HttpConnectionFactory<ManagedHttpClientConnection> delegate;
+    private final Timer responseDeltaTimer;
 
-    TracedManagedHttpConnectionFactory(HttpConnectionFactory<ManagedHttpClientConnection> delegate) {
+    InstrumentedManagedHttpConnectionFactory(
+            HttpConnectionFactory<ManagedHttpClientConnection> delegate,
+            TaggedMetricRegistry metrics,
+            String clientName) {
         this.delegate = delegate;
+        this.responseDeltaTimer = DialogueClientMetrics.of(metrics).responseDelta(clientName);
     }
 
     @Override
     public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
-        return new TracedManagedHttpClientConnection(delegate.createConnection(socket));
+        return new InstrumentedManagedHttpClientConnection(delegate.createConnection(socket), responseDeltaTimer);
     }
 
     @Override
     public String toString() {
-        return "TracedManagedHttpConnectionFactory{" + delegate + '}';
+        return "InstrumentedManagedHttpConnectionFactory{" + delegate + '}';
     }
 }
