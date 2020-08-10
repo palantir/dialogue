@@ -17,24 +17,33 @@
 package com.palantir.dialogue.hc5;
 
 import com.palantir.logsafe.SafeArg;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.hc.client5.http.ConnectionKeepAliveStrategy;
-import org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.core5.http.Header;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
+import org.apache.hc.core5.http.HeaderElement;
 import org.apache.hc.core5.http.HeaderElements;
 import org.apache.hc.core5.http.HttpResponse;
+import org.apache.hc.core5.http.message.MessageSupport;
 import org.apache.hc.core5.http.protocol.HttpContext;
 import org.apache.hc.core5.util.TimeValue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * An {@link ConnectionKeepAliveStrategy} implementation based on the
+ * {@link org.apache.hc.client5.http.impl.DefaultConnectionKeepAliveStrategy} which
+ * updates {@link PoolingHttpClientConnectionManager#setValidateAfterInactivity(TimeValue)}
+ * based on server {@code Keep-Alive} response headers to avoid unnecessary checks when
+ * the server advertises a persistent connection timeout.
+ */
 final class InactivityValidationAwareConnectionKeepAliveStrategy implements ConnectionKeepAliveStrategy {
     private static final Logger log =
             LoggerFactory.getLogger(InactivityValidationAwareConnectionKeepAliveStrategy.class);
 
-    private static final ConnectionKeepAliveStrategy DELEGATE = DefaultConnectionKeepAliveStrategy.INSTANCE;
     private final PoolingHttpClientConnectionManager connectionManager;
     private final String clientName;
     private final TimeValue defaultValidateAfterInactivity;
@@ -56,12 +65,30 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
 
     @Override
     public TimeValue getKeepAliveDuration(HttpResponse response, HttpContext context) {
-        TimeValue result = DELEGATE.getKeepAliveDuration(response, context);
-        if (result != null
-                // Only use keep-alive values from 2xx responses
-                && response.getCode() / 100 == 2) {
-            TimeValue newInterval =
-                    containsKeepAliveHeaderWithTimeout(response) ? result : defaultValidateAfterInactivity;
+        Iterator<HeaderElement> headerElementIterator = MessageSupport.iterate(response, HeaderElements.KEEP_ALIVE);
+        while (headerElementIterator.hasNext()) {
+            HeaderElement headerElement = headerElementIterator.next();
+            String headerElementName = headerElement.getName();
+            String headerElementValue = headerElement.getValue();
+            if (headerElementValue != null && "timeout".equalsIgnoreCase(headerElementName)) {
+                try {
+                    TimeValue keepAliveValue = TimeValue.ofSeconds(Long.parseLong(headerElementValue));
+                    updateInactivityValidationInterval(response.getCode(), keepAliveValue);
+                    return keepAliveValue;
+                } catch (NumberFormatException nfe) {
+                    log.debug("invalid timeout value {}", SafeArg.of("timeoutValue", headerElementValue), nfe);
+                }
+            }
+        }
+        HttpClientContext clientContext = HttpClientContext.adapt(context);
+        RequestConfig requestConfig = clientContext.getRequestConfig();
+        updateInactivityValidationInterval(response.getCode(), defaultValidateAfterInactivity);
+        return requestConfig.getConnectionKeepAlive();
+    }
+
+    private void updateInactivityValidationInterval(int statusCode, TimeValue newInterval) {
+        // Only update values based on 2xx responses
+        if (statusCode / 100 == 2) {
             TimeValue previousInterval = currentValidationInterval.getAndSet(newInterval);
             if (!Objects.equals(previousInterval, newInterval)) {
                 log.info(
@@ -74,15 +101,5 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             // so it's best to completely decouple the two.
             connectionManager.setValidateAfterInactivity(newInterval);
         }
-        return result;
-    }
-
-    private static boolean containsKeepAliveHeaderWithTimeout(HttpResponse response) {
-        Header keepAlive = response.getFirstHeader(HeaderElements.KEEP_ALIVE);
-        if (keepAlive != null) {
-            String keepAliveValue = keepAlive.getValue();
-            return keepAliveValue != null && keepAliveValue.contains("timeout=");
-        }
-        return false;
     }
 }
