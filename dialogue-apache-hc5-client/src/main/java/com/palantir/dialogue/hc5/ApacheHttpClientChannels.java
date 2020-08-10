@@ -129,34 +129,22 @@ public final class ApacheHttpClientChannels {
             TaggedMetricRegistry taggedMetrics,
             String clientName,
             PoolingHttpClientConnectionManager connectionManager) {
-
+        DialogueClientPoolMetrics metrics = DialogueClientPoolMetrics.of(taggedMetrics);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("idle")
-                        .buildMetricName(),
+                metrics.size().clientName(clientName).state("idle").buildMetricName(),
                 pool -> pool.getTotalStats().getAvailable(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("leased")
-                        .buildMetricName(),
+                metrics.size().clientName(clientName).state("leased").buildMetricName(),
                 pool -> pool.getTotalStats().getLeased(),
                 LongStream::sum,
                 connectionManager);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
-                DialogueClientPoolMetrics.of(taggedMetrics)
-                        .size()
-                        .clientName(clientName)
-                        .state("pending")
-                        .buildMetricName(),
+                metrics.size().clientName(clientName).state("pending").buildMetricName(),
                 pool -> pool.getTotalStats().getPending(),
                 LongStream::sum,
                 connectionManager);
