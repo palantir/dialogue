@@ -17,6 +17,7 @@
 package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -46,6 +47,7 @@ public class ResponseLeakDetectorTest {
 
     @BeforeEach
     public void before() {
+        assumeThat(CleanerSupport.enabled()).isTrue();
         mockEndpoint = mock(Endpoint.class);
         response = mock(Response.class);
         metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
@@ -74,13 +76,14 @@ public class ResponseLeakDetectorTest {
     @Test
     public void testNotLeaked_streamReferenceHeld() throws Exception {
         ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), () -> 1);
+        Meter leaks = metrics.responseLeak()
+                .clientName(CLIENT)
+                .serviceName(SERVICE)
+                .endpoint(ENDPOINT)
+                .build();
+        assertThat(leaks.getCount()).isZero();
         // Result is intentionally ignored to cause a leak
         try (InputStream ignored = detector.wrap(response, mockEndpoint).body()) {
-            Meter leaks = metrics.responseLeak()
-                    .clientName(CLIENT)
-                    .serviceName(SERVICE)
-                    .endpoint(ENDPOINT)
-                    .build();
             // GC and test enough times to be confident no leaks were recorded
             for (int i = 0; i < 100; i++) {
                 System.gc();

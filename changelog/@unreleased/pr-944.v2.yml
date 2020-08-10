@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Response leak detection is always active. Leaked responses are automatically
+    closed on GC.
+  links:
+  - https://github.com/palantir/dialogue/pull/944
