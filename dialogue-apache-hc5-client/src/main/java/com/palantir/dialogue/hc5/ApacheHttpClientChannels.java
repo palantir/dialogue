@@ -421,6 +421,8 @@ public final class ApacheHttpClientChannels {
                     // Connection pool lifecycle must be managed separately. This allows us to configure a more
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
+                    .setKeepAliveStrategy(
+                            new InactivityValidationAwareConnectionKeepAliveStrategy(connectionManager, name))
                     .setConnectionManager(new InstrumentedPoolingHttpClientConnectionManager(
                             connectionManager, conf.taggedMetricRegistry(), name, CLIENT_TYPE))
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))

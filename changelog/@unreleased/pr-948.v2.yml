@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue clients use a sympathetic validation interval when servers
+    explicitly set a `Keep-Alive` response header including a timeout duration.
+  links:
+  - https://github.com/palantir/dialogue/pull/948
