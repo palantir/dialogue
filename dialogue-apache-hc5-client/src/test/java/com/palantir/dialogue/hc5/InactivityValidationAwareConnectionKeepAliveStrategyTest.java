@@ -70,6 +70,18 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
     }
 
     @Test
+    void testKeepAliveHeaderWithTimeoutAndMax() {
+        InactivityValidationAwareConnectionKeepAliveStrategy strategy =
+                new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
+        BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
+        response.addHeader("Keep-Alive", "timeout=60, max=10");
+        TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
+        TimeValue expected = TimeValue.ofSeconds(60);
+        assertThat(value).isEqualTo(expected);
+        verify(manager).setValidateAfterInactivity(eq(expected));
+    }
+
+    @Test
     void testKeepAliveHeaderWithTimeoutIgnoredNon2xx() {
         InactivityValidationAwareConnectionKeepAliveStrategy strategy =
                 new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
@@ -86,6 +98,28 @@ class InactivityValidationAwareConnectionKeepAliveStrategyTest {
                 new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
         BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
         response.addHeader("Keep-Alive", "max=60");
+        TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
+        assertThat(value).isEqualTo(CONTEXT.getRequestConfig().getConnectionKeepAlive());
+        verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
+    }
+
+    @Test
+    void testKeepAliveHeaderWithZeroTimeout() {
+        InactivityValidationAwareConnectionKeepAliveStrategy strategy =
+                new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
+        BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
+        response.addHeader("Keep-Alive", "timeout=0");
+        TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
+        assertThat(value).isEqualTo(CONTEXT.getRequestConfig().getConnectionKeepAlive());
+        verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));
+    }
+
+    @Test
+    void testKeepAliveHeaderWithNegativeTimeout() {
+        InactivityValidationAwareConnectionKeepAliveStrategy strategy =
+                new InactivityValidationAwareConnectionKeepAliveStrategy(manager, "name");
+        BasicClassicHttpResponse response = new BasicClassicHttpResponse(200);
+        response.addHeader("Keep-Alive", "timeout=-1");
         TimeValue value = strategy.getKeepAliveDuration(response, CONTEXT);
         assertThat(value).isEqualTo(CONTEXT.getRequestConfig().getConnectionKeepAlive());
         verify(manager).setValidateAfterInactivity(eq(INITIAL_TIMEOUT));

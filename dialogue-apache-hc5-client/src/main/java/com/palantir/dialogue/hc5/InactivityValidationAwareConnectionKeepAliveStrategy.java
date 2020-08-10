@@ -43,6 +43,7 @@ import org.slf4j.LoggerFactory;
 final class InactivityValidationAwareConnectionKeepAliveStrategy implements ConnectionKeepAliveStrategy {
     private static final Logger log =
             LoggerFactory.getLogger(InactivityValidationAwareConnectionKeepAliveStrategy.class);
+    private static final String TIMEOUT_ELEMENT = "timeout";
 
     private final PoolingHttpClientConnectionManager connectionManager;
     private final String clientName;
@@ -70,11 +71,14 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
             HeaderElement headerElement = headerElementIterator.next();
             String headerElementName = headerElement.getName();
             String headerElementValue = headerElement.getValue();
-            if (headerElementValue != null && "timeout".equalsIgnoreCase(headerElementName)) {
+            if (headerElementValue != null && TIMEOUT_ELEMENT.equalsIgnoreCase(headerElementName)) {
                 try {
-                    TimeValue keepAliveValue = TimeValue.ofSeconds(Long.parseLong(headerElementValue));
-                    updateInactivityValidationInterval(response.getCode(), keepAliveValue);
-                    return keepAliveValue;
+                    long keepAliveTimeoutSeconds = Long.parseLong(headerElementValue);
+                    if (keepAliveTimeoutSeconds > 0) {
+                        TimeValue keepAliveValue = TimeValue.ofSeconds(keepAliveTimeoutSeconds);
+                        updateInactivityValidationInterval(response.getCode(), keepAliveValue);
+                        return keepAliveValue;
+                    }
                 } catch (NumberFormatException nfe) {
                     log.debug("invalid timeout value {}", SafeArg.of("timeoutValue", headerElementValue), nfe);
                 }
