@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.logsafe.SafeArg;
 import java.util.Iterator;
 import java.util.Objects;
@@ -48,6 +49,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
     private final PoolingHttpClientConnectionManager connectionManager;
     private final String clientName;
     private final TimeValue defaultValidateAfterInactivity;
+    private final RateLimiter loggingRateLimiter = RateLimiter.create(2);
     /**
      * This field is used for observability. It's possible, though unlikely, that the value can get out of sync
      * with the connection manager in some scenarios.
@@ -95,11 +97,15 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
         if (statusCode / 100 == 2) {
             TimeValue previousInterval = currentValidationInterval.getAndSet(newInterval);
             if (!Objects.equals(previousInterval, newInterval)) {
-                log.info(
-                        "Updating the validation interval for {} from {} to {}",
-                        SafeArg.of("client", clientName),
-                        SafeArg.of("previousInterval", previousInterval),
-                        SafeArg.of("newInterval", newInterval));
+                // Rate limit in case of a server roll which changes the keep-alive value. Each line is printed
+                // if the rate limiter isn't saturated, or if debug logging is enabled.
+                if (loggingRateLimiter.tryAcquire() || log.isDebugEnabled()) {
+                    log.info(
+                            "Updating the validation interval for {} from {} to {}",
+                            SafeArg.of("client", clientName),
+                            SafeArg.of("previousInterval", previousInterval),
+                            SafeArg.of("newInterval", newInterval));
+                }
             }
             // Simple volatile write, no need to protect this in the getAndSet check. The getAndSet may race this call
             // so it's best to completely decouple the two.

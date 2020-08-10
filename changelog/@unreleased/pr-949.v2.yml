@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: InactivityValidationAwareConnectionKeepAliveStrategy logging rate limit
+    to prevent excessive logging when servers are rolling
+  links:
+  - https://github.com/palantir/dialogue/pull/949
