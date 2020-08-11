@@ -32,7 +32,7 @@ interface ConcurrencyLimitedChannel extends LimitedChannel {
                 return new ConcurrencyLimitedChannelImpl(
                         channel, ConcurrencyLimitedChannelImpl.createLimiter(), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return new NoOpConcurrencyLimitedChannel(channel);
+                return new InflightTrackingChannel(channel);
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));

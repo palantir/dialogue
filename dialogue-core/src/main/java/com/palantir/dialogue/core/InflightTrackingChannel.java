@@ -25,7 +25,8 @@ import java.util.Optional;
 import java.util.OptionalDouble;
 import java.util.concurrent.atomic.AtomicInteger;
 
-final class NoOpConcurrencyLimitedChannel implements ConcurrencyLimitedChannel {
+/** Never limits anything, just tracks inflight. */
+final class InflightTrackingChannel implements ConcurrencyLimitedChannel {
 
     private final LimitedChannel delegate;
     private final AtomicInteger inflight = new AtomicInteger();
@@ -36,7 +37,7 @@ final class NoOpConcurrencyLimitedChannel implements ConcurrencyLimitedChannel {
         }
     };
 
-    NoOpConcurrencyLimitedChannel(LimitedChannel delegate) {
+    InflightTrackingChannel(LimitedChannel delegate) {
         this.delegate = delegate;
     }
 

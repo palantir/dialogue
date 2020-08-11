@@ -24,9 +24,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
-import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
-import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.dialogue.core.BalancedScoreTracker2.ChannelScoreInfo;
+import com.palantir.dialogue.core.BalancedScoreTracker2.ScoreSnapshot;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
@@ -55,7 +54,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     // active requests, it's considered unhealthy and may not be attempted.
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
-    private final BalancedScoreTracker tracker;
+    private final BalancedScoreTracker2 tracker;
     private final ImmutableList<ConcurrencyLimitedChannel> channels;
 
     BalancedNodeSelectionStrategyChannel(
@@ -65,7 +64,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             TaggedMetricRegistry taggedMetrics,
             String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
+        this.tracker = new BalancedScoreTracker2(channels, random, ticker, taggedMetrics, channelName);
         this.channels = channels;
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
@@ -113,18 +112,8 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
 
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
-            channelInfo.startRequest();
 
-            Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request);
-
-            if (maybe.isPresent()) {
-                channelInfo.observability().markRequestMade();
-                DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
-                return maybe;
-            } else {
-                channelInfo.undoStartRequest();
-            }
+            return channelInfo.maybeExecute(endpoint, request);
         }
 
         return Optional.empty();
