@@ -48,10 +48,10 @@ class BalancedNodeSelectionStrategyChannelTest {
     private Random random = new Random(12388544234L);
 
     @Mock
-    LimitedChannel chan1;
+    ConcurrencyLimitedChannel chan1;
 
     @Mock
-    LimitedChannel chan2;
+    ConcurrencyLimitedChannel chan2;
 
     @Mock
     Request request;

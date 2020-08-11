@@ -62,12 +62,12 @@ public class ConcurrencyLimitedChannelTest {
     private Response response;
 
     private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-    private ConcurrencyLimitedChannel channel;
+    private ConcurrencyLimitedChannelImpl channel;
     private SettableFuture<Response> responseFuture;
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(
+        channel = new ConcurrencyLimitedChannelImpl(
                 new ChannelToLimitedChannelAdapter(delegate), mockLimiter, "channel", 0, metrics);
 
         responseFuture = SettableFuture.create();
@@ -120,9 +120,9 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = new ConcurrencyLimitedChannel(
+        channel = new ConcurrencyLimitedChannelImpl(
                 new ChannelToLimitedChannelAdapter(delegate),
-                ConcurrencyLimitedChannel.createLimiter(),
+                ConcurrencyLimitedChannelImpl.createLimiter(),
                 "channel",
                 0,
                 metrics);

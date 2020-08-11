@@ -30,6 +30,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -81,7 +82,7 @@ public class NodeSelectionBenchmark {
 
     @Setup(Level.Invocation)
     public void before() {
-        ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
+        ImmutableList<ConcurrencyLimitedChannel> channels = IntStream.range(0, numChannels)
                 .mapToObj(_i -> FakeChannel.INSTANCE)
                 .collect(ImmutableList.toImmutableList());
 
@@ -148,12 +149,22 @@ public class NodeSelectionBenchmark {
         new Runner(opt).run();
     }
 
-    private enum FakeChannel implements LimitedChannel {
+    private enum FakeChannel implements ConcurrencyLimitedChannel {
         INSTANCE;
 
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request) {
             return Optional.of(future);
+        }
+
+        @Override
+        public int getInflight() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public OptionalDouble getMax() {
+            throw new UnsupportedOperationException();
         }
     }
 }

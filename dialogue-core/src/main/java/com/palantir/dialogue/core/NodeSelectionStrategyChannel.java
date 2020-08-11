@@ -47,7 +47,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
     private final DialogueNodeselectionMetrics nodeSelectionMetrics;
-    private final ImmutableList<LimitedChannel> channels;
+    private final ImmutableList<ConcurrencyLimitedChannel> channels;
 
     @SuppressWarnings("NullAway")
     private final LimitedChannel delegate =
@@ -61,7 +61,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             TaggedMetricRegistry metrics,
-            ImmutableList<LimitedChannel> channels) {
+            ImmutableList<ConcurrencyLimitedChannel> channels) {
         this.strategySelector = strategySelector;
         this.channelName = channelName;
         this.random = random;
@@ -72,7 +72,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeSelectionStrategy.set(createNodeSelectionChannel(null, initialStrategy));
     }
 
-    static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
+    static LimitedChannel create(Config cf, ImmutableList<ConcurrencyLimitedChannel> channels) {
         if (channels.isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }

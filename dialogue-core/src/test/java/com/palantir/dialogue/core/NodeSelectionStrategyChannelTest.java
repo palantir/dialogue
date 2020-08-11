@@ -50,10 +50,10 @@ class NodeSelectionStrategyChannelTest {
     };
 
     @Mock
-    private LimitedChannel channel1;
+    private ConcurrencyLimitedChannel channel1;
 
     @Mock
-    private LimitedChannel channel2;
+    private ConcurrencyLimitedChannel channel2;
 
     @Mock
     private Ticker clock;
@@ -67,7 +67,7 @@ class NodeSelectionStrategyChannelTest {
 
     @Test
     void updates_strategy_on_response() {
-        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        ImmutableList<ConcurrencyLimitedChannel> channels = ImmutableList.of(channel1, channel2);
         channel = new NodeSelectionStrategyChannel(
                 strategySelector,
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,

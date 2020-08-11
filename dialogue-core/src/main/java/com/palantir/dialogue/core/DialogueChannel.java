@@ -125,7 +125,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
+            ImmutableList.Builder<ConcurrencyLimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
@@ -135,7 +135,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 perUriChannels.add(ConcurrencyLimitedChannel.create(
                         cf, limited, cf.overrideSingleHostIndex().orElse(uriIndex)));
             }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
+            ImmutableList<ConcurrencyLimitedChannel> channels = perUriChannels.build();
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
             Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);

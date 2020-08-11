@@ -87,7 +87,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<LimitedChannel> initialChannel,
             DialogueNodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
+            List<? extends LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             Ticker ticker,

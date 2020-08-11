@@ -56,10 +56,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<LimitedChannel> channels;
+    private final ImmutableList<ConcurrencyLimitedChannel> channels;
 
     BalancedNodeSelectionStrategyChannel(
-            ImmutableList<LimitedChannel> channels,
+            ImmutableList<ConcurrencyLimitedChannel> channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
