@@ -7,6 +7,7 @@
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.server.timing.overhead` tagged `client-name` (timer): Difference in request time reported by the client and by the server. This metric is only reported when the remote server provides a `Server-Timing` response header with a timing value for `server`.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 - `dialogue.client.connection.create` tagged `client-name`, `client-type` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
