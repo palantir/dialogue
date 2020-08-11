@@ -83,11 +83,7 @@ final class BalancedScoreTracker2 {
         registerGauges(taggedMetrics, channelName, channelStats);
     }
 
-    /**
-     * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
-     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
-     * methods to feed information back into the tracker.
-     */
+    /** Returns all channels, ordered with the best score first. Called on every request, so needs to be performant! */
     ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
@@ -185,13 +181,16 @@ final class BalancedScoreTracker2 {
             observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
         }
 
+        /** A low score is considered desirable (and they can be negative). */
         private ScoreSnapshot computeScoreSnapshot() {
             int requestsInflight = concurrencyLimitedChannel.getInflight();
+            int limit = (int) concurrencyLimitedChannel.getMax().orElse(0);
+
             double failureReservoir = recentFailuresReservoir.get();
 
             // it's important that scores are integers because if we kept the full double precision, then a single 4xx
             // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
+            int score = requestsInflight - limit + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.traceLogComputedScore(requestsInflight, failureReservoir, score);
             return new ScoreSnapshot(score, requestsInflight, this);
