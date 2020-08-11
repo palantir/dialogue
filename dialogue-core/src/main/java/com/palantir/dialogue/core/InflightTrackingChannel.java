@@ -30,6 +30,8 @@ final class InflightTrackingChannel implements ConcurrencyLimitedChannel {
 
     private final LimitedChannel delegate;
     private final AtomicInteger inflight = new AtomicInteger();
+
+    @SuppressWarnings("UnnecessaryAnonymousClass") // reduces allocations
     private final Runnable decrement = new Runnable() {
         @Override
         public void run() {

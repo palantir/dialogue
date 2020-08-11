@@ -113,7 +113,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
 
-            return channelInfo.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybe = channelInfo.maybeExecute(endpoint, request);
+            if (maybe.isPresent()) {
+                return maybe; // otherwise, we go round and try another channel!
+            }
         }
 
         return Optional.empty();

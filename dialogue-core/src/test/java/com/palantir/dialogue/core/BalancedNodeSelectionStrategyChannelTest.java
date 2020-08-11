@@ -48,10 +48,10 @@ class BalancedNodeSelectionStrategyChannelTest {
     private Random random = new Random(12388544234L);
 
     @Mock
-    ConcurrencyLimitedChannel chan1;
+    LimitedChannel chan1;
 
     @Mock
-    ConcurrencyLimitedChannel chan2;
+    LimitedChannel chan2;
 
     @Mock
     Request request;
@@ -66,9 +66,17 @@ class BalancedNodeSelectionStrategyChannelTest {
     @BeforeEach
     public void before() {
         channel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
+                ImmutableList.of(new InflightTrackingChannel(chan1), new InflightTrackingChannel(chan2)),
+                random,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                "channelName");
         rttChannel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
+                ImmutableList.of(new InflightTrackingChannel(chan1), new InflightTrackingChannel(chan2)),
+                random,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                "channelName");
     }
 
     @Test
