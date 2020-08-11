@@ -22,7 +22,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
@@ -33,8 +37,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,23 +64,26 @@ final class BalancedScoreTracker {
     private final Ticker clock;
 
     BalancedScoreTracker(
-            int channelCount, Random random, Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName) {
-        Preconditions.checkState(channelCount >= 2, "At least two channels required");
+            ImmutableList<ConcurrencyLimitedChannel> channels,
+            Random random,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics,
+            String channelName) {
+        Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
-        this.channelStats = IntStream.range(0, channelCount)
+        this.channelStats = IntStream.range(0, channels.size())
                 .mapToObj(index -> new ChannelScoreInfo(
-                        index, clock, PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
+                        index,
+                        channels.get(index),
+                        clock,
+                        PerHostObservability.create(channels.size(), taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         registerGauges(taggedMetrics, channelName, channelStats);
     }
 
-    /**
-     * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
-     * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
-     * methods to feed information back into the tracker.
-     */
+    /** Returns all channels, ordered with the best score first. Called on every request, so needs to be performant! */
     ScoreSnapshot[] getSnapshotsInOrderOfIncreasingScore() {
         // pre-shuffling is pretty important here, otherwise when there are no requests in flight, we'd
         // *always* prefer the first channel of the list, leading to a higher overall load.
@@ -114,11 +121,11 @@ final class BalancedScoreTracker {
         return "BalancedScoreTracker{" + channelStats + '}';
     }
 
-    public static final class ChannelScoreInfo implements FutureCallback<Response> {
+    public static final class ChannelScoreInfo implements LimitedChannel, FutureCallback<Response> {
+        private final ConcurrencyLimitedChannel concurrencyLimitedChannel;
+
         private final int hostIndex;
         private final PerHostObservability observability;
-
-        private final AtomicInteger inflight = new AtomicInteger(0);
 
         /**
          * We keep track of failures within a time window to do well in scenarios where an unhealthy server returns
@@ -127,29 +134,30 @@ final class BalancedScoreTracker {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        ChannelScoreInfo(int hostIndex, Ticker clock, PerHostObservability observability) {
+        ChannelScoreInfo(
+                int hostIndex,
+                ConcurrencyLimitedChannel concurrencyLimitedChannel,
+                Ticker clock,
+                PerHostObservability observability) {
             this.hostIndex = hostIndex;
+            this.concurrencyLimitedChannel = concurrencyLimitedChannel;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
         }
 
-        public void startRequest() {
-            inflight.incrementAndGet();
-        }
+        @Override
+        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+            Optional<ListenableFuture<Response>> maybe = concurrencyLimitedChannel.maybeExecute(endpoint, request);
+            if (maybe.isPresent()) {
+                observability.markRequestMade();
+                DialogueFutures.addDirectCallback(maybe.get(), this);
+            }
 
-        public PerHostObservability observability() {
-            return observability;
-        }
-
-        /** Only necessary for the {@link LimitedChannel} case, where a request might just be refused. */
-        public void undoStartRequest() {
-            inflight.decrementAndGet();
+            return maybe;
         }
 
         @Override
         public void onSuccess(Response response) {
-            inflight.decrementAndGet();
-
             if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
                 recentFailuresReservoir.update(FAILURE_WEIGHT);
                 observability.debugLogStatusFailure(response);
@@ -169,18 +177,20 @@ final class BalancedScoreTracker {
 
         @Override
         public void onFailure(Throwable throwable) {
-            inflight.decrementAndGet();
             recentFailuresReservoir.update(FAILURE_WEIGHT);
             observability.debugLogThrowableFailure(recentFailuresReservoir, throwable);
         }
 
+        /** A low score is considered desirable (and they can be negative). */
         private ScoreSnapshot computeScoreSnapshot() {
-            int requestsInflight = inflight.get();
+            int requestsInflight = concurrencyLimitedChannel.getInflight();
+            int limit = (int) concurrencyLimitedChannel.getMax().orElse(0);
+
             double failureReservoir = recentFailuresReservoir.get();
 
             // it's important that scores are integers because if we kept the full double precision, then a single 4xx
             // would end up influencing host selection long beyond its intended lifespan in the absence of other data.
-            int score = requestsInflight + Ints.saturatedCast(Math.round(failureReservoir));
+            int score = requestsInflight - limit + Ints.saturatedCast(Math.round(failureReservoir));
 
             observability.traceLogComputedScore(requestsInflight, failureReservoir, score);
             return new ScoreSnapshot(score, requestsInflight, this);
@@ -188,11 +198,7 @@ final class BalancedScoreTracker {
 
         @Override
         public String toString() {
-            return "ChannelScoreInfo{"
-                    + "hostIndex=" + hostIndex
-                    + ", inflight=" + inflight
-                    + ", recentFailures=" + recentFailuresReservoir
-                    + '}';
+            return "ChannelScoreInfo{" + "hostIndex=" + hostIndex + ", recentFailures=" + recentFailuresReservoir + '}';
         }
     }
 

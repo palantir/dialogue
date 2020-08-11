@@ -41,7 +41,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.DialogueChannel;
-import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -55,7 +54,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
@@ -196,13 +194,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 return () -> singleHostChannels.get(0);
             }
 
-            return StickyEndpointChannels.builder()
-                    .channels(singleHostChannels.stream()
-                            .map(c -> (DialogueChannel) c)
-                            .collect(Collectors.toList()))
-                    .channelName(ChannelNames.reloading(serviceName, params))
-                    .taggedMetricRegistry(params.taggedMetrics())
-                    .build();
+            throw new UnsupportedOperationException("TODO dfox put this back");
         });
 
         return new StickyChannelFactory() {
