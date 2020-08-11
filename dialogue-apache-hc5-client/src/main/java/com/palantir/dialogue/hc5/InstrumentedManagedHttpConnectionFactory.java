@@ -27,19 +27,19 @@ import org.apache.hc.core5.http.io.HttpConnectionFactory;
 final class InstrumentedManagedHttpConnectionFactory implements HttpConnectionFactory<ManagedHttpClientConnection> {
 
     private final HttpConnectionFactory<ManagedHttpClientConnection> delegate;
-    private final Timer responseDeltaTimer;
+    private final Timer serverTimingOverhead;
 
     InstrumentedManagedHttpConnectionFactory(
             HttpConnectionFactory<ManagedHttpClientConnection> delegate,
             TaggedMetricRegistry metrics,
             String clientName) {
         this.delegate = delegate;
-        this.responseDeltaTimer = DialogueClientMetrics.of(metrics).responseDelta(clientName);
+        this.serverTimingOverhead = DialogueClientMetrics.of(metrics).serverTimingOverhead(clientName);
     }
 
     @Override
     public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
-        return new InstrumentedManagedHttpClientConnection(delegate.createConnection(socket), responseDeltaTimer);
+        return new InstrumentedManagedHttpClientConnection(delegate.createConnection(socket), serverTimingOverhead);
     }
 
     @Override

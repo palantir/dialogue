@@ -38,11 +38,11 @@ import org.apache.hc.core5.util.Timeout;
 final class InstrumentedManagedHttpClientConnection implements ManagedHttpClientConnection {
 
     private final ManagedHttpClientConnection delegate;
-    private final Timer responseDeltaTimer;
+    private final Timer serverTimingOverhead;
 
-    InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Timer responseDeltaTimer) {
+    InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Timer serverTimingOverhead) {
         this.delegate = delegate;
-        this.responseDeltaTimer = responseDeltaTimer;
+        this.serverTimingOverhead = serverTimingOverhead;
     }
 
     @Override
@@ -122,7 +122,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
             // the client. Theres's not a great way to measure the difference in that case
             // so values may not be recorded.
             if (serverNanos >= 0 && deltaNanos >= 0) {
-                responseDeltaTimer.update(deltaNanos, TimeUnit.NANOSECONDS);
+                serverTimingOverhead.update(deltaNanos, TimeUnit.NANOSECONDS);
             }
         }
     }
