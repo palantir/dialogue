@@ -150,15 +150,16 @@ final class BalancedScoreTracker {
         public void onSuccess(Response response) {
             inflight.decrementAndGet();
 
-            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
-                recentFailuresReservoir.update(FAILURE_WEIGHT);
-                observability.debugLogStatusFailure(response);
-            } else if (Responses.isClientError(response)) {
+            // 429 too-many-requests is handled as a client error
+            if (Responses.isClientError(response)) {
                 // We track 4xx responses because bugs in the server might cause one node to erroneously
                 // throw 401/403s when another node could actually return 200s. Empirically, healthy servers
                 // do actually return a continuous background rate of 4xx responses, so we weight these
                 // drastically less than 5xx responses.
                 recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
+                observability.debugLogStatusFailure(response);
+            } else if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+                recentFailuresReservoir.update(FAILURE_WEIGHT);
                 observability.debugLogStatusFailure(response);
             }
         }

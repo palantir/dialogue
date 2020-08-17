@@ -101,14 +101,17 @@ class StickyEndpointChannelsTest {
                 .build();
 
         SampleServiceAsync async1 = SampleServiceAsync.of(channels.get(), runtime);
-        async1.voidToVoid();
-        async1.getMyAlias();
-        async1.getOptionalBinary();
+        for (int i = 0; i < 100; i++) {
+            async1.voidToVoid();
+            async1.getMyAlias();
+            async1.getOptionalBinary();
+        }
 
         assertThat(responses)
                 .describedAs("We chose channel [three] randomly, and stay pinned so that a transaction has the best "
                         + "chance of completing")
-                .containsExactly("[three] 429", "[three] 429", "[three] 429");
+                .hasSize(300)
+                .containsOnly("[three] 429");
         requests.clear();
 
         for (int i = 0; i < 200; i++) {
