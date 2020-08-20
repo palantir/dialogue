@@ -20,7 +20,7 @@ import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -40,34 +40,40 @@ import org.slf4j.LoggerFactory;
  * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the
  * {@link #maybeExecute} method returns empty.
  */
-final class ConcurrencyLimitedChannel implements LimitedChannel {
+final class ConcurrencyLimitedChannel implements EndpointLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
     static final int INITIAL_LIMIT = 20;
 
     private final Meter limitedMeter;
-    private final LimitedChannel delegate;
+    private final EndpointChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
 
-    static LimitedChannel create(Config cf, LimitedChannel channel, int uriIndex) {
+    static EndpointLimitedChannel create(Config cf, EndpointChannel channel, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
                 return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return channel;
+                return new EndpointLimitedChannel() {
+                    @Override
+                    public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
+                        return Optional.of(channel.execute(request));
+                    }
+                };
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
     }
 
     ConcurrencyLimitedChannel(
-            LimitedChannel delegate,
+            EndpointChannel delegate,
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+        // this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.delegate = delegate;
         this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
                 .limited()
                 .channelName(channelName)
@@ -92,18 +98,14 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
-            if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), permit);
-            } else {
-                permit.ignore();
-            }
-            return result;
+            ListenableFuture<Response> result = delegate.execute(request);
+            DialogueFutures.addDirectCallback(result, permit);
+            return Optional.of(result);
         } else {
             logPermitRefused();
             limitedMeter.mark();
