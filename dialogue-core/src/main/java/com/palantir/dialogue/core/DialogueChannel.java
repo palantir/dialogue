@@ -45,7 +45,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return delegate.endpoint(endpoint).execute(request);
+        throw new UnsupportedOperationException(
+                "re-binding endpoint channels for each requset throws away concurrency limiter info");
     }
 
     @Override
@@ -125,23 +126,32 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
-            for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
-                String uri = cf.clientConf().uris().get(uriIndex);
-                Channel channel = cf.channelFactory().create(uri);
-                channel = HostMetricsChannel.create(cf, channel, uri);
-                channel = new TraceEnrichingChannel(channel);
-                LimitedChannel limited = new ChannelToLimitedChannelAdapter(channel);
-                perUriChannels.add(ConcurrencyLimitedChannel.create(
-                        cf, limited, cf.overrideSingleHostIndex().orElse(uriIndex)));
-            }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
+            // the channelFactory gets invoked inside this build method only, then never again.
+            ImmutableList<Channel> rawChannels = cf.clientConf().uris().stream()
+                    .map(uri -> {
+                        Channel channel = cf.channelFactory().create(uri);
+                        channel = HostMetricsChannel.create(cf, channel, uri);
+                        channel = new TraceEnrichingChannel(channel);
+                        return channel;
+                    })
+                    .collect(ImmutableList.toImmutableList());
 
-            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
-            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            // node selection strategy needs to share some mutable state across all endpoints
+            PinUntilError nss = PinUntilError.create(cf);
 
+            // callers will set up an unknown number of endpoints later.
             EndpointChannelFactory channelFactory = endpoint -> {
-                EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+                ImmutableList.Builder<EndpointLimitedChannel> perUriChannels = ImmutableList.builder();
+                for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
+                    EndpointChannel endpointChannel = new EndpointChannelAdapter(endpoint, rawChannels.get(uriIndex));
+                    perUriChannels.add(ConcurrencyLimitedChannel.create(
+                            cf, endpointChannel, cf.overrideSingleHostIndex().orElse(uriIndex)));
+                }
+
+                EndpointLimitedChannel nodeSelectionChannel = nss.createSelectorOverChannels(perUriChannels.build());
+                // each endpoint gets its own dedicated queue
+                EndpointChannel channel = QueuedChannel.create(cf, nodeSelectionChannel);
+
                 channel = TracedChannel.requestAttempt(channel);
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(

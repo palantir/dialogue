@@ -22,7 +22,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -58,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements EndpointLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -70,24 +69,24 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
     @VisibleForTesting
     PinUntilErrorNodeSelectionStrategyChannel(
-            NodeList nodeList, int initialPin, DialoguePinuntilerrorMetrics metrics, String channelName) {
+            NodeList nodeList, AtomicInteger currentPin, DialoguePinuntilerrorMetrics metrics, String channelName) {
         this.nodeList = nodeList;
-        this.currentPin = new AtomicInteger(initialPin);
+        this.currentPin = currentPin;
         this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
         Preconditions.checkArgument(
                 nodeList.size() >= 2,
                 "PinUntilError is pointless if you have zero or 1 channels."
                         + " Use an always throwing channel or just pick the only channel in the list.");
         Preconditions.checkArgument(
-                0 <= initialPin && initialPin < nodeList.size(),
+                0 <= currentPin.get() && currentPin.get() < nodeList.size(),
                 "initialHost must be a valid index into nodeList",
-                SafeArg.of("initialHost", initialPin));
+                SafeArg.of("initialHost", currentPin.get()));
     }
 
     static PinUntilErrorNodeSelectionStrategyChannel of(
-            Optional<LimitedChannel> initialChannel,
+            Optional<EndpointLimitedChannel> initialChannel,
             DialogueNodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
+            List<EndpointLimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             Ticker ticker,
@@ -114,25 +113,27 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
             NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, ticker, metrics, channelName);
-            return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(
+                    shuffling, new AtomicInteger(initialPin), metrics, channelName);
         } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
             NodeList constant = new ConstantNodeList(initialShuffle);
-            return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(
+                    constant, new AtomicInteger(initialPin), metrics, channelName);
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
     }
 
-    LimitedChannel getCurrentChannel() {
+    EndpointLimitedChannel getCurrentChannel() {
         return nodeList.get(currentPin.get());
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(request);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
@@ -179,15 +180,15 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     @Value.Immutable
-    interface PinChannel extends LimitedChannel {
-        LimitedChannel delegate();
+    interface PinChannel extends EndpointLimitedChannel {
+        EndpointLimitedChannel delegate();
 
         @Value.Auxiliary
         int stableIndex();
 
         @Override
-        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            return delegate().maybeExecute(endpoint, request);
+        default Optional<ListenableFuture<Response>> maybeExecute(Request request) {
+            return delegate().maybeExecute(request);
         }
     }
 
