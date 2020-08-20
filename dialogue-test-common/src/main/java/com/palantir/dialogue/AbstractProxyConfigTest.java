@@ -126,7 +126,7 @@ public abstract class AbstractProxyConfigTest {
         return new ProxySelector() {
             @Override
             public List<Proxy> select(URI _uri) {
-                InetSocketAddress addr = new InetSocketAddress(host, port);
+                InetSocketAddress addr = InetSocketAddress.createUnresolved(host, port);
                 return ImmutableList.of(new Proxy(Proxy.Type.HTTP, addr));
             }
 
