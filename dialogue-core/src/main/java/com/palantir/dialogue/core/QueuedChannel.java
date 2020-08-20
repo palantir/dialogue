@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
@@ -24,7 +23,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -60,49 +59,50 @@ import org.slf4j.LoggerFactory;
  *     doing work, much of which will be wasted</li>
  * </ul>
  */
-final class QueuedChannel implements Channel {
+final class QueuedChannel implements EndpointChannel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
     private final Deque<DeferredCall> queuedCalls;
-    private final LimitedChannel delegate;
+    private final EndpointLimitedChannel delegate;
     private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
-    private final Counter queueSizeCounter;
+    // private final Counter queueSizeCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
 
-    QueuedChannel(LimitedChannel delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+    QueuedChannel(EndpointLimitedChannel delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
+        // this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.delegate = delegate;
         this.channelName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
-        this.queueSizeCounter = DialogueClientMetrics.of(metrics).requestsQueued(channelName);
+        // this.queueSizeCounter = DialogueClientMetrics.of(metrics).requestsQueued(channelName);
         this.queuedTime = DialogueClientMetrics.of(metrics).requestQueuedTime(channelName);
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
-    static QueuedChannel create(Config cf, LimitedChannel delegate) {
+    static QueuedChannel create(Config cf, EndpointLimitedChannel delegate) {
         return new QueuedChannel(delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return maybeExecute(endpoint, request).orElseGet(limitedResultSupplier);
+    public ListenableFuture<Response> execute(Request request) {
+        return maybeExecute(request).orElseGet(limitedResultSupplier);
     }
 
     /**
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @VisibleForTesting
-    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    Optional<ListenableFuture<Response>> maybeExecute(Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
@@ -119,7 +119,6 @@ final class QueuedChannel implements Channel {
         }
 
         DeferredCall components = DeferredCall.builder()
-                .endpoint(endpoint)
                 .request(request)
                 .response(SettableFuture.create())
                 .span(DetachedSpan.start("Dialogue-request-enqueued"))
@@ -167,13 +166,13 @@ final class QueuedChannel implements Channel {
     }
 
     private int incrementQueueSize() {
-        queueSizeCounter.inc();
+        // queueSizeCounter.inc();
         return queueSizeEstimate.incrementAndGet();
     }
 
     private void decrementQueueSize() {
         queueSizeEstimate.decrementAndGet();
-        queueSizeCounter.dec();
+        // queueSizeCounter.dec();
     }
 
     /**
@@ -197,8 +196,7 @@ final class QueuedChannel implements Channel {
             return true;
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
-            Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(queueHead.request());
 
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();
@@ -215,9 +213,9 @@ final class QueuedChannel implements Channel {
                             log.debug(
                                     "Failed to cancel delegate response, it should be reported by ForwardAndSchedule "
                                             + "logging",
-                                    SafeArg.of("channel", channelName),
-                                    SafeArg.of("service", endpoint.serviceName()),
-                                    SafeArg.of("endpoint", endpoint.endpointName()));
+                                    SafeArg.of("channel", channelName));
+                            // SafeArg.of("service", endpoint.serviceName()),
+                            // SafeArg.of("endpoint", endpoint.endpointName()));
                         }
                     }
                 });
@@ -225,23 +223,19 @@ final class QueuedChannel implements Channel {
             } else {
                 if (!queuedCalls.offerFirst(queueHead)) {
                     // Should never happen, ConcurrentLinkedDeque has no maximum size
-                    log.error(
-                            "Failed to add an attempted call back to the deque",
-                            SafeArg.of("channel", channelName),
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()));
+                    log.error("Failed to add an attempted call back to the deque", SafeArg.of("channel", channelName));
+                    // SafeArg.of("service", endpoint.serviceName()),
+                    // SafeArg.of("endpoint", endpoint.endpointName()));
                     decrementQueueSize();
                     queueHead.timer().stop();
                     if (!queuedResponse.setException(new SafeRuntimeException(
-                            "Failed to req-queue request",
-                            SafeArg.of("channel", channelName),
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName())))) {
+                            "Failed to req-queue request", SafeArg.of("channel", channelName)
+                            /*SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName())*/ ))) {
                         log.debug(
-                                "Queued response has already been completed",
-                                SafeArg.of("channel", channelName),
-                                SafeArg.of("service", endpoint.serviceName()),
-                                SafeArg.of("endpoint", endpoint.endpointName()));
+                                "Queued response has already been completed", SafeArg.of("channel", channelName)
+                                /*SafeArg.of("service", endpoint.serviceName()),
+                                SafeArg.of("endpoint", endpoint.endpointName())*/ );
                     }
                 }
                 return false;
@@ -291,7 +285,6 @@ final class QueuedChannel implements Channel {
 
     @Value.Immutable
     interface DeferredCall {
-        Endpoint endpoint();
 
         Request request();
 
