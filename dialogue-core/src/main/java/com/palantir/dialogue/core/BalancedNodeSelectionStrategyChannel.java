@@ -16,12 +16,10 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
@@ -30,9 +28,7 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
-import java.util.Random;
 import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,7 +43,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements EndpointLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -56,22 +52,17 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<LimitedChannel> channels;
+    private final ImmutableList<EndpointLimitedChannel> channels;
 
-    BalancedNodeSelectionStrategyChannel(
-            ImmutableList<LimitedChannel> channels,
-            Random random,
-            Ticker ticker,
-            TaggedMetricRegistry taggedMetrics,
-            String channelName) {
+    BalancedNodeSelectionStrategyChannel(ImmutableList<EndpointLimitedChannel> channels, BalancedScoreTracker tracker) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
+        this.tracker = tracker;
         this.channels = channels;
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
         ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
         int giveUpThreshold = Integer.MAX_VALUE;
@@ -116,7 +107,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request);
+                    channels.get(channelInfo.channelIndex()).maybeExecute(request);
 
             if (maybe.isPresent()) {
                 channelInfo.observability().markRequestMade();

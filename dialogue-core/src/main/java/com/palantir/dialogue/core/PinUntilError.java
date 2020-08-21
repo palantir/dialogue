@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-final class PinUntilError {
+final class PinUntilError implements NodeSelectionStrategy {
 
     private final AtomicInteger currentPin = new AtomicInteger(0);
 
@@ -58,7 +58,8 @@ final class PinUntilError {
     }
 
     /** Based on the shared state in the PinUntilError object, this channel selects one of the provided list. */
-    EndpointLimitedChannel createSelectorOverChannels(ImmutableList<EndpointLimitedChannel> singleUriChannels) {
+    @Override
+    public EndpointLimitedChannel createSelectorOverChannels(ImmutableList<EndpointLimitedChannel> singleUriChannels) {
         Preconditions.checkArgument(singleUriChannels.size() == numChannels);
         return new Foo(singleUriChannels);
     }
@@ -97,7 +98,7 @@ final class PinUntilError {
                 }
 
                 @Override
-                public void onFailure(Throwable throwable) {
+                public void onFailure(Throwable _throwable) {
                     incrementHostIfNecessary(pin);
                     // instrumentation.receivedThrowable(pin, channel, throwable, next);
                 }

@@ -44,7 +44,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Endpoint _endpoint, Request _request) {
         throw new UnsupportedOperationException(
                 "re-binding endpoint channels for each requset throws away concurrency limiter info");
     }
@@ -136,8 +136,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     })
                     .collect(ImmutableList.toImmutableList());
 
-            // node selection strategy needs to share some mutable state across all endpoints
-            PinUntilError nss = PinUntilError.create(cf);
+            // node selection strategy needs to share some mutable state across all endpoints, so we create it up front
+            NodeSelectionStrategy nss = NodeSelectionStrategy.createNodeSelectionStrategy(cf);
 
             // callers will set up an unknown number of endpoints later.
             EndpointChannelFactory channelFactory = endpoint -> {
