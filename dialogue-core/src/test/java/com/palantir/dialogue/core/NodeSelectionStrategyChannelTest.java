@@ -16,74 +16,53 @@
 
 package com.palantir.dialogue.core;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.collect.ImmutableList;
-import com.google.common.util.concurrent.Futures;
-import com.palantir.dialogue.TestResponse;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
-import java.util.List;
-import java.util.Optional;
-import java.util.Random;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
-import org.mockito.Spy;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-@ExtendWith(MockitoExtension.class)
-class NodeSelectionStrategyChannelTest {
-
-    @Spy
-    private NodeSelectionStrategyChooser strategySelector = new NodeSelectionStrategyChooser() {
-        @Override
-        public Optional<DialogueNodeSelectionStrategy> updateAndGet(
-                List<DialogueNodeSelectionStrategy> updatedStrategies) {
-            return NodeSelectionStrategyChannel.getFirstKnownStrategy(updatedStrategies);
-        }
-    };
-
-    @Mock
-    private LimitedChannel channel1;
-
-    @Mock
-    private LimitedChannel channel2;
-
-    @Mock
-    private Ticker clock;
-
-    private String channelName = "channelName";
-    private Random pseudo = new Random(12893712L);
-    private NodeSelectionStrategyChannel channel;
-
-    @BeforeEach
-    void beforeEach() {}
-
-    @Test
-    void updates_strategy_on_response() {
-        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
-        channel = new NodeSelectionStrategyChannel(
-                strategySelector,
-                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
-                channelName,
-                pseudo,
-                clock,
-                new DefaultTaggedMetricRegistry(),
-                channels);
-
-        when(channel1.maybeExecute(any(), any()))
-                .thenReturn(Optional.of(Futures.immediateFuture(
-                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
-
-        channel.maybeExecute(null, null).get();
-        verify(strategySelector, times(1))
-                .updateAndGet(eq(ImmutableList.of(
-                        DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
-    }
-}
+// @ExtendWith(MockitoExtension.class)
+// class NodeSelectionStrategyChannelTest {
+//
+//     @Spy
+//     private NodeSelectionStrategyChooser strategySelector = new NodeSelectionStrategyChooser() {
+//         @Override
+//         public Optional<DialogueNodeSelectionStrategy> updateAndGet(
+//                 List<DialogueNodeSelectionStrategy> updatedStrategies) {
+//             return NodeSelectionStrategyChannel.getFirstKnownStrategy(updatedStrategies);
+//         }
+//     };
+//
+//     @Mock
+//     private LimitedChannel channel1;
+//
+//     @Mock
+//     private LimitedChannel channel2;
+//
+//     @Mock
+//     private Ticker clock;
+//
+//     private String channelName = "channelName";
+//     private Random pseudo = new Random(12893712L);
+//     private NodeSelectionStrategyChannel channel;
+//
+//     @BeforeEach
+//     void beforeEach() {}
+//
+//     @Test
+//     void updates_strategy_on_response() {
+//         ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+//         channel = new NodeSelectionStrategyChannel(
+//                 strategySelector,
+//                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
+//                 channelName,
+//                 pseudo,
+//                 clock,
+//                 new DefaultTaggedMetricRegistry(),
+//                 channels);
+//
+//         when(channel1.maybeExecute(any(), any()))
+//                 .thenReturn(Optional.of(Futures.immediateFuture(
+//                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
+//
+//         channel.maybeExecute(null, null).get();
+//         verify(strategySelector, times(1))
+//                 .updateAndGet(eq(ImmutableList.of(
+//                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
+//     }
+// }

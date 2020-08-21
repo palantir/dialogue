@@ -35,10 +35,10 @@ interface NodeSelectionStrategy {
             return new NodeSelectionStrategy() {
                 @Override
                 public EndpointLimitedChannel createSelectorOverChannels(
-                        ImmutableList<EndpointLimitedChannel> singleUriChannels) {
+                        ImmutableList<EndpointLimitedChannel> _singleUriChannels) {
                     return new EndpointLimitedChannel() {
                         @Override
-                        public Optional<ListenableFuture<Response>> maybeExecute(Request request) {
+                        public Optional<ListenableFuture<Response>> maybeExecute(Request _request) {
                             return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
                                     "There are no URIs configured to handle requests",
                                     SafeArg.of("channel", cf.channelName()))));
