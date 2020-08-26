@@ -42,7 +42,6 @@ import org.slf4j.LoggerFactory;
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
-    static final int INITIAL_LIMIT = 20;
 
     private final Meter limitedMeter;
     private final LimitedChannel delegate;
