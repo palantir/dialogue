@@ -33,7 +33,7 @@ import com.palantir.tracing.api.TraceHttpHeaders;
 final class TraceEnrichingChannel implements Channel {
     private static final String OPERATION = "Dialogue-http-request";
     private static final String INITIAL = OPERATION + " initial";
-    private final Channel delegate;
+    private final NeverThrowChannel delegate; // important to ensure the span is definitely completed!
 
     TraceEnrichingChannel(Channel delegate) {
         this.delegate = new NeverThrowChannel(delegate);
