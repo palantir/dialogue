@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue reports concurrency limiter metrics for in-flight requests
+  links:
+  - https://github.com/palantir/dialogue/pull/973
