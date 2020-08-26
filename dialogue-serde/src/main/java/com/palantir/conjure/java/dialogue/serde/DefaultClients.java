@@ -20,7 +20,6 @@ import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.Channel;
@@ -103,7 +102,7 @@ enum DefaultClients implements Clients {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             if (!future.cancel(true)) {
-                Futures.addCallback(future, CancelListener.INSTANCE, MoreExecutors.directExecutor());
+                Futures.addCallback(future, CancelListener.INSTANCE, DialogueFutures.safeDirectExecutor());
             }
             throw new DialogueException(e);
         } catch (ExecutionException e) {

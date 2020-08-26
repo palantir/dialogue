@@ -226,7 +226,7 @@ final class RetryingChannel implements EndpointChannel {
                             span.complete();
                         }
                     },
-                    MoreExecutors.directExecutor());
+                    DialogueFutures.safeDirectExecutor());
             return result;
         }
 
@@ -298,7 +298,7 @@ final class RetryingChannel implements EndpointChannel {
                     },
                     backoffNanoseconds,
                     TimeUnit.NANOSECONDS);
-            return wrap(Futures.transformAsync(scheduled, input -> input, MoreExecutors.directExecutor()));
+            return wrap(Futures.transformAsync(scheduled, input -> input, DialogueFutures.safeDirectExecutor()));
         }
 
         private long getBackoffNanoseconds() {

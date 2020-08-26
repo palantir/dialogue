@@ -21,7 +21,6 @@ import com.google.common.base.Stopwatch;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
@@ -31,6 +30,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
@@ -193,7 +193,9 @@ public final class Benchmark {
 
         Stopwatch scheduling = Stopwatch.createStarted();
 
-        benchmarkFinished.getFuture().addListener(simulation.metricsReporter()::report, MoreExecutors.directExecutor());
+        benchmarkFinished
+                .getFuture()
+                .addListener(simulation.metricsReporter()::report, DialogueFutures.safeDirectExecutor());
         FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
@@ -223,7 +225,8 @@ public final class Benchmark {
                                     ListenableFuture<Response> future = channel.execute(req.request());
                                     requestsStarted[0] += 1;
 
-                                    Futures.addCallback(future, accumulateStatusCodes, MoreExecutors.directExecutor());
+                                    Futures.addCallback(
+                                            future, accumulateStatusCodes, DialogueFutures.safeDirectExecutor());
                                     future.addListener(
                                             () -> {
                                                 responsesReceived[0] += 1;
@@ -234,7 +237,7 @@ public final class Benchmark {
                                                         requestsStarted[0],
                                                         responsesReceived[0]);
                                             },
-                                            MoreExecutors.directExecutor());
+                                            DialogueFutures.safeDirectExecutor());
                                 } catch (RuntimeException e) {
                                     log.error("Channels shouldn't throw", e);
                                 }
@@ -271,7 +274,7 @@ public final class Benchmark {
                             .responsesLeaked(leaked)
                             .build();
                 },
-                MoreExecutors.directExecutor());
+                DialogueFutures.safeDirectExecutor());
     }
 
     private Stream<ScheduledRequest> infiniteRequests(Duration interval) {

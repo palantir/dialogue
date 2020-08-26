@@ -17,14 +17,16 @@
 package com.palantir.dialogue.futures;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -235,6 +237,36 @@ class DialogueFuturesTest {
         assertThat(transformed.get()).isEqualTo("b");
     }
 
+    @Test
+    void testSafeDirectExecutor() {
+        AtomicInteger task = new AtomicInteger();
+        DialogueFutures.safeDirectExecutor().execute(task::incrementAndGet);
+        assertThat(task).hasValue(1);
+    }
+
+    @Test
+    void testSafeDirectExecutorDoesNotThrowError() {
+        Executor executor = DialogueFutures.safeDirectExecutor();
+        assertThatCode(() -> executor.execute(() -> {
+                    throw new Error();
+                }))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void testAddDirectListenerContinuesAfterError() {
+        SettableFuture<String> future = SettableFuture.create();
+        AtomicInteger invocations = new AtomicInteger();
+        Runnable listener = () -> {
+            invocations.incrementAndGet();
+            throw new Error();
+        };
+        DialogueFutures.addDirectListener(future, listener);
+        DialogueFutures.addDirectListener(future, listener);
+        future.set("value");
+        assertThat(invocations).hasValue(2);
+    }
+
     public enum Transformer {
         DIALOGUE() {
             @Override
@@ -256,18 +288,18 @@ class DialogueFuturesTest {
         GUAVA() {
             @Override
             <I, O> ListenableFuture<O> transform(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
-                return Futures.transform(input, function::apply, MoreExecutors.directExecutor());
+                return Futures.transform(input, function::apply, DialogueFutures.safeDirectExecutor());
             }
 
             @Override
             <I, O> ListenableFuture<O> transformAsync(
                     ListenableFuture<I> input, AsyncFunction<? super I, ? extends O> function) {
-                return Futures.transformAsync(input, function, MoreExecutors.directExecutor());
+                return Futures.transformAsync(input, function, DialogueFutures.safeDirectExecutor());
             }
 
             @Override
             <T> ListenableFuture<T> catchingAllAsync(ListenableFuture<T> input, AsyncFunction<Throwable, T> function) {
-                return Futures.catchingAsync(input, Throwable.class, function, MoreExecutors.directExecutor());
+                return Futures.catchingAsync(input, Throwable.class, function, DialogueFutures.safeDirectExecutor());
             }
         };
 

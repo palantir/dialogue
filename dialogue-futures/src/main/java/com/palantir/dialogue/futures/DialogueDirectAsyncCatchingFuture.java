@@ -19,7 +19,6 @@ package com.palantir.dialogue.futures;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -54,8 +53,8 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>,
                     currentFuture = future;
                     return future;
                 },
-                MoreExecutors.directExecutor());
-        output.addListener(this, MoreExecutors.directExecutor());
+                DialogueFutures.safeDirectExecutor());
+        output.addListener(this, DialogueFutures.safeDirectExecutor());
     }
 
     @Override
