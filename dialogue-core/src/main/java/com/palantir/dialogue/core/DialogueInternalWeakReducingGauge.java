@@ -24,7 +24,9 @@ import java.util.Collections;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.function.Function;
+import java.util.function.ToDoubleFunction;
 import java.util.function.ToLongFunction;
+import java.util.stream.DoubleStream;
 import java.util.stream.LongStream;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
@@ -42,13 +44,16 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
     @GuardedBy("this")
     private final Set<T> weakSet = Collections.newSetFromMap(new WeakHashMap<>(2));
 
-    private final ToLongFunction<T> gaugeFunction;
-    private final Function<LongStream, Number> operator;
+    private final Function<Set<T>, Number> function;
 
     @VisibleForTesting
     DialogueInternalWeakReducingGauge(ToLongFunction<T> gaugeFunction, Function<LongStream, Number> reduceFunction) {
-        this.gaugeFunction = gaugeFunction;
-        this.operator = reduceFunction;
+        this(new LongGaugeProcessor<>(gaugeFunction, reduceFunction));
+    }
+
+    @VisibleForTesting
+    DialogueInternalWeakReducingGauge(Function<Set<T>, Number> function) {
+        this.function = function;
     }
 
     /** Register a new source element which will be used to compute the future summary integer. */
@@ -58,7 +63,7 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
 
     @Override
     public synchronized Number getValue() {
-        return operator.apply(weakSet.stream().mapToLong(gaugeFunction));
+        return function.apply(weakSet);
     }
 
     public static <T> DialogueInternalWeakReducingGauge<T> getOrCreate(
@@ -69,8 +74,55 @@ public final class DialogueInternalWeakReducingGauge<T> implements Gauge<Number>
             T initialObject) {
         // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
         DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) taggedMetricRegistry.gauge(
-                metricName, new DialogueInternalWeakReducingGauge<>(toLongFunc, reducingFunction));
+                metricName,
+                new DialogueInternalWeakReducingGauge<>(new LongGaugeProcessor<>(toLongFunc, reducingFunction)));
         gauge.add(initialObject);
         return gauge;
+    }
+
+    public static <T> DialogueInternalWeakReducingGauge<T> getOrCreateDouble(
+            TaggedMetricRegistry taggedMetricRegistry,
+            MetricName metricName,
+            ToDoubleFunction<T> toLongFunc,
+            Function<DoubleStream, Number> reducingFunction,
+            T initialObject) {
+        // intentionally using 'gauge' not 'registerWithReplacement' because we want to access the existing one.
+        DialogueInternalWeakReducingGauge<T> gauge = (DialogueInternalWeakReducingGauge<T>) taggedMetricRegistry.gauge(
+                metricName,
+                new DialogueInternalWeakReducingGauge<>(new DoubleGaugeProcessor<>(toLongFunc, reducingFunction)));
+        gauge.add(initialObject);
+        return gauge;
+    }
+
+    private static final class LongGaugeProcessor<T> implements Function<Set<T>, Number> {
+
+        private final ToLongFunction<T> function;
+        private final Function<LongStream, Number> operator;
+
+        LongGaugeProcessor(ToLongFunction<T> function, Function<LongStream, Number> operator) {
+            this.function = function;
+            this.operator = operator;
+        }
+
+        @Override
+        public Number apply(Set<T> values) {
+            return operator.apply(values.stream().mapToLong(function));
+        }
+    }
+
+    private static final class DoubleGaugeProcessor<T> implements Function<Set<T>, Number> {
+
+        private final ToDoubleFunction<T> function;
+        private final Function<DoubleStream, Number> operator;
+
+        DoubleGaugeProcessor(ToDoubleFunction<T> function, Function<DoubleStream, Number> operator) {
+            this.function = function;
+            this.operator = operator;
+        }
+
+        @Override
+        public Number apply(Set<T> values) {
+            return operator.apply(values.stream().mapToDouble(function));
+        }
     }
 }
