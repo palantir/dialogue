@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -27,11 +26,9 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.lang.ref.WeakReference;
 import java.util.Optional;
-import java.util.function.Function;
+import java.util.stream.LongStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -76,15 +73,25 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.limiter = limiter;
         Preconditions.checkArgument(
                 uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
-        weakGauge(
+        DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
+        DialogueInternalWeakReducingGauge.getOrCreateDouble(
                 taggedMetrics,
-                DialogueConcurrencylimiterMetrics.of(taggedMetrics)
-                        .max()
+                metrics.max()
                         .channelName(channelName)
                         .hostIndex(Integer.toString(uriIndex))
                         .buildMetricName(),
-                this,
-                ConcurrencyLimitedChannel::getMax);
+                ConcurrencyLimitedChannel::getMax,
+                doubleStream -> doubleStream.max().orElse(0D),
+                this);
+        DialogueInternalWeakReducingGauge.getOrCreate(
+                taggedMetrics,
+                metrics.inFlight()
+                        .channelName(channelName)
+                        .hostIndex(Integer.toString(uriIndex))
+                        .buildMetricName(),
+                concurrencyLimitedChannel -> concurrencyLimitedChannel.limiter.getInflight(),
+                LongStream::sum,
+                this);
     }
 
     static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter() {
@@ -133,28 +140,5 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     private double getMax() {
         return limiter.getLimit();
-    }
-
-    /**
-     * Creates a gauge that removes itself when the {@code instance} has been garbage-collected.
-     * We need this to ensure that ConcurrencyLimitedChannels can be GC'd when urls live-reload, otherwise metric
-     * registries could keep around dangling references.
-     */
-    private static <T> void weakGauge(
-            TaggedMetricRegistry registry, MetricName metricName, T instance, Function<T, Number> gaugeFunction) {
-        registry.registerWithReplacement(metricName, new Gauge<Number>() {
-            private final WeakReference<T> weakReference = new WeakReference<>(instance);
-
-            @Override
-            public Number getValue() {
-                T value = weakReference.get();
-                if (value != null) {
-                    return gaugeFunction.apply(value);
-                } else {
-                    registry.remove(metricName); // registry must be tolerant to concurrent modification
-                    return 0;
-                }
-            }
-        });
     }
 }

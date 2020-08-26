@@ -55,6 +55,10 @@ namespaces:
         type: gauge
         tags: [channel-name, hostIndex]
         docs: The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
+      in-flight:
+        type: gauge
+        tags: [channel-name, hostIndex]
+        docs: The number of concurrent requests which are currently running.
 
   dialogue.pinuntilerror:
     docs: Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
