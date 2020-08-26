@@ -24,6 +24,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
@@ -34,15 +35,12 @@ import java.net.URL;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
-final class HostMetricsChannel implements Channel {
-    private final Channel delegate;
+final class HostMetricsChannel implements Filter {
     private final Ticker clock;
     private final HostEventsSink.HostEventCallback hostEventCallback;
 
-    private HostMetricsChannel(
-            Channel delegate, HostEventsSink hostMetrics, Ticker ticker, String serviceName, String host, int port) {
-        this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
-        clock = ticker;
+    private HostMetricsChannel(HostEventsSink hostMetrics, Ticker ticker, String serviceName, String host, int port) {
+        this.clock = ticker;
         this.hostEventCallback = Preconditions.checkNotNull(hostMetrics, "HostEventsSink is required")
                 .callback(
                         Preconditions.checkNotNull(serviceName, "Service is required"),
@@ -50,15 +48,15 @@ final class HostMetricsChannel implements Channel {
                         port);
     }
 
-    static Channel create(Config cf, Channel channel, String uri) {
+    static Filter create(Config cf, String uri) {
         Optional<HostEventsSink> hostEventsSink = cf.clientConf().hostEventsSink();
         if (!hostEventsSink.isPresent()) {
-            return channel;
+            return NoopFilter.INSTANCE;
         }
 
         if (hostEventsSink.get().getClass().getSimpleName().equals("NoOpHostEventsSink")) {
             // special-casing for the implementation in conjure-java-runtime
-            return channel;
+            return NoopFilter.INSTANCE;
         }
 
         try {
@@ -66,22 +64,35 @@ final class HostMetricsChannel implements Channel {
             String host = parsed.getHost();
             int port = parsed.getPort() != -1 ? parsed.getPort() : parsed.getDefaultPort();
 
-            return new HostMetricsChannel(channel, hostEventsSink.get(), cf.ticker(), cf.channelName(), host, port);
+            return new HostMetricsChannel(hostEventsSink.get(), cf.ticker(), cf.channelName(), host, port);
         } catch (MalformedURLException e) {
             throw new SafeIllegalArgumentException("Failed to parse URI", UnsafeArg.of("uri", uri));
         }
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        ListenableFuture<Response> result = delegate.execute(endpoint, request);
+    public ListenableFuture<Response> executeFilter(Endpoint endpoint, Request request, Channel next) {
+        ListenableFuture<Response> result = next.execute(endpoint, request);
         DialogueFutures.addDirectCallback(result, new Callback());
         return result;
     }
 
     @Override
+    public Response executeFilter(Endpoint endpoint, Request request, BlockingChannel next) throws IOException {
+        long startNanos = clock.read();
+        try {
+            Response result = next.execute(endpoint, request);
+            hostEventCallback.record(result.code(), TimeUnit.NANOSECONDS.toMicros(clock.read() - startNanos));
+            return result;
+        } catch (IOException e) {
+            hostEventCallback.recordIoException();
+            throw e;
+        }
+    }
+
+    @Override
     public String toString() {
-        return "HostMetricsChannel{delegate=" + delegate + ", hostEventCallback=" + hostEventCallback + '}';
+        return "HostMetricsChannel{hostEventCallback=" + hostEventCallback + '}';
     }
 
     private final class Callback implements FutureCallback<Response> {

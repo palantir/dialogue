@@ -55,9 +55,8 @@ class HostMetricsChannelTest {
     @Test
     void shortcircuit_if_there_is_no_sink() {
         Channel channel = HostMetricsChannel.create(
-                config(TestConfigurations.create("https://unused", "https://unused2")),
-                mockChannel,
-                "https://foo:1001");
+                        config(TestConfigurations.create("https://unused", "https://unused2")), "https://foo:1001")
+                .bind(mockChannel);
 
         assertThat(channel).isSameAs(mockChannel);
     }
@@ -65,12 +64,12 @@ class HostMetricsChannelTest {
     @Test
     void shortcircuit_if_someone_passes_in_the_noop_enum() {
         Channel channel = HostMetricsChannel.create(
-                config(ClientConfiguration.builder()
-                        .from(TestConfigurations.create("https://unused", "https://unused2"))
-                        .hostEventsSink(NoOpHostEventsSink.INSTANCE)
-                        .build()),
-                mockChannel,
-                "https://foo:1001");
+                        config(ClientConfiguration.builder()
+                                .from(TestConfigurations.create("https://unused", "https://unused2"))
+                                .hostEventsSink(NoOpHostEventsSink.INSTANCE)
+                                .build()),
+                        "https://foo:1001")
+                .bind(mockChannel);
 
         assertThat(channel).isSameAs(mockChannel);
     }
@@ -93,28 +92,33 @@ class HostMetricsChannelTest {
     void calls_sink_when_response_comes_back() {
         AtomicBoolean recorded = new AtomicBoolean();
         Channel channel = HostMetricsChannel.create(
-                config(ClientConfiguration.builder()
-                        .from(TestConfigurations.create("https://unused", "https://unused2"))
-                        .hostEventsSink(new HostEventsSink() {
-                            @Override
-                            public void record(
-                                    String serviceName, String hostname, int port, int statusCode, long micros) {
-                                assertThat(serviceName).isEqualTo("channelName");
-                                assertThat(hostname).isEqualTo("foo");
-                                assertThat(port).isEqualTo(1001);
-                                assertThat(statusCode).isEqualTo(200);
-                                assertThat(micros).isEqualTo(TimeUnit.MICROSECONDS.convert(3, TimeUnit.SECONDS));
-                                recorded.set(true);
-                            }
+                        config(ClientConfiguration.builder()
+                                .from(TestConfigurations.create("https://unused", "https://unused2"))
+                                .hostEventsSink(new HostEventsSink() {
+                                    @Override
+                                    public void record(
+                                            String serviceName,
+                                            String hostname,
+                                            int port,
+                                            int statusCode,
+                                            long micros) {
+                                        assertThat(serviceName).isEqualTo("channelName");
+                                        assertThat(hostname).isEqualTo("foo");
+                                        assertThat(port).isEqualTo(1001);
+                                        assertThat(statusCode).isEqualTo(200);
+                                        assertThat(micros)
+                                                .isEqualTo(TimeUnit.MICROSECONDS.convert(3, TimeUnit.SECONDS));
+                                        recorded.set(true);
+                                    }
 
-                            @Override
-                            public void recordIoException(String _serviceName, String _hostname, int _port) {
-                                Assertions.fail("no IOExceptions expected");
-                            }
-                        })
-                        .build()),
-                mockChannel,
-                "https://foo:1001");
+                                    @Override
+                                    public void recordIoException(String _serviceName, String _hostname, int _port) {
+                                        Assertions.fail("no IOExceptions expected");
+                                    }
+                                })
+                                .build()),
+                        "https://foo:1001")
+                .bind(mockChannel);
 
         SettableFuture<Response> settable = SettableFuture.create();
         when(mockChannel.execute(any(), any())).thenReturn(settable);

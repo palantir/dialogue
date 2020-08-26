@@ -129,7 +129,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
-                channel = HostMetricsChannel.create(cf, channel, uri);
+                channel = HostMetricsChannel.create(cf, uri).bind(channel);
                 channel = new TraceEnrichingChannel(channel);
                 perUriChannels.add(ConcurrencyLimitedChannel.create(
                         cf, channel, cf.overrideSingleHostIndex().orElse(uriIndex)));
