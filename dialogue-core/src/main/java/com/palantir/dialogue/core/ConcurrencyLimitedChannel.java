@@ -23,11 +23,13 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.IOException;
 import java.util.Optional;
 import java.util.stream.LongStream;
 import org.slf4j.Logger;
@@ -38,33 +40,42 @@ import org.slf4j.LoggerFactory;
  * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the
  * {@link #maybeExecute} method returns empty.
  */
-final class ConcurrencyLimitedChannel implements LimitedChannel {
+final class ConcurrencyLimitedChannel implements LimitedFilter {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
 
     private final Meter limitedMeter;
-    private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
 
-    static LimitedChannel create(Config cf, Channel channel, int uriIndex) {
+    static LimitedFilter create(Config cf, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
+                return new ConcurrencyLimitedChannel(createLimiter(), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return new ChannelToLimitedChannelAdapter(channel);
+                return new LimitedFilter() {
+                    @Override
+                    public Optional<ListenableFuture<Response>> maybeFilterAsync(
+                            Endpoint endpoint, Request request, Channel next) {
+                        return Optional.of(next.execute(endpoint, request));
+                    }
+
+                    @Override
+                    public Optional<Response> maybeFilterBlocking(
+                            Endpoint endpoint, Request request, BlockingChannel next) throws IOException {
+                        return Optional.of(next.execute(endpoint, request));
+                    }
+                };
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
     }
 
     ConcurrencyLimitedChannel(
-            Channel delegate,
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
-        this.delegate = new NeverThrowChannel(delegate);
         this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
                 .limited()
                 .channelName(channelName)
@@ -99,14 +110,37 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeFilterAsync(Endpoint endpoint, Request request, Channel next) {
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
-            ListenableFuture<Response> result = delegate.execute(endpoint, request);
+            ListenableFuture<Response> result = next.execute(endpoint, request);
             DialogueFutures.addDirectCallback(result, permit);
             return Optional.of(result);
+        } else {
+            logPermitRefused();
+            limitedMeter.mark();
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Response> maybeFilterBlocking(Endpoint endpoint, Request request, BlockingChannel next)
+            throws IOException {
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+        if (maybePermit.isPresent()) {
+            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
+            logPermitAcquired();
+
+            try {
+                Response result = next.execute(endpoint, request);
+                permit.onSuccess(result);
+                return Optional.of(result);
+            } catch (RuntimeException | IOException throwable) {
+                permit.onFailure(throwable);
+                throw throwable;
+            }
         } else {
             logPermitRefused();
             limitedMeter.mark();
@@ -131,7 +165,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public String toString() {
-        return "ConcurrencyLimitedChannel{" + delegate + '}';
+        return "ConcurrencyLimitedChannel{}";
     }
 
     private double getMax() {

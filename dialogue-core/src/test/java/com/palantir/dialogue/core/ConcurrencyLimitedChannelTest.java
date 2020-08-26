@@ -62,12 +62,12 @@ public class ConcurrencyLimitedChannelTest {
     private Response response;
 
     private final TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-    private ConcurrencyLimitedChannel channel;
+    private LimitedChannel channel;
     private SettableFuture<Response> responseFuture;
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(delegate, mockLimiter, "channel", 0, metrics);
+        channel = new ConcurrencyLimitedChannel(mockLimiter, "channel", 0, metrics).bind(delegate);
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -119,8 +119,8 @@ public class ConcurrencyLimitedChannelTest {
 
     @Test
     public void testWithDefaultLimiter() {
-        channel = new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(), "channel", 0, metrics);
+        channel = new ConcurrencyLimitedChannel(ConcurrencyLimitedChannel.createLimiter(), "channel", 0, metrics)
+                .bind(delegate);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }

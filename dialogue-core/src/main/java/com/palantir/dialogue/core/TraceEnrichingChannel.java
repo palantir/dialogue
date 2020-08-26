@@ -21,42 +21,53 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
+import com.palantir.tracing.CloseableTracer;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TraceMetadata;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.SpanType;
 import com.palantir.tracing.api.TraceHttpHeaders;
+import java.io.IOException;
 
 /** A channel that adds Zipkin compatible tracing headers. */
-final class TraceEnrichingChannel implements Channel {
+enum TraceEnrichingChannel implements Filter {
+    INSTANCE;
+
     private static final String OPERATION = "Dialogue-http-request";
     private static final String INITIAL = OPERATION + " initial";
-    private final NeverThrowChannel delegate; // important to ensure the span is definitely completed!
 
-    TraceEnrichingChannel(Channel delegate) {
-        this.delegate = new NeverThrowChannel(delegate);
-    }
-
+    // TODO(dfox): neverthrow?
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> executeFilter(Endpoint endpoint, Request request, Channel next) {
         if (Tracer.hasTraceId() && !Tracer.isTraceObservable()) {
             // in the vast majority of cases, we're not actually sampling span information at all, so we might as
             // well save the CPU cycles of creating a DetachedSpan and just send the headers.
-            return executeInternal(endpoint, request);
+            Request req2 = augmentRequest(request);
+            return next.execute(endpoint, req2);
         }
 
         DetachedSpan span = DetachedSpan.start(OPERATION);
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
         try (CloseableSpan ignored = span.childSpan(INITIAL, SpanType.CLIENT_OUTGOING)) {
-            ListenableFuture<Response> future = executeInternal(endpoint, request);
+            Request req2 = augmentRequest(request);
+            ListenableFuture<Response> future = next.execute(endpoint, req2);
             return DialogueFutures.addDirectListener(future, span::complete);
         }
     }
 
-    private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
+    @Override
+    public Response executeFilter(Endpoint endpoint, Request request, BlockingChannel next) throws IOException {
+        try (CloseableTracer ignored = CloseableTracer.startSpan(OPERATION, SpanType.CLIENT_OUTGOING)) {
+            Request req2 = augmentRequest(request);
+            return next.execute(endpoint, req2);
+        }
+    }
+
+    private static Request augmentRequest(Request request) {
         TraceMetadata metadata = Tracer.maybeGetTraceMetadata().get();
 
         Request.Builder tracedRequest = Request.builder()
@@ -76,11 +87,11 @@ final class TraceEnrichingChannel implements Channel {
                     metadata.getOriginatingSpanId().get());
         }
 
-        return delegate.execute(endpoint, tracedRequest.build());
+        return tracedRequest.build();
     }
 
     @Override
     public String toString() {
-        return "TracedRequestChannel{" + delegate + '}';
+        return "TracedRequestChannel{}";
     }
 }

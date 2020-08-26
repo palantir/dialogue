@@ -51,7 +51,7 @@ class TraceEnrichingChannelTest {
     void when_span_sampling_is_turned_off_we_still_send_zipkin_headers() {
         Tracer.setSampler(() -> false);
         try (CloseableTracer hello = CloseableTracer.startSpan("hello")) {
-            TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
+            Channel channel = TraceEnrichingChannel.INSTANCE.bind(delegate);
             channel.execute(TestEndpoint.POST, Request.builder().build());
 
             verify(delegate).execute(any(), requestCaptor.capture());
@@ -68,7 +68,7 @@ class TraceEnrichingChannelTest {
         Tracer.setSampler(() -> true);
         assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
 
-        TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
+        Channel channel = TraceEnrichingChannel.INSTANCE.bind(delegate);
         channel.execute(TestEndpoint.POST, Request.builder().build());
 
         verify(delegate).execute(any(), requestCaptor.capture());
