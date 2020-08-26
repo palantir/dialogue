@@ -21,6 +21,7 @@ import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.BlockingEndpointChannel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -30,19 +31,12 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
-final class TimingEndpointChannel implements EndpointChannel {
-    private final EndpointChannel delegate;
+final class TimingEndpointChannel implements EndpointFilter2 {
     private final Timer responseTimer;
     private final Meter ioExceptionMeter;
     private final Ticker ticker;
 
-    TimingEndpointChannel(
-            EndpointChannel delegate,
-            Ticker ticker,
-            TaggedMetricRegistry taggedMetrics,
-            String channelName,
-            Endpoint endpoint) {
-        this.delegate = delegate;
+    TimingEndpointChannel(Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName, Endpoint endpoint) {
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
         this.responseTimer = metrics.response()
@@ -56,15 +50,31 @@ final class TimingEndpointChannel implements EndpointChannel {
                 .build();
     }
 
-    static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+    static EndpointFilter2 create(Config cf, Endpoint endpoint) {
         return new TimingEndpointChannel(
-                delegate, cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName(), endpoint);
+                cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName(), endpoint);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Request request) {
+    public Response executeBlocking(Request request, BlockingEndpointChannel next) throws IOException {
         long beforeNanos = ticker.read();
-        ListenableFuture<Response> response = delegate.execute(request);
+        try {
+            Response response = next.execute(request);
+            responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
+            return response;
+        } catch (RuntimeException | IOException e) {
+            responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
+            if (e instanceof IOException) {
+                ioExceptionMeter.mark();
+            }
+            throw e;
+        }
+    }
+
+    @Override
+    public ListenableFuture<Response> executeAsync(Request request, EndpointChannel next) {
+        long beforeNanos = ticker.read();
+        ListenableFuture<Response> response = next.execute(request);
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
@@ -88,6 +98,6 @@ final class TimingEndpointChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "TimingEndpointChannel{" + delegate + '}';
+        return "TimingEndpointChannel{}";
     }
 }

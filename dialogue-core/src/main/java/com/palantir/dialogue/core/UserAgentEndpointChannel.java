@@ -19,40 +19,50 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
+import com.palantir.dialogue.BlockingEndpointChannel;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import java.io.IOException;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
  * dialogue library (extracted from this package's implementation version), and the name and version of the
  * {@link Endpoint}'s target service and endpoint.
  */
-final class UserAgentEndpointChannel implements EndpointChannel {
+final class UserAgentEndpointChannel implements EndpointFilter2 {
     static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
-    private final EndpointChannel delegate;
     private final String userAgent;
 
-    private UserAgentEndpointChannel(EndpointChannel delegate, String userAgent) {
-        this.delegate = delegate;
+    private UserAgentEndpointChannel(String userAgent) {
         this.userAgent = userAgent;
     }
 
-    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint, UserAgent baseAgent) {
+    static EndpointFilter2 create(Endpoint endpoint, UserAgent baseAgent) {
         String userAgent = UserAgents.format(augmentUserAgent(baseAgent, endpoint));
-        return new UserAgentEndpointChannel(delegate, userAgent);
+        return new UserAgentEndpointChannel(userAgent);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Request request) {
-        Request newRequest = Request.builder()
+    public Response executeBlocking(Request request, BlockingEndpointChannel next) throws IOException {
+        Request newRequest = augment(request);
+        return next.execute(newRequest);
+    }
+
+    @Override
+    public ListenableFuture<Response> executeAsync(Request request, EndpointChannel next) {
+        Request newRequest = augment(request);
+        return next.execute(newRequest);
+    }
+
+    private Request augment(Request request) {
+        return Request.builder()
                 .from(request)
                 .putHeaderParams("user-agent", userAgent)
                 .build();
-        return delegate.execute(newRequest);
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
@@ -84,6 +94,6 @@ final class UserAgentEndpointChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "UserAgentEndpointChannel{userAgent='" + userAgent + "', proceed=" + delegate + '}';
+        return "UserAgentEndpointChannel{userAgent='" + userAgent + '}';
     }
 }

@@ -22,6 +22,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -32,7 +33,7 @@ import org.immutables.value.Value;
 interface Config {
     String channelName();
 
-    ChannelFactory channelFactory();
+    Optional<ChannelFactory> channelFactory();
 
     ClientConfiguration rawConfig();
 

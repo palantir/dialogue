@@ -19,11 +19,11 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.BlockingEndpointChannel;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -44,7 +44,8 @@ import org.slf4j.LoggerFactory;
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.3
  * https://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.11
  */
-final class ContentDecodingChannel implements EndpointChannel {
+enum ContentDecodingChannel implements EndpointFilter2 {
+    INSTANCE;
 
     private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
 
@@ -53,16 +54,18 @@ final class ContentDecodingChannel implements EndpointChannel {
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
 
-    private final EndpointChannel delegate;
-
-    ContentDecodingChannel(EndpointChannel delegate) {
-        this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
+    @Override
+    public ListenableFuture<Response> executeAsync(Request request, EndpointChannel next) {
+        Request augmentedRequest = acceptEncoding(request);
+        ListenableFuture<Response> future = next.execute(augmentedRequest);
+        return DialogueFutures.transform(future, ContentDecodingChannel::decompress);
     }
 
     @Override
-    public ListenableFuture<Response> execute(Request request) {
+    public Response executeBlocking(Request request, BlockingEndpointChannel next) throws IOException {
         Request augmentedRequest = acceptEncoding(request);
-        return DialogueFutures.transform(delegate.execute(augmentedRequest), ContentDecodingChannel::decompress);
+        Response response = next.execute(augmentedRequest);
+        return ContentDecodingChannel.decompress(response);
     }
 
     private static Request acceptEncoding(Request request) {
@@ -86,7 +89,7 @@ final class ContentDecodingChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "ContentDecodingChannel{" + delegate + '}';
+        return "ContentDecodingChannel{}";
     }
 
     private static final class ContentDecodingResponse implements Response {

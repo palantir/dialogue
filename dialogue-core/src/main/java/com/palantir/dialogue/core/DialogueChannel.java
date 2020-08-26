@@ -23,16 +23,20 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.BlockingEndpointChannel;
+import com.palantir.dialogue.BlockingEndpointChannelFactory;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Function;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
@@ -121,6 +125,63 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        public BuilderStage1 blockingChannelFactory(Function<String, BlockingChannel> bcf) {
+            return new BuilderStage1() {
+                @Override
+                public BlockingEndpointChannelFactory build() {
+                    Config cf = builder.build();
+
+                    ImmutableList.Builder<LimitedBlockingChannel> perUriChannels = ImmutableList.builder();
+                    for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
+                        String uri = cf.clientConf().uris().get(uriIndex);
+                        BlockingChannel channel = bcf.apply(uri);
+                        channel = HostMetricsChannel.create(cf, uri).bind(channel);
+                        channel = TraceEnrichingChannel.INSTANCE.bind(channel);
+                        LimitedBlockingChannel limited = ConcurrencyLimitedChannel.create(
+                                        cf, cf.overrideSingleHostIndex().orElse(uriIndex))
+                                .bind(channel);
+                        perUriChannels.add(limited);
+                    }
+                    ImmutableList<LimitedBlockingChannel> channels = perUriChannels.build();
+
+                    LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, null);
+                    Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+
+                    BlockingChannel queue = null;
+
+                    BlockingEndpointChannelFactory channelFactory = new BlockingEndpointChannelFactory() {
+                        @Override
+                        public BlockingEndpointChannel endpoint(Endpoint endpoint) {
+                            BlockingEndpointChannel channel = request -> queue.execute(endpoint, request);
+
+                            // channel = TracedChannel.requestAttempt(channel);
+                            // channel = RetryingChannel.create(cf, channel, endpoint);
+                            channel = UserAgentEndpointChannel.create(
+                                            endpoint,
+                                            cf.clientConf().userAgent().get())
+                                    .bind(channel);
+                            channel = ContentDecodingChannel.INSTANCE.bind(channel);
+                            // channel = TracedChannel.create(channel, endpoint);
+                            channel = TimingEndpointChannel.create(cf, endpoint).bind(channel);
+                            // channel = new InterruptionChannel(channel);
+                            return channel;
+                            // return new NeverThrowEndpointChannel(channel); // this must come last as a defensive
+                            // backstop
+                        }
+                    };
+
+                    Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                            .create()
+                            .clientName(cf.channelName())
+                            .clientType("dialogue-channel-non-reloading")
+                            .build();
+                    createMeter.mark();
+
+                    return channelFactory;
+                }
+            };
+        }
+
         @CheckReturnValue
         public DialogueChannel build() {
             Config cf = builder.build();
@@ -128,7 +189,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
-                Channel channel = cf.channelFactory().create(uri);
+                Channel channel = cf.channelFactory().get().create(uri);
                 channel = HostMetricsChannel.create(cf, uri).bind(channel);
                 channel = TraceEnrichingChannel.INSTANCE.bind(channel);
                 LimitedChannel limited = ConcurrencyLimitedChannel.create(
@@ -146,11 +207,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = TracedChannel.requestAttempt(channel);
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(
-                        channel, endpoint, cf.clientConf().userAgent().get());
+                                endpoint, cf.clientConf().userAgent().get())
+                        .bind(channel);
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
-                channel = new ContentDecodingChannel(channel);
+                channel = ContentDecodingChannel.INSTANCE.bind(channel);
                 channel = TracedChannel.create(channel, endpoint);
-                channel = TimingEndpointChannel.create(cf, channel, endpoint);
+                channel = TimingEndpointChannel.create(cf, endpoint).bind(channel);
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
@@ -170,5 +232,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public Channel buildNonLiveReloading() {
             return build();
         }
+    }
+
+    interface BuilderStage1 {
+        BlockingEndpointChannelFactory build();
     }
 }
