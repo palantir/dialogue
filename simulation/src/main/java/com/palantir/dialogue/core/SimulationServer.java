@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -95,7 +94,7 @@ final class SimulationServer implements Channel {
                         activeRequests.dec();
                         globalServerTimeNanos.inc(simulation.clock().read() - beforeNanos);
                     },
-                    MoreExecutors.directExecutor());
+                    DialogueFutures.safeDirectExecutor());
 
             if (log.isDebugEnabled()) {
                 DialogueFutures.addDirectCallback(resp, DialogueFutures.onSuccess(result -> {

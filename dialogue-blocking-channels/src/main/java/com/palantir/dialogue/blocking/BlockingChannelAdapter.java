@@ -19,13 +19,13 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
@@ -95,7 +95,7 @@ public final class BlockingChannelAdapter {
                                 }
                             }
                         },
-                        MoreExecutors.directExecutor());
+                        DialogueFutures.safeDirectExecutor());
                 return settableFuture;
             } catch (RuntimeException | Error e) {
                 // user-provided executor could throw exceptions when we try to submit runnables

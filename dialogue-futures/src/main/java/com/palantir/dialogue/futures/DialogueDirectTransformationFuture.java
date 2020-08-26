@@ -19,7 +19,6 @@ package com.palantir.dialogue.futures;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.ExecutionException;
@@ -52,7 +51,7 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
         this.input = input;
         this.function = function;
         this.output = SettableFuture.create();
-        Futures.addCallback(input, this, MoreExecutors.directExecutor());
+        Futures.addCallback(input, this, DialogueFutures.safeDirectExecutor());
     }
 
     @Override

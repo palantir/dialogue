@@ -17,11 +17,11 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.Tracer;
@@ -58,7 +58,7 @@ final class TracedChannel implements EndpointChannel {
             future = delegate.execute(request);
         } finally {
             if (future != null) {
-                future.addListener(span::complete, MoreExecutors.directExecutor());
+                future.addListener(span::complete, DialogueFutures.safeDirectExecutor());
             } else {
                 span.complete();
             }

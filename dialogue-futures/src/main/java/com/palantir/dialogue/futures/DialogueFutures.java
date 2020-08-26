@@ -20,8 +20,8 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.concurrent.Executor;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -56,14 +56,18 @@ public final class DialogueFutures {
 
     @CanIgnoreReturnValue
     public static <T> ListenableFuture<T> addDirectCallback(ListenableFuture<T> future, FutureCallback<T> callback) {
-        Futures.addCallback(future, callback, MoreExecutors.directExecutor());
+        Futures.addCallback(future, callback, safeDirectExecutor());
         return future;
     }
 
     @CanIgnoreReturnValue
     public static <T> ListenableFuture<T> addDirectListener(ListenableFuture<T> future, Runnable listener) {
-        future.addListener(listener, MoreExecutors.directExecutor());
+        future.addListener(listener, safeDirectExecutor());
         return future;
+    }
+
+    public static Executor safeDirectExecutor() {
+        return SafeDirectExecutor.INSTANCE;
     }
 
     public static <T> FutureCallback<T> onSuccess(Consumer<T> onSuccess) {
