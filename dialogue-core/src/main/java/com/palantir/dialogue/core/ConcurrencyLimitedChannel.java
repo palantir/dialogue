@@ -81,7 +81,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                         .hostIndex(Integer.toString(uriIndex))
                         .buildMetricName(),
                 ConcurrencyLimitedChannel::getMax,
-                doubleStream -> doubleStream.max().orElse(0D),
+                doubleStream -> doubleStream.min().orElse(0D),
                 this);
         DialogueInternalWeakReducingGauge.getOrCreate(
                 taggedMetrics,
