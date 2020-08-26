@@ -131,9 +131,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 Channel channel = cf.channelFactory().create(uri);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 channel = new TraceEnrichingChannel(channel);
-                LimitedChannel limited = new ChannelToLimitedChannelAdapter(channel);
                 perUriChannels.add(ConcurrencyLimitedChannel.create(
-                        cf, limited, cf.overrideSingleHostIndex().orElse(uriIndex)));
+                        cf, channel, cf.overrideSingleHostIndex().orElse(uriIndex)));
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
@@ -151,7 +150,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = TracedChannel.create(channel, endpoint);
                 channel = TimingEndpointChannel.create(cf, channel, endpoint);
                 channel = new InterruptionChannel(channel);
-                return NeverThrowChannel.create(channel); // this must come last as a defensive backstop
+                return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())

@@ -64,7 +64,7 @@ final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
     private final Deque<DeferredCall> queuedCalls;
-    private final LimitedChannel delegate;
+    private final NeverThrowLimitedChannel delegate;
     private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);

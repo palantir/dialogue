@@ -18,30 +18,24 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.dialogue.Channel;
-import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/**
- * The contract of {@link Channel} requires that the {@link Channel#execute} method never throws. This is a defensive
- * backstop so that callers can rely on this invariant.
- */
-final class NeverThrowChannel implements Channel {
+final class NeverThrowEndpointChannel implements EndpointChannel {
+    private static final Logger log = LoggerFactory.getLogger(NeverThrowEndpointChannel.class);
+    private final EndpointChannel proceed;
 
-    private static final Logger log = LoggerFactory.getLogger(NeverThrowChannel.class);
-    private final Channel delegate;
-
-    NeverThrowChannel(Channel delegate) {
-        this.delegate = delegate;
+    NeverThrowEndpointChannel(EndpointChannel proceed) {
+        this.proceed = proceed;
     }
 
     @Override
-    public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+    public ListenableFuture<Response> execute(Request request) {
         try {
-            return delegate.execute(endpoint, request);
+            return proceed.execute(request);
         } catch (RuntimeException | Error e) {
             log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
             return Futures.immediateFailedFuture(e);
@@ -50,6 +44,6 @@ final class NeverThrowChannel implements Channel {
 
     @Override
     public String toString() {
-        return "NeverThrowChannel{" + delegate + '}';
+        return "NeverThrowEndpointChannel{" + proceed + '}';
     }
 }

@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -41,29 +42,29 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
 
     private final Meter limitedMeter;
-    private final LimitedChannel delegate;
+    private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
 
-    static LimitedChannel create(Config cf, LimitedChannel channel, int uriIndex) {
+    static LimitedChannel create(Config cf, Channel channel, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
                 return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return channel;
+                return new ChannelToLimitedChannelAdapter(channel);
         }
         throw new SafeIllegalStateException(
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
     }
 
     ConcurrencyLimitedChannel(
-            LimitedChannel delegate,
+            Channel delegate,
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
             String channelName,
             int uriIndex,
             TaggedMetricRegistry taggedMetrics) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.delegate = new NeverThrowChannel(delegate);
         this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
                 .limited()
                 .channelName(channelName)
@@ -103,13 +104,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
-            if (result.isPresent()) {
-                DialogueFutures.addDirectCallback(result.get(), permit);
-            } else {
-                permit.ignore();
-            }
-            return result;
+            ListenableFuture<Response> result = delegate.execute(endpoint, request);
+            DialogueFutures.addDirectCallback(result, permit);
+            return Optional.of(result);
         } else {
             logPermitRefused();
             limitedMeter.mark();
