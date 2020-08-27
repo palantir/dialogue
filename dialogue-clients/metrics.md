@@ -42,7 +42,6 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
 ### dialogue.concurrencylimiter
 Instrumentation for the ConcurrencyLimitedChannel
 - `dialogue.concurrencylimiter.max` tagged `channel-name`, `hostIndex` (gauge): The maximum number of concurrent requests which are currently permitted. Additively increases with successes and multiplicatively decreases with failures.
-- `dialogue.concurrencylimiter.in-flight` tagged `channel-name`, `hostIndex` (gauge): The number of concurrent requests which are currently running.
 
 ### dialogue.nodeselection
 Instrumentation for which node selection strategy is used
