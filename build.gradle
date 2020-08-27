@@ -34,13 +34,13 @@ buildscript {
         classpath 'com.palantir.baseline:gradle-baseline-java:3.37.0'
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
-        classpath 'com.palantir.metricschema:gradle-metric-schema:0.5.11'
+        classpath 'com.palantir.metricschema:gradle-metric-schema:0.5.12'
         classpath 'com.palantir.gradle.conjure:gradle-conjure:4.27.0'
     }
 }
 
 plugins {
-    id 'com.palantir.consistent-versions' version '1.25.0'
+    id 'com.palantir.consistent-versions' version '1.26.0'
 }
 
 apply plugin: 'com.palantir.baseline'
