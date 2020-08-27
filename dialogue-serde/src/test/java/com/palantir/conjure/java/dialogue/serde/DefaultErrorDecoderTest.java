@@ -29,6 +29,7 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
+import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.Preconditions;
@@ -40,7 +41,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
-public final class ErrorDecoderTest {
+public final class DefaultErrorDecoderTest {
 
     private static final ObjectMapper SERVER_MAPPER = ObjectMappers.newServerObjectMapper();
 
@@ -57,7 +58,7 @@ public final class ErrorDecoderTest {
         }
     }
 
-    private static final ErrorDecoder decoder = ErrorDecoder.INSTANCE;
+    private static final ErrorDecoder decoder = DefaultErrorDecoder.INSTANCE;
 
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {

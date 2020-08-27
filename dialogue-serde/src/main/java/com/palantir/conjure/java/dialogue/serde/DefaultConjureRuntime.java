@@ -40,7 +40,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
-                ErrorDecoder.INSTANCE,
+                DefaultErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer());
     }
 

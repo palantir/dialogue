@@ -21,6 +21,7 @@ import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
@@ -105,8 +106,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(
-                encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token);
+        return new EncodingDeserializerRegistry<>(encodingsSortedByWeight, errors(), emptyContainerDeserializer, token);
     }
 
     @Override
@@ -155,6 +155,11 @@ final class ConjureBodySerDe implements BodySerDe {
                 }
             }
         };
+    }
+
+    @Override
+    public ErrorDecoder errors() {
+        return errorDecoder;
     }
 
     private static final class EncodingSerializerRegistry<T> implements Serializer<T> {

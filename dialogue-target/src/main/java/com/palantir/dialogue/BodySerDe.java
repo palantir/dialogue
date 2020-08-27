@@ -46,4 +46,7 @@ public interface BodySerDe {
 
     /** Serializes a {@link BinaryRequestBody} to <pre>application/octet-stream</pre>. */
     RequestBody serialize(BinaryRequestBody value);
+
+    /** Error decoder used to detect failures and map them to java {@link RuntimeException exceptions}. */
+    ErrorDecoder errors();
 }

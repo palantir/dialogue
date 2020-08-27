@@ -24,6 +24,7 @@ import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
+import com.palantir.dialogue.ErrorDecoder;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
@@ -45,17 +46,19 @@ import org.slf4j.LoggerFactory;
  * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
  * Response} does not adhere to an expected format.
  */
-enum ErrorDecoder {
+enum DefaultErrorDecoder implements ErrorDecoder {
     INSTANCE;
 
-    private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
+    private static final Logger log = LoggerFactory.getLogger(DefaultErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
-    boolean isError(Response response) {
+    @Override
+    public boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    RuntimeException decode(Response response) {
+    @Override
+    public RuntimeException decode(Response response) {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
@@ -116,5 +119,10 @@ enum ErrorDecoder {
         try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
             return CharStreams.toString(reader);
         }
+    }
+
+    @Override
+    public String toString() {
+        return "DefaultErrorDecoder{}";
     }
 }

@@ -222,3 +222,8 @@ acceptedBreaks:
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::getStickyChannels(java.lang.String)"
       justification: "Adding methods to Dialogue.ReloadingFactory is not an ABI break\
         \ (just API)"
+  "1.81.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.ErrorDecoder com.palantir.dialogue.BodySerDe::errors()"
+      justification: "runtime is not meant for extension"
