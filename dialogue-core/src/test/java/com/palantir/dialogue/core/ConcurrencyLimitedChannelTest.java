@@ -28,6 +28,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -56,7 +57,9 @@ public class ConcurrencyLimitedChannelTest {
 
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit =
-            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter().acquire().get();
+            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL)
+                    .acquire()
+                    .get();
 
     @Mock
     private Response response;
@@ -120,7 +123,7 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(), "channel", 0, metrics);
+                delegate, ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL), "channel", 0, metrics);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }

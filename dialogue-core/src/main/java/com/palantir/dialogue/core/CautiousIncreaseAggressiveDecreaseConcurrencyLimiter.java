@@ -50,6 +50,12 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
     private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
     private final AtomicInteger inFlight = new AtomicInteger();
 
+    private final Behavior behavior;
+
+    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior behavior) {
+        this.behavior = behavior;
+    }
+
     /**
      * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
@@ -76,7 +82,59 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         return Optional.empty();
     }
 
-    final class Permit implements FutureCallback<Response> {
+    enum Behavior {
+        HOST_LEVEL() {
+            @Override
+            void onSuccess(Response result, PermitControl control) {
+                if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))) {
+                    control.dropped();
+                } else if (Responses.isServerError(result) || Responses.isTooManyRequests(result)) {
+                    control.ignore();
+                } else {
+                    control.success();
+                }
+            }
+
+            @Override
+            void onFailure(Throwable throwable, PermitControl control) {
+                if (throwable instanceof IOException) {
+                    control.dropped();
+                } else {
+                    control.ignore();
+                }
+            }
+        },
+        ENDPOINT_LEVEL() {
+            @Override
+            void onSuccess(Response result, PermitControl control) {
+                if (Responses.isTooManyRequests(result) || Responses.isServerError(result)) {
+                    control.dropped();
+                } else {
+                    control.success();
+                }
+            }
+
+            @Override
+            void onFailure(Throwable _throwable, PermitControl control) {
+                control.ignore();
+            }
+        };
+
+        abstract void onSuccess(Response result, PermitControl control);
+
+        abstract void onFailure(Throwable throwable, PermitControl control);
+    }
+
+    interface PermitControl {
+
+        void ignore();
+
+        void dropped();
+
+        void success();
+    }
+
+    final class Permit implements PermitControl, FutureCallback<Response> {
         private final int inFlightSnapshot;
 
         Permit(int inFlightSnapshot) {
@@ -85,27 +143,20 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         @Override
         public void onSuccess(Response result) {
-            if (Responses.isQosStatus(result) || Responses.isServerError(result)) {
-                dropped();
-            } else {
-                success();
-            }
+            behavior.onSuccess(result, this);
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            if (throwable instanceof IOException) {
-                dropped();
-            } else {
-                ignore();
-            }
+            behavior.onFailure(throwable, this);
         }
 
         /**
          * Indicates that the effect of the request corresponding to this permit on concurrency limits should be
          * ignored.
          */
-        void ignore() {
+        @Override
+        public void ignore() {
             inFlight.decrementAndGet();
         }
 
@@ -113,7 +164,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
          * Indicates that the request corresponding to this permit was dropped and that the concurrency limit should be
          * multiplicatively decreased.
          */
-        void dropped() {
+        @Override
+        public void dropped() {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.DROPPED);
             if (log.isDebugEnabled()) {
@@ -125,7 +177,8 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
          * Indicates that the request corresponding to this permit was successful and that the concurrency limit should
          * be additively increased.
          */
-        void success() {
+        @Override
+        public void success() {
             inFlight.decrementAndGet();
             double newLimit = accumulateAndGetLimit(inFlightSnapshot, LimitUpdater.SUCCESS);
             if (log.isDebugEnabled()) {

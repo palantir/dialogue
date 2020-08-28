@@ -23,6 +23,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -45,12 +46,13 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
 
-    static LimitedChannel create(Config cf, Channel channel, int uriIndex) {
+    static LimitedChannel create(Config cf, Channel channel, int uriIndex, Behavior behavior) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
+                return new ConcurrencyLimitedChannel(
+                        channel, createLimiter(behavior), cf.channelName(), uriIndex, metrics);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return new ChannelToLimitedChannelAdapter(channel);
         }
@@ -94,8 +96,8 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 this);
     }
 
-    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter() {
-        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter();
+    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter(Behavior behavior) {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
     }
 
     @Override

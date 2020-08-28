@@ -23,13 +23,16 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.logsafe.Safe;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -127,12 +130,27 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
+                final int index = uriIndex;
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
                 channel = HostMetricsChannel.create(cf, channel, uri);
-                channel = new TraceEnrichingChannel(channel);
+                Channel tracingChannel = new TraceEnrichingChannel(channel);
+                channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED
+                        ? new ChannelToEndpointChannel(() -> {
+                            Config withoutMetrics = ImmutableConfig.builder()
+                                    .from(cf)
+                                    .rawConfig(ClientConfiguration.builder()
+                                            .from(cf.rawConfig())
+                                            .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
+                                            .build())
+                                    .build();
+                            LimitedChannel limited = ConcurrencyLimitedChannel.create(
+                                    withoutMetrics, tracingChannel, index, Behavior.ENDPOINT_LEVEL);
+                            return QueuedChannel.create(withoutMetrics, limited);
+                        })
+                        : tracingChannel;
                 perUriChannels.add(ConcurrencyLimitedChannel.create(
-                        cf, channel, cf.overrideSingleHostIndex().orElse(uriIndex)));
+                        cf, channel, cf.overrideSingleHostIndex().orElse(uriIndex), Behavior.HOST_LEVEL));
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 

@@ -21,6 +21,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import java.io.IOException;
 import java.util.Optional;
 import org.assertj.core.data.Percentage;
@@ -33,7 +34,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
     @BeforeEach
     public void before() {
-        limiter = new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter();
+        limiter = new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL);
     }
 
     @Test
