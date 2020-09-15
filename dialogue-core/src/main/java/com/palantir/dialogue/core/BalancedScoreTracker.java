@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -250,7 +251,9 @@ final class BalancedScoreTracker {
                     c -> c.computeScoreSnapshot().getScore(),
                     longStream -> {
                         long[] longs = longStream.toArray();
-                        if (log.isInfoEnabled() && longs.length > 1) {
+                        if (log.isInfoEnabled()
+                                && longs.length > 1
+                                && LongStream.of(longs).distinct().count() > 1) {
                             log.info(
                                     "Multiple ({}) objects contribute to the same gauge, taking the average "
                                             + "(beware this may be misleading) {} {}",
