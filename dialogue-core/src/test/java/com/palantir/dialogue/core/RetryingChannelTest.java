@@ -242,7 +242,7 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void retries_500s_when_method_is_safe_and_idempotent() throws Exception {
+    public void retries_500s_when_method_is_safe_and_idempotent_get() throws Exception {
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
                 .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
@@ -250,6 +250,26 @@ public class RetryingChannelTest {
         EndpointChannel retryer = new RetryingChannel(
                 channel,
                 TestEndpoint.GET,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(REQUEST);
+    }
+
+    @Test
+    public void retries_500s_when_method_is_safe_and_idempotent_put() throws Exception {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.PUT,
                 "my-channel",
                 3,
                 Duration.ZERO,

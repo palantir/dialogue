@@ -368,7 +368,7 @@ final class RetryingChannel implements EndpointChannel {
 
     /**
      * We are a bit more conservative than the definition of Safe and Idempotent in https://tools.ietf
-     * .org/html/rfc7231#section-4.2.1, as we're not sure whether developers have written non-idempotent PUT/DELETE
+     * .org/html/rfc7231#section-4.2.1, as we're not sure whether developers have written non-idempotent DELETE
      * endpoints.
      */
     private static boolean safeToRetry(HttpMethod httpMethod) {
@@ -376,8 +376,8 @@ final class RetryingChannel implements EndpointChannel {
             case GET:
             case HEAD:
             case OPTIONS:
-                return true;
             case PUT:
+                return true;
             case DELETE:
                 // in theory PUT and DELETE should be fine to retry too, we're just being conservative for now.
             case POST:
