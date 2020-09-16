@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Server errors resulting from PUT requests are retried
+  links:
+  - https://github.com/palantir/dialogue/pull/992
