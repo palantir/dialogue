@@ -125,6 +125,8 @@ final class SimulationServer implements Channel {
         private Simulation simulation;
         private ImmutableList<ServerHandler> handlers = ImmutableList.of();
 
+        private Builder() {}
+
         Builder serverName(String value) {
             serverName = value;
             return this;
