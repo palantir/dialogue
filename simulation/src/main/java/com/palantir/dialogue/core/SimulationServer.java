@@ -120,7 +120,7 @@ final class SimulationServer implements Channel {
         return serverName;
     }
 
-    public static class Builder {
+    public static final class Builder {
         private String serverName;
         private Simulation simulation;
         private ImmutableList<ServerHandler> handlers = ImmutableList.of();
