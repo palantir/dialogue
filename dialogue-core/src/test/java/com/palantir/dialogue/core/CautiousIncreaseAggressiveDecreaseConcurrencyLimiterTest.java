@@ -25,20 +25,20 @@ import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyL
 import java.io.IOException;
 import java.util.Optional;
 import org.assertj.core.data.Percentage;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
-    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
-
-    @BeforeEach
-    public void before() {
-        limiter = new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL);
+    private static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter(Behavior behavior) {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
     }
 
-    @Test
-    void acquire_returnsPermitssWhileInflightPermitLimitNotReached() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    void acquire_returnsPermitssWhileInflightPermitLimitNotReached(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
         for (int i = 0; i < max; ++i) {
@@ -55,8 +55,10 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.acquire()).isPresent();
     }
 
-    @Test
-    public void ignore_releasesPermit() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void ignore_releasesPermit(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
@@ -64,15 +66,19 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
-    @Test
-    public void ignore_doesNotChangeLimits() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void ignore_doesNotChangeLimits(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         limiter.acquire().get().ignore();
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
-    @Test
-    public void dropped_releasesPermit() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void dropped_releasesPermit(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
@@ -80,15 +86,19 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
-    @Test
-    public void dropped_reducesLimit() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void dropped_reducesLimit(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         limiter.acquire().get().dropped();
         assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
     }
 
-    @Test
-    public void success_releasesPermit() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void success_releasesPermit(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
         assertThat(limiter.getInflight()).isEqualTo(1);
@@ -96,8 +106,10 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getInflight()).isEqualTo(0);
     }
 
-    @Test
-    public void success_increasesLimitOnlyIfSufficientNumberOfRequestsAreInflight() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void success_increasesLimitOnlyIfSufficientNumberOfRequestsAreInflight(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         for (int i = 0; i < max * .9; ++i) {
             limiter.acquire().get();
@@ -108,8 +120,10 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getLimit()).isGreaterThan(max).isLessThanOrEqualTo(max + 1);
     }
 
-    @Test
-    public void onSuccess_releasesSuccessfully() {
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void onSuccess_releasesSuccessfully(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         Response response = mock(Response.class);
         when(response.code()).thenReturn(200);
 
@@ -119,19 +133,34 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
-    public void onSuccess_dropsIfResponseIndicatesQosOrError() {
-        for (int code : new int[] {308, 429, 503, 599}) {
+    public void onSuccess_dropsIfResponseIndicatesQosOrError_host() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        for (int code : new int[] {308, 503}) {
             Response response = mock(Response.class);
             when(response.code()).thenReturn(code);
 
             double max = limiter.getLimit();
             limiter.acquire().get().onSuccess(response);
-            assertThat(limiter.getLimit()).isCloseTo(max * 0.9, Percentage.withPercentage(5));
+            assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
         }
     }
 
     @Test
-    public void onFailure_dropsIfIoException() {
+    public void onSuccess_dropsIfResponseIndicatesQosOrError_endpoint() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        for (int code : new int[] {429, 599}) {
+            Response response = mock(Response.class);
+            when(response.code()).thenReturn(code);
+
+            double max = limiter.getLimit();
+            limiter.acquire().get().onSuccess(response);
+            assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
+        }
+    }
+
+    @Test
+    public void onFailure_dropsIfIoException_host() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
         IOException exception = new IOException();
 
         double max = limiter.getLimit();
@@ -140,7 +169,19 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
-    public void onFailure_ignoresForNonIoExceptions() {
+    public void onFailure_ignoresIfIoException_endpoint() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        IOException exception = new IOException();
+
+        double max = limiter.getLimit();
+        limiter.acquire().get().onFailure(exception);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void onFailure_ignoresForNonIoExceptions(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         RuntimeException exception = new RuntimeException();
 
         double max = limiter.getLimit();
