@@ -24,15 +24,14 @@ import com.palantir.dialogue.Response;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 final class ChannelToEndpointChannel implements Channel {
 
-    private final Function<Object, Channel> adapter;
+    private final Function<Endpoint, Channel> adapter;
     private final Map<Object, Channel> cache;
 
-    ChannelToEndpointChannel(Supplier<Channel> adapter) {
-        this.adapter = _key -> adapter.get();
+    ChannelToEndpointChannel(Function<Endpoint, Channel> adapter) {
+        this.adapter = adapter;
         this.cache = new ConcurrentHashMap<>();
     }
 
@@ -42,7 +41,7 @@ final class ChannelToEndpointChannel implements Channel {
     }
 
     private Channel channelFor(Endpoint endpoint) {
-        return cache.computeIfAbsent(key(endpoint), adapter);
+        return cache.computeIfAbsent(key(endpoint), _key -> adapter.apply(endpoint));
     }
 
     private static boolean isConstant(Endpoint endpoint) {

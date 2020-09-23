@@ -34,10 +34,18 @@ namespaces:
         type: counter
         tags: [channel-name]
         docs: Number of queued requests waiting to execute.
+      requests.endpoint.queued:
+        type: counter
+        tags: [channel-name, service-name, endpoint]
+        docs: Number of queued requests waiting to execute for a specific endpoint due to server QoS.
       request.queued.time:
         type: timer
         tags: [channel-name]
         docs: Time spent waiting in the queue before execution.
+      request.endpoint.queued.time:
+        type: timer
+        tags: [channel-name, service-name, endpoint]
+        docs: Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
       limited:
         type: meter
         tags: [channel-name, reason]

@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,7 +33,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
@@ -69,24 +69,44 @@ final class QueuedChannel implements Channel {
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
-    private final Counter queueSizeCounter;
+    private final Supplier<Counter> queueSizeCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
+    private volatile boolean queueUsed;
 
-    QueuedChannel(LimitedChannel delegate, String channelName, TaggedMetricRegistry metrics, int maxQueueSize) {
+    QueuedChannel(LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
-        this.queueSizeCounter = DialogueClientMetrics.of(metrics).requestsQueued(channelName);
-        this.queuedTime = DialogueClientMetrics.of(metrics).requestQueuedTime(channelName);
+        // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
+        // zero interactions because they support both increment and decrement operations.
+        this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
+        this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
-        return new QueuedChannel(delegate, cf.channelName(), cf.clientConf().taggedMetricRegistry(), cf.maxQueueSize());
+        return new QueuedChannel(
+                delegate,
+                cf.channelName(),
+                channelInstrumentation(
+                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
+                cf.maxQueueSize());
+    }
+
+    static QueuedChannel create(Config cf, Endpoint endpoint, LimitedChannel delegate) {
+        return new QueuedChannel(
+                delegate,
+                cf.channelName(),
+                endpointInstrumentation(
+                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()),
+                        cf.channelName(),
+                        endpoint.serviceName(),
+                        endpoint.endpointName()),
+                cf.maxQueueSize());
     }
 
     @Override
@@ -107,7 +127,9 @@ final class QueuedChannel implements Channel {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
                 // While the queue was avoid, this is equivalent to spending zero time on the queue.
-                queuedTime.update(0, TimeUnit.NANOSECONDS);
+                if (queueUsed) {
+                    queuedTime.update(0, TimeUnit.NANOSECONDS);
+                }
                 return maybeResult;
             }
         }
@@ -117,6 +139,8 @@ final class QueuedChannel implements Channel {
         if (queueSizeEstimate.get() >= maxQueueSize) {
             return Optional.empty();
         }
+
+        queueUsed = true;
 
         DeferredCall components = DeferredCall.builder()
                 .endpoint(endpoint)
@@ -167,13 +191,13 @@ final class QueuedChannel implements Channel {
     }
 
     private int incrementQueueSize() {
-        queueSizeCounter.inc();
+        queueSizeCounter.get().inc();
         return queueSizeEstimate.incrementAndGet();
     }
 
     private void decrementQueueSize() {
         queueSizeEstimate.decrementAndGet();
-        queueSizeCounter.dec();
+        queueSizeCounter.get().dec();
     }
 
     /**
@@ -314,5 +338,48 @@ final class QueuedChannel implements Channel {
         public int size() {
             throw new UnsupportedOperationException("size should never be called on a ConcurrentLinkedDeque");
         }
+    }
+
+    interface QueuedChannelInstrumentation {
+        Counter requestsQueued();
+
+        Timer requestQueuedTime();
+    }
+
+    static QueuedChannelInstrumentation channelInstrumentation(DialogueClientMetrics metrics, String channelName) {
+        return new QueuedChannelInstrumentation() {
+            @Override
+            public Counter requestsQueued() {
+                return metrics.requestsQueued(channelName);
+            }
+
+            @Override
+            public Timer requestQueuedTime() {
+                return metrics.requestQueuedTime(channelName);
+            }
+        };
+    }
+
+    static QueuedChannelInstrumentation endpointInstrumentation(
+            DialogueClientMetrics metrics, String channelName, String service, String endpoint) {
+        return new QueuedChannelInstrumentation() {
+            @Override
+            public Counter requestsQueued() {
+                return metrics.requestsEndpointQueued()
+                        .channelName(channelName)
+                        .serviceName(service)
+                        .endpoint(endpoint)
+                        .build();
+            }
+
+            @Override
+            public Timer requestQueuedTime() {
+                return metrics.requestEndpointQueuedTime()
+                        .channelName(channelName)
+                        .serviceName(service)
+                        .endpoint(endpoint)
+                        .build();
+            }
+        };
     }
 }

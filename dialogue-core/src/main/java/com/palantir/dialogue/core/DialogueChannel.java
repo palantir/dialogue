@@ -32,7 +32,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.logsafe.Safe;
-import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -136,17 +135,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel = new TraceEnrichingChannel(channel);
                 channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED
-                        ? new ChannelToEndpointChannel(() -> {
-                            Config withoutMetrics = ImmutableConfig.builder()
-                                    .from(cf)
-                                    .rawConfig(ClientConfiguration.builder()
-                                            .from(cf.rawConfig())
-                                            .taggedMetricRegistry(new DefaultTaggedMetricRegistry())
-                                            .build())
-                                    .build();
+                        ? new ChannelToEndpointChannel(endpoint -> {
                             LimitedChannel limited = ConcurrencyLimitedChannel.create(
-                                    withoutMetrics, tracingChannel, index, Behavior.ENDPOINT_LEVEL);
-                            return QueuedChannel.create(withoutMetrics, limited);
+                                    cf, tracingChannel, index, Behavior.ENDPOINT_LEVEL);
+                            return QueuedChannel.create(cf, endpoint, limited);
                         })
                         : tracingChannel;
                 perUriChannels.add(ConcurrencyLimitedChannel.create(
