@@ -23,12 +23,15 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
+import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
+import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -76,7 +79,10 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(delegate, mockLimiter, "channel", 0, metrics);
+        channel = new ConcurrencyLimitedChannel(
+                delegate,
+                mockLimiter,
+                new HostConcurrencyLimitedChannelInstrumentation("channel", 0, mockLimiter, metrics));
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
@@ -173,7 +179,9 @@ public class ConcurrencyLimitedChannelTest {
     @Test
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL), "channel", 0, metrics);
+                delegate,
+                ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL),
+                NopConcurrencyLimitedChannelInstrumentation.INSTANCE);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
@@ -214,5 +222,19 @@ public class ConcurrencyLimitedChannelTest {
                 .get()
                 .getValue();
         return metric.getValue();
+    }
+
+    enum NopConcurrencyLimitedChannelInstrumentation implements ConcurrencyLimitedChannelInstrumentation {
+        INSTANCE;
+
+        @Override
+        public Runnable onLimit() {
+            return Runnables.doNothing();
+        }
+
+        @Override
+        public String channelNameForLogging() {
+            return "nop";
+        }
     }
 }

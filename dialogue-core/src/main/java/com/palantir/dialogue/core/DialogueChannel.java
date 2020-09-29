@@ -30,7 +30,6 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -129,20 +128,24 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
-                final int index = uriIndex;
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel = new TraceEnrichingChannel(channel);
+                final int uriIndexForInstrumentation =
+                        cf.overrideSingleHostIndex().orElse(uriIndex);
                 channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED
                         ? new ChannelToEndpointChannel(endpoint -> {
-                            LimitedChannel limited = ConcurrencyLimitedChannel.create(
-                                    cf, tracingChannel, index, Behavior.ENDPOINT_LEVEL);
+                            LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
+                                    tracingChannel,
+                                    cf.channelName(),
+                                    uriIndexForInstrumentation,
+                                    endpoint,
+                                    cf.clientConf().clientQoS());
                             return QueuedChannel.create(cf, endpoint, limited);
                         })
                         : tracingChannel;
-                perUriChannels.add(ConcurrencyLimitedChannel.create(
-                        cf, channel, cf.overrideSingleHostIndex().orElse(uriIndex), Behavior.HOST_LEVEL));
+                perUriChannels.add(ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation));
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
