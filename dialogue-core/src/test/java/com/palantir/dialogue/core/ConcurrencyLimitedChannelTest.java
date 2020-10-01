@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Gauge;
-import com.google.common.util.concurrent.Runnables;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -226,11 +225,6 @@ public class ConcurrencyLimitedChannelTest {
 
     enum NopConcurrencyLimitedChannelInstrumentation implements ConcurrencyLimitedChannelInstrumentation {
         INSTANCE;
-
-        @Override
-        public Runnable onLimit() {
-            return Runnables.doNothing();
-        }
 
         @Override
         public String channelNameForLogging() {
