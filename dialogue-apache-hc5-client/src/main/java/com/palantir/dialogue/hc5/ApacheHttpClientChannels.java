@@ -67,6 +67,7 @@ import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
@@ -400,7 +401,7 @@ public final class ApacheHttpClientChannels {
                     .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
                     .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
                     .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
-                            DialogueConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
+                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
                     .build();
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
@@ -434,9 +435,7 @@ public final class ApacheHttpClientChannels {
                     .disableCookieManagement()
                     // Dialogue handles content-compression with ContentDecodingChannel
                     .disableContentCompression()
-                    // Replace with addExecInterceptorFirst once HTTPCLIENT-2083 is resolved
-                    // .addExecInterceptorFirst("tracing", TracingExecChainHandler.INSTANCE)
-                    .addExecInterceptorBefore("PROTOCOL", "tracing", TracingExecChainHandler.INSTANCE)
+                    .addExecInterceptorFirst("tracing", TracingExecChainHandler.INSTANCE)
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
