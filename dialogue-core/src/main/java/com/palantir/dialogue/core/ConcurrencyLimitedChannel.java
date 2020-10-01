@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.Runnables;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -45,7 +44,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
-    private final Runnable onLimit;
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
@@ -93,7 +91,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         this.delegate = new NeverThrowChannel(delegate);
         this.limiter = limiter;
         this.channelNameForLogging = instrumentation.channelNameForLogging();
-        this.onLimit = instrumentation.onLimit();
     }
 
     static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter(Behavior behavior) {
@@ -111,7 +108,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             return Optional.of(result);
         } else {
             logPermitRefused();
-            onLimit.run();
             return Optional.empty();
         }
     }
@@ -142,8 +138,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     interface ConcurrencyLimitedChannelInstrumentation {
 
-        Runnable onLimit();
-
         String channelNameForLogging();
     }
 
@@ -151,18 +145,12 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             implements ConcurrencyLimitedChannelInstrumentation {
 
         private final String channelNameForLogging;
-        private final Runnable onLimit;
 
         HostConcurrencyLimitedChannelInstrumentation(
                 String channelName,
                 int uriIndex,
                 CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
                 TaggedMetricRegistry taggedMetrics) {
-            onLimit = DialogueClientMetrics.of(taggedMetrics)
-                    .limited()
-                    .channelName(channelName)
-                    .reason(getClass().getSimpleName())
-                    .build()::mark;
             Preconditions.checkArgument(
                     uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
             channelNameForLogging = channelName + "{uriIndex=" + uriIndex + "}";
@@ -188,11 +176,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         }
 
         @Override
-        public Runnable onLimit() {
-            return onLimit;
-        }
-
-        @Override
         public String channelNameForLogging() {
             return channelNameForLogging;
         }
@@ -206,11 +189,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
         EndpointConcurrencyLimitedChannelInstrumentation(String channelName, int uriIndex, Endpoint endpoint) {
             channelNameForLogging = channelName + "{uriIndex=" + uriIndex + ", endpoint=" + endpoint.serviceName() + '.'
                     + endpoint.endpointName() + "}";
-        }
-
-        @Override
-        public Runnable onLimit() {
-            return Runnables.doNothing();
         }
 
         @Override
