@@ -86,10 +86,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         HOST_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))) {
-                    control.dropped();
-                } else if (Responses.isServerError(result) || Responses.isTooManyRequests(result)) {
+                if (Responses.isInternalServerError(result) || Responses.isTooManyRequests(result)) {
                     control.ignore();
+                } else if ((Responses.isQosStatus(result) && !Responses.isTooManyRequests(result))
+                        || Responses.isServerErrorRange(result)) {
+                    control.dropped();
                 } else {
                     control.success();
                 }
@@ -107,8 +108,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         ENDPOINT_LEVEL() {
             @Override
             void onSuccess(Response result, PermitControl control) {
-                if (Responses.isTooManyRequests(result) || Responses.isServerError(result)) {
+                if (Responses.isTooManyRequests(result) || Responses.isInternalServerError(result)) {
                     control.dropped();
+                } else if (Responses.isServerErrorRange(result)) {
+                    control.ignore();
                 } else {
                     control.success();
                 }

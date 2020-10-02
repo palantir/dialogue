@@ -65,23 +65,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
      * Creates a concurrency limited channel for per-endpoint limiting.
      * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
      */
-    static LimitedChannel createForEndpoint(
-            Channel channel,
-            String channelName,
-            int uriIndex,
-            Endpoint endpoint,
-            ClientConfiguration.ClientQoS clientQoS) {
-        switch (clientQoS) {
-            case ENABLED:
-                return new ConcurrencyLimitedChannel(
-                        channel,
-                        createLimiter(Behavior.ENDPOINT_LEVEL),
-                        new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
-            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return new ChannelToLimitedChannelAdapter(channel);
-        }
-        throw new SafeIllegalStateException(
-                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+    static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
+        return new ConcurrencyLimitedChannel(
+                channel,
+                createLimiter(Behavior.ENDPOINT_LEVEL),
+                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
     }
 
     ConcurrencyLimitedChannel(

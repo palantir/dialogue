@@ -44,10 +44,21 @@ final class ChannelToEndpointChannel implements Channel {
         return cache.computeIfAbsent(key(endpoint), _key -> adapter.apply(endpoint));
     }
 
+    /**
+     * Constant {@link Endpoint endpoints} may be safely used as cache keys, as opposed to dynamically created
+     * {@link Endpoint} objects which would result in a memory leak.
+     */
     private static boolean isConstant(Endpoint endpoint) {
+        // The conjure generator creates endpoints as enum values, which can safely be cached because they aren't
+        // dynamically created.
         return endpoint instanceof Enum;
     }
 
+    /**
+     * Creates a cache key for the given endpoint. Some consumers (CJR feign shim) may not use endpoint enums, so we
+     * cannot safely hold references to potentially short-lived objects. In such cases we use a string value based on
+     * the service-name endpoint-name tuple.
+     */
     private static Object key(Endpoint endpoint) {
         return isConstant(endpoint) ? endpoint : stringKey(endpoint);
     }

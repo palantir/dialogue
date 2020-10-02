@@ -36,8 +36,12 @@ final class Responses {
         return isRetryOther(response) || isTooManyRequests(response) || isUnavailable(response);
     }
 
-    static boolean isServerError(Response response) {
+    static boolean isServerErrorRange(Response response) {
         return response.code() / 100 == 5;
+    }
+
+    static boolean isInternalServerError(Response response) {
+        return response.code() == 500;
     }
 
     static boolean isClientError(Response response) {

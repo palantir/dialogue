@@ -137,11 +137,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED
                         ? new ChannelToEndpointChannel(endpoint -> {
                             LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
-                                    tracingChannel,
-                                    cf.channelName(),
-                                    uriIndexForInstrumentation,
-                                    endpoint,
-                                    cf.clientConf().clientQoS());
+                                    tracingChannel, cf.channelName(), uriIndexForInstrumentation, endpoint);
                             return QueuedChannel.create(cf, endpoint, limited);
                         })
                         : tracingChannel;

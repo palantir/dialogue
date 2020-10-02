@@ -148,14 +148,37 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @Test
     public void onSuccess_dropsIfResponseIndicatesQosOrError_endpoint() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
-        for (int code : new int[] {429, 599}) {
-            Response response = mock(Response.class);
-            when(response.code()).thenReturn(code);
+        int code = 429;
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(code);
 
-            double max = limiter.getLimit();
-            limiter.acquire().get().onSuccess(response);
-            assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
-        }
+        double max = limiter.getLimit();
+        limiter.acquire().get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
+    }
+
+    @Test
+    public void onSuccess_ignoresIfResponseIndicatesUnknownServerError_endpoint() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        int code = 599;
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(code);
+
+        double max = limiter.getLimit();
+        limiter.acquire().get().onSuccess(response);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
+    public void onSuccess_dropsIfResponseIndicatesUnknownServerError_host() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        int code = 599;
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(code);
+
+        double max = limiter.getLimit();
+        limiter.acquire().get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
     }
 
     @Test

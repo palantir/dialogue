@@ -151,7 +151,7 @@ final class BalancedScoreTracker {
         public void onSuccess(Response response) {
             inflight.decrementAndGet();
 
-            if (Responses.isQosStatus(response) || Responses.isServerError(response)) {
+            if (Responses.isQosStatus(response) || Responses.isServerErrorRange(response)) {
                 recentFailuresReservoir.update(FAILURE_WEIGHT);
                 observability.debugLogStatusFailure(response);
             } else if (Responses.isClientError(response)) {
