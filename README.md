@@ -143,14 +143,14 @@ permit becomes available.
 #### Host limits
 
 Each host has a concurrency limiter which protects servers by stopping requests getting out the door on the client-side.
-Permits are decreased after receiving any 308 or 503 response, or encounting a network error (`IOException`).
+Permits are decreased after receiving 308 or 501-599 response, or encounting a network error (`IOException`).
 Otherwise, they are increased.
 
 #### Endpoint limits
 
 Each endpoint has a concurrency limiter which is distinct for each host. This allows servers to provide backpressure with
 additional specificity in the form of 429 status QoS responses. Permits are decreased after
-receiving any 429 or 5xx (excluding 503) response code. Otherwise, they are increased.
+receiving a 429 or 500 response code. Otherwise, they are increased.
 
 ### Node selection strategies
 When configured with multiple uris, Dialogue has several strategies for choosing which upstream to route requests to.
