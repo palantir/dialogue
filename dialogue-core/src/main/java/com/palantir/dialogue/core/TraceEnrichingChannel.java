@@ -46,7 +46,10 @@ final class TraceEnrichingChannel implements Channel {
             // well save the CPU cycles of creating a DetachedSpan and just send the headers.
             return executeInternal(endpoint, request);
         }
+        return executeSampled(endpoint, request);
+    }
 
+    private ListenableFuture<Response> executeSampled(Endpoint endpoint, Request request) {
         DetachedSpan span = DetachedSpan.start(OPERATION);
         // n.b. This span is required to apply tracing thread state to an initial request. Otherwise if there is
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
