@@ -41,7 +41,7 @@ final class TraceEnrichingChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        if (Tracer.hasTraceId() && !Tracer.isTraceObservable()) {
+        if (Tracer.hasUnobservableTrace()) {
             // in the vast majority of cases, we're not actually sampling span information at all, so we might as
             // well save the CPU cycles of creating a DetachedSpan and just send the headers.
             return executeInternal(endpoint, request);

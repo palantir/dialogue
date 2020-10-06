@@ -48,10 +48,13 @@ final class TracedChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        if (Tracer.hasTraceId() && !Tracer.isTraceObservable()) {
+        if (Tracer.hasUnobservableTrace()) {
             return delegate.execute(request);
         }
+        return executeSampled(request);
+    }
 
+    private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
         ListenableFuture<Response> future = null;
         try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
