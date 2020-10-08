@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Upgrade tracing to take advantage of `Tracer.hasUnobservableTrace()`
+  links:
+  - https://github.com/palantir/dialogue/pull/1006

@@ -167,7 +167,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
         private final DetachedSpan span;
 
         static LeaseRequest wrap(LeaseRequest request) {
-            if (Tracer.hasTraceId() && Tracer.isTraceObservable()) {
+            if (!Tracer.hasUnobservableTrace()) {
                 return new TracedLeaseRequest(request, DetachedSpan.start("Dialogue ConnectionManager LeaseRequest"));
             }
             return request;
