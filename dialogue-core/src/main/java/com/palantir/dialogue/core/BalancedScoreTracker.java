@@ -151,10 +151,10 @@ final class BalancedScoreTracker {
         public void onSuccess(Response response) {
             inflight.decrementAndGet();
 
-            if (Responses.isQosStatus(response) || Responses.isServerErrorRange(response)) {
+            if (isGlobalQosStatus(response) || Responses.isServerErrorRange(response)) {
                 recentFailuresReservoir.update(FAILURE_WEIGHT);
                 observability.debugLogStatusFailure(response);
-            } else if (Responses.isClientError(response)) {
+            } else if (Responses.isClientError(response) || Responses.isQosStatus(response)) {
                 // We track 4xx responses because bugs in the server might cause one node to erroneously
                 // throw 401/403s when another node could actually return 200s. Empirically, healthy servers
                 // do actually return a continuous background rate of 4xx responses, so we weight these
@@ -162,6 +162,11 @@ final class BalancedScoreTracker {
                 recentFailuresReservoir.update(FAILURE_WEIGHT / 100);
                 observability.debugLogStatusFailure(response);
             }
+        }
+
+        /** 429 responses suggest an endpoint is overwhelmed, not necessarily the entire service. */
+        private static boolean isGlobalQosStatus(Response response) {
+            return Responses.isQosStatus(response) && !Responses.isTooManyRequests(response);
         }
 
         public int channelIndex() {
