@@ -76,8 +76,8 @@ public final class Benchmark {
         return new Benchmark();
     }
 
-    public Benchmark requestsPerSecond(int rps) {
-        delayBetweenRequests = Duration.ofSeconds(1).dividedBy(rps);
+    public Benchmark requestsPerSecond(double rps) {
+        delayBetweenRequests = Duration.ofNanos((long) (1_000_000_000D / rps));
         return this;
     }
 

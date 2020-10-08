@@ -502,7 +502,7 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits(Strategy strategy) {
-        double totalRateLimit = 100;
+        double totalRateLimit = .1;
         int numServers = 4;
         int numClients = 2;
         double perServerRateLimit = totalRateLimit / numServers;
@@ -521,7 +521,7 @@ final class SimulationTest {
                     return SimulationServer.builder()
                             .serverName("node" + i)
                             .simulation(simulation)
-                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofMillis(200)))
+                            .handler(h -> h.response(responseFunc).responseTime(Duration.ofSeconds(200)))
                             .build();
                 })
                 .toArray(SimulationServer[]::new));
@@ -529,10 +529,10 @@ final class SimulationTest {
         st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
-                .requestsPerSecond((int) totalRateLimit)
-                .sendUntil(Duration.ofMinutes(25))
+                .requestsPerSecond(totalRateLimit)
+                .sendUntil(Duration.ofMinutes(25_000))
                 .clients(numClients, _i -> strategy.getChannel(simulation, servers))
-                .abortAfter(Duration.ofHours(1))
+                .abortAfter(Duration.ofHours(1_000))
                 .run();
     }
 
