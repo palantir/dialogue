@@ -34,14 +34,18 @@ namespaces:
         type: counter
         tags: [channel-name]
         docs: Number of queued requests waiting to execute.
+      requests.endpoint.queued:
+        type: counter
+        tags: [channel-name, service-name, endpoint]
+        docs: Number of queued requests waiting to execute for a specific endpoint due to server QoS.
       request.queued.time:
         type: timer
         tags: [channel-name]
         docs: Time spent waiting in the queue before execution.
-      limited:
-        type: meter
-        tags: [channel-name, reason]
-        docs: Rate that client-side requests are deferred to be retried later.
+      request.endpoint.queued.time:
+        type: timer
+        tags: [channel-name, service-name, endpoint]
+        docs: Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
       # Note: the 'dialogure.client.create' metric is also used defined in the apache metrics.
       create:
         type: meter

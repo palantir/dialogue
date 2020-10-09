@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: 429 applies to endpoints, not entire hosts. The per-host queue and
+    concurrency limiter drains into a per-endpoint queue and concurrency limiter allowing
+    429 impact to be isolated to the endpoint that caused it.
+  links:
+  - https://github.com/palantir/dialogue/pull/993

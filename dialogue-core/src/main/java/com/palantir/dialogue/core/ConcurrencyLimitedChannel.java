@@ -16,13 +16,13 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Meter;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -41,16 +41,19 @@ import org.slf4j.LoggerFactory;
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
 
-    private final Meter limitedMeter;
     private final NeverThrowChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
+    private final String channelNameForLogging;
 
-    static LimitedChannel create(Config cf, Channel channel, int uriIndex) {
+    static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:
                 TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-                return new ConcurrencyLimitedChannel(channel, createLimiter(), cf.channelName(), uriIndex, metrics);
+                CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = createLimiter(Behavior.HOST_LEVEL);
+                ConcurrencyLimitedChannelInstrumentation instrumentation =
+                        new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
+                return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
             case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
                 return new ChannelToLimitedChannelAdapter(channel);
         }
@@ -58,44 +61,28 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
     }
 
+    /**
+     * Creates a concurrency limited channel for per-endpoint limiting.
+     * Metrics are not reported by this component per-endpoint, only by the per-endpoint queue.
+     */
+    static LimitedChannel createForEndpoint(Channel channel, String channelName, int uriIndex, Endpoint endpoint) {
+        return new ConcurrencyLimitedChannel(
+                channel,
+                createLimiter(Behavior.ENDPOINT_LEVEL),
+                new EndpointConcurrencyLimitedChannelInstrumentation(channelName, uriIndex, endpoint));
+    }
+
     ConcurrencyLimitedChannel(
             Channel delegate,
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
-            String channelName,
-            int uriIndex,
-            TaggedMetricRegistry taggedMetrics) {
+            ConcurrencyLimitedChannelInstrumentation instrumentation) {
         this.delegate = new NeverThrowChannel(delegate);
-        this.limitedMeter = DialogueClientMetrics.of(taggedMetrics)
-                .limited()
-                .channelName(channelName)
-                .reason(getClass().getSimpleName())
-                .build();
         this.limiter = limiter;
-        Preconditions.checkArgument(
-                uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
-        DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
-        DialogueInternalWeakReducingGauge.getOrCreateDouble(
-                taggedMetrics,
-                metrics.max()
-                        .channelName(channelName)
-                        .hostIndex(Integer.toString(uriIndex))
-                        .buildMetricName(),
-                ConcurrencyLimitedChannel::getMax,
-                doubleStream -> doubleStream.min().orElse(0D),
-                this);
-        DialogueInternalWeakReducingGauge.getOrCreate(
-                taggedMetrics,
-                metrics.inFlight()
-                        .channelName(channelName)
-                        .hostIndex(Integer.toString(uriIndex))
-                        .buildMetricName(),
-                concurrencyLimitedChannel -> concurrencyLimitedChannel.limiter.getInflight(),
-                LongStream::sum,
-                this);
+        this.channelNameForLogging = instrumentation.channelNameForLogging();
     }
 
-    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter() {
-        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter();
+    static CautiousIncreaseAggressiveDecreaseConcurrencyLimiter createLimiter(Behavior behavior) {
+        return new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(behavior);
     }
 
     @Override
@@ -109,7 +96,6 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
             return Optional.of(result);
         } else {
             logPermitRefused();
-            limitedMeter.mark();
             return Optional.empty();
         }
     }
@@ -117,24 +103,85 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private void logPermitAcquired() {
         if (log.isDebugEnabled()) {
             log.debug(
-                    "Sending {}/{}",
+                    "Sending {}/{} on {}",
                     SafeArg.of("inflight", limiter.getInflight()),
-                    SafeArg.of("max", limiter.getLimit()));
+                    SafeArg.of("max", limiter.getLimit()),
+                    SafeArg.of("channel", channelNameForLogging));
         }
     }
 
     private void logPermitRefused() {
         if (log.isDebugEnabled()) {
-            log.debug("Limited {}", SafeArg.of("max", limiter.getLimit()));
+            log.debug(
+                    "Limited {} on {}",
+                    SafeArg.of("max", limiter.getLimit()),
+                    SafeArg.of("channel", channelNameForLogging));
         }
     }
 
     @Override
     public String toString() {
-        return "ConcurrencyLimitedChannel{" + delegate + '}';
+        return "ConcurrencyLimitedChannel{delegate=" + delegate + ", name=" + channelNameForLogging + '}';
     }
 
-    private double getMax() {
-        return limiter.getLimit();
+    interface ConcurrencyLimitedChannelInstrumentation {
+
+        String channelNameForLogging();
+    }
+
+    static final class HostConcurrencyLimitedChannelInstrumentation
+            implements ConcurrencyLimitedChannelInstrumentation {
+
+        private final String channelNameForLogging;
+
+        HostConcurrencyLimitedChannelInstrumentation(
+                String channelName,
+                int uriIndex,
+                CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
+                TaggedMetricRegistry taggedMetrics) {
+            Preconditions.checkArgument(
+                    uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
+            channelNameForLogging = channelName + "{uriIndex=" + uriIndex + "}";
+            DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
+            DialogueInternalWeakReducingGauge.getOrCreateDouble(
+                    taggedMetrics,
+                    metrics.max()
+                            .channelName(channelName)
+                            .hostIndex(Integer.toString(uriIndex))
+                            .buildMetricName(),
+                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter::getLimit,
+                    doubleStream -> doubleStream.min().orElse(0D),
+                    limiter);
+            DialogueInternalWeakReducingGauge.getOrCreate(
+                    taggedMetrics,
+                    metrics.inFlight()
+                            .channelName(channelName)
+                            .hostIndex(Integer.toString(uriIndex))
+                            .buildMetricName(),
+                    CautiousIncreaseAggressiveDecreaseConcurrencyLimiter::getInflight,
+                    LongStream::sum,
+                    limiter);
+        }
+
+        @Override
+        public String channelNameForLogging() {
+            return channelNameForLogging;
+        }
+    }
+
+    static final class EndpointConcurrencyLimitedChannelInstrumentation
+            implements ConcurrencyLimitedChannelInstrumentation {
+
+        private final String channelNameForLogging;
+
+        EndpointConcurrencyLimitedChannelInstrumentation(String channelName, int uriIndex, Endpoint endpoint) {
+            channelNameForLogging = channelName + "{uriIndex=" + uriIndex + ", endpoint=" + endpoint.serviceName() + '.'
+                    + endpoint.endpointName() + "}";
+        }
+
+        @Override
+        public String channelNameForLogging() {
+            return channelNameForLogging;
+        }
     }
 }

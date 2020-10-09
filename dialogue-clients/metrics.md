@@ -35,8 +35,9 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
 - `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
+- `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `service-name`, `endpoint` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
-- `dialogue.client.limited` tagged `channel-name`, `reason` (meter): Rate that client-side requests are deferred to be retried later.
+- `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `service-name`, `endpoint` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 
 ### dialogue.concurrencylimiter

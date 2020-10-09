@@ -51,6 +51,8 @@ class StickyEndpointChannelsTest {
             () -> Futures.immediateFuture(new TestResponse().code(204));
     private final Supplier<ListenableFuture<Response>> immediate429 =
             () -> Futures.immediateFuture(new TestResponse().code(429));
+    private final Supplier<ListenableFuture<Response>> immediate503 =
+            () -> Futures.immediateFuture(new TestResponse().code(503));
 
     private StickyEndpointChannels.Builder builder() {
         return StickyEndpointChannels.builder()
@@ -94,6 +96,37 @@ class StickyEndpointChannelsTest {
     }
 
     @Test
+    void sticky_channel_stays_put_despite_503s() {
+        StickyEndpointChannels channels = builder()
+                .channels(ImmutableList.of(
+                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate503)))
+                .build();
+
+        SampleServiceAsync async1 = SampleServiceAsync.of(channels.get(), runtime);
+        async1.voidToVoid();
+        async1.getMyAlias();
+        async1.getOptionalBinary();
+
+        assertThat(responses)
+                .describedAs("We chose channel [three] randomly, and stay pinned so that a transaction has the best "
+                        + "chance of completing")
+                .containsExactly("[three] 503", "[three] 503", "[three] 503");
+        requests.clear();
+
+        for (int i = 0; i < 200; i++) {
+            SampleServiceAsync async = SampleServiceAsync.of(channels.get(), runtime);
+            async.voidToVoid();
+            async.getMyAlias();
+            async.getOptionalBinary();
+        }
+
+        assertThat(requests)
+                .describedAs("The BalancedScoreTracker understands that channel [three] is "
+                        + "bad (returning 503s), so 200 more 'transactions' are routed to [one] or [two]")
+                .allSatisfy(string -> assertThat(string).doesNotContain("[three]"));
+    }
+
+    @Test
     void sticky_channel_stays_put_despite_429s() {
         StickyEndpointChannels channels = builder()
                 .channels(ImmutableList.of(
@@ -111,7 +144,7 @@ class StickyEndpointChannelsTest {
                 .containsExactly("[three] 429", "[three] 429", "[three] 429");
         requests.clear();
 
-        for (int i = 0; i < 200; i++) {
+        for (int i = 0; i < 2; i++) {
             SampleServiceAsync async = SampleServiceAsync.of(channels.get(), runtime);
             async.voidToVoid();
             async.getMyAlias();
@@ -120,7 +153,7 @@ class StickyEndpointChannelsTest {
 
         assertThat(requests)
                 .describedAs("The BalancedScoreTracker understands that channel [three] is "
-                        + "bad (returning 429s), so 200 more 'transactions' are routed to [one] or [two]")
+                        + "bad (returning 503s), so 200 more 'transactions' are routed to [one] or [two]")
                 .allSatisfy(string -> assertThat(string).doesNotContain("[three]"));
     }
 

@@ -28,6 +28,9 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
+import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -55,8 +58,16 @@ public class ConcurrencyLimitedChannelTest {
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter mockLimiter;
 
     @Spy
-    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit =
-            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter().acquire().get();
+    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit hostPermit =
+            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL)
+                    .acquire()
+                    .get();
+
+    @Spy
+    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit endpointPermit =
+            new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL)
+                    .acquire()
+                    .get();
 
     @Mock
     private Response response;
@@ -67,60 +78,109 @@ public class ConcurrencyLimitedChannelTest {
 
     @BeforeEach
     public void before() {
-        channel = new ConcurrencyLimitedChannel(delegate, mockLimiter, "channel", 0, metrics);
+        channel = new ConcurrencyLimitedChannel(
+                delegate,
+                mockLimiter,
+                new HostConcurrencyLimitedChannelInstrumentation("channel", 0, mockLimiter, metrics));
 
         responseFuture = SettableFuture.create();
         lenient().when(delegate.execute(endpoint, request)).thenReturn(responseFuture);
     }
 
     @Test
-    public void testLimiterAvailable_successfulRequest() {
-        mockLimitAvailable();
+    public void testLimiterAvailable_successfulRequest_host() {
+        mockHostLimitAvailable();
         mockResponseCode(200);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(permit).success();
+        verify(hostPermit).success();
     }
 
     @Test
-    public void testLimiterAvailable_429isDropped() {
-        mockLimitAvailable();
+    public void testLimiterAvailable_successfulRequest_endpoint() {
+        mockEndpointLimitAvailable();
+        mockResponseCode(200);
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        verify(endpointPermit).success();
+    }
+
+    @Test
+    public void testLimiterAvailable_429isDropped_endpoint() {
+        mockEndpointLimitAvailable();
         mockResponseCode(429);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(permit).dropped();
+        verify(endpointPermit).dropped();
     }
 
     @Test
-    public void testLimiterAvailable_runtimeExceptionIsIgnored() {
-        mockLimitAvailable();
+    public void testLimiterAvailable_429isIgnored_host() {
+        mockHostLimitAvailable();
+        mockResponseCode(429);
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        verify(hostPermit).ignore();
+    }
+
+    @Test
+    public void testLimiterAvailable_runtimeExceptionIsIgnored_host() {
+        mockHostLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(permit).ignore();
+        verify(hostPermit).ignore();
     }
 
     @Test
-    public void testLimiterAvailable_ioExceptionIsDropped() {
-        mockLimitAvailable();
+    public void testLimiterAvailable_runtimeExceptionIsIgnored_endpoint() {
+        mockEndpointLimitAvailable();
+        responseFuture.setException(new IllegalStateException());
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        verify(endpointPermit).ignore();
+    }
+
+    @Test
+    public void testLimiterAvailable_ioExceptionIsDropped_host() {
+        mockHostLimitAvailable();
         responseFuture.setException(new SafeIoException("failure"));
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
-        verify(permit).dropped();
+        verify(hostPermit).dropped();
     }
 
     @Test
-    public void testUnavailable() {
-        mockLimitUnavailable();
+    public void testLimiterAvailable_ioExceptionIsIgnored_endpoint() {
+        mockEndpointLimitAvailable();
+        responseFuture.setException(new SafeIoException("failure"));
+
+        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        verify(endpointPermit).ignore();
+    }
+
+    @Test
+    public void testUnavailable_host() {
+        mockHostLimitUnavailable();
 
         assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
-        verifyNoMoreInteractions(permit);
+        verifyNoMoreInteractions(hostPermit);
+    }
+
+    @Test
+    public void testUnavailable_endpoint() {
+        mockEndpointLimitUnavailable();
+
+        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        verifyNoMoreInteractions(endpointPermit);
     }
 
     @Test
     public void testWithDefaultLimiter() {
         channel = new ConcurrencyLimitedChannel(
-                delegate, ConcurrencyLimitedChannel.createLimiter(), "channel", 0, metrics);
+                delegate,
+                ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL),
+                NopConcurrencyLimitedChannelInstrumentation.INSTANCE);
 
         assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
     }
@@ -137,11 +197,19 @@ public class ConcurrencyLimitedChannelTest {
         responseFuture.set(response);
     }
 
-    private void mockLimitAvailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.of(permit));
+    private void mockHostLimitAvailable() {
+        when(mockLimiter.acquire()).thenReturn(Optional.of(hostPermit));
     }
 
-    private void mockLimitUnavailable() {
+    private void mockHostLimitUnavailable() {
+        when(mockLimiter.acquire()).thenReturn(Optional.empty());
+    }
+
+    private void mockEndpointLimitAvailable() {
+        when(mockLimiter.acquire()).thenReturn(Optional.of(endpointPermit));
+    }
+
+    private void mockEndpointLimitUnavailable() {
         when(mockLimiter.acquire()).thenReturn(Optional.empty());
     }
 
@@ -153,5 +221,14 @@ public class ConcurrencyLimitedChannelTest {
                 .get()
                 .getValue();
         return metric.getValue();
+    }
+
+    enum NopConcurrencyLimitedChannelInstrumentation implements ConcurrencyLimitedChannelInstrumentation {
+        INSTANCE;
+
+        @Override
+        public String channelNameForLogging() {
+            return "nop";
+        }
     }
 }
