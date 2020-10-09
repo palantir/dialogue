@@ -72,7 +72,9 @@ final class QueuedChannel implements Channel {
     private final Supplier<Counter> queueSizeCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
-    private volatile boolean queueUsed;
+    // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
+    // avoid creating unnecessary data.
+    private volatile boolean shouldRecordQueueMetrics;
 
     QueuedChannel(LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
@@ -127,7 +129,7 @@ final class QueuedChannel implements Channel {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
                 // While the queue was avoid, this is equivalent to spending zero time on the queue.
-                if (queueUsed) {
+                if (shouldRecordQueueMetrics) {
                     queuedTime.update(0, TimeUnit.NANOSECONDS);
                 }
                 return maybeResult;
@@ -140,7 +142,7 @@ final class QueuedChannel implements Channel {
             return Optional.empty();
         }
 
-        queueUsed = true;
+        shouldRecordQueueMetrics = true;
 
         DeferredCall components = DeferredCall.builder()
                 .endpoint(endpoint)
