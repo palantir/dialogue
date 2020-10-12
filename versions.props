@@ -1,4 +1,4 @@
-com.github.ben-manes.caffeine:caffeine = 2.8.5
+com.github.ben-manes.caffeine:caffeine = 2.8.6
 com.google.code.findbugs:jsr305 = 3.0.2
 com.google.guava:guava = 29.0-jre
 com.palantir.conjure:conjure = 4.10.1
@@ -19,7 +19,7 @@ org.immutables:* = 2.8.8
 org.slf4j:* = 1.7.30
 
 # test deps
-junit:junit = 4.13
+junit:junit = 4.13.1
 org.junit.jupiter:* = 5.7.0
 org.apache.logging.log4j:* = 2.13.3
 org.assertj:assertj-core = 3.17.2
@@ -34,7 +34,7 @@ org.knowm.xchart:xchart = 3.6.1
 com.palantir.conjure.verification:* = 0.18.5
 io.undertow:undertow-core = 2.2.2.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
-org.openjdk.jmh:* = 1.25.2
+org.openjdk.jmh:* = 1.26
 
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
