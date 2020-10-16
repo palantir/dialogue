@@ -47,21 +47,42 @@ class ReloadingClientFactoryTest {
     EndpointChannel endpointChannel;
 
     @Test
-    void plain_codegen_uses_the_EndpointChannelFactory() {
+    void plain_codegen_uses_the_EndpointChannelFactory_channel() {
         when(channel.endpoint(any())).thenReturn(endpointChannel);
 
-        SampleServiceBlocking.of(channel, runtime);
+        SampleServiceBlocking.of((Channel) channel, runtime);
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
     }
 
     @Test
-    void live_reloading_wrapper_still_uses_the_EndpointChannelFactory() {
+    void plain_codegen_uses_the_EndpointChannelFactory_factory() {
+        when(channel.endpoint(any())).thenReturn(endpointChannel);
+
+        SampleServiceBlocking.of((EndpointChannelFactory) channel, runtime);
+
+        // ensure we use the bind method
+        verify(channel, atLeastOnce()).endpoint(any());
+    }
+
+    @Test
+    void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_channel() {
         when(channel.endpoint(any())).thenReturn(endpointChannel);
 
         LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), runtime.clients());
-        SampleServiceBlocking.of(live, runtime);
+        SampleServiceBlocking.of((Channel) live, runtime);
+
+        // ensure we use the bind method
+        verify(channel, atLeastOnce()).endpoint(any());
+    }
+
+    @Test
+    void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_factory() {
+        when(channel.endpoint(any())).thenReturn(endpointChannel);
+
+        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), runtime.clients());
+        SampleServiceBlocking.of((EndpointChannelFactory) live, runtime);
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
