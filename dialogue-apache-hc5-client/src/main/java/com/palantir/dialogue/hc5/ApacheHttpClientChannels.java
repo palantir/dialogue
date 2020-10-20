@@ -367,7 +367,7 @@ public final class ApacheHttpClientChannels {
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
             Preconditions.checkArgument(!conf.meshProxy().isPresent(), "Mesh proxy is not supported");
 
-            Timeout socketTimeout = getSocketTimeout(conf);
+            Timeout socketTimeout = getSocketTimeout(conf, name);
 
             Timeout connectTimeout = Timeout.ofMilliseconds(
                     Ints.checkedCast(conf.connectTimeout().toMillis()));
@@ -455,18 +455,22 @@ public final class ApacheHttpClientChannels {
         }
     }
 
-    private static Timeout getSocketTimeout(ClientConfiguration conf) {
+    private static Timeout getSocketTimeout(ClientConfiguration conf, String clientName) {
         long socketTimeoutMillis = conf.readTimeout().toMillis();
         if (conf.readTimeout().toMillis() != conf.writeTimeout().toMillis()) {
             log.warn(
                     "Read and write timeouts do not match, The value of the readTimeout {} will be used and write "
-                            + "timeout {} will be ignored.",
+                            + "timeout {} will be ignored. Client: {}",
                     SafeArg.of("readTimeout", conf.readTimeout()),
-                    SafeArg.of("writeTimeout", conf.writeTimeout()));
+                    SafeArg.of("writeTimeout", conf.writeTimeout()),
+                    SafeArg.of("client", clientName));
         }
         if (socketTimeoutMillis == 0) {
             // https://issues.apache.org/jira/browse/HTTPCLIENT-2099
-            log.debug("Working around HTTPCLIENT-2099 by using a 1 day socket timeout instead of zero (unlimited)");
+            log.debug(
+                    "Working around HTTPCLIENT-2099 by using a 1 day socket "
+                            + "timeout instead of zero (unlimited). Client: {}",
+                    SafeArg.of("client", clientName));
             socketTimeoutMillis = Duration.ofDays(1).toMillis();
         }
         return Timeout.ofMilliseconds(socketTimeoutMillis);
