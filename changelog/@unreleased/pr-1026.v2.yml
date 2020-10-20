@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Socket timeout config validation warnings include the client name
+  links:
+  - https://github.com/palantir/dialogue/pull/1026
