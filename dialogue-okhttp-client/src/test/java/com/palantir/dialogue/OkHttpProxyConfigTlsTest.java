@@ -15,11 +15,20 @@
  */
 package com.palantir.dialogue;
 
+import static org.assertj.core.api.Assumptions.assumeThat;
+
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import org.junit.jupiter.api.Test;
 
 public final class OkHttpProxyConfigTlsTest extends AbstractProxyConfigTlsTest {
     @Override
     protected Channel create(ClientConfiguration config) {
         return OkHttpChannels.create(config);
+    }
+
+    @Test
+    @Override
+    public void testAuthenticatedProxy_ntlmAuth() {
+        assumeThat(false).as("OkHttp does not support ntlm").isTrue();
     }
 }

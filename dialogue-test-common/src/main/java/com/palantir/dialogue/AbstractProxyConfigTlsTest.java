@@ -42,6 +42,7 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.net.ssl.SSLContext;
 import org.junit.jupiter.api.AfterEach;
@@ -149,7 +150,7 @@ public abstract class AbstractProxyConfigTlsTest {
     }
 
     @Test
-    public void testAuthenticatedProxy() throws Exception {
+    public void testAuthenticatedProxy_basicAuth() throws Exception {
         AtomicInteger requestIndex = new AtomicInteger();
         proxyHandler = exchange -> {
             HeaderMap requestHeaders = exchange.getRequestHeaders();
@@ -190,6 +191,58 @@ public abstract class AbstractProxyConfigTlsTest {
             assertThat(response.code()).isEqualTo(200);
             assertThat(response.body()).hasContent("proxyServer");
         }
+    }
+
+    @Test
+    public void testAuthenticatedProxy_ntlmAuth() throws Exception {
+        AtomicInteger requestIndex = new AtomicInteger();
+        List<String> requests = new CopyOnWriteArrayList<>();
+        proxyHandler = exchange -> {
+            HeaderMap requestHeaders = exchange.getRequestHeaders();
+            HeaderMap responseHeaders = exchange.getResponseHeaders();
+            requestIndex.getAndIncrement();
+            String proxyAuthRequestHeader = requestHeaders.getFirst(Headers.PROXY_AUTHORIZATION);
+            if (proxyAuthRequestHeader == null) {
+                requests.add("no-proxy-auth");
+                responseHeaders.put(Headers.PROXY_AUTHENTICATE, "NTLM");
+                exchange.setStatusCode(407); // indicates authenticated proxy
+            } else if (proxyAuthRequestHeader.startsWith("NTLM TlRMTVNTUAA")) {
+                String maybeLastProxyAuthRequest = requests.get(requests.size() - 1);
+                requests.add(proxyAuthRequestHeader);
+                if (maybeLastProxyAuthRequest.startsWith("NTLM TlRMTVNTUAA")
+                        && maybeLastProxyAuthRequest.length() < proxyAuthRequestHeader.length()) {
+                    new ConnectHandler(ResponseCodeHandler.HANDLE_500).handleRequest(exchange);
+                } else {
+                    exchange.setStatusCode(407);
+                    responseHeaders.put(
+                            Headers.PROXY_AUTHENTICATE,
+                            "NTLM TlRMTVNTUAACAAAADAAMADgAAAAzggLiASNFZ4mrze"
+                                    + "8AAAAAAAAAAAAAAAAAAAAABgBwFwAAAA9TAGUAcgB2AGUAcgA=");
+                }
+            } else {
+                exchange.setStatusCode(500);
+            }
+        };
+        serverHandler = new BlockingHandler(exchange -> {
+            String requestBody = new String(ByteStreams.toByteArray(exchange.getInputStream()), StandardCharsets.UTF_8);
+            assertThat(requestBody).isEqualTo(REQUEST_BODY);
+            exchange.getResponseSender().send("body");
+        });
+
+        ClientConfiguration proxiedConfig = ClientConfiguration.builder()
+                .from(TestConfigurations.create("https://localhost:" + serverPort))
+                .maxNumRetries(0)
+                .proxy(createProxySelector("localhost", proxyPort))
+                .proxyCredentials(BasicCredentials.of("fakeUser@fake.com", "fake:Password"))
+                .build();
+        Channel proxiedChannel = create(proxiedConfig);
+
+        try (Response response =
+                proxiedChannel.execute(TestEndpoint.POST, request).get()) {
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body()).hasContent("body");
+        }
+        assertThat(requests).hasSize(3);
     }
 
     private static ProxySelector createProxySelector(String host, int port) {
