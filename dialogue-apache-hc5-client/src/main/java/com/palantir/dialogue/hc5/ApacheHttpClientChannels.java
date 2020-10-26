@@ -158,6 +158,7 @@ public final class ApacheHttpClientChannels {
         private final CloseableHttpClient apacheClient;
         private final PoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
+        private final ClientConfiguration clientConfiguration;
 
         @Nullable
         private final ExecutorService executor;
@@ -169,18 +170,19 @@ public final class ApacheHttpClientChannels {
                 @Safe String clientName,
                 PoolingHttpClientConnectionManager pool,
                 ScheduledFuture<?> connectionEvictorFuture,
-                TaggedMetricRegistry taggedMetrics,
                 ResponseLeakDetector leakDetector,
-                @Nullable ExecutorService executor) {
+                @Nullable ExecutorService executor,
+                ClientConfiguration clientConfiguration) {
             this.clientName = clientName;
             this.apacheClient = apacheClient;
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
+            this.clientConfiguration = clientConfiguration;
             closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
             closer.register(pool::close);
-            closer.register(DialogueClientMetrics.of(taggedMetrics)
+            closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
                     .close()
                     .clientName(clientName)
                     .clientType(CLIENT_TYPE)
@@ -201,9 +203,9 @@ public final class ApacheHttpClientChannels {
                     clientName,
                     pool,
                     connectionEvictorFuture,
-                    clientConfiguration.taggedMetricRegistry(),
                     leakDetector,
-                    executor);
+                    executor,
+                    clientConfiguration);
             log.info(
                     "Created Apache client {} {} {} {}",
                     SafeArg.of("name", clientName),
@@ -221,6 +223,14 @@ public final class ApacheHttpClientChannels {
 
         CloseableHttpClient apacheClient() {
             return apacheClient;
+        }
+
+        ClientConfiguration clientConfiguration() {
+            return clientConfiguration;
+        }
+
+        String name() {
+            return clientName;
         }
 
         @Override

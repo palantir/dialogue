@@ -16,10 +16,12 @@
 
 package com.palantir.dialogue.hc5;
 
-import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.exceptions.SafeExceptions;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -30,8 +32,16 @@ import java.util.List;
 final class SafeConnectTimeoutException extends IOException implements SafeLoggable {
     private static final String MESSAGE = "Connect timed out";
 
+    private final List<Arg<?>> arguments;
+
     SafeConnectTimeoutException(org.apache.hc.client5.http.ConnectTimeoutException cause) {
         super(MESSAGE, cause);
+        this.arguments = Collections.emptyList();
+    }
+
+    SafeConnectTimeoutException(org.apache.hc.client5.http.ConnectTimeoutException cause, Arg<?>... args) {
+        super(SafeExceptions.renderMessage(MESSAGE, args), cause);
+        this.arguments = Collections.unmodifiableList(Arrays.asList(args));
     }
 
     @Override
@@ -41,6 +51,6 @@ final class SafeConnectTimeoutException extends IOException implements SafeLogga
 
     @Override
     public List<Arg<?>> getArgs() {
-        return ImmutableList.of();
+        return arguments;
     }
 }
