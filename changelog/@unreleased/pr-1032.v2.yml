@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: SafeConnectTimeoutException includes additional safe data including
+    the duration of the call, the configured connect timeout, and the client name.
+  links:
+  - https://github.com/palantir/dialogue/pull/1032
