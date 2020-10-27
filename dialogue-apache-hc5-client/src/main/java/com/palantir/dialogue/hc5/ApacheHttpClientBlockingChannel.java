@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
@@ -88,6 +89,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         } else if (requiresEmptyBody(endpoint)) {
             builder.setEntity(EmptyHttpEntity.INSTANCE);
         }
+        long startTime = System.nanoTime();
         try {
             CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
             // Defensively ensure that resources are closed if failures occur within this block,
@@ -107,7 +109,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // ConnectTimeoutException must be wrapped so it may be retried. SocketTimeoutExceptions are
             // not retried by default, so ours implements SafeLoggable and retains the simple-name for
             // cleaner metrics.
-            throw new SafeConnectTimeoutException(e);
+            long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
+            throw new SafeConnectTimeoutException(
+                    e,
+                    SafeArg.of("durationMillis", durationMillis),
+                    SafeArg.of("connectTimeout", client.clientConfiguration().connectTimeout()),
+                    SafeArg.of("clientName", client.name()));
         }
     }
 
