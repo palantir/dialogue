@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue Endpoints provide a list of Tags. This is a prerequisite for
+    the conjure-java generator to provide tag data.
+  links:
+  - https://github.com/palantir/dialogue/pull/1038

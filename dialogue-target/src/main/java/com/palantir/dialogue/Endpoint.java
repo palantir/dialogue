@@ -16,7 +16,9 @@
 
 package com.palantir.dialogue;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Defines a single HTTP-based RPC endpoint in terms of a {@link #renderPath path} and {@link #httpMethod HTTP method},
@@ -32,4 +34,8 @@ public interface Endpoint {
     String endpointName();
 
     String version();
+
+    default Set<String> tags() {
+        return Collections.emptySet();
+    }
 }
