@@ -150,13 +150,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
-                channel = TracedChannel.requestAttempt(channel);
+                channel = TracedChannel.requestAttempt(cf, channel);
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(
                         channel, endpoint, cf.clientConf().userAgent().get());
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = new ContentDecodingChannel(channel);
-                channel = TracedChannel.create(channel, endpoint);
+                channel = TracedChannel.create(cf, channel, endpoint);
                 channel = TimingEndpointChannel.create(cf, channel, endpoint);
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
