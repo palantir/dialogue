@@ -32,6 +32,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.Config.MeshMode;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -105,6 +106,11 @@ final class RetryingChannel implements EndpointChannel {
     private final Function<Throwable, Meter> retryDueToThrowable;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
+        if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
+            log.debug("Disabling retrying channel due to MeshMode", SafeArg.of("channel", cf.channelName()));
+            return channel;
+        }
+
         ClientConfiguration clientConf = cf.clientConf();
         if (clientConf.maxNumRetries() == 0) {
             return channel;
