@@ -46,6 +46,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final String channelNameForLogging;
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
+        if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
+            return new ChannelToLimitedChannelAdapter(channel);
+        }
+
         ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
         switch (clientQoS) {
             case ENABLED:

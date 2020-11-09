@@ -134,7 +134,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 Channel tracingChannel = new TraceEnrichingChannel(channel);
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
-                channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED
+                channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED && cf.mesh() != MeshMode.USE_EXTERNAL_MESH
                         ? new ChannelToEndpointChannel(endpoint -> {
                             LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
                                     tracingChannel, cf.channelName(), uriIndexForInstrumentation, endpoint);
