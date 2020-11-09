@@ -38,14 +38,15 @@ enum MeshMode {
             return MeshMode.DEFAULT_NO_MESH;
         } else {
             Preconditions.checkState(
-                    normalUris == 0,
-                    "Some uris have 'mesh-' prefix but others don't, please pick one or the other",
+                    meshUris == 1,
+                    "Not expecting multiple 'mesh-' prefixed uris - please double-check the uris",
                     SafeArg.of("meshUris", meshUris),
                     SafeArg.of("normalUris", normalUris),
                     channelName);
             Preconditions.checkState(
-                    meshUris <= 1,
-                    "Not expecting multiple 'mesh-' prefixed uris - please double-check the uris",
+                    normalUris == 0,
+                    "When a 'mesh-' prefixed uri is present, there should not be any normal uris - please double "
+                            + "check the uris",
                     SafeArg.of("meshUris", meshUris),
                     SafeArg.of("normalUris", normalUris),
                     channelName);

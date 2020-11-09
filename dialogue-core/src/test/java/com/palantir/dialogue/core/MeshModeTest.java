@@ -49,8 +49,10 @@ class MeshModeTest {
     void mixed_uris_breaks() {
         assertThatThrownBy(() -> fromUris("https://server.whatever", "mesh-http://server.another"))
                 .isInstanceOf(SafeIllegalStateException.class)
-                .hasMessage("Some uris have 'mesh-' prefix but others don't, please pick one or the other: "
-                        + "{meshUris=1, normalUris=1, channelName=channelName}");
+                .hasMessage(
+                        "When a 'mesh-' prefixed uri is present, there should not be any normal uris - please double "
+                                + "check the uris: "
+                                + "{meshUris=1, normalUris=1, channelName=channelName}");
     }
 
     @Test
