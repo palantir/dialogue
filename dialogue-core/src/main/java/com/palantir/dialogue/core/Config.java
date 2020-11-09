@@ -27,19 +27,10 @@ import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
 @Value.Immutable
 interface Config {
-    /**
-     * This prefix may reconfigure several aspects of the client to work better in a world where requests are routed
-     * through a service mesh like istio/envoy.
-     */
-    String MESH_PREFIX = "mesh-";
-
-    Logger log = LoggerFactory.getLogger(Config.class);
 
     String channelName();
 
@@ -51,54 +42,15 @@ interface Config {
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
-                .uris(rawConfig().uris().stream().map(Config::stripMeshPrefix).collect(Collectors.toList()))
+                .uris(rawConfig().uris().stream().map(MeshMode::stripMeshPrefix).collect(Collectors.toList()))
                 .taggedMetricRegistry(
                         VersionedTaggedMetricRegistry.create(rawConfig().taggedMetricRegistry()))
                 .build();
     }
 
-    enum MeshMode {
-        DEFAULT_NO_MESH,
-        USE_EXTERNAL_MESH
-    }
-
     @Value.Derived
     default MeshMode mesh() {
-        long meshUris = rawConfig().uris().stream()
-                .filter(s -> s.startsWith(MESH_PREFIX))
-                .count();
-        long normalUris = rawConfig().uris().stream()
-                .filter(s -> !s.startsWith(MESH_PREFIX))
-                .count();
-
-        if (meshUris > 1) {
-            log.warn(
-                    "Not expecting multiple 'mesh-' prefixed uris - please double-check the uris",
-                    SafeArg.of("meshUris", meshUris),
-                    SafeArg.of("normalUris", normalUris),
-                    SafeArg.of("channel", channelName()));
-        }
-
-        if (meshUris > 0) {
-            if (normalUris == 0) {
-                log.warn(
-                        "Enabling mesh mode as some uris have 'mesh-' prefix",
-                        SafeArg.of("meshUris", meshUris),
-                        SafeArg.of("normalUris", normalUris),
-                        SafeArg.of("channel", channelName()));
-                return MeshMode.USE_EXTERNAL_MESH;
-            } else {
-                log.warn(
-                        "Some uris have 'mesh-' prefix but others don't, please pick one or the other",
-                        SafeArg.of("meshUris", meshUris),
-                        SafeArg.of("normalUris", normalUris),
-                        SafeArg.of("channel", channelName()));
-                // neither are perfect, but this one seems a bit safer
-                return MeshMode.DEFAULT_NO_MESH;
-            }
-        } else {
-            return MeshMode.DEFAULT_NO_MESH;
-        }
+        return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
     }
 
     @Value.Default
@@ -136,9 +88,5 @@ interface Config {
                     "overrideHostIndex is only permitted when there is a single uri",
                     SafeArg.of("numUris", rawConfig().uris().size()));
         }
-    }
-
-    static String stripMeshPrefix(String input) {
-        return input.startsWith(MESH_PREFIX) ? input.substring(MESH_PREFIX.length()) : input;
     }
 }

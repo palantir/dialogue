@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.palantir.dialogue.TestConfigurations;
-import com.palantir.dialogue.core.Config.MeshMode;
 import org.junit.jupiter.api.Test;
 
 class ConfigTest {
