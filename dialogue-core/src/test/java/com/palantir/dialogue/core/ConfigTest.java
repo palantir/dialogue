@@ -54,13 +54,13 @@ class ConfigTest {
         assertThat(cf.mesh()).isEqualTo(MeshMode.DEFAULT_NO_MESH);
     }
 
-    private ImmutableConfig makeConfig(String... s) {
+    private ImmutableConfig makeConfig(String... uris) {
         return ImmutableConfig.builder()
                 .channelName("channelName")
                 .channelFactory(_uri -> {
                     throw new UnsupportedOperationException("not implemented");
                 })
-                .rawConfig(TestConfigurations.create(s))
+                .rawConfig(TestConfigurations.create(uris))
                 .build();
     }
 }

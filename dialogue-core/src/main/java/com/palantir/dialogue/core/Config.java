@@ -81,6 +81,11 @@ interface Config {
 
         if (meshUris > 0) {
             if (normalUris == 0) {
+                log.warn(
+                        "Enabling mesh mode as some uris have 'mesh-' prefix",
+                        SafeArg.of("meshUris", meshUris),
+                        SafeArg.of("normalUris", normalUris),
+                        SafeArg.of("channel", channelName()));
                 return MeshMode.USE_EXTERNAL_MESH;
             } else {
                 log.warn(

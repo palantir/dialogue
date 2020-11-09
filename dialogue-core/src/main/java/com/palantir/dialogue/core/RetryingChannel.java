@@ -106,13 +106,16 @@ final class RetryingChannel implements EndpointChannel {
     private final Function<Throwable, Meter> retryDueToThrowable;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
-        if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
-            log.debug("Disabling retrying channel due to MeshMode", SafeArg.of("channel", cf.channelName()));
+        ClientConfiguration clientConf = cf.clientConf();
+        if (clientConf.maxNumRetries() == 0) {
             return channel;
         }
 
-        ClientConfiguration clientConf = cf.clientConf();
-        if (clientConf.maxNumRetries() == 0) {
+        if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
+            log.debug(
+                    "Disabling retrying channel due to MeshMode",
+                    SafeArg.of("channel", cf.channelName()),
+                    SafeArg.of("ignoredMaxNumRetries", clientConf.maxNumRetries()));
             return channel;
         }
 
