@@ -37,13 +37,18 @@ final class TracedChannel implements EndpointChannel {
         this.operationNameInitial = operationName + " initial";
     }
 
-    static EndpointChannel create(EndpointChannel delegate, Endpoint endpoint) {
-        String operationName = "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName();
+    static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        String operationName =
+                "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName() + meshSuffix(cf.mesh());
         return new TracedChannel(delegate, operationName);
     }
 
-    static EndpointChannel requestAttempt(EndpointChannel delegate) {
-        return new TracedChannel(delegate, "Dialogue-request-attempt");
+    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate) {
+        return new TracedChannel(delegate, "Dialogue-request-attempt" + meshSuffix(cf.mesh()));
+    }
+
+    private static String meshSuffix(MeshMode meshMode) {
+        return meshMode == MeshMode.USE_EXTERNAL_MESH ? " (Mesh)" : "";
     }
 
     @Override

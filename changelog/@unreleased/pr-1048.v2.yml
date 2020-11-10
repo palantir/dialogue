@@ -1,0 +1,7 @@
+type: feature
+feature:
+  description: Prefixing uris with `mesh-` now turns off retries, as well as host
+    and endpoint-level concurrency limits, as these should be handled by the service
+    mesh proxy.
+  links:
+  - https://github.com/palantir/dialogue/pull/1048

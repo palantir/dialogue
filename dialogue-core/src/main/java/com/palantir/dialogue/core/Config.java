@@ -25,11 +25,13 @@ import com.palantir.random.SafeThreadLocalRandom;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
 @Value.Immutable
 interface Config {
+
     String channelName();
 
     ChannelFactory channelFactory();
@@ -40,9 +42,15 @@ interface Config {
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
+                .uris(rawConfig().uris().stream().map(MeshMode::stripMeshPrefix).collect(Collectors.toList()))
                 .taggedMetricRegistry(
                         VersionedTaggedMetricRegistry.create(rawConfig().taggedMetricRegistry()))
                 .build();
+    }
+
+    @Value.Derived
+    default MeshMode mesh() {
+        return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
     }
 
     @Value.Default
