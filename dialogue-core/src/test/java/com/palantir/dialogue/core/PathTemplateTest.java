@@ -57,6 +57,13 @@ public final class PathTemplateTest {
     }
 
     @Test
+    public void testEmptyVariableSegment() {
+        PathTemplate template =
+                PathTemplate.builder().fixed("a").variable("var").fixed("c").build();
+        assertThat(fill(template, ImmutableMap.of("var", ""))).isEqualTo("/a//c");
+    }
+
+    @Test
     public void testFixedAndVariableSegments() {
         PathTemplate template = PathTemplate.builder()
                 .fixed("a")
