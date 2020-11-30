@@ -206,12 +206,23 @@ public final class ApacheHttpClientChannels {
                     leakDetector,
                     executor,
                     clientConfiguration);
-            log.info(
-                    "Created Apache client {} {} {} {}",
-                    SafeArg.of("name", clientName),
-                    SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
-                    UnsafeArg.of("clientConfiguration", clientConfiguration),
-                    UnsafeArg.of("executor", executor));
+            if (log.isDebugEnabled()) {
+                // If debug is enabled, log the stack trace.
+                log.debug(
+                        "Created Apache client {} {} {} {}",
+                        SafeArg.of("name", clientName),
+                        SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                        UnsafeArg.of("clientConfiguration", clientConfiguration),
+                        UnsafeArg.of("executor", executor),
+                        new SafeRuntimeException("Created here"));
+            } else {
+                log.info(
+                        "Created Apache client {} {} {} {}",
+                        SafeArg.of("name", clientName),
+                        SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
+                        UnsafeArg.of("clientConfiguration", clientConfiguration),
+                        UnsafeArg.of("executor", executor));
+            }
             Meter createMeter = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
                     .create()
                     .clientName(clientName)
