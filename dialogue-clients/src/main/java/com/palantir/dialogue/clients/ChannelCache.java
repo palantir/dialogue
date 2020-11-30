@@ -77,7 +77,7 @@ final class ChannelCache {
         int numLiveInstances = LIVE_INSTANCES.size();
         if ((numLiveInstances > 1 && log.isInfoEnabled()) || log.isDebugEnabled()) {
             log.info(
-                    "Created ChannelCache instance #{} ({} alive): {} {}",
+                    "Created ChannelCache instance #{} ({} alive): {}",
                     SafeArg.of("instanceNumber", newCache.instanceNumber),
                     SafeArg.of("totalAliveNow", numLiveInstances),
                     SafeArg.of("newCache", newCache),
