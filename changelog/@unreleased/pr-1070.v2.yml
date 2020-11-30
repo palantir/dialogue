@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Log apache httpclient creation stack trace when debug logging is enabled
+  links:
+  - https://github.com/palantir/dialogue/pull/1070
