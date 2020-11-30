@@ -27,6 +27,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.util.Optional;
+import javax.net.ssl.SSLContext;
 import org.immutables.value.Value;
 
 /**
@@ -64,13 +65,19 @@ interface AugmentClientConfig {
         ClientConfiguration.Builder builder =
                 ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig));
 
+        SSLContext context = augment.securityProvider()
+                .map(provider -> SslSocketFactories.createSslContext(serviceConfig.security(), provider))
+                .orElseGet(() -> SslSocketFactories.createSslContext(serviceConfig.security()));
+        // Reduce the session cache size for clients. We expect TLS connections to be reused, thus the cache isn't
+        // terribly important.
+        context.getClientSessionContext().setSessionCacheSize(100);
+        builder.sslSocketFactory(context.getSocketFactory());
+
         if (!serviceConfig.maxNumRetries().isPresent()) {
             augment.maxNumRetries().ifPresent(builder::maxNumRetries);
         }
 
         if (augment.securityProvider().isPresent()) {
-            builder.sslSocketFactory(SslSocketFactories.createSslSocketFactory(
-                    serviceConfig.security(), augment.securityProvider().get()));
             // Opt into GCM when custom providers (Conscrypt) is used.
             builder.enableGcmCipherSuites(true);
         }
