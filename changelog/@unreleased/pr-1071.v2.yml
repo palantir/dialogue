@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Upgrade Jackson to 2.12.0 (from 2.11.1)
+  links:
+  - https://github.com/palantir/dialogue/pull/1071
