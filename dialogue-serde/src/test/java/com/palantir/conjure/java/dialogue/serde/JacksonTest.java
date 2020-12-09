@@ -34,7 +34,8 @@ public class JacksonTest {
                         + "      \"double\": 2.0,\n"
                         + "      \"type\": \"double\"\n"
                         + "    }\n"
-                        + "  }\n",
+                        + "  }\n"
+                        + "}",
                 new TypeReference<Jackson212Bug>() {});
     }
 }
