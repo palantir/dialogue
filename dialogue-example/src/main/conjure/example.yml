@@ -24,6 +24,17 @@ types:
       AliasAlias1:
         alias: Alias1
 
+      Jackson212Bug:
+        fields:
+          parameters: map<string, UnionExample>
+
+      UnionExample:
+        union:
+          double: AliasDouble
+
+      AliasDouble:
+        alias: double
+
 services:
   SampleService:
     name: Sample Service
