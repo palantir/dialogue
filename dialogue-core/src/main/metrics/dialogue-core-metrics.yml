@@ -13,7 +13,7 @@ namespaces:
       response.error:
         type: meter
         tags: [channel-name, service-name, endpoint, reason]
-        docs: Rate of errors received by reason, service-name and endpoint-name. Currently only errors with reason `IOException` are reported.
+        docs: Rate of errors received by reason, service-name and endpoint. Currently only errors with reason `IOException` are reported.
       deprecations:
         type: meter
         tags: [service-name]
