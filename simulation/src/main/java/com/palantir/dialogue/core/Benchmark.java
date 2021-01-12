@@ -262,6 +262,7 @@ public final class Benchmark {
                                     .response()
                                     .channelName(SimulationUtils.CHANNEL_NAME)
                                     .serviceName(SimulationUtils.SERVICE_NAME)
+                                    .endpoint(DEFAULT_ENDPOINT.endpointName())
                                     .build()
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
