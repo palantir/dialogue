@@ -48,12 +48,12 @@ final class TimingEndpointChannel implements EndpointChannel {
         this.responseTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
-                .endpointName(endpoint.endpointName())
+                .endpoint(endpoint.endpointName())
                 .build();
         this.ioExceptionMeter = metrics.responseError()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
-                .endpointName(endpoint.endpointName())
+                .endpoint(endpoint.endpointName())
                 .reason("IOException")
                 .build();
     }

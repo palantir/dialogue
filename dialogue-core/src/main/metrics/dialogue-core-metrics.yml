@@ -8,11 +8,11 @@ namespaces:
     metrics:
       response:
         type: timer
-        tags: [channel-name, service-name, endpoint-name]
+        tags: [channel-name, service-name, endpoint]
         docs: Request time, note that this does not include time spent reading the response body and only includes successful requests.
       response.error:
         type: meter
-        tags: [channel-name, service-name, endpoint-name, reason]
+        tags: [channel-name, service-name, endpoint, reason]
         docs: Rate of errors received by reason, service-name and endpoint-name. Currently only errors with reason `IOException` are reported.
       deprecations:
         type: meter

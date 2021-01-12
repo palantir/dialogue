@@ -47,13 +47,13 @@ public final class TimingEndpointChannelTest {
             .response()
             .channelName("my-channel")
             .serviceName(endpoint.serviceName())
-            .endpointName(endpoint.endpointName())
+            .endpoint(endpoint.endpointName())
             .build();
     private final Meter responseErrors = ClientMetrics.of(registry)
             .responseError()
             .channelName("my-channel")
             .serviceName(endpoint.serviceName())
-            .endpointName(endpoint.endpointName())
+            .endpoint(endpoint.endpointName())
             .reason(IOException.class.getSimpleName())
             .build();
 
