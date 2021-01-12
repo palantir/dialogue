@@ -48,10 +48,12 @@ final class TimingEndpointChannel implements EndpointChannel {
         this.responseTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
+                .endpointName(endpoint.endpointName())
                 .build();
         this.ioExceptionMeter = metrics.responseError()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
+                .endpointName(endpoint.endpointName())
                 .reason("IOException")
                 .build();
     }
@@ -74,7 +76,6 @@ final class TimingEndpointChannel implements EndpointChannel {
 
             @Override
             public void onFailure(Throwable throwable) {
-                updateResponseTimer();
                 if (throwable instanceof IOException) {
                     ioExceptionMeter.mark();
                 }

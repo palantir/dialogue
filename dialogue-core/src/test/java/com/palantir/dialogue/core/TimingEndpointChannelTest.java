@@ -47,11 +47,13 @@ public final class TimingEndpointChannelTest {
             .response()
             .channelName("my-channel")
             .serviceName(endpoint.serviceName())
+            .endpointName(endpoint.endpointName())
             .build();
     private final Meter responseErrors = ClientMetrics.of(registry)
             .responseError()
             .channelName("my-channel")
             .serviceName(endpoint.serviceName())
+            .endpointName(endpoint.endpointName())
             .reason(IOException.class.getSimpleName())
             .build();
 
@@ -76,7 +78,7 @@ public final class TimingEndpointChannelTest {
         when(delegate.execute(any())).thenReturn(Futures.immediateFuture(null));
         timingChannel.execute(Request.builder().build());
 
-        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(timer.getCount()).isOne();
         assertThat(responseErrors.getCount()).isZero();
     }
 
@@ -89,7 +91,7 @@ public final class TimingEndpointChannelTest {
         when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
         timingChannel.execute(Request.builder().build());
 
-        assertThat(timer.getCount()).isEqualTo(1);
+        assertThat(timer.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
     }
 
@@ -102,7 +104,7 @@ public final class TimingEndpointChannelTest {
         when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new IOException()));
 
         timingChannel.execute(Request.builder().build());
-        assertThat(timer.getCount()).describedAs("timer.count").isEqualTo(1);
+        assertThat(timer.getCount()).describedAs("timer.count").isZero();
         assertThat(responseErrors.getCount()).describedAs("responseErrors").isOne();
     }
 }
