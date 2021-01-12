@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: client.response and client.response.error metrics are now tagged with
+    the endpoint.
+  links:
+  - https://github.com/palantir/dialogue/pull/1088
