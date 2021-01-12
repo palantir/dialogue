@@ -114,7 +114,7 @@ public final class Benchmark {
                                 simulation.clock(),
                                 simulation.taggedMetrics(),
                                 SimulationUtils.CHANNEL_NAME,
-                                endpoint);
+                                DEFAULT_ENDPOINT);
                         return endpointChannel;
                     });
                 })
