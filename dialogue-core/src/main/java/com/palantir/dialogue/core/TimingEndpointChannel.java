@@ -86,7 +86,6 @@ final class TimingEndpointChannel implements EndpointChannel {
                 } else if (Responses.isInternalServerError(response)) {
                     toUpdate = wasRetried() ? preventableFailureResponseTimer : otherFailureResponseTimer;
                 } else {
-                    // 2xx, 3xx, 4xx except what filtered above
                     toUpdate = successfulResponseTimer;
                 }
 
