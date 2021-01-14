@@ -42,9 +42,10 @@ final class TimingEndpointChannel implements EndpointChannel {
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName,
-            Endpoint endpoint) {
+            Endpoint endpoint,
+            boolean isEndpointRetryable) {
         this.delegate = delegate;
-        this.isRetryable = Endpoints.safeToRetry(endpoint);
+        this.isRetryable = isEndpointRetryable;
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
         this.successfulResponseTimer = metrics.response()
@@ -69,7 +70,12 @@ final class TimingEndpointChannel implements EndpointChannel {
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
         return new TimingEndpointChannel(
-                delegate, cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName(), endpoint);
+                delegate,
+                cf.ticker(),
+                cf.clientConf().taggedMetricRegistry(),
+                cf.channelName(),
+                endpoint,
+                Endpoints.safeToRetry(endpoint));
     }
 
     @Override

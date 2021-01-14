@@ -18,20 +18,27 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.Futures;
+import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import org.junit.jupiter.api.BeforeEach;
+import java.net.ConnectException;
+import java.net.UnknownHostException;
+import java.util.Optional;
+import java.util.OptionalInt;
+import javax.net.ssl.SSLHandshakeException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -41,65 +48,142 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @SuppressWarnings("FutureReturnValueIgnored")
 public final class TimingEndpointChannelTest {
 
-    private final TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
-    private final Endpoint endpoint = TestEndpoint.POST;
-    private final Timer success = ClientMetrics.of(registry)
-            .response()
-            .channelName("my-channel")
-            .serviceName(endpoint.serviceName())
-            .endpoint(endpoint.endpointName())
-            .status("success")
-            .build();
-    private final Meter responseErrors = null;
-
     @Mock
     private EndpointChannel delegate;
 
     @Mock
     private Ticker ticker;
 
-    private TimingEndpointChannel timingChannel;
-
-    @BeforeEach
-    public void before() {
-        timingChannel = new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint);
+    @Test
+    public void addsMetricsForSuccessfulResponses() {
+        testThat().successfulResponseWithCode(200).isCountedAsSuccess();
+        testThat().successfulResponseWithCode(204).isCountedAsSuccess();
+        testThat().successfulResponseWithCode(403).isCountedAsSuccess();
+        testThat().successfulResponseWithCode(404).isCountedAsSuccess();
     }
 
     @Test
-    public void addsMetricsForSuccessfulExecution() {
-        assertThat(success.getCount()).isZero();
-
-        // Successful execution
-        when(delegate.execute(any())).thenReturn(Futures.immediateFuture(null));
-        timingChannel.execute(Request.builder().build());
-
-        assertThat(success.getCount()).isOne();
-        assertThat(responseErrors.getCount()).isZero();
+    public void addsMetricsForQosResponses() {
+        testThat().successfulResponseWithCode(308).isCountedAsPreventableFailure();
+        testThat().successfulResponseWithCode(429).isCountedAsPreventableFailure();
+        testThat().successfulResponseWithCode(503).isCountedAsPreventableFailure();
     }
 
     @Test
-    public void addsMetricsForUnsuccessfulExecution_runtimeException() {
-        assertThat(success.getCount()).isZero();
-        assertThat(responseErrors.getCount()).isZero();
-
-        // Unsuccessful execution with IOException
-        when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
-        timingChannel.execute(Request.builder().build());
-
-        assertThat(success.getCount()).isZero();
-        assertThat(responseErrors.getCount()).isZero();
+    public void addsMetricsForRetryableServerErrors() {
+        testThat().successfulResponseWithCode(500).endpointRetryable().isCountedAsPreventableFailure();
     }
 
     @Test
-    public void addsMetricsForUnsuccessfulExecution_ioException() {
-        assertThat(success.getCount()).isZero();
-        assertThat(responseErrors.getCount()).isZero();
+    public void addsMetricsForNotRetryableServerErrors() {
+        testThat().successfulResponseWithCode(500).endpointNotRetryable().isCountedAsOtherFailure();
+    }
 
-        // Unsuccessful execution with IOException
-        when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new IOException()));
+    @Test
+    public void addsMetricsForIoExceptions() {
+        testThat().failedResponse(new UnknownHostException()).isCountedAsPreventableFailure();
+        testThat().failedResponse(new IOException()).isCountedAsPreventableFailure();
+        testThat().failedResponse(new ConnectException()).isCountedAsPreventableFailure();
+        testThat().failedResponse(new SSLHandshakeException("oops")).isCountedAsPreventableFailure();
+    }
 
-        timingChannel.execute(Request.builder().build());
-        assertThat(success.getCount()).describedAs("timer.count").isZero();
-        assertThat(responseErrors.getCount()).describedAs("responseErrors").isOne();
+    @Test
+    public void addsMetricsForRuntimeExceptions() {
+        testThat().failedResponse(new RuntimeException()).isCountedAsOtherFailure();
+    }
+
+    private TestCase testThat() {
+        return new TestCase();
+    }
+
+    private final class TestCase {
+
+        private final TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        private final Endpoint endpoint = TestEndpoint.POST;
+        private final Timer success = ClientMetrics.of(registry)
+                .response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("success")
+                .build();
+        private final Timer preventableFailure = ClientMetrics.of(registry)
+                .response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("preventable_failure")
+                .build();
+        private final Timer otherFailure = ClientMetrics.of(registry)
+                .response()
+                .channelName("my-channel")
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("other_failure")
+                .build();
+
+        private OptionalInt maybeCode = OptionalInt.empty();
+        private Optional<Throwable> maybeThrowable = Optional.empty();
+        private boolean isRetryable = true;
+
+        @CheckReturnValue
+        TestCase successfulResponseWithCode(int code) {
+            this.maybeCode = OptionalInt.of(code);
+            return this;
+        }
+
+        @CheckReturnValue
+        TestCase endpointRetryable() {
+            this.isRetryable = true;
+            return this;
+        }
+
+        @CheckReturnValue
+        TestCase endpointNotRetryable() {
+            this.isRetryable = false;
+            return this;
+        }
+
+        @CheckReturnValue
+        TestCase failedResponse(Throwable throwable) {
+            this.maybeThrowable = Optional.of(throwable);
+            return this;
+        }
+
+        void isCountedAsSuccess() {
+            runRequest();
+            assertMetrics(1, 0, 0);
+        }
+
+        void isCountedAsPreventableFailure() {
+            runRequest();
+            assertMetrics(0, 1, 0);
+        }
+
+        void isCountedAsOtherFailure() {
+            runRequest();
+            assertMetrics(0, 0, 1);
+        }
+
+        private void runRequest() {
+            Preconditions.checkState(
+                    maybeCode.isPresent() ^ maybeThrowable.isPresent(), "Either code of throwable need to be present");
+            maybeCode.ifPresent(code -> {
+                Response response = mock(Response.class);
+                when(response.code()).thenReturn(code);
+                when(delegate.execute(any())).thenReturn(Futures.immediateFuture(response));
+            });
+            maybeThrowable.ifPresent(throwable -> {
+                when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(throwable));
+            });
+            new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint, isRetryable)
+                    .execute(Request.builder().build());
+        }
+
+        private void assertMetrics(int successCount, int preventableCount, int failureCount) {
+            assertThat(success.getCount()).isEqualTo(successCount);
+            assertThat(preventableFailure.getCount()).isEqualTo(preventableCount);
+            assertThat(otherFailure.getCount()).isEqualTo(failureCount);
+        }
     }
 }
