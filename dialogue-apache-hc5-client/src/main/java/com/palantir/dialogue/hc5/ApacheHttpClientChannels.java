@@ -16,6 +16,7 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.primitives.Ints;
@@ -87,6 +88,11 @@ import org.slf4j.LoggerFactory;
 public final class ApacheHttpClientChannels {
     private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
     private static final String CLIENT_TYPE = "apache-hc5";
+    // Starting conservatively matching the default conjure connect timeout.
+    // This value acts as a minimum timeout when a low connect timeout is configured
+    // to prevent handshakes from causing retry storms that burn CPU.
+    @VisibleForTesting
+    static final Timeout DEFAULT_HANDSHAKE_TIMEOUT = Timeout.ofSeconds(10);
 
     private ApacheHttpClientChannels() {}
 
@@ -393,6 +399,8 @@ public final class ApacheHttpClientChannels {
             Timeout connectTimeout = Timeout.ofMilliseconds(
                     Ints.checkedCast(conf.connectTimeout().toMillis()));
 
+            Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
+
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
@@ -412,10 +420,10 @@ public final class ApacheHttpClientChannels {
                     .setConnPoolPolicy(PoolReusePolicy.LIFO)
                     .setDefaultSocketConfig(SocketConfig.custom()
                             .setSoKeepAlive(true)
-                            // Ideally we would provide a smaller timeout which bounds the handshake duration,
-                            // however reusing the connect timeout can result in handshake storms when the value
-                            // is too low.
-                            .setSoTimeout(socketTimeout)
+                            // The default socket configuration socket timeout only applies prior to request execution.
+                            // By using a more specific timeout here, we bound the handshake in addition to the
+                            // socket.connect call.
+                            .setSoTimeout(handshakeTimeout)
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
@@ -495,6 +503,26 @@ public final class ApacheHttpClientChannels {
             socketTimeoutMillis = Duration.ofDays(1).toMillis();
         }
         return Timeout.ofMilliseconds(socketTimeoutMillis);
+    }
+
+    @VisibleForTesting
+    static Timeout getHandshakeTimeout(Timeout connectTimeout, Timeout socketTimeout, String clientName) {
+        if (connectTimeout.isEnabled()) {
+            // Use the connect timeout when values are sufficiently high, with a lower boundj
+            if (connectTimeout.toMilliseconds() >= DEFAULT_HANDSHAKE_TIMEOUT.toMilliseconds()) {
+                return connectTimeout;
+            }
+            Timeout normalizedTimeout = Timeout.ofMilliseconds(
+                    Math.min(socketTimeout.toMilliseconds(), DEFAULT_HANDSHAKE_TIMEOUT.toMilliseconds()));
+            log.info(
+                    "Handshake timeout for client {} increased to {} from connect and socket timeouts {} and {}",
+                    SafeArg.of("client", clientName),
+                    SafeArg.of("handshakeTimeout", normalizedTimeout),
+                    SafeArg.of("connectTimeout", connectTimeout),
+                    SafeArg.of("socketTimeout", socketTimeout));
+            return normalizedTimeout;
+        }
+        return socketTimeout;
     }
 
     /**
