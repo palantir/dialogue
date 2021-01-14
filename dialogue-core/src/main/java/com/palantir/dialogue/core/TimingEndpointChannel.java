@@ -71,7 +71,7 @@ final class TimingEndpointChannel implements EndpointChannel {
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
-                if (Responses.isClientSuccess(response)) {
+                if (Responses.isSuccess(response)) {
                     updateTimer(successTimer);
                 } else if (Responses.isQosStatus(response) || Responses.isInternalServerError(response)) {
                     updateTimer(failureTimer);
