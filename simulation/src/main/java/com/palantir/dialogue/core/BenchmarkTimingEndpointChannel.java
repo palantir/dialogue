@@ -57,7 +57,7 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
             }
 
             @Override
-            public void onFailure(Throwable throwable) {
+            public void onFailure(Throwable _throwable) {
                 updateResponseTimer();
             }
 
