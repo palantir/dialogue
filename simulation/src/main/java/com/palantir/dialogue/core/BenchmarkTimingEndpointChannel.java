@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -48,23 +47,9 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
     @Override
     public ListenableFuture<Response> execute(Request request) {
         long beforeNanos = ticker.read();
-        ListenableFuture<Response> response = delegate.execute(request);
-
-        return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
-            @Override
-            public void onSuccess(Response _result) {
-                updateResponseTimer();
-            }
-
-            @Override
-            public void onFailure(Throwable _throwable) {
-                updateResponseTimer();
-            }
-
-            private void updateResponseTimer() {
-                responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
-            }
-        });
+        return DialogueFutures.addDirectListener(
+                delegate.execute(request),
+                () -> responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS));
     }
 
     @Override

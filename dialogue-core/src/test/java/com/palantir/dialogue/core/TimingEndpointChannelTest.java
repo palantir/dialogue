@@ -58,38 +58,37 @@ public final class TimingEndpointChannelTest {
     public void addsMetricsForSuccessfulResponses() {
         testThat().successfulResponseWithCode(200).isCountedAsSuccess();
         testThat().successfulResponseWithCode(204).isCountedAsSuccess();
-        testThat().successfulResponseWithCode(403).isCountedAsSuccess();
-        testThat().successfulResponseWithCode(404).isCountedAsSuccess();
+    }
+
+    @Test
+    public void addsMetricsForClientErrorResponses() {
+        testThat().successfulResponseWithCode(403).isIgnored();
+        testThat().successfulResponseWithCode(404).isIgnored();
     }
 
     @Test
     public void addsMetricsForQosResponses() {
-        testThat().successfulResponseWithCode(308).isCountedAsPreventableFailure();
-        testThat().successfulResponseWithCode(429).isCountedAsPreventableFailure();
-        testThat().successfulResponseWithCode(503).isCountedAsPreventableFailure();
+        testThat().successfulResponseWithCode(308).isCountedAsFailure();
+        testThat().successfulResponseWithCode(429).isCountedAsFailure();
+        testThat().successfulResponseWithCode(503).isCountedAsFailure();
     }
 
     @Test
-    public void addsMetricsForRetryableServerErrors() {
-        testThat().successfulResponseWithCode(500).endpointRetryable().isCountedAsPreventableFailure();
-    }
-
-    @Test
-    public void addsMetricsForNotRetryableServerErrors() {
-        testThat().successfulResponseWithCode(500).endpointNotRetryable().isCountedAsOtherFailure();
+    public void addsMetricsForServerErrors() {
+        testThat().successfulResponseWithCode(500).isCountedAsFailure();
     }
 
     @Test
     public void addsMetricsForIoExceptions() {
-        testThat().failedResponse(new UnknownHostException()).isCountedAsPreventableFailure();
-        testThat().failedResponse(new IOException()).isCountedAsPreventableFailure();
-        testThat().failedResponse(new ConnectException()).isCountedAsPreventableFailure();
-        testThat().failedResponse(new SSLHandshakeException("oops")).isCountedAsPreventableFailure();
+        testThat().failedResponse(new UnknownHostException()).isCountedAsFailure();
+        testThat().failedResponse(new IOException()).isCountedAsFailure();
+        testThat().failedResponse(new ConnectException()).isCountedAsFailure();
+        testThat().failedResponse(new SSLHandshakeException("oops")).isCountedAsFailure();
     }
 
     @Test
     public void addsMetricsForRuntimeExceptions() {
-        testThat().failedResponse(new RuntimeException()).isCountedAsOtherFailure();
+        testThat().failedResponse(new RuntimeException()).isIgnored();
     }
 
     private TestCase testThat() {
@@ -107,40 +106,20 @@ public final class TimingEndpointChannelTest {
                 .endpoint(endpoint.endpointName())
                 .status("success")
                 .build();
-        private final Timer preventableFailure = ClientMetrics.of(registry)
+        private final Timer failure = ClientMetrics.of(registry)
                 .response()
                 .channelName("my-channel")
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
-                .status("preventable_failure")
-                .build();
-        private final Timer otherFailure = ClientMetrics.of(registry)
-                .response()
-                .channelName("my-channel")
-                .serviceName(endpoint.serviceName())
-                .endpoint(endpoint.endpointName())
-                .status("other_failure")
+                .status("failure")
                 .build();
 
         private OptionalInt maybeCode = OptionalInt.empty();
         private Optional<Throwable> maybeThrowable = Optional.empty();
-        private boolean isRetryable = true;
 
         @CheckReturnValue
         TestCase successfulResponseWithCode(int code) {
             this.maybeCode = OptionalInt.of(code);
-            return this;
-        }
-
-        @CheckReturnValue
-        TestCase endpointRetryable() {
-            this.isRetryable = true;
-            return this;
-        }
-
-        @CheckReturnValue
-        TestCase endpointNotRetryable() {
-            this.isRetryable = false;
             return this;
         }
 
@@ -151,15 +130,21 @@ public final class TimingEndpointChannelTest {
         }
 
         void isCountedAsSuccess() {
-            assertMetrics(1, 0, 0);
+            assertMetrics(1, 0);
         }
 
-        void isCountedAsPreventableFailure() {
-            assertMetrics(0, 1, 0);
+        void isCountedAsFailure() {
+            assertMetrics(0, 1);
         }
 
-        void isCountedAsOtherFailure() {
-            assertMetrics(0, 0, 1);
+        void isIgnored() {
+            assertMetrics(0, 0);
+        }
+
+        private void assertMetrics(int successCount, int failureCount) {
+            runRequest();
+            assertThat(success.getCount()).isEqualTo(successCount);
+            assertThat(failure.getCount()).isEqualTo(failureCount);
         }
 
         private void runRequest() {
@@ -173,15 +158,8 @@ public final class TimingEndpointChannelTest {
             maybeThrowable.ifPresent(throwable -> {
                 when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(throwable));
             });
-            new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint, isRetryable)
+            new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint)
                     .execute(Request.builder().build());
-        }
-
-        private void assertMetrics(int successCount, int preventableCount, int failureCount) {
-            runRequest();
-            assertThat(success.getCount()).isEqualTo(successCount);
-            assertThat(preventableFailure.getCount()).isEqualTo(preventableCount);
-            assertThat(otherFailure.getCount()).isEqualTo(failureCount);
         }
     }
 }

@@ -31,10 +31,8 @@ import java.util.concurrent.TimeUnit;
 
 final class TimingEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
-    private final boolean isRetryable;
-    private final Timer successfulResponseTimer;
-    private final Timer preventableFailureResponseTimer;
-    private final Timer otherFailureResponseTimer;
+    private final Timer successTimer;
+    private final Timer failureTimer;
     private final Ticker ticker;
 
     TimingEndpointChannel(
@@ -42,40 +40,27 @@ final class TimingEndpointChannel implements EndpointChannel {
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName,
-            Endpoint endpoint,
-            boolean isEndpointRetryable) {
+            Endpoint endpoint) {
         this.delegate = delegate;
-        this.isRetryable = isEndpointRetryable;
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        this.successfulResponseTimer = metrics.response()
+        this.successTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("success")
                 .build();
-        this.preventableFailureResponseTimer = metrics.response()
+        this.failureTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
-                .status("preventable_failure")
-                .build();
-        this.otherFailureResponseTimer = metrics.response()
-                .channelName(channelName)
-                .serviceName(endpoint.serviceName())
-                .endpoint(endpoint.endpointName())
-                .status("other_failure")
+                .status("failure")
                 .build();
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
         return new TimingEndpointChannel(
-                delegate,
-                cf.ticker(),
-                cf.clientConf().taggedMetricRegistry(),
-                cf.channelName(),
-                endpoint,
-                Endpoints.safeToRetry(endpoint));
+                delegate, cf.ticker(), cf.clientConf().taggedMetricRegistry(), cf.channelName(), endpoint);
     }
 
     @Override
@@ -86,24 +71,17 @@ final class TimingEndpointChannel implements EndpointChannel {
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
-                Timer toUpdate;
-                if (Responses.isQosStatus(response)) {
-                    toUpdate = preventableFailureResponseTimer;
-                } else if (Responses.isInternalServerError(response)) {
-                    toUpdate = wasRetried() ? preventableFailureResponseTimer : otherFailureResponseTimer;
-                } else {
-                    toUpdate = successfulResponseTimer;
+                if (Responses.isClientSuccess(response)) {
+                    updateTimer(successTimer);
+                } else if (Responses.isQosStatus(response) || Responses.isInternalServerError(response)) {
+                    updateTimer(failureTimer);
                 }
-
-                updateTimer(toUpdate);
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 if (throwable instanceof IOException) {
-                    updateTimer(preventableFailureResponseTimer);
-                } else {
-                    updateTimer(otherFailureResponseTimer);
+                    updateTimer(failureTimer);
                 }
             }
 
@@ -111,10 +89,6 @@ final class TimingEndpointChannel implements EndpointChannel {
                 timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
-    }
-
-    private boolean wasRetried() {
-        return isRetryable;
     }
 
     @Override
