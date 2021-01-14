@@ -151,17 +151,14 @@ public final class TimingEndpointChannelTest {
         }
 
         void isCountedAsSuccess() {
-            runRequest();
             assertMetrics(1, 0, 0);
         }
 
         void isCountedAsPreventableFailure() {
-            runRequest();
             assertMetrics(0, 1, 0);
         }
 
         void isCountedAsOtherFailure() {
-            runRequest();
             assertMetrics(0, 0, 1);
         }
 
@@ -181,6 +178,7 @@ public final class TimingEndpointChannelTest {
         }
 
         private void assertMetrics(int successCount, int preventableCount, int failureCount) {
+            runRequest();
             assertThat(success.getCount()).isEqualTo(successCount);
             assertThat(preventableFailure.getCount()).isEqualTo(preventableCount);
             assertThat(otherFailure.getCount()).isEqualTo(failureCount);
