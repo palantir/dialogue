@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
@@ -32,8 +31,10 @@ import java.util.concurrent.TimeUnit;
 
 final class TimingEndpointChannel implements EndpointChannel {
     private final EndpointChannel delegate;
-    private final Timer responseTimer;
-    private final Meter ioExceptionMeter;
+    private final boolean isRetryable;
+    private final Timer successfulResponseTimer;
+    private final Timer preventableFailureResponseTimer;
+    private final Timer otherFailureResponseTimer;
     private final Ticker ticker;
 
     TimingEndpointChannel(
@@ -43,18 +44,26 @@ final class TimingEndpointChannel implements EndpointChannel {
             String channelName,
             Endpoint endpoint) {
         this.delegate = delegate;
+        this.isRetryable = Endpoints.safeToRetry(endpoint);
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        this.responseTimer = metrics.response()
+        this.successfulResponseTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
+                .status("success")
                 .build();
-        this.ioExceptionMeter = metrics.responseError()
+        this.preventableFailureResponseTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
-                .reason("IOException")
+                .status("preventable_failure")
+                .build();
+        this.otherFailureResponseTimer = metrics.response()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("other_failure")
                 .build();
     }
 
@@ -70,21 +79,37 @@ final class TimingEndpointChannel implements EndpointChannel {
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
-            public void onSuccess(Response _result) {
-                updateResponseTimer();
+            public void onSuccess(Response response) {
+                Timer toUpdate;
+                if (Responses.isQosStatus(response)) {
+                    toUpdate = preventableFailureResponseTimer;
+                } else if (Responses.isInternalServerError(response)) {
+                    toUpdate = wasRetried() ? preventableFailureResponseTimer : otherFailureResponseTimer;
+                } else {
+                    // 2xx, 3xx, 4xx except what filtered above
+                    toUpdate = successfulResponseTimer;
+                }
+
+                updateTimer(toUpdate);
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 if (throwable instanceof IOException) {
-                    ioExceptionMeter.mark();
+                    updateTimer(preventableFailureResponseTimer);
+                } else {
+                    updateTimer(otherFailureResponseTimer);
                 }
             }
 
-            private void updateResponseTimer() {
-                responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
+            private void updateTimer(Timer timer) {
+                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
+    }
+
+    private boolean wasRetried() {
+        return isRetryable;
     }
 
     @Override

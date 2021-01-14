@@ -43,19 +43,14 @@ public final class TimingEndpointChannelTest {
 
     private final TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
     private final Endpoint endpoint = TestEndpoint.POST;
-    private final Timer timer = ClientMetrics.of(registry)
+    private final Timer success = ClientMetrics.of(registry)
             .response()
             .channelName("my-channel")
             .serviceName(endpoint.serviceName())
             .endpoint(endpoint.endpointName())
+            .status("success")
             .build();
-    private final Meter responseErrors = ClientMetrics.of(registry)
-            .responseError()
-            .channelName("my-channel")
-            .serviceName(endpoint.serviceName())
-            .endpoint(endpoint.endpointName())
-            .reason(IOException.class.getSimpleName())
-            .build();
+    private final Meter responseErrors = null;
 
     @Mock
     private EndpointChannel delegate;
@@ -72,39 +67,39 @@ public final class TimingEndpointChannelTest {
 
     @Test
     public void addsMetricsForSuccessfulExecution() {
-        assertThat(timer.getCount()).isZero();
+        assertThat(success.getCount()).isZero();
 
         // Successful execution
         when(delegate.execute(any())).thenReturn(Futures.immediateFuture(null));
         timingChannel.execute(Request.builder().build());
 
-        assertThat(timer.getCount()).isOne();
+        assertThat(success.getCount()).isOne();
         assertThat(responseErrors.getCount()).isZero();
     }
 
     @Test
     public void addsMetricsForUnsuccessfulExecution_runtimeException() {
-        assertThat(timer.getCount()).isZero();
+        assertThat(success.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
 
         // Unsuccessful execution with IOException
         when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new RuntimeException()));
         timingChannel.execute(Request.builder().build());
 
-        assertThat(timer.getCount()).isZero();
+        assertThat(success.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
     }
 
     @Test
     public void addsMetricsForUnsuccessfulExecution_ioException() {
-        assertThat(timer.getCount()).isZero();
+        assertThat(success.getCount()).isZero();
         assertThat(responseErrors.getCount()).isZero();
 
         // Unsuccessful execution with IOException
         when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(new IOException()));
 
         timingChannel.execute(Request.builder().build());
-        assertThat(timer.getCount()).describedAs("timer.count").isZero();
+        assertThat(success.getCount()).describedAs("timer.count").isZero();
         assertThat(responseErrors.getCount()).describedAs("responseErrors").isOne();
     }
 }
