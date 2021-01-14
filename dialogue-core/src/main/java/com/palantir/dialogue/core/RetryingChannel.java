@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
@@ -249,7 +250,7 @@ final class RetryingChannel implements EndpointChannel {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
-            if (Responses.isInternalServerError(response) && Endpoints.safeToRetry(endpoint)) {
+            if (Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
@@ -371,6 +372,28 @@ final class RetryingChannel implements EndpointChannel {
                         throwable);
             }
         }
+    }
+
+    /**
+     * We are a bit more conservative than the definition of Safe and Idempotent in https://tools.ietf
+     * .org/html/rfc7231#section-4.2.1, as we're not sure whether developers have written non-idempotent PUT/DELETE
+     * endpoints.
+     */
+    private static boolean safeToRetry(HttpMethod httpMethod) {
+        switch (httpMethod) {
+            case GET:
+            case HEAD:
+            case OPTIONS:
+                return true;
+            case PUT:
+            case DELETE:
+                // in theory PUT and DELETE should be fine to retry too, we're just being conservative for now.
+            case POST:
+            case PATCH:
+                return false;
+        }
+
+        throw new SafeIllegalStateException("Unknown method", SafeArg.of("httpMethod", httpMethod));
     }
 
     private static ListeningScheduledExecutorService instrument(
