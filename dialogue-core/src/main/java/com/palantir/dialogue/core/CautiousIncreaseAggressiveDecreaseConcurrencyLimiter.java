@@ -193,16 +193,16 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
     enum LimitUpdater implements DoubleBinaryOperator {
         SUCCESS() {
             @Override
-            public double applyAsDouble(double currentLimit, double inFlightSnapshotWhenPermitAcquired) {
-                if (inFlightSnapshotWhenPermitAcquired >= Math.floor(currentLimit * BACKOFF_RATIO)) {
+            public double applyAsDouble(double originalLimit, double inFlightSnapshot) {
+                if (inFlightSnapshot >= Math.floor(originalLimit * BACKOFF_RATIO)) {
                     // The limit is raised more easily when the maximum limit is low, and becomes linearly more
                     // stubborn as the limit increases. Given a fixed rate of traffic this should result in
                     // linear slope as opposed to the exponential slope expected from a static increment
                     // value.
-                    double increment = 1D / currentLimit;
-                    return Math.min(MAX_LIMIT, currentLimit + increment);
+                    double increment = 1D / originalLimit;
+                    return Math.min(MAX_LIMIT, originalLimit + increment);
                 }
-                return currentLimit;
+                return originalLimit;
             }
         },
         DROPPED() {

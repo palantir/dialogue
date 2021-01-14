@@ -21,7 +21,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 
-/** Utility functionality for {@link com.palantir.dialogue.Endpoint} handling. **/
+/** Utility functionality for {@link Endpoint} handling. **/
 final class Endpoints {
 
     private Endpoints() {}
