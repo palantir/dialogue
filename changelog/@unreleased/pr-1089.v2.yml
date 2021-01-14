@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Handshake time is bounded based on the connect timeout
+  links:
+  - https://github.com/palantir/dialogue/pull/1089
