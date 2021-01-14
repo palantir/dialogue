@@ -44,7 +44,7 @@ final class Responses {
         return response.code() == 500;
     }
 
-    static boolean isClientSuccess(Response response) {
+    static boolean isSuccess(Response response) {
         return response.code() / 100 == 2;
     }
 
