@@ -109,12 +109,8 @@ public final class Benchmark {
                                 SafeArg.of("endpoint", endpoint));
 
                         EndpointChannel endpointChannel = utils.bind(channel, endpoint);
-                        endpointChannel = new TimingEndpointChannel(
-                                endpointChannel,
-                                simulation.clock(),
-                                simulation.taggedMetrics(),
-                                SimulationUtils.CHANNEL_NAME,
-                                DEFAULT_ENDPOINT);
+                        endpointChannel = new BenchmarkTimingEndpointChannel(
+                                endpointChannel, simulation.clock(), simulation.taggedMetrics());
                         return endpointChannel;
                     });
                 })
@@ -258,12 +254,7 @@ public final class Benchmark {
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(ClientMetrics.of(simulation.taggedMetrics())
-                                    .response()
-                                    .channelName(SimulationUtils.CHANNEL_NAME)
-                                    .serviceName(SimulationUtils.SERVICE_NAME)
-                                    .endpoint(DEFAULT_ENDPOINT.endpointName())
-                                    .build()
+                            .clientHistogram(BenchmarkTimingEndpointChannel.requestTimer(simulation.taggedMetrics())
                                     .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
