@@ -20,16 +20,24 @@ import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class TimingEndpointChannel implements EndpointChannel {
+
+    private static final Logger log = LoggerFactory.getLogger(TimingEndpointChannel.class);
+    private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1);
+
     private final EndpointChannel delegate;
     private final Timer successTimer;
     private final Timer failureTimer;
@@ -82,6 +90,13 @@ final class TimingEndpointChannel implements EndpointChannel {
             public void onFailure(Throwable throwable) {
                 if (throwable instanceof IOException) {
                     updateTimer(failureTimer);
+                } else {
+                    if (unknownThrowableLoggingRateLimiter.tryAcquire()) {
+                        log.info(
+                                "Unknown failure",
+                                SafeArg.of(
+                                        "exceptionClass", throwable.getClass().getName()));
+                    }
                 }
             }
 
