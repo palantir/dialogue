@@ -22,19 +22,12 @@ Connection pool metrics from the dialogue Apache client.
 
 ### client
 General client metrics produced by dialogue. These metrics are meant to be applicable to all conjure clients without being implementation-specific.
-- `client.response` tagged `channel-name`, `service-name`, `endpoint`, `status` (timer): Request time split by status. These metrics and their definitions are mostly useful to dialogue developers,
-to measure the success of routing and retry strategies. Possible status values are:
-* success: always excludes time spent reading the response body. This classifies requests,
-  which we successfully routed, maybe retried and returned to the user.
-  This does not mean that the ultimate user might not see an exception, e.g. 404, 401 will still potentially
-  result in a user visible failure.
-* preventable_failure:
+- `client.response` tagged `channel-name`, `service-name`, `endpoint`, `status` (timer): Request time split by status and endpoint. Possible status values are:
+* success: 2xx requests, always excludes time spent reading the response body.
+* failure:
   - QoS failures (429, 308, 503)
-  - 500 requests for endpoints that are retryable.
-  - IO related failures that we retry: e.g. UnknownHostException, connect timeouts, SSLException.
-* other_failure: things we can't do anything about, e.g.
-  - 500 requests which we cannot retry
-  - read/write timeouts.
+  - 500 requests
+  - IOExceptions
 
 - `client.deprecations` tagged `service-name` (meter): Rate of deprecated endpoints being invoked.
 
