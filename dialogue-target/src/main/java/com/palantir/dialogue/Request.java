@@ -43,6 +43,7 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
+    private final Optional<CallingThreadExecutor> callingThreadExecutor = Optional.empty();
 
     private Request(Builder builder) {
         body = builder.body;
@@ -80,6 +81,10 @@ public final class Request {
     /** The HTTP request body for this request or empty if this request does not contain a body. */
     public Optional<RequestBody> body() {
         return body;
+    }
+
+    public Optional<CallingThreadExecutor> getCallingThreadExecutor() {
+        return callingThreadExecutor;
     }
 
     @Override
@@ -139,6 +144,8 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
+        private Optional<CallingThreadExecutor> callingThreadExecutor;
+
         private int mutableCollectionsBitSet = 0;
 
         private Builder() {}
@@ -149,6 +156,7 @@ public final class Request {
             headerParams = existing.headerParams;
             queryParams = existing.queryParams;
             pathParams = existing.pathParams;
+            callingThreadExecutor = existing.callingThreadExecutor;
 
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
@@ -239,6 +247,11 @@ public final class Request {
         @SuppressWarnings("unchecked")
         public Request.Builder body(Optional<? extends RequestBody> value) {
             body = (Optional<RequestBody>) value;
+            return this;
+        }
+
+        public Request.Builder executeInCurrentThread(CallingThreadExecutor executor) {
+            this.callingThreadExecutor = Optional.of(executor);
             return this;
         }
 
