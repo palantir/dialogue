@@ -7,6 +7,7 @@ dependencies {
     implementation project(':dialogue-futures')
     implementation 'com.palantir.tracing:tracing'
     implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.tritium:tritium-registry'
     implementation 'org.slf4j:slf4j-api'

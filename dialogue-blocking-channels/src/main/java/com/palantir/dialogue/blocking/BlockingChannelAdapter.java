@@ -19,6 +19,8 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
@@ -67,11 +69,11 @@ public final class BlockingChannelAdapter {
     private static final class BlockingChannelAdapterChannel implements Channel {
 
         private final BlockingChannel delegate;
-        private final ExecutorService executor;
+        private final ListeningExecutorService executor;
 
         BlockingChannelAdapterChannel(BlockingChannel delegate, ExecutorService executor) {
             this.delegate = delegate;
-            this.executor = executor;
+            this.executor = MoreExecutors.listeningDecorator(executor);
         }
 
         @Override
@@ -80,7 +82,15 @@ public final class BlockingChannelAdapter {
             BlockingChannelAdapterTask runnable =
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             try {
-                Future<?> future = executor.submit(runnable);
+                Future<?> future;
+                CallingThreadExecutor callingThreadExecutor =
+                        request.attachments().getOrDefault(DefaultCallingThreadExecutor.ATTACHMENT_KEY, null);
+                if (callingThreadExecutor != null) {
+                    future = callingThreadExecutor.submit(runnable);
+                } else {
+                    future = executor.submit(runnable);
+                }
+
                 // The executor task should be interrupted on termination
                 Futures.addCallback(
                         settableFuture,

@@ -24,6 +24,7 @@ import java.util.concurrent.Future;
  * duplicating logic.
  */
 public interface Clients {
+
     /**
      * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
      * deserializer.
@@ -35,13 +36,6 @@ public interface Clients {
      * Deprecated. prefer {@link #bind} as this allows pre-computing values to save CPU
      */
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
-
-    /**
-     * Blocking version of {@link #call(EndpointChannel, Request, Deserializer)}.
-     */
-    default <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        return block(call(channel, request, deserializer));
-    }
 
     default EndpointChannel bind(Channel channel, Endpoint endpoint) {
         return new EndpointChannel() {
@@ -57,9 +51,6 @@ public interface Clients {
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
      * for conjure exceptions and cancellation on interruption.
-     *
-     * Deprecated. prefer {@link #callBlocking(EndpointChannel, Request, Deserializer)} as it makes the blocking
-     * explicit.
      */
     <T> T block(ListenableFuture<T> future);
 }

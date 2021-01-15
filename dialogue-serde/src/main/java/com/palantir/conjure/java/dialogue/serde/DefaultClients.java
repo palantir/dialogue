@@ -32,6 +32,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.blocking.CallingThreadExecutor;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -69,7 +70,15 @@ enum DefaultClients implements Clients {
 
     @Override
     public <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        return block(call(channel, request, deserializer));
+        ListenableFuture<T> call;
+        if (UseCallingThreadExecutor.shouldUseCallingThreadExecutor()) {
+            CallingThreadExecutor callingThreadExecutor = CallingThreadExecutor.useCallingThreadExecutor(request);
+            call = call(channel, request, deserializer);
+            callingThreadExecutor.executeQueue(call);
+        } else {
+            call = call(channel, request, deserializer);
+        }
+        return block(call);
     }
 
     @Override
