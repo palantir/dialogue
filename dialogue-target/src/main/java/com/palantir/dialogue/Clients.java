@@ -18,25 +18,29 @@ package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Provides functionality for generated code to make both blocking and asynchronous calls without
  * duplicating logic.
  */
 public interface Clients {
+
+    AtomicBoolean TO_BLOCK_OR_NOT_TO_BLOCK = new AtomicBoolean(false);
+
     /**
      * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
      * deserializer.
      */
     <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
-    <T> ListenableFuture<T> callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer);
-
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
      * Deprecated. prefer {@link #bind} as this allows pre-computing values to save CPU
      */
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
+
+    <T> ListenableFuture<T> callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
     default EndpointChannel bind(Channel channel, Endpoint endpoint) {
         return new EndpointChannel() {

@@ -147,6 +147,7 @@ public class EndToEndBenchmark {
     @Threads(4)
     @Benchmark
     public void dialogueBlocking() {
+        // Clients.TO_BLOCK_OR_NOT_TO_BLOCK.set(true);
         blocking.voidToVoid();
     }
 
