@@ -30,6 +30,8 @@ public interface Clients {
      */
     <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer);
 
+    <T> ListenableFuture<T> callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer);
+
     /**
      * Makes a request to the specified {@link Endpoint} and deserializes the response using a provided deserializer.
      * Deprecated. prefer {@link #bind} as this allows pre-computing values to save CPU

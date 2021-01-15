@@ -34,7 +34,6 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.clients.DialogueClients;
-import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tracing.Tracers;
@@ -81,8 +80,8 @@ public class EndToEndBenchmark {
     private ApacheHttpClientChannels.CloseableClient closeableApache;
     private Channel apacheChannel;
 
-    private SampleServiceBlocking blocking;
-    private SampleServiceBlocking zeroNetworkDialogue;
+    private SampleServiceReallyBlocking blocking;
+    private SampleServiceReallyBlocking zeroNetworkDialogue;
 
     @Setup
     public void before() {
@@ -113,7 +112,7 @@ public class EndToEndBenchmark {
                 .security(TestConfigurations.SSL_CONFIG)
                 .build();
 
-        blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
+        blocking = clients.getNonReloading(SampleServiceReallyBlocking.class, serviceConf);
 
         ClientConfiguration clientConf = ClientConfiguration.builder()
                 .from(ClientConfigurations.of(serviceConf))
@@ -133,7 +132,7 @@ public class EndToEndBenchmark {
                 .clientConfiguration(clientConf)
                 .channelFactory(_uri -> InstantChannel.INSTANCE)
                 .buildNonLiveReloading();
-        zeroNetworkDialogue = SampleServiceBlocking.of(
+        zeroNetworkDialogue = SampleServiceReallyBlocking.of(
                 zeroNetworkChannel, DefaultConjureRuntime.builder().build());
     }
 
