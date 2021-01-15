@@ -16,11 +16,12 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import java.util.concurrent.Future;
 
 public interface CallingThreadExecutor {
 
     Future<?> submit(Runnable task);
 
-    void executeQueue();
+    void executeQueue(ListenableFuture<?> await);
 }
