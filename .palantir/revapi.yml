@@ -227,3 +227,8 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.ConjureRuntime com.palantir.dialogue.ConjureRuntime::toBlocking()"
       justification: "Testing"
+  "1.92.0-rc1":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.removed"
+      old: "method com.palantir.dialogue.Clients com.palantir.dialogue.Clients::blocking()"
+      justification: "Testing"
