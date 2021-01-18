@@ -51,6 +51,11 @@ enum DefaultClients implements Clients {
     private static final Logger log = LoggerFactory.getLogger(DefaultClients.class);
 
     @Override
+    public Clients blocking() {
+        return BlockingDefaultClients.INSTANCE;
+    }
+
+    @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
         // When this method is called, the EndpointChannel can be used at most once. Do not use the bind function
@@ -65,16 +70,6 @@ enum DefaultClients implements Clients {
         ListenableFuture<Response> response =
                 closeRequestBodyOnCompletion(channel.execute(outgoingRequest), outgoingRequest);
         return DialogueFutures.transform(response, deserializer::deserialize);
-    }
-
-    @Override
-    public <T> ListenableFuture<T> callBlocking(
-            EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        request.executeInCallingThread();
-        ListenableFuture<T> toReturn = call(channel, request, deserializer);
-        request.getCallingThreadExecutor()
-                .ifPresent(callingThreadExecutor -> callingThreadExecutor.executeQueue(toReturn));
-        return toReturn;
     }
 
     @Override
@@ -201,7 +196,7 @@ enum DefaultClients implements Clients {
                 .build();
     }
 
-    private static final class EndpointChannelAdapter implements EndpointChannel {
+    static final class EndpointChannelAdapter implements EndpointChannel {
         private final Endpoint endpoint;
         private final Channel channel;
 
