@@ -24,6 +24,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.example.AliasOfAliasOfOptional;
 import com.palantir.dialogue.example.AliasOfOptional;
 import com.palantir.dialogue.example.SampleObject;
+import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.ri.ResourceIdentifier;
 import java.io.InputStream;
 import java.time.OffsetDateTime;
@@ -32,7 +33,7 @@ import java.util.Optional;
 import javax.annotation.Generated;
 
 @Generated("com.palantir.conjure.java.services.dialogue.DialogueInterfaceGenerator")
-public interface SampleServiceReallyBlocking {
+public interface SampleServiceReallyBlocking extends SampleServiceBlocking {
     /**
      * @apiNote {@code GET /voidToVoid}
      */
