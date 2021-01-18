@@ -17,6 +17,7 @@ dependencies {
     testImplementation 'org.assertj:assertj-guava'
     testImplementation 'org.immutables:value::annotations'
     testImplementation 'org.mockito:mockito-core'
+    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
 

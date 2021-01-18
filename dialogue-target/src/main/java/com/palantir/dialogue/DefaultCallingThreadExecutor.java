@@ -20,30 +20,28 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RunnableFuture;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-// Quickly hacking this together to see how it looks, likely buggy.
 final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
-    private final Condition work = new ReentrantLock().newCondition();
-    private boolean poisoned = false;
-    private final BlockingDeque<RunnableFuture<?>> queue = new LinkedBlockingDeque<>();
+    private static final Logger log = LoggerFactory.getLogger(DefaultCallingThreadExecutor.class);
+
+    private final Queue queue = new Queue();
+
+    /** Notification when main future completes. */
+    private final Runnable notifier = queue::poison;
 
     @Override
     public synchronized Future<?> submit(Runnable task) {
-        Preconditions.checkState(!poisoned, "This queue is closed");
-        RunnableFuture<?> future = new FutureTask<>(task, null);
-        queue.add(future);
-        work.signal();
-        return future;
+        return queue.submit(task);
     }
 
     @Override
@@ -54,49 +52,61 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
                 new FutureCallback<Object>() {
                     @Override
                     public void onSuccess(@Nullable Object result) {
-                        work.signal();
+                        queue.submit(notifier);
                     }
 
                     @Override
                     public void onFailure(Throwable throwable) {
-                        work.signal();
+                        queue.submit(notifier);
                     }
                 },
                 MoreExecutors.directExecutor());
 
-        while (true) {
-            if (await.isDone()) {
-                break;
-            }
-
-            RunnableFuture<?> toRun = queue.poll();
-            if (toRun != null) {
-                toRun.run();
-            }
-
-            waitForWork();
-        }
-
-        abortQueue();
-    }
-
-    private void waitForWork() {
-        try {
-            work.await();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-
-            abortQueue();
-
-            throw new DialogueException(e);
-        }
-    }
-
-    private synchronized void abortQueue() {
-        poisoned = true;
         RunnableFuture<?> toRun;
-        while ((toRun = queue.poll()) != null) {
-            toRun.cancel(false);
+        while ((toRun = queue.getWork()) != null) {
+            toRun.run();
+        }
+    }
+
+    private static final class Queue {
+        private boolean poisoned = false;
+        private final BlockingDeque<RunnableFuture<?>> queue = new LinkedBlockingDeque<>();
+
+        public synchronized Future<?> submit(Runnable task) {
+            if (poisoned) {
+                log.info("Submitted task after queue is closed");
+                throw new RejectedExecutionException("Queue closed");
+            }
+            RunnableFuture<?> future = new FutureTask<>(task, null);
+            queue.add(future);
+            return future;
+        }
+
+        public synchronized void poison() {
+            poisoned = true;
+        }
+
+        public synchronized RunnableFuture<?> getWork() {
+            try {
+                if (!poisoned) {
+                    return queue.take();
+                } else {
+                    return queue.poll();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+
+                abortQueue();
+
+                throw new DialogueException(e);
+            }
+        }
+
+        private synchronized void abortQueue() {
+            RunnableFuture<?> toRun;
+            while ((toRun = queue.poll()) != null) {
+                toRun.cancel(false);
+            }
         }
     }
 }
