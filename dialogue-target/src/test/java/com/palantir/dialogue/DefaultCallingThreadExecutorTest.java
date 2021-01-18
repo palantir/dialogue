@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.SettableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -66,6 +67,8 @@ public final class DefaultCallingThreadExecutorTest {
         Future<?> future1 = executor.submit(runnable);
         Future<?> future2 = executor.submit(runnable);
         futureToAwait.set(null);
+
+        Futures.getUnchecked(queueExecuted);
 
         verify(runnable, times(2)).run();
         assertThat(queueExecuted).isDone();
