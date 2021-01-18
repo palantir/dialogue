@@ -26,7 +26,6 @@ import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RunnableFuture;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,13 +45,13 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
     @Override
     public void executeQueue(ListenableFuture<?> await) {
-        // TODO: This isn't using DialogueFutures cause looks like it's not a dependency.
+        // TODO(1234): This isn't using DialogueFutures cause looks like it's not a dependency.
         Futures.addCallback(
                 await,
                 new FutureCallback<Object>() {
                     @Override
                     @SuppressWarnings("FutureReturnValueIgnored")
-                    public void onSuccess(@Nullable Object _result) {
+                    public void onSuccess(Object _result) {
                         queue.submit(notifier);
                     }
 

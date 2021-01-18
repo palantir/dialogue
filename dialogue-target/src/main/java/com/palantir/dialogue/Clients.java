@@ -18,16 +18,12 @@ package com.palantir.dialogue;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Provides functionality for generated code to make both blocking and asynchronous calls without
  * duplicating logic.
  */
 public interface Clients {
-
-    AtomicBoolean TO_BLOCK_OR_NOT_TO_BLOCK = new AtomicBoolean(false);
-
     /**
      * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
      * deserializer.
