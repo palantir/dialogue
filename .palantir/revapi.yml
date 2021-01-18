@@ -225,6 +225,5 @@ acceptedBreaks:
   "1.91.1":
     com.palantir.dialogue:dialogue-target:
     - code: "java.method.addedToInterface"
-      new: "method <T> com.google.common.util.concurrent.ListenableFuture<T> com.palantir.dialogue.Clients::callBlocking(com.palantir.dialogue.EndpointChannel,\
-        \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
-      justification: "This is a test"
+      new: "method com.palantir.dialogue.Clients com.palantir.dialogue.Clients::blocking()"
+      justification: "Testing"
