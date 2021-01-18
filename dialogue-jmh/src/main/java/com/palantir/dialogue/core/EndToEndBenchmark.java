@@ -113,10 +113,7 @@ public class EndToEndBenchmark {
                 .security(TestConfigurations.SSL_CONFIG)
                 .build();
 
-        boolean blockSameThread = false;
-        blocking = blockSameThread
-                ? clients.getNonReloading(SampleServiceReallyBlocking.class, serviceConf)
-                : clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
+        blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
 
         ClientConfiguration clientConf = ClientConfiguration.builder()
                 .from(ClientConfigurations.of(serviceConf))
@@ -136,7 +133,7 @@ public class EndToEndBenchmark {
                 .clientConfiguration(clientConf)
                 .channelFactory(_uri -> InstantChannel.INSTANCE)
                 .buildNonLiveReloading();
-        zeroNetworkDialogue = SampleServiceReallyBlocking.of(
+        zeroNetworkDialogue = SampleServiceBlocking.of(
                 zeroNetworkChannel, DefaultConjureRuntime.builder().build());
     }
 
