@@ -88,9 +88,9 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             poisoned = true;
         }
 
-        public synchronized RunnableFuture<?> getWork() {
+        public RunnableFuture<?> getWork() {
             try {
-                if (!poisoned) {
+                if (!isPoisoned()) {
                     return queue.take();
                 } else {
                     return queue.poll();
@@ -102,6 +102,10 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
                 throw new DialogueException(e);
             }
+        }
+
+        private synchronized boolean isPoisoned() {
+            return poisoned;
         }
 
         private synchronized void abortQueue() {
