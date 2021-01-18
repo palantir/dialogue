@@ -17,6 +17,7 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.SettableFuture;
@@ -42,10 +43,11 @@ public final class DefaultCallingThreadExecutorTest {
 
     @Test
     public void testRunnableCompletesBeforeReturning() {
-        executor.submit(runnable);
+        Future<?> future1 = executor.submit(runnable);
         futureToAwait.set(null);
         executor.executeQueue(futureToAwait);
         verify(runnable).run();
+        assertThat(future1).isDone();
     }
 
     @Test
@@ -61,10 +63,13 @@ public final class DefaultCallingThreadExecutorTest {
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         Future<?> queueExecuted = executorService.submit(() -> executor.executeQueue(futureToAwait));
 
-        executor.submit(runnable);
-        executor.submit(runnable);
+        Future<?> future1 = executor.submit(runnable);
+        Future<?> future2 = executor.submit(runnable);
         futureToAwait.set(null);
 
+        verify(runnable, times(2)).run();
         assertThat(queueExecuted).isDone();
+        assertThat(future1).isDone();
+        assertThat(future2).isDone();
     }
 }

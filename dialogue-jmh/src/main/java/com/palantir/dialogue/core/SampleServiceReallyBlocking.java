@@ -63,39 +63,39 @@ public interface SampleServiceReallyBlocking extends SampleServiceBlocking {
     /**
      * Creates a synchronous/blocking client for a SampleService service.
      */
-    static SampleServiceReallyBlocking of(EndpointChannelFactory _endpointChannelFactory, ConjureRuntime _runtime) {
-        SampleServiceAsyncButNotReally delegate = SampleServiceAsyncButNotReally.of(_endpointChannelFactory, _runtime);
+    static SampleServiceReallyBlocking of(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+        SampleServiceAsyncButNotReally delegate = SampleServiceAsyncButNotReally.of(endpointChannelFactory, runtime);
         return new SampleServiceReallyBlocking() {
             @Override
             public void voidToVoid() {
-                _runtime.clients().block(delegate.voidToVoid());
+                runtime.clients().block(delegate.voidToVoid());
             }
 
             @Override
             public SampleObject objectToObject(
                     OffsetDateTime header, String path, List<ResourceIdentifier> queryKey, SampleObject body) {
-                return _runtime.clients().block(delegate.objectToObject(header, path, queryKey, body));
+                return runtime.clients().block(delegate.objectToObject(header, path, queryKey, body));
             }
 
             @Override
             public Optional<InputStream> getOptionalBinary() {
-                return _runtime.clients().block(delegate.getOptionalBinary());
+                return runtime.clients().block(delegate.getOptionalBinary());
             }
 
             @Override
             public AliasOfOptional getMyAlias() {
-                return _runtime.clients().block(delegate.getMyAlias());
+                return runtime.clients().block(delegate.getMyAlias());
             }
 
             @Override
             public AliasOfAliasOfOptional getMyAlias2() {
-                return _runtime.clients().block(delegate.getMyAlias2());
+                return runtime.clients().block(delegate.getMyAlias2());
             }
 
             @Override
             public String toString() {
-                return "SampleServiceBlocking{_endpointChannelFactory=" + _endpointChannelFactory + ", runtime="
-                        + _runtime + '}';
+                return "SampleServiceBlocking{_endpointChannelFactory=" + endpointChannelFactory + ", runtime="
+                        + runtime + '}';
             }
         };
     }
@@ -103,17 +103,17 @@ public interface SampleServiceReallyBlocking extends SampleServiceBlocking {
     /**
      * Creates an asynchronous/non-blocking client for a SampleService service.
      */
-    static SampleServiceReallyBlocking of(Channel _channel, ConjureRuntime _runtime) {
-        if (_channel instanceof EndpointChannelFactory) {
-            return of((EndpointChannelFactory) _channel, _runtime);
+    static SampleServiceReallyBlocking of(Channel channel, ConjureRuntime runtime) {
+        if (channel instanceof EndpointChannelFactory) {
+            return of((EndpointChannelFactory) channel, runtime);
         }
         return of(
                 new EndpointChannelFactory() {
                     @Override
                     public EndpointChannel endpoint(Endpoint endpoint) {
-                        return _runtime.clients().bind(_channel, endpoint);
+                        return runtime.clients().bind(channel, endpoint);
                     }
                 },
-                _runtime);
+                runtime);
     }
 }

@@ -51,12 +51,14 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
                 await,
                 new FutureCallback<Object>() {
                     @Override
-                    public void onSuccess(@Nullable Object result) {
+                    @SuppressWarnings("FutureReturnValueIgnored")
+                    public void onSuccess(@Nullable Object _result) {
                         queue.submit(notifier);
                     }
 
                     @Override
-                    public void onFailure(Throwable throwable) {
+                    @SuppressWarnings("FutureReturnValueIgnored")
+                    public void onFailure(Throwable _throwable) {
                         queue.submit(notifier);
                     }
                 },

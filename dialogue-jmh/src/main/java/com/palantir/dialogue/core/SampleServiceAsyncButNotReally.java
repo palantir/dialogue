@@ -68,85 +68,85 @@ public interface SampleServiceAsyncButNotReally {
     /**
      * Creates an asynchronous/non-blocking client for a SampleService service.
      */
-    static SampleServiceAsyncButNotReally of(EndpointChannelFactory _endpointChannelFactory, ConjureRuntime _runtime) {
+    static SampleServiceAsyncButNotReally of(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new SampleServiceAsyncButNotReally() {
-            private final PlainSerDe _plainSerDe = _runtime.plainSerDe();
+            private final PlainSerDe plainSerDe = runtime.plainSerDe();
 
             private final EndpointChannel voidToVoidChannel =
-                    _endpointChannelFactory.endpoint(DialogueSampleEndpoints.voidToVoid);
+                    endpointChannelFactory.endpoint(DialogueSampleEndpoints.voidToVoid);
 
             private final Deserializer<Void> voidToVoidDeserializer =
-                    _runtime.bodySerDe().emptyBodyDeserializer();
+                    runtime.bodySerDe().emptyBodyDeserializer();
 
             private final Serializer<SampleObject> objectToObjectSerializer =
-                    _runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
+                    runtime.bodySerDe().serializer(new TypeMarker<SampleObject>() {});
 
             private final EndpointChannel objectToObjectChannel =
-                    _endpointChannelFactory.endpoint(DialogueSampleEndpoints.objectToObject);
+                    endpointChannelFactory.endpoint(DialogueSampleEndpoints.objectToObject);
 
             private final Deserializer<SampleObject> objectToObjectDeserializer =
-                    _runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
+                    runtime.bodySerDe().deserializer(new TypeMarker<SampleObject>() {});
 
             private final EndpointChannel getOptionalBinaryChannel =
-                    _endpointChannelFactory.endpoint(DialogueSampleEndpoints.getOptionalBinary);
+                    endpointChannelFactory.endpoint(DialogueSampleEndpoints.getOptionalBinary);
 
             private final EndpointChannel getMyAliasChannel =
-                    _endpointChannelFactory.endpoint(DialogueSampleEndpoints.getMyAlias);
+                    endpointChannelFactory.endpoint(DialogueSampleEndpoints.getMyAlias);
 
             private final Deserializer<AliasOfOptional> getMyAliasDeserializer =
-                    _runtime.bodySerDe().deserializer(new TypeMarker<AliasOfOptional>() {});
+                    runtime.bodySerDe().deserializer(new TypeMarker<AliasOfOptional>() {});
 
             private final EndpointChannel getMyAlias2Channel =
-                    _endpointChannelFactory.endpoint(DialogueSampleEndpoints.getMyAlias2);
+                    endpointChannelFactory.endpoint(DialogueSampleEndpoints.getMyAlias2);
 
             private final Deserializer<AliasOfAliasOfOptional> getMyAlias2Deserializer =
-                    _runtime.bodySerDe().deserializer(new TypeMarker<AliasOfAliasOfOptional>() {});
+                    runtime.bodySerDe().deserializer(new TypeMarker<AliasOfAliasOfOptional>() {});
 
             @Override
             public ListenableFuture<Void> voidToVoid() {
-                Request.Builder _request = Request.builder();
-                return _runtime.clients().callBlocking(voidToVoidChannel, _request.build(), voidToVoidDeserializer);
+                Request.Builder request = Request.builder();
+                return runtime.clients().callBlocking(voidToVoidChannel, request.build(), voidToVoidDeserializer);
             }
 
             @Override
             public ListenableFuture<SampleObject> objectToObject(
                     OffsetDateTime header, String path, List<ResourceIdentifier> queryKey, SampleObject body) {
-                Request.Builder _request = Request.builder();
-                _request.putPathParams("path", _plainSerDe.serializeString(path));
-                _request.putHeaderParams("HeaderKey", _plainSerDe.serializeDateTime(header));
+                Request.Builder request = Request.builder();
+                request.putPathParams("path", plainSerDe.serializeString(path));
+                request.putHeaderParams("HeaderKey", plainSerDe.serializeDateTime(header));
                 for (ResourceIdentifier queryKeyElement : queryKey) {
-                    _request.putQueryParams("queryKey", _plainSerDe.serializeRid(queryKeyElement));
+                    request.putQueryParams("queryKey", plainSerDe.serializeRid(queryKeyElement));
                 }
-                _request.body(objectToObjectSerializer.serialize(body));
-                return _runtime.clients()
-                        .callBlocking(objectToObjectChannel, _request.build(), objectToObjectDeserializer);
+                request.body(objectToObjectSerializer.serialize(body));
+                return runtime.clients()
+                        .callBlocking(objectToObjectChannel, request.build(), objectToObjectDeserializer);
             }
 
             @Override
             public ListenableFuture<Optional<InputStream>> getOptionalBinary() {
-                Request.Builder _request = Request.builder();
-                return _runtime.clients()
+                Request.Builder request = Request.builder();
+                return runtime.clients()
                         .callBlocking(
                                 getOptionalBinaryChannel,
-                                _request.build(),
-                                _runtime.bodySerDe().optionalInputStreamDeserializer());
+                                request.build(),
+                                runtime.bodySerDe().optionalInputStreamDeserializer());
             }
 
             @Override
             public ListenableFuture<AliasOfOptional> getMyAlias() {
-                Request.Builder _request = Request.builder();
-                return _runtime.clients().callBlocking(getMyAliasChannel, _request.build(), getMyAliasDeserializer);
+                Request.Builder request = Request.builder();
+                return runtime.clients().callBlocking(getMyAliasChannel, request.build(), getMyAliasDeserializer);
             }
 
             @Override
             public ListenableFuture<AliasOfAliasOfOptional> getMyAlias2() {
-                Request.Builder _request = Request.builder();
-                return _runtime.clients().callBlocking(getMyAlias2Channel, _request.build(), getMyAlias2Deserializer);
+                Request.Builder request = Request.builder();
+                return runtime.clients().callBlocking(getMyAlias2Channel, request.build(), getMyAlias2Deserializer);
             }
 
             @Override
             public String toString() {
-                return "SampleServiceAsync{_endpointChannelFactory=" + _endpointChannelFactory + ", runtime=" + _runtime
+                return "SampleServiceAsync{_endpointChannelFactory=" + endpointChannelFactory + ", runtime=" + runtime
                         + '}';
             }
         };
@@ -155,17 +155,17 @@ public interface SampleServiceAsyncButNotReally {
     /**
      * Creates an asynchronous/non-blocking client for a SampleService service.
      */
-    static SampleServiceAsyncButNotReally of(Channel _channel, ConjureRuntime _runtime) {
-        if (_channel instanceof EndpointChannelFactory) {
-            return of((EndpointChannelFactory) _channel, _runtime);
+    static SampleServiceAsyncButNotReally of(Channel channel, ConjureRuntime runtime) {
+        if (channel instanceof EndpointChannelFactory) {
+            return of((EndpointChannelFactory) channel, runtime);
         }
         return of(
                 new EndpointChannelFactory() {
                     @Override
                     public EndpointChannel endpoint(Endpoint endpoint) {
-                        return _runtime.clients().bind(_channel, endpoint);
+                        return runtime.clients().bind(channel, endpoint);
                     }
                 },
-                _runtime);
+                runtime);
     }
 }
