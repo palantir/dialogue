@@ -29,11 +29,6 @@ enum BlockingDefaultClients implements Clients {
     INSTANCE;
 
     @Override
-    public Clients blocking() {
-        return this;
-    }
-
-    @Override
     public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
         request.executeInCallingThread();
         ListenableFuture<T> toReturn = DefaultClients.INSTANCE.call(channel, request, deserializer);

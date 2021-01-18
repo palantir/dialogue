@@ -25,8 +25,6 @@ import java.util.concurrent.Future;
  */
 public interface Clients {
 
-    Clients blocking();
-
     /**
      * Makes a request to the specified {@link EndpointChannel} and deserializes the response using a provided
      * deserializer.

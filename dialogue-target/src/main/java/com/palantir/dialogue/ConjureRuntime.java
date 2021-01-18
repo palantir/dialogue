@@ -32,4 +32,7 @@ public interface ConjureRuntime {
 
     /** Provides the {@link Clients} used to facilitate making requests. */
     Clients clients();
+
+    /** Provides the {@link Clients} used to facilitate making requests. */
+    ConjureRuntime toBlocking();
 }

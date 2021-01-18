@@ -225,5 +225,5 @@ acceptedBreaks:
   "1.91.1":
     com.palantir.dialogue:dialogue-target:
     - code: "java.method.addedToInterface"
-      new: "method com.palantir.dialogue.Clients com.palantir.dialogue.Clients::blocking()"
+      new: "method com.palantir.dialogue.ConjureRuntime com.palantir.dialogue.ConjureRuntime::toBlocking()"
       justification: "Testing"

@@ -51,11 +51,6 @@ enum DefaultClients implements Clients {
     private static final Logger log = LoggerFactory.getLogger(DefaultClients.class);
 
     @Override
-    public Clients blocking() {
-        return BlockingDefaultClients.INSTANCE;
-    }
-
-    @Override
     public <T> ListenableFuture<T> call(
             Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer) {
         // When this method is called, the EndpointChannel can be used at most once. Do not use the bind function
