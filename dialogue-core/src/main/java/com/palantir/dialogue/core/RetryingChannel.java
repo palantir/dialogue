@@ -250,7 +250,7 @@ final class RetryingChannel implements EndpointChannel {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
-            if (response.code() == 500 && safeToRetry(endpoint.httpMethod())) {
+            if (Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 

@@ -16,24 +16,31 @@
 
 package com.palantir.dialogue.core;
 
-import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 final class TimingEndpointChannel implements EndpointChannel {
+
+    private static final Logger log = LoggerFactory.getLogger(TimingEndpointChannel.class);
+    private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1);
+
     private final EndpointChannel delegate;
-    private final Timer responseTimer;
-    private final Meter ioExceptionMeter;
+    private final Timer successTimer;
+    private final Timer failureTimer;
     private final Ticker ticker;
 
     TimingEndpointChannel(
@@ -45,14 +52,17 @@ final class TimingEndpointChannel implements EndpointChannel {
         this.delegate = delegate;
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        this.responseTimer = metrics.response()
+        this.successTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .status("success")
                 .build();
-        this.ioExceptionMeter = metrics.responseError()
+        this.failureTimer = metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
-                .reason("IOException")
+                .endpoint(endpoint.endpointName())
+                .status("failure")
                 .build();
     }
 
@@ -68,20 +78,30 @@ final class TimingEndpointChannel implements EndpointChannel {
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
-            public void onSuccess(Response _result) {
-                updateResponseTimer();
+            public void onSuccess(Response response) {
+                if (Responses.isSuccess(response)) {
+                    updateTimer(successTimer);
+                } else if (Responses.isQosStatus(response) || Responses.isInternalServerError(response)) {
+                    updateTimer(failureTimer);
+                }
             }
 
             @Override
             public void onFailure(Throwable throwable) {
-                updateResponseTimer();
                 if (throwable instanceof IOException) {
-                    ioExceptionMeter.mark();
+                    updateTimer(failureTimer);
+                } else {
+                    if (unknownThrowableLoggingRateLimiter.tryAcquire()) {
+                        log.info(
+                                "Unknown failure",
+                                SafeArg.of(
+                                        "exceptionClass", throwable.getClass().getName()));
+                    }
                 }
             }
 
-            private void updateResponseTimer() {
-                responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
+            private void updateTimer(Timer timer) {
+                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
     }
