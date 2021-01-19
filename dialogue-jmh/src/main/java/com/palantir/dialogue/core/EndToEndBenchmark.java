@@ -160,7 +160,7 @@ public class EndToEndBenchmark {
     @Threads(4)
     @Benchmark
     public void rawApacheBlocking() {
-        clientUtils.block(apacheChannel.execute(TestEndpoint.GET, request));
+        clientUtils.block(apacheChannel.execute(TestEndpoint.GET, request)).close();
     }
 
     private static String getUri(Undertow undertow) {
