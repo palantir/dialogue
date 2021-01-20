@@ -114,6 +114,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     e,
                     SafeArg.of("durationMillis", durationMillis),
                     SafeArg.of("connectTimeout", client.clientConfiguration().connectTimeout()),
+                    SafeArg.of("socketTimeout", client.clientConfiguration().readTimeout()),
                     SafeArg.of("clientName", client.name()));
         }
     }
