@@ -20,9 +20,9 @@ import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
@@ -37,15 +37,12 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.refreshable.Refreshable;
-import com.palantir.tracing.Tracers;
-import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.ResponseCodeHandler;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -93,24 +90,19 @@ public class EndToEndBenchmark {
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
 
-        blockingExecutor = Tracers.wrap(
-                "dialogue-blocking-channel",
-                Executors.newCachedThreadPool(MetricRegistries.instrument(
-                        metrics,
-                        new ThreadFactoryBuilder()
-                                .setNameFormat("dialogue-blocking-channel-%d")
-                                .setDaemon(true)
-                                .build(),
-                        "dialogue-blocking-channel")));
+        blockingExecutor = MoreExecutors.newDirectExecutorService();
 
         DialogueClients.ReloadingFactory clients = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withTaggedMetrics(metrics)
-                .withBlockingExecutor(blockingExecutor);
+                .withBlockingExecutor(blockingExecutor)
+                .withMaxNumRetries(0)
+                .withClientQoS(ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS);
 
         ServiceConfiguration serviceConf = ServiceConfiguration.builder()
                 .addUris(getUri(undertow))
                 .security(TestConfigurations.SSL_CONFIG)
+                .maxNumRetries(0)
                 .build();
 
         blocking = clients.getNonReloading(SampleServiceBlocking.class, serviceConf);
@@ -119,6 +111,8 @@ public class EndToEndBenchmark {
                 .from(ClientConfigurations.of(serviceConf))
                 .taggedMetricRegistry(metrics)
                 .userAgent(TestConfigurations.AGENT)
+                .maxNumRetries(0)
+                .clientQoS(ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)
                 .build();
         closeableApache = ApacheHttpClientChannels.clientBuilder()
                 .executor(blockingExecutor)
@@ -172,6 +166,7 @@ public class EndToEndBenchmark {
         Options opt = new OptionsBuilder()
                 .include(EndToEndBenchmark.class.getSimpleName())
                 .jvmArgsPrepend("-Xmx1024m", "-Xms1024m", "-XX:+CrashOnOutOfMemoryError")
+                // .addProfiler(LinuxPerfNormProfiler.class, "events=context-switches")
                 // .addProfiler(GCProfiler.class)
                 .build();
         new Runner(opt).run();
