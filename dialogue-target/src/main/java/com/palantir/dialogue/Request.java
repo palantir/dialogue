@@ -43,7 +43,7 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
-    private Optional<CallingThreadExecutor> callingThreadExecutor = Optional.empty();
+    private volatile Optional<CallingThreadExecutor> callingThreadExecutor = Optional.empty();
 
     private Request(Builder builder) {
         body = builder.body;
@@ -83,11 +83,11 @@ public final class Request {
         return body;
     }
 
-    public synchronized void executeInCallingThread() {
+    public void executeInCallingThread() {
         this.callingThreadExecutor = Optional.of(new DefaultCallingThreadExecutor());
     }
 
-    public synchronized Optional<CallingThreadExecutor> getCallingThreadExecutor() {
+    public Optional<CallingThreadExecutor> getCallingThreadExecutor() {
         return callingThreadExecutor;
     }
 
