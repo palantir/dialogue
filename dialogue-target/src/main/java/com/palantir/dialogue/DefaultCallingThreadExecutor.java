@@ -19,7 +19,8 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.MoreExecutors;
+import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -32,7 +33,7 @@ import org.slf4j.LoggerFactory;
 final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
     private static final Logger log = LoggerFactory.getLogger(DefaultCallingThreadExecutor.class);
-
+    private final long threadId = Thread.currentThread().getId();
     private final Queue queue = new Queue();
 
     /** Notification when main future completes. */
@@ -40,12 +41,18 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
     @Override
     public synchronized Future<?> submit(Runnable task) {
+        if (Thread.currentThread().getId() == threadId) {
+            RunnableFuture<?> future = new FutureTask<>(task, null);
+            future.run();
+            return future;
+        }
+
         return queue.submit(task);
     }
 
     @Override
     public void executeQueue(ListenableFuture<?> await) {
-        // TODO(1234): This isn't using DialogueFutures cause looks like it's not a dependency.
+        Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
         Futures.addCallback(
                 await,
                 new FutureCallback<Object>() {
@@ -61,7 +68,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
                         queue.submit(notifier);
                     }
                 },
-                MoreExecutors.directExecutor());
+                DialogueFutures.safeDirectExecutor());
 
         RunnableFuture<?> toRun;
         while ((toRun = queue.getWork()) != null) {
