@@ -43,10 +43,11 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
-    private volatile Optional<CallingThreadExecutor> callingThreadExecutor = Optional.empty();
+    private volatile Optional<CallingThreadExecutor> callingThreadExecutor;
 
     private Request(Builder builder) {
         body = builder.body;
+        callingThreadExecutor = builder.executor;
         headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.unmodifiablePathParams();
@@ -148,6 +149,8 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
+        private Optional<CallingThreadExecutor> executor = Optional.empty();
+
         private int mutableCollectionsBitSet = 0;
 
         private Builder() {}
@@ -158,6 +161,7 @@ public final class Request {
             headerParams = existing.headerParams;
             queryParams = existing.queryParams;
             pathParams = existing.pathParams;
+            executor = existing.callingThreadExecutor;
 
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
