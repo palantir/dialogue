@@ -83,11 +83,11 @@ public final class Request {
         return body;
     }
 
-    public void executeInCallingThread() {
+    public synchronized void executeInCallingThread() {
         this.callingThreadExecutor = Optional.of(new DefaultCallingThreadExecutor());
     }
 
-    public Optional<CallingThreadExecutor> getCallingThreadExecutor() {
+    public synchronized Optional<CallingThreadExecutor> getCallingThreadExecutor() {
         return callingThreadExecutor;
     }
 
