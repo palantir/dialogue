@@ -17,15 +17,22 @@
 package com.palantir.dialogue;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.times;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.JdkFutureAdapters;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
-import java.util.concurrent.ExecutorService;
+import com.google.common.util.concurrent.Uninterruptibles;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.function.Function;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,23 +43,26 @@ import org.mockito.junit.jupiter.MockitoExtension;
 public final class DefaultCallingThreadExecutorTest {
 
     @Mock
-    private Runnable runnable;
+    private Runnable runnable1;
+
+    @Mock
+    private Runnable runnable2;
 
     private final SettableFuture<?> futureToAwait = SettableFuture.create();
 
-    private final CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
-
     @Test
     public void testRunnableCompletesBeforeReturning() {
-        Future<?> future1 = executor.submit(runnable);
+        CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
+        Future<?> future1 = executor.submit(runnable1);
         futureToAwait.set(null);
         executor.executeQueue(futureToAwait);
-        verify(runnable).run();
+        verify(runnable1).run();
         assertThat(future1).isDone();
     }
 
     @Test
     public void testThrowsWhenPoisoned() {
+        CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
         futureToAwait.set(null);
         executor.executeQueue(futureToAwait);
         Assertions.assertThatThrownBy(() -> executor.submit(() -> {}))
@@ -61,18 +71,41 @@ public final class DefaultCallingThreadExecutorTest {
 
     @Test
     public void testExecutesTasksUntilFinished() {
-        ExecutorService executorService = Executors.newSingleThreadExecutor();
-        Future<?> queueExecuted = executorService.submit(() -> executor.executeQueue(futureToAwait));
+        ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+        ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
+        CountDownLatch latch = new CountDownLatch(2);
 
-        Future<?> future1 = executor.submit(runnable);
-        Future<?> future2 = executor.submit(runnable);
+        // Kinda nasty because it relies on the queueExecutor not switching threads
+        CallingThreadExecutor executorToUse =
+                Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
+        ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
+
+        Function<Runnable, ListenableFuture<?>> submitter = (task) -> {
+            ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
+                latch.countDown();
+                Uninterruptibles.awaitUninterruptibly(latch);
+                return JdkFutureAdapters.listenInPoolThread(executorToUse.submit(task));
+            });
+
+            return Futures.transformAsync(
+                    submitterFuture, input -> (ListenableFuture<Object>) input, MoreExecutors.directExecutor());
+        };
+
+        Future<?> future1 = submitter.apply(runnable1);
+
+        RuntimeException exception = new RuntimeException();
+        doThrow(exception).when(runnable2).run();
+        Future<?> future2 = submitter.apply(runnable2);
+
+        assertThat(Futures.getUnchecked(future1)).isEqualTo(null);
+        assertThatThrownBy(() -> Futures.getUnchecked(future2)).hasCause(exception);
+        verify(runnable1).run();
+        verify(runnable2).run();
+
         futureToAwait.set(null);
 
         Futures.getUnchecked(queueExecuted);
 
-        verify(runnable, times(2)).run();
         assertThat(queueExecuted).isDone();
-        assertThat(future1).isDone();
-        assertThat(future2).isDone();
     }
 }
