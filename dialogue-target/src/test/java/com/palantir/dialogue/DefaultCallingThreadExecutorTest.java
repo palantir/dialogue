@@ -108,4 +108,16 @@ public final class DefaultCallingThreadExecutorTest {
 
         assertThat(queueExecuted).isDone();
     }
+    //
+    // @Test
+    // public void stressTestAllCompleteBeforeTargetFutureCompletes() {
+    //     ListeningExecutorService queueExecutor =
+    // MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+    //     ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
+    //
+    //     CallingThreadExecutor executorToUse =
+    //             Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
+    //
+    //     ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
+    // }
 }
