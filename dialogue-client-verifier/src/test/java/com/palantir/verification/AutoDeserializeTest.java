@@ -29,6 +29,8 @@ import java.util.Optional;
 import java.util.stream.IntStream;
 import org.junit.Assume;
 import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
@@ -84,7 +86,8 @@ public class AutoDeserializeTest {
         return objects;
     }
 
-    // @Test
+    @Test
+    @Ignore
     @SuppressWarnings("IllegalThrows")
     public void runTestCase() throws Error, NoSuchMethodException {
         boolean shouldIgnore = Cases.shouldIgnore(endpointName, jsonString);
