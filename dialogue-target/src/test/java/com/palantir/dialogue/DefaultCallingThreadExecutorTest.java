@@ -22,8 +22,8 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.JdkFutureAdapters;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
@@ -88,7 +88,9 @@ public final class DefaultCallingThreadExecutorTest {
             ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
                 latch.countDown();
                 Uninterruptibles.awaitUninterruptibly(latch);
-                return JdkFutureAdapters.listenInPoolThread(executorToUse.submit(task));
+                ListenableFutureTask<?> listenableTask = ListenableFutureTask.create(task, null);
+                executorToUse.submit(listenableTask);
+                return listenableTask;
             });
 
             return Futures.transformAsync(
@@ -135,13 +137,16 @@ public final class DefaultCallingThreadExecutorTest {
 
         for (int i = 0; i < numElements; i++) {
             final int iValue = i;
-            taskSubmitters.execute(() -> {
+            ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
                 allReadyToSubmit.countDown();
                 Uninterruptibles.awaitUninterruptibly(allReadyToSubmit);
-                futures.add(JdkFutureAdapters.listenInPoolThread(executorToUse.submit(() -> {
-                    results.set(iValue, -iValue);
-                })));
+                ListenableFutureTask<?> listenableTask =
+                        ListenableFutureTask.create(() -> results.set(iValue, -iValue), null);
+                executorToUse.submit(listenableTask);
+                return listenableTask;
             });
+            futures.add(Futures.transformAsync(
+                    submitterFuture, input -> (ListenableFuture<Object>) input, MoreExecutors.directExecutor()));
         }
 
         Futures.getUnchecked(Futures.allAsList(futures));
