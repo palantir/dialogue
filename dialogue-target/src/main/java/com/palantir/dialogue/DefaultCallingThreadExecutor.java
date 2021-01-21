@@ -42,6 +42,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @Override
     public synchronized Future<?> submit(Runnable task) {
         if (Thread.currentThread().getId() == threadId) {
+            queue.checkNotPoisoned();
             RunnableFuture<?> future = new FutureTask<>(task, null);
             future.run();
             return future;
@@ -81,13 +82,17 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
         private final BlockingDeque<RunnableFuture<?>> queue = new LinkedBlockingDeque<>();
 
         public synchronized Future<?> submit(Runnable task) {
+            checkNotPoisoned();
+            RunnableFuture<?> future = new FutureTask<>(task, null);
+            queue.add(future);
+            return future;
+        }
+
+        public synchronized void checkNotPoisoned() {
             if (poisoned) {
                 log.info("Submitted task after queue is closed");
                 throw new RejectedExecutionException("Queue closed");
             }
-            RunnableFuture<?> future = new FutureTask<>(task, null);
-            queue.add(future);
-            return future;
         }
 
         public synchronized void poison() {

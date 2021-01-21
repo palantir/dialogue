@@ -28,6 +28,9 @@ import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -108,16 +111,45 @@ public final class DefaultCallingThreadExecutorTest {
 
         assertThat(queueExecuted).isDone();
     }
-    //
-    // @Test
-    // public void stressTestAllCompleteBeforeTargetFutureCompletes() {
-    //     ListeningExecutorService queueExecutor =
-    // MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
-    //     ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
-    //
-    //     CallingThreadExecutor executorToUse =
-    //             Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
-    //
-    //     ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
-    // }
+
+    @Test
+    public void stressTestAllCompleteBeforeTargetFutureCompletes() {
+        ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+        ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
+
+        CallingThreadExecutor executorToUse =
+                Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
+
+        ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
+
+        int numElements = 1000;
+        CountDownLatch allReadyToSubmit = new CountDownLatch(numElements);
+        List<Integer> results = Collections.synchronizedList(new ArrayList<>(numElements));
+        List<ListenableFuture<?>> futures = Collections.synchronizedList(new ArrayList<>(numElements));
+
+        for (int i = 0; i < numElements; i++) {
+            results.add(i);
+        }
+
+        for (int i = 0; i < numElements; i++) {
+            final int iValue = i;
+            taskSubmitters.submit(() -> {
+                allReadyToSubmit.countDown();
+                Uninterruptibles.awaitUninterruptibly(allReadyToSubmit);
+                futures.add(JdkFutureAdapters.listenInPoolThread(executorToUse.submit(() -> {
+                    results.set(iValue, -iValue);
+                })));
+            });
+        }
+
+        Futures.getUnchecked(Futures.allAsList(futures));
+
+        futureToAwait.set(null);
+
+        Futures.getUnchecked(queueExecuted);
+
+        for (int i = 0; i < numElements; i++) {
+            assertThat(results.get(i)).isEqualTo(-i);
+        }
+    }
 }
