@@ -73,6 +73,7 @@ public final class DefaultCallingThreadExecutorTest {
     }
 
     @Test
+    @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
     public void testExecutesTasksUntilFinished() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
@@ -83,7 +84,7 @@ public final class DefaultCallingThreadExecutorTest {
                 Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
         ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
 
-        Function<Runnable, ListenableFuture<?>> submitter = (task) -> {
+        Function<Runnable, ListenableFuture<?>> submitter = task -> {
             ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
                 latch.countDown();
                 Uninterruptibles.awaitUninterruptibly(latch);
@@ -113,6 +114,7 @@ public final class DefaultCallingThreadExecutorTest {
     }
 
     @Test
+    @SuppressWarnings("CheckReturnValue")
     public void stressTestAllCompleteBeforeTargetFutureCompletes() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         ListeningExecutorService taskSubmitters = MoreExecutors.listeningDecorator(Executors.newCachedThreadPool());
@@ -133,7 +135,7 @@ public final class DefaultCallingThreadExecutorTest {
 
         for (int i = 0; i < numElements; i++) {
             final int iValue = i;
-            taskSubmitters.submit(() -> {
+            taskSubmitters.execute(() -> {
                 allReadyToSubmit.countDown();
                 Uninterruptibles.awaitUninterruptibly(allReadyToSubmit);
                 futures.add(JdkFutureAdapters.listenInPoolThread(executorToUse.submit(() -> {
