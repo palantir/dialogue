@@ -81,11 +81,14 @@ public final class BlockingChannelAdapter {
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             try {
                 Future<?> future;
-                if (request.getCallingThreadExecutor().isPresent()) {
-                    future = request.getCallingThreadExecutor().get().submit(runnable);
-                } else {
-                    future = executor.submit(runnable);
-                }
+                // if (request.getCallingThreadExecutor().isPresent()) {
+                //     future = request.getCallingThreadExecutor().get().submit(runnable);
+                // } else {
+                //     future = executor.submit(runnable);
+                // }
+
+                future = executor.submit(runnable);
+
                 // The executor task should be interrupted on termination
                 Futures.addCallback(
                         settableFuture,

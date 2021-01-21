@@ -30,10 +30,10 @@ enum BlockingDefaultClients implements Clients {
 
     @Override
     public <T> ListenableFuture<T> call(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        request.executeInCallingThread();
+        // request.executeInCallingThread();
         ListenableFuture<T> toReturn = DefaultClients.INSTANCE.call(channel, request, deserializer);
-        request.getCallingThreadExecutor()
-                .ifPresent(callingThreadExecutor -> callingThreadExecutor.executeQueue(toReturn));
+        // request.getCallingThreadExecutor()
+        //         .ifPresent(callingThreadExecutor -> callingThreadExecutor.executeQueue(toReturn));
         return toReturn;
     }
 
