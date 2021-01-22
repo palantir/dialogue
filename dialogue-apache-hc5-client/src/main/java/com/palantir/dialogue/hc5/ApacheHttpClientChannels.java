@@ -187,7 +187,7 @@ public final class ApacheHttpClientChannels {
             this.clientConfiguration = clientConfiguration;
             closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
-            closer.register(pool::close);
+            closer.register(pool);
             closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
                     .close()
                     .clientName(clientName)
