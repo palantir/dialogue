@@ -40,7 +40,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private final Runnable notifier = queue::poison;
 
     @Override
-    public synchronized Future<?> submit(Runnable task) {
+    public Future<?> submit(Runnable task) {
         // if (Thread.currentThread().getId() == threadId) {
         //     queue.checkNotPoisoned();
         //     RunnableFuture<?> future = new FutureTask<>(task, null);
