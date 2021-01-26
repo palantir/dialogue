@@ -21,10 +21,10 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
-import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RunnableFuture;
 import org.slf4j.Logger;
@@ -71,7 +71,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
     private static final class Queue {
         private boolean poisoned = false;
-        private final BlockingDeque<RunnableFuture<?>> queue = new LinkedBlockingDeque<>();
+        private final BlockingQueue<RunnableFuture<?>> queue = new LinkedBlockingQueue<>();
 
         public synchronized Future<?> submit(Runnable task) {
             checkNotPoisoned();
