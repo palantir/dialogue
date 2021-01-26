@@ -39,6 +39,20 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     /** Notification when main future completes. */
     private final Runnable notifier = queue::poison;
 
+    private final FutureCallback<Object> callback = new FutureCallback<Object>() {
+        @Override
+        @SuppressWarnings("FutureReturnValueIgnored")
+        public void onSuccess(Object _result) {
+            queue.submit(notifier);
+        }
+
+        @Override
+        @SuppressWarnings("FutureReturnValueIgnored")
+        public void onFailure(Throwable _throwable) {
+            queue.submit(notifier);
+        }
+    };
+
     @Override
     public Future<?> submit(Runnable task) {
         // if (Thread.currentThread().getId() == threadId) {
@@ -54,22 +68,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @Override
     public void executeQueue(ListenableFuture<?> await) {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
-        Futures.addCallback(
-                await,
-                new FutureCallback<Object>() {
-                    @Override
-                    @SuppressWarnings("FutureReturnValueIgnored")
-                    public void onSuccess(Object _result) {
-                        queue.submit(notifier);
-                    }
-
-                    @Override
-                    @SuppressWarnings("FutureReturnValueIgnored")
-                    public void onFailure(Throwable _throwable) {
-                        queue.submit(notifier);
-                    }
-                },
-                DialogueFutures.safeDirectExecutor());
+        Futures.addCallback(await, callback, DialogueFutures.safeDirectExecutor());
 
         RunnableFuture<?> toRun;
         while ((toRun = queue.getWork()) != null) {
