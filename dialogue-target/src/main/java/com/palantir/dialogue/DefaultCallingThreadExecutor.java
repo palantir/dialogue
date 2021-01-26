@@ -55,13 +55,6 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
     @Override
     public Future<?> submit(Runnable task) {
-        // if (Thread.currentThread().getId() == threadId) {
-        //     queue.checkNotPoisoned();
-        //     RunnableFuture<?> future = new FutureTask<>(task, null);
-        //     future.run();
-        //     return future;
-        // }
-
         return queue.submit(task);
     }
 
