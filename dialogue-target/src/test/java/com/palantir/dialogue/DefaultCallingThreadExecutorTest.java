@@ -23,7 +23,6 @@ import static org.mockito.Mockito.verify;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableFutureTask;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
@@ -33,7 +32,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Function;
 import org.assertj.core.api.Assertions;
@@ -56,7 +54,7 @@ public final class DefaultCallingThreadExecutorTest {
     @Test
     public void testRunnableCompletesBeforeReturning() {
         CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
-        Future<?> future1 = executor.submit(runnable1);
+        ListenableFuture<?> future1 = executor.submit(runnable1);
         futureToAwait.set(null);
         executor.executeQueue(futureToAwait);
         verify(runnable1).run();
@@ -88,20 +86,18 @@ public final class DefaultCallingThreadExecutorTest {
             ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
                 latch.countDown();
                 Uninterruptibles.awaitUninterruptibly(latch);
-                ListenableFutureTask<?> listenableTask = ListenableFutureTask.create(task, null);
-                executorToUse.submit(listenableTask);
-                return listenableTask;
+                return executorToUse.submit(task);
             });
 
             return Futures.transformAsync(
                     submitterFuture, input -> (ListenableFuture<Object>) input, MoreExecutors.directExecutor());
         };
 
-        Future<?> future1 = submitter.apply(runnable1);
+        ListenableFuture<?> future1 = submitter.apply(runnable1);
 
         RuntimeException exception = new RuntimeException();
         doThrow(exception).when(runnable2).run();
-        Future<?> future2 = submitter.apply(runnable2);
+        ListenableFuture<?> future2 = submitter.apply(runnable2);
 
         assertThat(Futures.getUnchecked(future1)).isEqualTo(null);
         assertThatThrownBy(() -> Futures.getUnchecked(future2)).hasCause(exception);
@@ -140,10 +136,7 @@ public final class DefaultCallingThreadExecutorTest {
             ListenableFuture<ListenableFuture<?>> submitterFuture = taskSubmitters.submit(() -> {
                 allReadyToSubmit.countDown();
                 Uninterruptibles.awaitUninterruptibly(allReadyToSubmit);
-                ListenableFutureTask<?> listenableTask =
-                        ListenableFutureTask.create(() -> results.set(iValue, -iValue), null);
-                executorToUse.submit(listenableTask);
-                return listenableTask;
+                return executorToUse.submit(() -> results.set(iValue, -iValue));
             });
             futures.add(Futures.transformAsync(
                     submitterFuture, input -> (ListenableFuture<Object>) input, MoreExecutors.directExecutor()));

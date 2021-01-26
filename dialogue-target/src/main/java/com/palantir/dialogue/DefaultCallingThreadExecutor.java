@@ -19,11 +19,10 @@ package com.palantir.dialogue;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListenableFutureTask;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Future;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.RunnableFuture;
@@ -54,7 +53,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     };
 
     @Override
-    public Future<?> submit(Runnable task) {
+    public ListenableFuture<?> submit(Runnable task) {
         return queue.submit(task);
     }
 
@@ -73,9 +72,9 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
         private boolean poisoned = false;
         private final BlockingQueue<RunnableFuture<?>> queue = new LinkedBlockingQueue<>();
 
-        public synchronized Future<?> submit(Runnable task) {
+        public synchronized ListenableFuture<?> submit(Runnable task) {
             checkNotPoisoned();
-            RunnableFuture<?> future = new FutureTask<>(task, null);
+            ListenableFutureTask<?> future = ListenableFutureTask.create(task, null);
             queue.add(future);
             return future;
         }
