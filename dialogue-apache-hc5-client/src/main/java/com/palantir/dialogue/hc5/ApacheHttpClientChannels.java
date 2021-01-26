@@ -487,7 +487,7 @@ public final class ApacheHttpClientChannels {
     private static Timeout getSocketTimeout(ClientConfiguration conf, String clientName) {
         long socketTimeoutMillis = conf.readTimeout().toMillis();
         if (conf.readTimeout().toMillis() != conf.writeTimeout().toMillis()) {
-            log.warn(
+            log.info(
                     "Read and write timeouts do not match, The value of the readTimeout {} will be used and write "
                             + "timeout {} will be ignored. Client: {}",
                     SafeArg.of("readTimeout", conf.readTimeout()),
