@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Reduce socket timeout logging from WARN to INFO
+  links:
+  - https://github.com/palantir/dialogue/pull/1104
