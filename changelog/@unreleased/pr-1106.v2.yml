@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Clients.callBlocking provides a default implementation for cross-version compatibility
+  links:
+  - https://github.com/palantir/dialogue/pull/1106
