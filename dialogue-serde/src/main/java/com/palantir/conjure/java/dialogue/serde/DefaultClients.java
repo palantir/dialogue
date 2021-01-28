@@ -68,6 +68,11 @@ enum DefaultClients implements Clients {
     }
 
     @Override
+    public <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
+        return block(call(channel, request, deserializer));
+    }
+
+    @Override
     public EndpointChannel bind(Channel channel, Endpoint endpoint) {
         if (channel instanceof EndpointChannelFactory) {
             return ((EndpointChannelFactory) channel).endpoint(endpoint);

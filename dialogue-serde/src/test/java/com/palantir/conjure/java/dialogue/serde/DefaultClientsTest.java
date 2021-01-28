@@ -21,12 +21,15 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Channel;
@@ -37,12 +40,17 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.junit.jupiter.api.Test;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
@@ -51,6 +59,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public final class DefaultClientsTest {
 
+    private static final String VALUE = "value";
+
     @Mock
     private Channel channel;
 
@@ -58,7 +68,7 @@ public final class DefaultClientsTest {
     private Endpoint endpoint;
 
     @Mock
-    private Deserializer<String> deserializer;
+    private Deserializer<String> stringDeserializer;
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
@@ -67,60 +77,71 @@ public final class DefaultClientsTest {
     private BodySerDe bodySerde = new ConjureBodySerDe(
             DefaultConjureRuntime.DEFAULT_ENCODINGS, ErrorDecoder.INSTANCE, Encodings.emptyContainerDeserializer());
     private final SettableFuture<Response> responseFuture = SettableFuture.create();
+    private final ListeningExecutorService executor =
+            MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
 
-    @Test
-    public void testCall() throws ExecutionException, InterruptedException {
-        Request request = Request.builder().build();
-        when(deserializer.deserialize(eq(response))).thenReturn("value");
-        when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
-        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
-        assertThat(result).isNotDone();
-        responseFuture.set(response);
-        assertThat(result).isDone();
-        assertThat(result.get()).isEqualTo("value");
+    enum CallType {
+        Blocking,
+        Async
     }
 
-    @Test
-    public void testAddsAcceptHeader() throws ExecutionException, InterruptedException {
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testCall(CallType callType) {
+        Request request = Request.builder().build();
+        when(stringDeserializer.deserialize(eq(response))).thenReturn(VALUE);
+        when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
+        ListenableFuture<String> result = call(callType, request);
+        assertThat(result).isNotDone();
+        responseFuture.set(response);
+
+        assertStringResult(callType, result);
+    }
+
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testAddsAcceptHeader(CallType callType) {
         String expectedAccept = "application/json";
         Request request = Request.builder().build();
 
-        when(deserializer.deserialize(eq(response))).thenReturn("value");
-        when(deserializer.accepts()).thenReturn(Optional.of(expectedAccept));
+        when(stringDeserializer.deserialize(eq(response))).thenReturn("value");
+        when(stringDeserializer.accepts()).thenReturn(Optional.of(expectedAccept));
         when(channel.execute(eq(endpoint), any())).thenReturn(Futures.immediateFuture(response));
 
-        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+        ListenableFuture<String> result = call(callType, request);
 
-        assertThat(result).isDone();
-        assertThat(result.get()).isEqualTo("value");
+        assertStringResult(callType, result);
         verify(channel).execute(eq(endpoint), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get(HttpHeaders.ACCEPT))
                 .containsExactly(expectedAccept);
     }
 
-    @Test
-    public void testCallClosesRequestOnCompletion_success() {
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testCallClosesRequestOnCompletion_success(CallType callType) {
         RequestBody body = mock(RequestBody.class);
         Request request = Request.builder().body(body).build();
-        when(deserializer.deserialize(eq(response))).thenReturn("value");
+        when(stringDeserializer.deserialize(eq(response))).thenReturn("value");
         when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
-        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+        ListenableFuture<String> result = call(callType, request);
 
         // The request has been sent, but not yet completed
+        verifyExecutionStarted(request);
         verify(body, never()).close();
 
         // Upon completion the request should be closed
         responseFuture.set(response);
-        assertThat(result).isDone();
+        assertStringResult(callType, result);
         verify(body).close();
     }
 
-    @Test
-    public void testBinaryResponse_inputStreamRemainsUnclosed() throws IOException {
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testBinaryResponse_inputStreamRemainsUnclosed(CallType callType) throws IOException {
         when(channel.execute(eq(endpoint), any())).thenReturn(responseFuture);
 
-        ListenableFuture<InputStream> future = DefaultClients.INSTANCE.call(
-                channel, endpoint, Request.builder().build(), bodySerde.inputStreamDeserializer());
+        ListenableFuture<InputStream> future =
+                call(callType, Request.builder().build(), bodySerde.inputStreamDeserializer());
 
         TestResponse testResponse = new TestResponse().contentType("application/octet-stream");
         responseFuture.set(testResponse);
@@ -143,12 +164,13 @@ public final class DefaultClientsTest {
                 .isFalse();
     }
 
-    @Test
-    public void testOptionalBinaryResponse_inputStreamRemainsUnclosed() throws IOException {
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testOptionalBinaryResponse_inputStreamRemainsUnclosed(CallType callType) throws IOException {
         when(channel.execute(eq(endpoint), any())).thenReturn(responseFuture);
 
-        ListenableFuture<Optional<InputStream>> future = DefaultClients.INSTANCE.call(
-                channel, endpoint, Request.builder().build(), bodySerde.optionalInputStreamDeserializer());
+        ListenableFuture<Optional<InputStream>> future =
+                call(callType, Request.builder().build(), bodySerde.optionalInputStreamDeserializer());
 
         TestResponse testResponse = new TestResponse().contentType("application/octet-stream");
         responseFuture.set(testResponse);
@@ -172,19 +194,56 @@ public final class DefaultClientsTest {
                 .isFalse();
     }
 
-    @Test
-    public void testCallClosesRequestOnCompletion_failure() {
+    @ParameterizedTest
+    @EnumSource(CallType.class)
+    public void testCallClosesRequestOnCompletion_failure(CallType callType) {
         RequestBody body = mock(RequestBody.class);
         Request request = Request.builder().body(body).build();
         when(channel.execute(eq(endpoint), eq(request))).thenReturn(responseFuture);
-        ListenableFuture<String> result = DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+        ListenableFuture<String> result = call(callType, request);
 
         // The request has been sent, but not yet completed
+        verifyExecutionStarted(request);
         verify(body, never()).close();
 
         // Upon completion the request should be closed
-        responseFuture.setException(new IllegalStateException());
-        assertThat(result).isDone();
+        IllegalStateException exception = new IllegalStateException();
+        responseFuture.setException(exception);
+        assertThat(result)
+                .failsWithin(Duration.ofSeconds(1))
+                .withThrowableOfType(ExecutionException.class)
+                .withCause(exception);
         verify(body).close();
+    }
+
+    private ListenableFuture<String> call(CallType callType, Request request) {
+        return call(callType, request, stringDeserializer);
+    }
+
+    private <T> ListenableFuture<T> call(CallType callType, Request request, Deserializer<T> deserializer) {
+        switch (callType) {
+            case Async:
+                return DefaultClients.INSTANCE.call(channel, endpoint, request, deserializer);
+            case Blocking:
+                return executor.submit(() -> DefaultClients.INSTANCE.callBlocking(
+                        request1 -> channel.execute(endpoint, request1), request, deserializer));
+            default:
+                throw new SafeIllegalStateException("Unknown call type");
+        }
+    }
+
+    private void assertStringResult(CallType callType, ListenableFuture<String> result) {
+        if (callType == CallType.Async) {
+            assertThat(result).isDone();
+        }
+        try {
+            assertThat(result.get()).isEqualTo(VALUE);
+        } catch (InterruptedException | ExecutionException e) {
+            throw new SafeRuntimeException(e);
+        }
+    }
+
+    private void verifyExecutionStarted(Request request) {
+        verify(channel, timeout(500)).execute(eq(endpoint), eq(request));
     }
 }

@@ -36,6 +36,11 @@ public interface Clients {
      */
     <T> ListenableFuture<T> call(Channel channel, Endpoint endpoint, Request request, Deserializer<T> deserializer);
 
+    /**
+     * Blocking version of {@link #call(EndpointChannel, Request, Deserializer)}.
+     */
+    <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer);
+
     default EndpointChannel bind(Channel channel, Endpoint endpoint) {
         return new EndpointChannel() {
             @Override
@@ -50,6 +55,9 @@ public interface Clients {
     /**
      * Similar to {@link com.google.common.util.concurrent.Futures#getUnchecked(Future)}, except with custom handling
      * for conjure exceptions and cancellation on interruption.
+     *
+     * Deprecated. prefer {@link #callBlocking(EndpointChannel, Request, Deserializer)} as it makes the blocking
+     * explicit.
      */
     <T> T block(ListenableFuture<T> future);
 }
