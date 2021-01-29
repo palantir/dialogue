@@ -50,8 +50,8 @@ public final class RequestAttachmentsTest {
         attachments.put(KEY1, 1L);
         attachments.put(KEY2, 2L);
 
-        attachments.put(KEY1, 3L);
-        attachments.put(KEY2, 4L);
+        assertThat(attachments.put(KEY1, 3L)).isEqualTo(1L);
+        assertThat(attachments.put(KEY2, 4L)).isEqualTo(2L);
 
         assertThatKey(KEY1).isEqualTo(3L);
         assertThatKey(KEY2).isEqualTo(4L);
