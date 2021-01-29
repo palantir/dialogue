@@ -74,6 +74,7 @@ public final class DefaultRequestAttachmentsTest {
     }
 
     @Test
+    @SuppressWarnings("RawTypes")
     public void testCannotYoloInTests() {
         // Finish this off?
         RequestAttachmentKey anyKey = KEY1;
