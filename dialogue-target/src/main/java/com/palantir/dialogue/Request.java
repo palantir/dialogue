@@ -43,12 +43,14 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
+    private final RequestAttachments attachments;
 
     private Request(Builder builder) {
         body = builder.body;
         headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.unmodifiablePathParams();
+        attachments = builder.attachments;
     }
 
     /**
@@ -82,6 +84,11 @@ public final class Request {
         return body;
     }
 
+    /** The mutable request attachments for this request. Attachments will be propagated */
+    public RequestAttachments attachments() {
+        return attachments;
+    }
+
     @Override
     public String toString() {
         return "Request{"
@@ -94,6 +101,8 @@ public final class Request {
                 + pathParams
                 + ", body="
                 + body
+                + ", attachments="
+                + attachments
                 + '}';
     }
 
@@ -139,9 +148,13 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
+        private RequestAttachments attachments;
+
         private int mutableCollectionsBitSet = 0;
 
-        private Builder() {}
+        private Builder() {
+            attachments = DefaultRequestAttachments.create();
+        }
 
         public Request.Builder from(Request existing) {
             Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
@@ -149,6 +162,7 @@ public final class Request {
             headerParams = existing.headerParams;
             queryParams = existing.queryParams;
             pathParams = existing.pathParams;
+            attachments = existing.attachments;
 
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {

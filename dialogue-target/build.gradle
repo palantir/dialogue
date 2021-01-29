@@ -11,6 +11,7 @@ dependencies {
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.github.ben-manes.caffeine:caffeine'
 
     testImplementation 'jakarta.ws.rs:jakarta.ws.rs-api'
     testImplementation 'org.assertj:assertj-core'
@@ -19,6 +20,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
+    implementation 'com.palantir.safe-logging:preconditions-assertj'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
