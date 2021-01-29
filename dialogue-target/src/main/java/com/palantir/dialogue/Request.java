@@ -85,7 +85,10 @@ public final class Request {
         return body;
     }
 
-    /** The mutable request attachments for this request. Attachments will be propagated */
+    /**
+     * The mutable request attachments for this request. Attachments will be propagated when this request is mutated
+     * through the builder
+     */
     public RequestAttachments attachments() {
         return attachments;
     }
