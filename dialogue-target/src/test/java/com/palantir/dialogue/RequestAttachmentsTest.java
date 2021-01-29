@@ -18,16 +18,17 @@ package com.palantir.dialogue;
 
 import static com.palantir.logsafe.testing.Assertions.assertThatLoggableExceptionThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import org.assertj.core.api.AbstractLongAssert;
 import org.junit.jupiter.api.Test;
 
-public final class DefaultRequestAttachmentsTest {
+public final class RequestAttachmentsTest {
 
     private static final RequestAttachmentKey<Long> KEY1 = RequestAttachmentKey.create(Long.class);
     private static final RequestAttachmentKey<Long> KEY2 = RequestAttachmentKey.create(Long.class);
-    private final RequestAttachments attachments = DefaultRequestAttachments.create();
+    private final RequestAttachments attachments = RequestAttachments.create();
 
     @Test
     public void testInitiallyEmpty() {
@@ -75,10 +76,10 @@ public final class DefaultRequestAttachmentsTest {
 
     @Test
     @SuppressWarnings("RawTypes")
-    public void testCannotYoloInTests() {
-        // Finish this off?
-        RequestAttachmentKey anyKey = KEY1;
-        attachments.put(anyKey, "");
+    public void testCannotYolo() {
+        assertThatThrownBy(() -> attachments.put((RequestAttachmentKey) KEY1, ""))
+                .isExactlyInstanceOf(AssertionError.class)
+                .hasMessage("Value not instance of class " + Long.class);
     }
 
     private AbstractLongAssert<?> assertThatKey(RequestAttachmentKey<Long> key) {

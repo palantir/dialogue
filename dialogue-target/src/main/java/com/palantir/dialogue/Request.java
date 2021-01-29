@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -50,7 +51,7 @@ public final class Request {
         headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.unmodifiablePathParams();
-        attachments = builder.attachments;
+        this.attachments = builder.attachments != null ? builder.attachments : RequestAttachments.create();
     }
 
     /**
@@ -101,8 +102,6 @@ public final class Request {
                 + pathParams
                 + ", body="
                 + body
-                + ", attachments="
-                + attachments
                 + '}';
     }
 
@@ -148,6 +147,7 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
+        @Nullable
         private RequestAttachments attachments;
 
         private int mutableCollectionsBitSet = 0;
@@ -297,9 +297,6 @@ public final class Request {
         }
 
         public Request build() {
-            if (attachments == null) {
-                attachments = DefaultRequestAttachments.create();
-            }
             return new Request(this);
         }
 

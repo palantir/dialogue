@@ -27,7 +27,7 @@ public final class RequestAttachmentKey<V> {
     }
 
     void checkIsInstance(V value) {
-        assert valueClazz.isInstance(value);
+        assert valueClazz.isInstance(value) : "Value not instance of class " + valueClazz;
     }
 
     public static <T> RequestAttachmentKey<T> create(Class<T> valueClazz) {
