@@ -152,9 +152,7 @@ public final class Request {
 
         private int mutableCollectionsBitSet = 0;
 
-        private Builder() {
-            attachments = DefaultRequestAttachments.create();
-        }
+        private Builder() {}
 
         public Request.Builder from(Request existing) {
             Preconditions.checkNotNull(existing, "Request.build().from() requires a non-null instance");
@@ -299,6 +297,9 @@ public final class Request {
         }
 
         public Request build() {
+            if (attachments == null) {
+                attachments = DefaultRequestAttachments.create();
+            }
             return new Request(this);
         }
 
