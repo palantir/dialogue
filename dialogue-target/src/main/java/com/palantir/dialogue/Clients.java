@@ -39,7 +39,9 @@ public interface Clients {
     /**
      * Blocking version of {@link #call(EndpointChannel, Request, Deserializer)}.
      */
-    <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer);
+    default <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
+        return block(call(channel, request, deserializer));
+    }
 
     default EndpointChannel bind(Channel channel, Endpoint endpoint) {
         return new EndpointChannel() {
