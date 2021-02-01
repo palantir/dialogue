@@ -64,7 +64,7 @@ final class TraceEnrichingChannel implements Channel {
 
         Request.Builder tracedRequest = Request.builder()
                 .from(request)
-                .putHeaderParams(TraceHttpHeaders.TRACE_ID, Tracer.getTraceId())
+                .putHeaderParams(TraceHttpHeaders.TRACE_ID, metadata.getTraceId())
                 .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
                 .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0");
 
