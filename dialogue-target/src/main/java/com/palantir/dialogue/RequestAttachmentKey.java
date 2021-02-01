@@ -33,6 +33,6 @@ public final class RequestAttachmentKey<V> {
     @SuppressWarnings({"unchecked", "RawTypes"})
     public static <T> RequestAttachmentKey<T> create(Class<? super T> valueClazz) {
         Preconditions.checkNotNull(valueClazz, "valueClazz");
-        return new RequestAttachmentKey<T>(valueClazz);
+        return new RequestAttachmentKey(valueClazz);
     }
 }
