@@ -61,7 +61,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @Override
     public void executeQueue(ListenableFuture<?> await) {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
-        await.addListener(queue::poison, DialogueFutures.safeDirectExecutor());
+        await.addListener(() -> queue.submit(queue::poison), DialogueFutures.safeDirectExecutor());
         try {
             RunnableFuture<?> toRun;
             while ((toRun = queue.getWork()) != null) {
