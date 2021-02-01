@@ -80,7 +80,7 @@ public final class DefaultCallingThreadExecutorTest {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         QueueTake queueTake = new QueueTake() {
             @Override
-            public <E> E take(BlockingQueue<E> queue) throws InterruptedException {
+            public <E> E take(BlockingQueue<E> _queue) throws InterruptedException {
                 throw new InterruptedException();
             }
         };
