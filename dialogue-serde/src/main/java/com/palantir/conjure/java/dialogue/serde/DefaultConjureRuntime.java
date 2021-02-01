@@ -36,19 +36,12 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
             WeightedEncoding.of(Encodings.cbor(), .7));
 
     private final BodySerDe bodySerDe;
-    private final boolean isBlocking;
 
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
                 ErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer());
-        this.isBlocking = false;
-    }
-
-    private DefaultConjureRuntime(DefaultConjureRuntime copy) {
-        this.bodySerDe = copy.bodySerDe;
-        this.isBlocking = true;
     }
 
     public static Builder builder() {
@@ -67,15 +60,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
     @Override
     public Clients clients() {
-        return isBlocking ? BlockingDefaultClients.INSTANCE : DefaultClients.INSTANCE;
-    }
-
-    @Override
-    public ConjureRuntime toBlocking() {
-        if (isBlocking) {
-            return this;
-        }
-        return new DefaultConjureRuntime(this);
+        return DefaultClients.INSTANCE;
     }
 
     public static final class Builder {
