@@ -16,8 +16,10 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.annotations.Beta;
 import com.palantir.logsafe.Preconditions;
 
+@Beta
 public final class RequestAttachmentKey<V> {
 
     private final Class<V> valueClazz;
