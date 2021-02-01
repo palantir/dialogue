@@ -30,7 +30,8 @@ public final class RequestAttachmentKey<V> {
         assert valueClazz.isInstance(value) : "Value not instance of class " + valueClazz;
     }
 
-    public static <T> RequestAttachmentKey<T> create(Class<T> valueClazz) {
+    @SuppressWarnings({"unchecked", "RawTypes"})
+    public static <T> RequestAttachmentKey<T> create(Class<? super T> valueClazz) {
         Preconditions.checkNotNull(valueClazz, "valueClazz");
         return new RequestAttachmentKey<T>(valueClazz);
     }
