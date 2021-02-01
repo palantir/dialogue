@@ -70,9 +70,14 @@ enum DefaultClients implements Clients {
 
     @Override
     public <T> T callBlocking(EndpointChannel channel, Request request, Deserializer<T> deserializer) {
-        CallingThreadExecutor callingThreadExecutor = CallingThreadExecutor.useCallingThreadExecutor(request);
-        ListenableFuture<T> call = call(channel, request, deserializer);
-        callingThreadExecutor.executeQueue(call);
+        ListenableFuture<T> call;
+        if (UseCallingThreadExecutor.shouldUseCallingThreadExecutor()) {
+            CallingThreadExecutor callingThreadExecutor = CallingThreadExecutor.useCallingThreadExecutor(request);
+            call = call(channel, request, deserializer);
+            callingThreadExecutor.executeQueue(call);
+        } else {
+            call = call(channel, request, deserializer);
+        }
         return block(call);
     }
 
