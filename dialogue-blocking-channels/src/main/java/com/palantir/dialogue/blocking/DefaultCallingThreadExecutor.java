@@ -99,6 +99,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             return addTask(task);
         }
 
+        @SuppressWarnings("FutureReturnValueIgnored")
         public synchronized void submitNotifier(Runnable task) {
             if (poisoned) {
                 return;
