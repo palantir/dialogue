@@ -16,8 +16,6 @@ client:
    receiveStringExample:
     - '{"value":8}' # jackson coerces things to other types
 
-   receiveOptionalIntegerExample:
-    - '{"value":"1234"}' # jackson coerces things to other types
    receiveSetStringExample:
     - '{"value":["a","a"]}' # client turns this into a set of ["a"] without error
 
