@@ -16,11 +16,13 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.annotations.Beta;
 import com.palantir.logsafe.Preconditions;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
+@Beta
 public final class RequestAttachments {
 
     private final Map<RequestAttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>(0);
