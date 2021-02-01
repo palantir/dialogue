@@ -16,7 +16,6 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
-import com.google.common.util.concurrent.AtomicDouble;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.random.SafeThreadLocalRandom;
 
@@ -26,12 +25,12 @@ import com.palantir.random.SafeThreadLocalRandom;
  */
 final class UseCallingThreadExecutor {
 
-    private static final AtomicDouble PROBABILITY = new AtomicDouble(0.0);
+    private static volatile float probability = 0.0f;
 
     private UseCallingThreadExecutor() {}
 
     static boolean shouldUseCallingThreadExecutor() {
-        return SafeThreadLocalRandom.get().nextDouble() < PROBABILITY.doubleValue();
+        return SafeThreadLocalRandom.get().nextDouble() < probability;
     }
 
     /**
@@ -40,11 +39,11 @@ final class UseCallingThreadExecutor {
      * Applications that would like to try this out need to add a dependency on {@code dialogue-serde} and then
      * add their own class in the {@code com.palantir.conjure.java.dialogue.serde} and making this method public.
      *
-     * @param probability number between {@code 0.0} and {@code 1.0}.
+     * @param newProbability number between {@code 0.0} and {@code 1.0}.
      */
-    static void setCallingThreadExecutorProbability(double probability) {
+    static void setCallingThreadExecutorProbability(float newProbability) {
         Preconditions.checkArgument(
-                probability >= 0.0 && probability <= 1.0, "Probability should be between 0.0 and " + "1.0");
-        PROBABILITY.set(probability);
+                newProbability >= 0.0 && newProbability <= 1.0, "Probability should be between 0.0 and " + "1.0");
+        UseCallingThreadExecutor.probability = newProbability;
     }
 }
