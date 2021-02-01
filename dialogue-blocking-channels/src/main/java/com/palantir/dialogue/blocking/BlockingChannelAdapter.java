@@ -83,8 +83,10 @@ public final class BlockingChannelAdapter {
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             try {
                 Future<?> future;
-                if (request.getCallingThreadExecutor().isPresent()) {
-                    future = request.getCallingThreadExecutor().get().submit(runnable);
+                CallingThreadExecutor callingThreadExecutor =
+                        request.attachments().getOrDefault(DefaultCallingThreadExecutor.ATTACHMENT_KEY, null);
+                if (callingThreadExecutor != null) {
+                    future = callingThreadExecutor.submit(runnable);
                 } else {
                     future = executor.submit(runnable);
                 }

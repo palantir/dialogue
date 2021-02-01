@@ -14,12 +14,14 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.blocking;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
+import com.palantir.dialogue.DialogueException;
+import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.BlockingQueue;
@@ -30,6 +32,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
+
+    static final RequestAttachmentKey<CallingThreadExecutor> ATTACHMENT_KEY =
+            RequestAttachmentKey.create(CallingThreadExecutor.class);
 
     private static final Logger log = LoggerFactory.getLogger(DefaultCallingThreadExecutor.class);
     private final long threadId = Thread.currentThread().getId();

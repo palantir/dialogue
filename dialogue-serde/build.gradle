@@ -7,6 +7,7 @@ dependencies {
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.tokens:auth-tokens'
     implementation project(':dialogue-futures')
+    implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tracing:tracing'

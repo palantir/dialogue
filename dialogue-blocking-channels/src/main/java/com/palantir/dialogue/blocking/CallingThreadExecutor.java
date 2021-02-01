@@ -14,13 +14,20 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.blocking;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Request;
 
 public interface CallingThreadExecutor {
 
     ListenableFuture<?> submit(Runnable task);
 
     void executeQueue(ListenableFuture<?> await);
+
+    static CallingThreadExecutor useCallingThreadExecutor(Request request) {
+        CallingThreadExecutor callingThreadExecutor = new DefaultCallingThreadExecutor();
+        request.attachments().put(DefaultCallingThreadExecutor.ATTACHMENT_KEY, callingThreadExecutor);
+        return callingThreadExecutor;
+    }
 }
