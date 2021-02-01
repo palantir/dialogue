@@ -61,7 +61,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @Override
     public void executeQueue(ListenableFuture<?> await) {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
-        await.addListener(() -> queue.submit(queue::poison), DialogueFutures.safeDirectExecutor());
+        await.addListener(() -> queue.submitNotifier(queue::poison), DialogueFutures.safeDirectExecutor());
         try {
             RunnableFuture<?> toRun;
             while ((toRun = queue.getWork()) != null) {
@@ -96,9 +96,14 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
         public synchronized ListenableFuture<?> submit(Runnable task) {
             checkNotPoisoned();
-            ListenableFutureTask<?> future = ListenableFutureTask.create(task, null);
-            queue.add(future);
-            return future;
+            return addTask(task);
+        }
+
+        public synchronized void submitNotifier(Runnable task) {
+            if (poisoned) {
+                return;
+            }
+            addTask(task);
         }
 
         public synchronized void poison() {
@@ -126,6 +131,12 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
         private synchronized boolean isPoisoned() {
             return poisoned;
+        }
+
+        private synchronized ListenableFuture<?> addTask(Runnable task) {
+            ListenableFutureTask<?> future = ListenableFutureTask.create(task, null);
+            queue.add(future);
+            return future;
         }
     }
 }
