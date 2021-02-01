@@ -17,8 +17,6 @@
 package com.palantir.dialogue.blocking;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
 import com.palantir.dialogue.RequestAttachmentKey;
@@ -40,7 +38,6 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private static final boolean DO_NOT_INTERRUPT = false;
     private final long threadId = Thread.currentThread().getId();
     private final Queue queue;
-    private final FutureCallback<Object> callback;
 
     @VisibleForTesting
     interface QueueTake {
@@ -50,21 +47,6 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @VisibleForTesting
     DefaultCallingThreadExecutor(QueueTake queueTake) {
         queue = new Queue(queueTake);
-        /** Notification when main future completes. */
-        Runnable notifier = queue::poison;
-        callback = new FutureCallback<Object>() {
-            @Override
-            @SuppressWarnings("FutureReturnValueIgnored")
-            public void onSuccess(Object _result) {
-                queue.submit(notifier);
-            }
-
-            @Override
-            @SuppressWarnings("FutureReturnValueIgnored")
-            public void onFailure(Throwable _throwable) {
-                queue.submit(notifier);
-            }
-        };
     }
 
     DefaultCallingThreadExecutor() {
@@ -79,8 +61,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     @Override
     public void executeQueue(ListenableFuture<?> await) {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
-        Futures.addCallback(await, callback, DialogueFutures.safeDirectExecutor());
-
+        await.addListener(queue::poison, DialogueFutures.safeDirectExecutor());
         try {
             RunnableFuture<?> toRun;
             while ((toRun = queue.getWork()) != null) {
