@@ -205,7 +205,7 @@ enum DefaultClients implements Clients {
                 .build();
     }
 
-    static final class EndpointChannelAdapter implements EndpointChannel {
+    private static final class EndpointChannelAdapter implements EndpointChannel {
         private final Endpoint endpoint;
         private final Channel channel;
 
