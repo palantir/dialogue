@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.blocking;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -38,24 +39,37 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private static final Logger log = LoggerFactory.getLogger(DefaultCallingThreadExecutor.class);
     private static final boolean DO_NOT_INTERRUPT = false;
     private final long threadId = Thread.currentThread().getId();
-    private final Queue queue = new Queue();
+    private final Queue queue;
+    private final FutureCallback<Object> callback;
 
-    /** Notification when main future completes. */
-    private final Runnable notifier = queue::poison;
+    @VisibleForTesting
+    interface QueueTake {
+        <E> E take(BlockingQueue<E> queue) throws InterruptedException;
+    }
 
-    private final FutureCallback<Object> callback = new FutureCallback<Object>() {
-        @Override
-        @SuppressWarnings("FutureReturnValueIgnored")
-        public void onSuccess(Object _result) {
-            queue.submit(notifier);
-        }
+    @VisibleForTesting
+    DefaultCallingThreadExecutor(QueueTake queueTake) {
+        queue = new Queue(queueTake);
+        /** Notification when main future completes. */
+        Runnable notifier = queue::poison;
+        callback = new FutureCallback<Object>() {
+            @Override
+            @SuppressWarnings("FutureReturnValueIgnored")
+            public void onSuccess(Object _result) {
+                queue.submit(notifier);
+            }
 
-        @Override
-        @SuppressWarnings("FutureReturnValueIgnored")
-        public void onFailure(Throwable _throwable) {
-            queue.submit(notifier);
-        }
-    };
+            @Override
+            @SuppressWarnings("FutureReturnValueIgnored")
+            public void onFailure(Throwable _throwable) {
+                queue.submit(notifier);
+            }
+        };
+    }
+
+    DefaultCallingThreadExecutor() {
+        this(BlockingQueue::take);
+    }
 
     @Override
     public ListenableFuture<?> submit(Runnable task) {
@@ -93,6 +107,11 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private static final class Queue {
         private boolean poisoned = false;
         private final BlockingQueue<RunnableFuture<?>> queue = new LinkedBlockingQueue<>();
+        private final QueueTake queueTake;
+
+        Queue(QueueTake take) {
+            this.queueTake = take;
+        }
 
         public synchronized ListenableFuture<?> submit(Runnable task) {
             checkNotPoisoned();
@@ -107,7 +126,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
         public RunnableFuture<?> getWork() throws InterruptedException {
             if (!isPoisoned()) {
-                return queue.take();
+                return queueTake.take(queue);
             } else {
                 return queue.poll();
             }
