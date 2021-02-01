@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.annotations.Beta;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -43,12 +45,14 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
+    private final RequestAttachments attachments;
 
     private Request(Builder builder) {
         body = builder.body;
         headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.unmodifiablePathParams();
+        this.attachments = builder.attachments != null ? builder.attachments : RequestAttachments.create();
     }
 
     /**
@@ -80,6 +84,15 @@ public final class Request {
     /** The HTTP request body for this request or empty if this request does not contain a body. */
     public Optional<RequestBody> body() {
         return body;
+    }
+
+    /**
+     * The mutable request attachments for this request. Attachments will be propagated when this request is mutated
+     * through the builder
+     */
+    @Beta
+    public RequestAttachments attachments() {
+        return attachments;
     }
 
     @Override
@@ -139,6 +152,9 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
+        @Nullable
+        private RequestAttachments attachments;
+
         private int mutableCollectionsBitSet = 0;
 
         private Builder() {}
@@ -149,6 +165,7 @@ public final class Request {
             headerParams = existing.headerParams;
             queryParams = existing.queryParams;
             pathParams = existing.pathParams;
+            attachments = existing.attachments;
 
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
