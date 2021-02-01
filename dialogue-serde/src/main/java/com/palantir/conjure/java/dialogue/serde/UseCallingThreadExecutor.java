@@ -25,12 +25,20 @@ import com.palantir.random.SafeThreadLocalRandom;
  */
 final class UseCallingThreadExecutor {
 
-    private static volatile float probability = 0.0f;
+    private static final float DISABLED = 0.0f;
+    private static final float ENABLED = 1.0f;
+    private static volatile float probability = DISABLED;
 
     private UseCallingThreadExecutor() {}
 
     static boolean shouldUseCallingThreadExecutor() {
-        return SafeThreadLocalRandom.get().nextDouble() < probability;
+        float currentProbability = probability;
+        if (currentProbability == DISABLED) {
+            return false;
+        } else if (currentProbability == ENABLED) {
+            return true;
+        }
+        return SafeThreadLocalRandom.get().nextDouble() < currentProbability;
     }
 
     /**
@@ -43,7 +51,8 @@ final class UseCallingThreadExecutor {
      */
     static void setCallingThreadExecutorProbability(float newProbability) {
         Preconditions.checkArgument(
-                newProbability >= 0.0 && newProbability <= 1.0, "Probability should be between 0.0 and " + "1.0");
+                newProbability >= DISABLED && newProbability <= ENABLED,
+                "Probability should be between 0.0 and " + "1.0");
         UseCallingThreadExecutor.probability = newProbability;
     }
 }
