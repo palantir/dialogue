@@ -11,14 +11,12 @@ dependencies {
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.code.findbugs:jsr305'
-    implementation project(':dialogue-futures')
 
     testImplementation 'jakarta.ws.rs:jakarta.ws.rs-api'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.assertj:assertj-guava'
     testImplementation 'org.immutables:value::annotations'
     testImplementation 'org.mockito:mockito-core'
-    testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'org.junit.jupiter:junit-jupiter-api'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
