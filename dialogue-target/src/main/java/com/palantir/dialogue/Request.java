@@ -32,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.TreeMap;
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.annotation.concurrent.ThreadSafe;
 
@@ -43,14 +44,14 @@ public final class Request {
     private final ListMultimap<String, String> queryParams;
     private final Map<String, String> pathParams;
     private final Optional<RequestBody> body;
-    private volatile Optional<CallingThreadExecutor> callingThreadExecutor;
+    private final RequestAttachments attachments;
 
     private Request(Builder builder) {
         body = builder.body;
-        callingThreadExecutor = builder.executor;
         headerParams = builder.unmodifiableHeaderParams();
         queryParams = builder.unmodifiableQueryParams();
         pathParams = builder.unmodifiablePathParams();
+        this.attachments = builder.attachments != null ? builder.attachments : RequestAttachments.create();
     }
 
     /**
@@ -84,12 +85,12 @@ public final class Request {
         return body;
     }
 
-    public void executeInCallingThread() {
-        this.callingThreadExecutor = Optional.of(new DefaultCallingThreadExecutor());
-    }
-
-    public Optional<CallingThreadExecutor> getCallingThreadExecutor() {
-        return callingThreadExecutor;
+    /**
+     * The mutable request attachments for this request. Attachments will be propagated when this request is mutated
+     * through the builder
+     */
+    public RequestAttachments attachments() {
+        return attachments;
     }
 
     @Override
@@ -149,7 +150,8 @@ public final class Request {
 
         private Optional<RequestBody> body = Optional.empty();
 
-        private Optional<CallingThreadExecutor> executor = Optional.empty();
+        @Nullable
+        private RequestAttachments attachments;
 
         private int mutableCollectionsBitSet = 0;
 
@@ -161,7 +163,7 @@ public final class Request {
             headerParams = existing.headerParams;
             queryParams = existing.queryParams;
             pathParams = existing.pathParams;
-            executor = existing.callingThreadExecutor;
+            attachments = existing.attachments;
 
             Optional<RequestBody> bodyOptional = existing.body();
             if (bodyOptional.isPresent()) {
