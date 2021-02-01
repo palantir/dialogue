@@ -20,7 +20,6 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListenableFutureTask;
-import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
@@ -37,6 +36,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             RequestAttachmentKey.create(CallingThreadExecutor.class);
 
     private static final Logger log = LoggerFactory.getLogger(DefaultCallingThreadExecutor.class);
+    private static final boolean DO_NOT_INTERRUPT = false;
     private final long threadId = Thread.currentThread().getId();
     private final Queue queue = new Queue();
 
@@ -67,9 +67,26 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
         Futures.addCallback(await, callback, DialogueFutures.safeDirectExecutor());
 
+        try {
+            RunnableFuture<?> toRun;
+            while ((toRun = queue.getWork()) != null) {
+                toRun.run();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+
+            abortQueue();
+
+            await.cancel(DO_NOT_INTERRUPT);
+        }
+    }
+
+    private void abortQueue() {
+        queue.poison();
+
         RunnableFuture<?> toRun;
-        while ((toRun = queue.getWork()) != null) {
-            toRun.run();
+        while ((toRun = queue.poll()) != null) {
+            toRun.cancel(DO_NOT_INTERRUPT);
         }
     }
 
@@ -84,42 +101,31 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             return future;
         }
 
-        public synchronized void checkNotPoisoned() {
+        public synchronized void poison() {
+            poisoned = true;
+        }
+
+        public RunnableFuture<?> getWork() throws InterruptedException {
+            if (!isPoisoned()) {
+                return queue.take();
+            } else {
+                return queue.poll();
+            }
+        }
+
+        public RunnableFuture<?> poll() {
+            return queue.poll();
+        }
+
+        private synchronized void checkNotPoisoned() {
             if (poisoned) {
                 log.info("Submitted task after queue is closed");
                 throw new RejectedExecutionException("Queue closed");
             }
         }
 
-        public synchronized void poison() {
-            poisoned = true;
-        }
-
-        public RunnableFuture<?> getWork() {
-            try {
-                if (!isPoisoned()) {
-                    return queue.take();
-                } else {
-                    return queue.poll();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-
-                abortQueue();
-
-                throw new DialogueException(e);
-            }
-        }
-
         private synchronized boolean isPoisoned() {
             return poisoned;
-        }
-
-        private synchronized void abortQueue() {
-            RunnableFuture<?> toRun;
-            while ((toRun = queue.poll()) != null) {
-                toRun.cancel(false);
-            }
         }
     }
 }

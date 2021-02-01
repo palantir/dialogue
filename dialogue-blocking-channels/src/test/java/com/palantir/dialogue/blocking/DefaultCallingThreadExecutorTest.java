@@ -71,6 +71,31 @@ public final class DefaultCallingThreadExecutorTest {
     }
 
     @Test
+    public void testInterruptHandling() {
+        // ListeningExecutorService queueExecutor =
+        // MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
+        // CallingThreadExecutor executorToUse =
+        //         Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
+        //
+        // ListenableFuture<Boolean> queueExecuted = queueExecutor.submit(() -> {
+        //     try {
+        //         executorToUse.executeQueue(futureToAwait);
+        //         futureToAwait.get();
+        //         return false;
+        //     } catch (InterruptedException e) {
+        //         Thread.currentThread().interrupt();
+        //         return true;
+        //     } catch (ExecutionException e) {
+        //         throw new UncheckedExecutionException(e);
+        //     }
+        // });
+        //
+        // futureToAwait.cancel(true);
+        //
+        // assertThat(Futures.getUnchecked(queueExecuted)).isTrue();
+    }
+
+    @Test
     @SuppressWarnings({"CheckReturnValue", "FutureReturnValueIgnored"})
     public void testExecutesTasksUntilFinished() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
