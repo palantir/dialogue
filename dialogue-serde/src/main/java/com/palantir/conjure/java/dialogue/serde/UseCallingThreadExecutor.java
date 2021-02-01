@@ -31,7 +31,7 @@ final class UseCallingThreadExecutor {
     private UseCallingThreadExecutor() {}
 
     static boolean shouldUseCallingThreadExecutor() {
-        return SafeThreadLocalRandom.get().nextDouble() <= PROBABILITY.doubleValue();
+        return SafeThreadLocalRandom.get().nextDouble() < PROBABILITY.doubleValue();
     }
 
     /**
