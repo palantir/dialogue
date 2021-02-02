@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
@@ -55,7 +56,9 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
                 try {
                     toRun.run();
                 } catch (Throwable t) {
-                    log.error("Failed to execute runnable {}", toRun, t);
+                    // This should never happen, BlockingChannelAdapter uses a SettableFuture as output
+                    // and is not expected to allow throwables to escape.
+                    log.error("Failed to execute runnable {}", SafeArg.of("runnable", toRun), t);
                 }
             }
         } catch (InterruptedException e) {
