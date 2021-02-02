@@ -18,14 +18,12 @@ package com.palantir.dialogue.blocking;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableFutureTask;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.RunnableFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -54,49 +52,44 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     }
 
     @Override
-    public ListenableFuture<?> submit(Runnable task) {
-        return queue.submit(task);
+    public void submit(Runnable task) {
+        queue.submit(task);
     }
 
     @Override
     public void executeQueue(ListenableFuture<?> await) {
         Preconditions.checkState(Thread.currentThread().getId() == threadId, "Executing queue on different thread");
-        await.addListener(() -> queue.submitNotifier(queue::poison), DialogueFutures.safeDirectExecutor());
+        DialogueFutures.addDirectListener(await, () -> queue.submitNotifier(queue::poison));
         try {
-            RunnableFuture<?> toRun;
+            Runnable toRun;
             while ((toRun = queue.getWork()) != null) {
-                toRun.run();
+                try {
+                    toRun.run();
+                } catch (Throwable t) {
+                    log.error("Failed to execute runnable {}", toRun, t);
+                }
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
 
-            abortQueue();
+            queue.poison();
 
             await.cancel(DO_NOT_INTERRUPT);
         }
     }
 
-    private void abortQueue() {
-        queue.poison();
-
-        RunnableFuture<?> toRun;
-        while ((toRun = queue.poll()) != null) {
-            toRun.cancel(DO_NOT_INTERRUPT);
-        }
-    }
-
     private static final class Queue {
         private boolean poisoned = false;
-        private final BlockingQueue<RunnableFuture<?>> queue = new LinkedBlockingQueue<>();
+        private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
         private final QueueTake queueTake;
 
         Queue(QueueTake take) {
             this.queueTake = take;
         }
 
-        public synchronized ListenableFuture<?> submit(Runnable task) {
+        public synchronized void submit(Runnable task) {
             checkNotPoisoned();
-            return addTask(task);
+            addTask(task);
         }
 
         @SuppressWarnings("FutureReturnValueIgnored")
@@ -111,16 +104,12 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             poisoned = true;
         }
 
-        public RunnableFuture<?> getWork() throws InterruptedException {
+        public Runnable getWork() throws InterruptedException {
             if (!isPoisoned()) {
                 return queueTake.take(queue);
             } else {
                 return queue.poll();
             }
-        }
-
-        public RunnableFuture<?> poll() {
-            return queue.poll();
         }
 
         private synchronized void checkNotPoisoned() {
@@ -134,10 +123,8 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
             return poisoned;
         }
 
-        private synchronized ListenableFuture<?> addTask(Runnable task) {
-            ListenableFutureTask<?> future = ListenableFutureTask.create(task, null);
-            queue.add(future);
-            return future;
+        private synchronized void addTask(Runnable task) {
+            queue.add(task);
         }
     }
 }

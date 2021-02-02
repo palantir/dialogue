@@ -19,8 +19,6 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
-import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
@@ -69,11 +67,11 @@ public final class BlockingChannelAdapter {
     private static final class BlockingChannelAdapterChannel implements Channel {
 
         private final BlockingChannel delegate;
-        private final ListeningExecutorService executor;
+        private final ExecutorService executor;
 
         BlockingChannelAdapterChannel(BlockingChannel delegate, ExecutorService executor) {
             this.delegate = delegate;
-            this.executor = MoreExecutors.listeningDecorator(executor);
+            this.executor = executor;
         }
 
         @Override
@@ -82,30 +80,25 @@ public final class BlockingChannelAdapter {
             BlockingChannelAdapterTask runnable =
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             try {
-                Future<?> future;
                 CallingThreadExecutor callingThreadExecutor =
                         request.attachments().getOrDefault(DefaultCallingThreadExecutor.ATTACHMENT_KEY, null);
                 if (callingThreadExecutor != null) {
-                    future = callingThreadExecutor.submit(runnable);
+                    callingThreadExecutor.submit(runnable);
                 } else {
-                    future = executor.submit(runnable);
-                }
+                    Future<?> future = executor.submit(runnable);
+                    // The executor task should be interrupted on termination
+                    DialogueFutures.addDirectCallback(settableFuture, new FutureCallback<Response>() {
+                        @Override
+                        public void onSuccess(Response _result) {}
 
-                // The executor task should be interrupted on termination
-                Futures.addCallback(
-                        settableFuture,
-                        new FutureCallback<Response>() {
-                            @Override
-                            public void onSuccess(Response _result) {}
-
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                if (throwable instanceof CancellationException) {
-                                    future.cancel(true);
-                                }
+                        @Override
+                        public void onFailure(Throwable throwable) {
+                            if (throwable instanceof CancellationException) {
+                                future.cancel(true);
                             }
-                        },
-                        DialogueFutures.safeDirectExecutor());
+                        }
+                    });
+                }
                 return settableFuture;
             } catch (RuntimeException | Error e) {
                 // user-provided executor could throw exceptions when we try to submit runnables
