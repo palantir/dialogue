@@ -64,6 +64,9 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
 
+            // No need to clear the queue at this point, once the queue consumer (this method) completes, the queue
+            // is no longer used. await.cancel propagates completion through the call from the other side to
+            // release any held resources.
             queue.poison();
 
             await.cancel(DO_NOT_INTERRUPT);

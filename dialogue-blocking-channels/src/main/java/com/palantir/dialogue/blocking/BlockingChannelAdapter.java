@@ -83,6 +83,9 @@ public final class BlockingChannelAdapter {
                 CallingThreadExecutor callingThreadExecutor =
                         request.attachments().getOrDefault(DefaultCallingThreadExecutor.ATTACHMENT_KEY, null);
                 if (callingThreadExecutor != null) {
+                    // When the callingThreadExecutor is used, there's no future to cancel. If the task hasn't been
+                    // executed when a cancellation occurs, the task will never begin. If it occurs while the task
+                    // is running, it's caused by a thread interrupt, which is the expected result of future.cancel.
                     callingThreadExecutor.submit(runnable);
                 } else {
                     Future<?> future = executor.submit(runnable);
