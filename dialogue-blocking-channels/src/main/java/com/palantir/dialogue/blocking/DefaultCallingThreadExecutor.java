@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.blocking;
 
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -37,18 +36,8 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private final long threadId = Thread.currentThread().getId();
     private final Queue queue;
 
-    @VisibleForTesting
-    interface QueueTake {
-        <E> E take(BlockingQueue<E> queue) throws InterruptedException;
-    }
-
-    @VisibleForTesting
-    DefaultCallingThreadExecutor(QueueTake queueTake) {
-        queue = new Queue(queueTake);
-    }
-
     DefaultCallingThreadExecutor() {
-        this(BlockingQueue::take);
+        queue = new Queue();
     }
 
     @Override
@@ -81,11 +70,6 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     private static final class Queue {
         private boolean poisoned = false;
         private final BlockingQueue<Runnable> queue = new LinkedBlockingQueue<>();
-        private final QueueTake queueTake;
-
-        Queue(QueueTake take) {
-            this.queueTake = take;
-        }
 
         public synchronized void submit(Runnable task) {
             checkNotPoisoned();
@@ -106,7 +90,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
 
         public Runnable getWork() throws InterruptedException {
             if (!isPoisoned()) {
-                return queueTake.take(queue);
+                return queue.take();
             } else {
                 return queue.poll();
             }

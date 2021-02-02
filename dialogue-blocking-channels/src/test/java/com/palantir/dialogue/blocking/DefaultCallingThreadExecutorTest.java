@@ -29,13 +29,11 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.google.common.util.concurrent.Uninterruptibles;
-import com.palantir.dialogue.blocking.DefaultCallingThreadExecutor.QueueTake;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -82,17 +80,12 @@ public final class DefaultCallingThreadExecutorTest {
     public void testInterruptHandling() {
         ListeningExecutorService queueExecutor = MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());
         try {
-            QueueTake queueTake = new QueueTake() {
-                @Override
-                public <E> E take(BlockingQueue<E> _queue) throws InterruptedException {
-                    throw new InterruptedException();
-                }
-            };
             CallingThreadExecutor executorToUse =
-                    Futures.getUnchecked(queueExecutor.submit(() -> new DefaultCallingThreadExecutor(queueTake)));
+                    Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
 
             ListenableFuture<Boolean> queueExecuted = queueExecutor.submit(() -> {
                 try {
+                    Thread.currentThread().interrupt();
                     executorToUse.executeQueue(futureToAwait);
                     futureToAwait.get();
                     return false;
@@ -119,8 +112,8 @@ public final class DefaultCallingThreadExecutorTest {
             CountDownLatch latch = new CountDownLatch(2);
 
             // Kinda nasty because it relies on the queueExecutor not switching threads
-            CallingThreadExecutor executorToUse = Futures.getUnchecked(
-                    queueExecutor.submit((Callable<DefaultCallingThreadExecutor>) DefaultCallingThreadExecutor::new));
+            CallingThreadExecutor executorToUse =
+                    Futures.getUnchecked(queueExecutor.submit(DefaultCallingThreadExecutor::new));
             ListenableFuture<?> queueExecuted = queueExecutor.submit(() -> executorToUse.executeQueue(futureToAwait));
 
             Function<Runnable, ListenableFuture<?>> submitter = task -> {
