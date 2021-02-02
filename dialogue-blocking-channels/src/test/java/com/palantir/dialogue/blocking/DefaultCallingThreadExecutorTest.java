@@ -61,7 +61,7 @@ public final class DefaultCallingThreadExecutorTest {
     @Test
     public void testRunnableCompletesBeforeReturning() {
         CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
-        executor.submit(runnable1);
+        executor.execute(runnable1);
         assertThat(futureToAwait.set(null)).isTrue();
         executor.executeQueue(futureToAwait);
         verify(runnable1).run();
@@ -72,7 +72,7 @@ public final class DefaultCallingThreadExecutorTest {
         CallingThreadExecutor executor = new DefaultCallingThreadExecutor();
         assertThat(futureToAwait.set(null)).isTrue();
         executor.executeQueue(futureToAwait);
-        Assertions.assertThatThrownBy(() -> executor.submit(() -> {}))
+        Assertions.assertThatThrownBy(() -> executor.execute(() -> {}))
                 .isExactlyInstanceOf(RejectedExecutionException.class);
     }
 
@@ -121,7 +121,7 @@ public final class DefaultCallingThreadExecutorTest {
                     latch.countDown();
                     Uninterruptibles.awaitUninterruptibly(latch);
                     ListenableFutureTask<?> futureTask = ListenableFutureTask.create(task, null);
-                    executorToUse.submit(futureTask);
+                    executorToUse.execute(futureTask);
                     return futureTask;
                 });
 
@@ -178,7 +178,7 @@ public final class DefaultCallingThreadExecutorTest {
                     Uninterruptibles.awaitUninterruptibly(allReadyToSubmit);
                     ListenableFutureTask<?> task =
                             ListenableFutureTask.create(() -> results.set(iValue, -iValue), null);
-                    executorToUse.submit(task);
+                    executorToUse.execute(task);
                     return task;
                 });
                 futures.add(Futures.transformAsync(

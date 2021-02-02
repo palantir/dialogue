@@ -21,7 +21,7 @@ import com.palantir.dialogue.Request;
 
 public interface CallingThreadExecutor {
 
-    void submit(Runnable task);
+    void execute(Runnable task);
 
     void executeQueue(ListenableFuture<?> await);
 

@@ -42,7 +42,7 @@ final class DefaultCallingThreadExecutor implements CallingThreadExecutor {
     }
 
     @Override
-    public void submit(Runnable task) {
+    public void execute(Runnable task) {
         queue.submit(task);
     }
 
