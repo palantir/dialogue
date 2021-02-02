@@ -38,7 +38,7 @@ final class UseCallingThreadExecutor {
         } else if (currentProbability == ENABLED) {
             return true;
         }
-        return SafeThreadLocalRandom.get().nextDouble() < currentProbability;
+        return SafeThreadLocalRandom.get().nextFloat() < currentProbability;
     }
 
     /**
