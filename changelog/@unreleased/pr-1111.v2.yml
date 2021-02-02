@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: TraceEnrichingChannel uses the traceId from TraceMetadata
+  links:
+  - https://github.com/palantir/dialogue/pull/1111
