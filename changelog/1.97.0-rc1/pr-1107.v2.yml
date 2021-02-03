@@ -1,5 +1,0 @@
-type: improvement
-improvement:
-  description: Request.attachments() allows channels to attach additional state.
-  links:
-  - https://github.com/palantir/dialogue/pull/1107

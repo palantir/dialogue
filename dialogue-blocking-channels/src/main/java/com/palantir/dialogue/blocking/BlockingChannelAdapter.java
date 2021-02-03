@@ -80,22 +80,28 @@ public final class BlockingChannelAdapter {
             BlockingChannelAdapterTask runnable =
                     new BlockingChannelAdapterTask(delegate, endpoint, request, settableFuture);
             try {
-                Future<?> future = executor.submit(runnable);
-                // The executor task should be interrupted on termination
-                Futures.addCallback(
-                        settableFuture,
-                        new FutureCallback<Response>() {
-                            @Override
-                            public void onSuccess(Response _result) {}
+                CallingThreadExecutor callingThreadExecutor =
+                        request.attachments().getOrDefault(DefaultCallingThreadExecutor.ATTACHMENT_KEY, null);
+                if (callingThreadExecutor != null) {
+                    // When the callingThreadExecutor is used, there's no future to cancel. If the task hasn't been
+                    // executed when a cancellation occurs, the task will never begin. If it occurs while the task
+                    // is running, it's caused by a thread interrupt, which is the expected result of future.cancel.
+                    callingThreadExecutor.execute(runnable);
+                } else {
+                    Future<?> future = executor.submit(runnable);
+                    // The executor task should be interrupted on termination
+                    DialogueFutures.addDirectCallback(settableFuture, new FutureCallback<Response>() {
+                        @Override
+                        public void onSuccess(Response _result) {}
 
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                if (throwable instanceof CancellationException) {
-                                    future.cancel(true);
-                                }
+                        @Override
+                        public void onFailure(Throwable throwable) {
+                            if (throwable instanceof CancellationException) {
+                                future.cancel(true);
                             }
-                        },
-                        DialogueFutures.safeDirectExecutor());
+                        }
+                    });
+                }
                 return settableFuture;
             } catch (RuntimeException | Error e) {
                 // user-provided executor could throw exceptions when we try to submit runnables
