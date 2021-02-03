@@ -142,13 +142,6 @@ jobs:
       - store_test_results: { path: ~/junit }
       - store_artifacts: { path: ~/artifacts }
 
-  markdown:
-    docker: [{ image: 'raviqqe/liche:0.1.1' }]
-    steps:
-      - checkout
-      - run: /liche -d . -r . -v
-
-
 workflows:
   version: 2
   build:
@@ -162,9 +155,6 @@ workflows:
 
       - check:
           requires: [ compile ]
-          filters: { tags: { only: /.*/ } }
-
-      - markdown:
           filters: { tags: { only: /.*/ } }
 
       - trial-publish:
