@@ -1,0 +1,19 @@
+options:
+  javaPackage: com.palantir.conjure.java.dialogue.serde
+  javaVisibility: packagePrivate
+namespaces:
+  dialogue.feature-flags:
+    docs: Feature flag metrics.
+    metrics:
+      calling-thread-executor.enabled:
+        type: meter
+        docs: |
+          Number of calls that used CallingThreadExecutor
+      calling-thread-executor.disabled:
+        type: meter
+        docs: |
+          Number of calls that did not use CallingThreadExecutor
+      calling-thread-executor.failure:
+        type: meter
+        docs: |
+          Incremented when unexpected failure occurs that is a result of a bug.

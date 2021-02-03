@@ -16,8 +16,16 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.codahale.metrics.Meter;
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.Random;
+import java.util.function.Consumer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Package private API for enabling
@@ -25,20 +33,41 @@ import com.palantir.random.SafeThreadLocalRandom;
  */
 final class UseCallingThreadExecutor {
 
+    private static final Logger log = LoggerFactory.getLogger(UseCallingThreadExecutor.class);
+    private static final float DEFAULT_PROBABILITY = 0.01f;
     private static final float DISABLED = 0.0f;
     private static final float ENABLED = 1.0f;
-    private static volatile float probability = DISABLED;
 
-    private UseCallingThreadExecutor() {}
+    /** All the calling code is static, does not make sense to plumb all that through for a temporary feature flag. */
+    @SuppressWarnings("deprecated")
+    private static final UseCallingThreadExecutor INSTANCE =
+            new UseCallingThreadExecutor(SafeThreadLocalRandom.get(), SharedTaggedMetricRegistries.getSingleton());
 
-    static boolean shouldUseCallingThreadExecutor() {
-        float currentProbability = probability;
-        if (currentProbability == DISABLED) {
-            return false;
-        } else if (currentProbability == ENABLED) {
-            return true;
-        }
-        return SafeThreadLocalRandom.get().nextFloat() < currentProbability;
+    private final Random random;
+    private final Consumer<RuntimeException> failureConsumer;
+    private final DialogueFeatureFlagsMetrics metrics;
+    private volatile float probability = DEFAULT_PROBABILITY;
+
+    @VisibleForTesting
+    UseCallingThreadExecutor(Random random, TaggedMetricRegistry taggedMetricRegistry) {
+        this.random = random;
+        this.metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
+        failureConsumer = runtimeException -> {
+            log.info("Unexpected exception from calling thread executor. Disabling this feature", runtimeException);
+            metrics.callingThreadExecutorFailure().mark();
+            setCallingThreadExecutorProbability(DISABLED);
+        };
+    }
+
+    boolean shouldUseCallingThreadExecutor() {
+        boolean enabled = shouldUseCallingThreadExecutorImpl();
+        Meter meter = enabled ? metrics.callingThreadExecutorEnabled() : metrics.callingThreadExecutorDisabled();
+        meter.mark();
+        return enabled;
+    }
+
+    Consumer<RuntimeException> failureConsumer() {
+        return failureConsumer;
     }
 
     /**
@@ -49,10 +78,24 @@ final class UseCallingThreadExecutor {
      *
      * @param newProbability number between {@code 0.0} and {@code 1.0}.
      */
-    static void setCallingThreadExecutorProbability(float newProbability) {
+    void setCallingThreadExecutorProbability(float newProbability) {
         Preconditions.checkArgument(
                 newProbability >= DISABLED && newProbability <= ENABLED,
                 "Probability should be between 0.0 and " + "1.0");
-        UseCallingThreadExecutor.probability = newProbability;
+        probability = newProbability;
+    }
+
+    static UseCallingThreadExecutor get() {
+        return INSTANCE;
+    }
+
+    private boolean shouldUseCallingThreadExecutorImpl() {
+        float currentProbability = probability;
+        if (currentProbability == DISABLED) {
+            return false;
+        } else if (currentProbability == ENABLED) {
+            return true;
+        }
+        return random.nextFloat() < currentProbability;
     }
 }

@@ -1,5 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
+apply plugin: 'com.palantir.metric-schema'
 
 dependencies {
     api project(':dialogue-target')
@@ -9,6 +10,7 @@ dependencies {
     implementation project(':dialogue-futures')
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tracing:tracing'
