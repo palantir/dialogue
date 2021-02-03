@@ -228,7 +228,6 @@ acceptedBreaks:
       new: "method <T> T com.palantir.dialogue.Clients::callBlocking(com.palantir.dialogue.EndpointChannel,\
         \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
       justification: "New API for blocking calls."
-  "1.96.1": {}
   "1.99.0":
     com.palantir.dialogue:dialogue-blocking-channels:
     - code: "java.method.numberOfParametersChanged"
