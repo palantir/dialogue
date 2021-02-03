@@ -39,7 +39,7 @@ final class UseCallingThreadExecutor {
     private static final float ENABLED = 1.0f;
 
     /** All the calling code is static, does not make sense to plumb all that through for a temporary feature flag. */
-    @SuppressWarnings("deprecated")
+    @SuppressWarnings("deprecation")
     private static final UseCallingThreadExecutor INSTANCE =
             new UseCallingThreadExecutor(SafeThreadLocalRandom.get(), SharedTaggedMetricRegistries.getSingleton());
 
