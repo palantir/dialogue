@@ -105,6 +105,7 @@ final class UseCallingThreadExecutor {
         return random.nextFloat() < currentProbability;
     }
 
+    @SuppressWarnings("CatchBlockLogException")
     private float getInitialProbability() {
         Optional<Float> override = Optional.ofNullable(System.getProperty(SYSTEM_PROPERTY, null))
                 .flatMap(probabilityString -> {
