@@ -18,7 +18,6 @@ package com.palantir.dialogue.blocking;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Request;
-import java.util.function.Consumer;
 
 public interface CallingThreadExecutor {
 
@@ -26,9 +25,8 @@ public interface CallingThreadExecutor {
 
     void executeQueue(ListenableFuture<?> await);
 
-    static CallingThreadExecutor useCallingThreadExecutor(Request request, Consumer<RuntimeException> failureConsumer) {
-        CallingThreadExecutor callingThreadExecutor =
-                new ResilientCallingThreadExecutor(new DefaultCallingThreadExecutor(), failureConsumer);
+    static CallingThreadExecutor useCallingThreadExecutor(Request request) {
+        CallingThreadExecutor callingThreadExecutor = new DefaultCallingThreadExecutor();
         request.attachments().put(DefaultCallingThreadExecutor.ATTACHMENT_KEY, callingThreadExecutor);
         return callingThreadExecutor;
     }

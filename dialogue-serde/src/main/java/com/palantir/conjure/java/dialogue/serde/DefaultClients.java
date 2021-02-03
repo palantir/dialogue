@@ -73,8 +73,7 @@ enum DefaultClients implements Clients {
         ListenableFuture<T> call;
         UseCallingThreadExecutor useCallingThreadExecutor = UseCallingThreadExecutor.get();
         if (useCallingThreadExecutor.shouldUseCallingThreadExecutor()) {
-            CallingThreadExecutor callingThreadExecutor =
-                    CallingThreadExecutor.useCallingThreadExecutor(request, useCallingThreadExecutor.failureConsumer());
+            CallingThreadExecutor callingThreadExecutor = CallingThreadExecutor.useCallingThreadExecutor(request);
             call = call(channel, request, deserializer);
             callingThreadExecutor.executeQueue(call);
         } else {

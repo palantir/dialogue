@@ -19,11 +19,12 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.Optional;
 import java.util.Random;
-import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,8 +34,14 @@ import org.slf4j.LoggerFactory;
  */
 final class UseCallingThreadExecutor {
 
+    @VisibleForTesting
+    static final String SYSTEM_PROPERTY = "dialogue.experimental.blockoncallingthread.rate";
+
+    @VisibleForTesting
+    static final float DEFAULT_PROBABILITY = 0.01f;
+
     private static final Logger log = LoggerFactory.getLogger(UseCallingThreadExecutor.class);
-    private static final float DEFAULT_PROBABILITY = 0.01f;
+
     private static final float DISABLED = 0.0f;
     private static final float ENABLED = 1.0f;
 
@@ -44,19 +51,14 @@ final class UseCallingThreadExecutor {
             new UseCallingThreadExecutor(SafeThreadLocalRandom.get(), SharedTaggedMetricRegistries.getSingleton());
 
     private final Random random;
-    private final Consumer<RuntimeException> failureConsumer;
     private final DialogueFeatureFlagsMetrics metrics;
-    private volatile float probability = DEFAULT_PROBABILITY;
+    private volatile float probability;
 
     @VisibleForTesting
     UseCallingThreadExecutor(Random random, TaggedMetricRegistry taggedMetricRegistry) {
         this.random = random;
         this.metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
-        failureConsumer = runtimeException -> {
-            log.info("Unexpected exception from calling thread executor. Disabling this feature", runtimeException);
-            metrics.callingThreadExecutorFailure().mark();
-            setCallingThreadExecutorProbability(DISABLED);
-        };
+        probability = getInitialProbability();
     }
 
     boolean shouldUseCallingThreadExecutor() {
@@ -64,10 +66,6 @@ final class UseCallingThreadExecutor {
         Meter meter = enabled ? metrics.callingThreadExecutorEnabled() : metrics.callingThreadExecutorDisabled();
         meter.mark();
         return enabled;
-    }
-
-    Consumer<RuntimeException> failureConsumer() {
-        return failureConsumer;
     }
 
     /**
@@ -85,6 +83,11 @@ final class UseCallingThreadExecutor {
         probability = newProbability;
     }
 
+    @VisibleForTesting
+    float getCurrentProbability() {
+        return probability;
+    }
+
     static UseCallingThreadExecutor get() {
         return INSTANCE;
     }
@@ -97,5 +100,18 @@ final class UseCallingThreadExecutor {
             return true;
         }
         return random.nextFloat() < currentProbability;
+    }
+
+    private float getInitialProbability() {
+        Optional<Float> override = Optional.ofNullable(System.getProperty(SYSTEM_PROPERTY, null))
+                .flatMap(probabilityString -> {
+                    try {
+                        return Optional.of(Float.parseFloat(probabilityString));
+                    } catch (NumberFormatException e) {
+                        log.error("Could not parse probability value", UnsafeArg.of("probability", probabilityString));
+                        return Optional.empty();
+                    }
+                });
+        return override.orElse(DEFAULT_PROBABILITY);
     }
 }

@@ -34,12 +34,12 @@ public final class UseCallingThreadExecutorTest {
     @Mock
     private Random random;
 
+    private final TaggedMetricRegistry taggedMetricRegistry = new DefaultTaggedMetricRegistry();
     private UseCallingThreadExecutor featureFlag;
     private DialogueFeatureFlagsMetrics metrics;
 
     @BeforeEach
     public void beforeEach() {
-        TaggedMetricRegistry taggedMetricRegistry = new DefaultTaggedMetricRegistry();
         featureFlag = new UseCallingThreadExecutor(random, taggedMetricRegistry);
         metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
     }
@@ -50,5 +50,29 @@ public final class UseCallingThreadExecutorTest {
         when(random.nextFloat()).thenReturn(0.01f);
         assertThat(featureFlag.shouldUseCallingThreadExecutor()).isTrue();
         assertThat(metrics.callingThreadExecutorEnabled().getCount()).isOne();
+        assertThat(metrics.callingThreadExecutorDisabled().getCount()).isZero();
+    }
+
+    @Test
+    public void testMarksDisabledMetrics() {
+        featureFlag.setCallingThreadExecutorProbability(0.1f);
+        when(random.nextFloat()).thenReturn(0.1f);
+        assertThat(featureFlag.shouldUseCallingThreadExecutor()).isFalse();
+        assertThat(metrics.callingThreadExecutorEnabled().getCount()).isZero();
+        assertThat(metrics.callingThreadExecutorDisabled().getCount()).isOne();
+    }
+
+    @Test
+    public void testProbabilityCanBeOverriddenThroughSystemProps() {
+        System.setProperty(UseCallingThreadExecutor.SYSTEM_PROPERTY, "0.5");
+        assertThat(new UseCallingThreadExecutor(random, taggedMetricRegistry).getCurrentProbability())
+                .isEqualTo(0.5f);
+    }
+
+    @Test
+    public void testBogusSystemPropOverrideDoesNotFailStartup() {
+        System.setProperty(UseCallingThreadExecutor.SYSTEM_PROPERTY, "hi mum!");
+        assertThat(new UseCallingThreadExecutor(random, taggedMetricRegistry).getCurrentProbability())
+                .isEqualTo(UseCallingThreadExecutor.DEFAULT_PROBABILITY);
     }
 }
