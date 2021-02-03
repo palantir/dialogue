@@ -228,10 +228,3 @@ acceptedBreaks:
       new: "method <T> T com.palantir.dialogue.Clients::callBlocking(com.palantir.dialogue.EndpointChannel,\
         \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
       justification: "New API for blocking calls."
-  "1.99.0":
-    com.palantir.dialogue:dialogue-blocking-channels:
-    - code: "java.method.numberOfParametersChanged"
-      old: "method com.palantir.dialogue.blocking.CallingThreadExecutor com.palantir.dialogue.blocking.CallingThreadExecutor::useCallingThreadExecutor(com.palantir.dialogue.Request)"
-      new: "method com.palantir.dialogue.blocking.CallingThreadExecutor com.palantir.dialogue.blocking.CallingThreadExecutor::useCallingThreadExecutor(com.palantir.dialogue.Request,\
-        \ java.util.function.Consumer<java.lang.RuntimeException>)"
-      justification: "Only just released"
