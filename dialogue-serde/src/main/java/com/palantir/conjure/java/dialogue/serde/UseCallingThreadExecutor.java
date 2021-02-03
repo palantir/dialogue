@@ -47,67 +47,67 @@ final class UseCallingThreadExecutor {
 
     /** All the calling code is static, does not make sense to plumb all that through for a temporary feature flag. */
     @SuppressWarnings("deprecation")
-    private static final UseCallingThreadExecutor INSTANCE =
-            new UseCallingThreadExecutor(SafeThreadLocalRandom.get(), SharedTaggedMetricRegistries.getSingleton());
+    private static final Delegate INSTANCE = new Delegate(
+            SafeThreadLocalRandom.get(),
+            SharedTaggedMetricRegistries.getSingleton(),
+            getInitialProbability().orElse(DEFAULT_PROBABILITY));
 
-    private final Random random;
-    private final Meter enabledMeter;
-    private final Meter disabledMeter;
-    private volatile float probability;
+    private UseCallingThreadExecutor() {}
 
-    @VisibleForTesting
-    UseCallingThreadExecutor(Random random, TaggedMetricRegistry taggedMetricRegistry) {
-        this.random = random;
-        DialogueFeatureFlagsMetrics metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
-        this.enabledMeter = metrics.callingThreadExecutorEnabled();
-        this.disabledMeter = metrics.callingThreadExecutorDisabled();
-        probability = getInitialProbability();
-    }
-
-    boolean shouldUseCallingThreadExecutor() {
-        boolean enabled = shouldUseCallingThreadExecutorImpl();
-        Meter meter = enabled ? enabledMeter : disabledMeter;
-        meter.mark();
-        return enabled;
-    }
-
-    /**
-     * Sets the probability for using the {@link com.palantir.dialogue.blocking.CallingThreadExecutor} optimization.
-     *
-     * Applications that would like to try this out need to add a dependency on {@code dialogue-serde} and then
-     * add their own class in the {@code com.palantir.conjure.java.dialogue.serde} and making this method public.
-     *
-     * @param newProbability number between {@code 0.0} and {@code 1.0}.
-     */
-    void setCallingThreadExecutorProbability(float newProbability) {
-        Preconditions.checkArgument(
-                newProbability >= DISABLED && newProbability <= ENABLED,
-                "Probability should be between 0.0 and " + "1.0");
-        probability = newProbability;
+    static boolean shouldUseCallingThreadExecutor() {
+        return INSTANCE.shouldUseCallingThreadExecutor();
     }
 
     @VisibleForTesting
-    float getCurrentProbability() {
-        return probability;
+    static void setCallingThreadExecutorProbability(float newProbability) {
+        INSTANCE.setProbability(newProbability);
     }
 
-    static UseCallingThreadExecutor get() {
-        return INSTANCE;
-    }
+    static final class Delegate {
 
-    private boolean shouldUseCallingThreadExecutorImpl() {
-        float currentProbability = probability;
-        if (currentProbability == DISABLED) {
-            return false;
-        } else if (currentProbability == ENABLED) {
-            return true;
+        private final Random random;
+        private final Meter enabledMeter;
+        private final Meter disabledMeter;
+        private volatile float probability;
+
+        @VisibleForTesting
+        Delegate(Random random, TaggedMetricRegistry taggedMetricRegistry, float probability) {
+            this.random = random;
+            DialogueFeatureFlagsMetrics metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
+            this.enabledMeter = metrics.callingThreadExecutorEnabled();
+            this.disabledMeter = metrics.callingThreadExecutorDisabled();
+
+            this.probability = probability;
         }
-        return random.nextFloat() < currentProbability;
+
+        boolean shouldUseCallingThreadExecutor() {
+            boolean enabled = shouldUseCallingThreadExecutorImpl();
+            Meter meter = enabled ? enabledMeter : disabledMeter;
+            meter.mark();
+            return enabled;
+        }
+
+        void setProbability(float newProbability) {
+            Preconditions.checkArgument(
+                    UseCallingThreadExecutor.isInBounds(probability), "Probability should be between 0.0 and 1.0");
+            this.probability = newProbability;
+        }
+
+        private boolean shouldUseCallingThreadExecutorImpl() {
+            float currentProbability = probability;
+            if (currentProbability == DISABLED) {
+                return false;
+            } else if (currentProbability == ENABLED) {
+                return true;
+            }
+            return random.nextFloat() < currentProbability;
+        }
     }
 
     @SuppressWarnings("CatchBlockLogException")
-    private float getInitialProbability() {
-        Optional<Float> override = Optional.ofNullable(System.getProperty(SYSTEM_PROPERTY, null))
+    @VisibleForTesting
+    static Optional<Float> getInitialProbability() {
+        return Optional.ofNullable(System.getProperty(SYSTEM_PROPERTY, null))
                 .flatMap(probabilityString -> {
                     try {
                         return Optional.of(Float.parseFloat(probabilityString));
@@ -115,7 +115,11 @@ final class UseCallingThreadExecutor {
                         log.error("Could not parse probability value", UnsafeArg.of("probability", probabilityString));
                         return Optional.empty();
                     }
-                });
-        return override.orElse(DEFAULT_PROBABILITY);
+                })
+                .filter(UseCallingThreadExecutor::isInBounds);
+    }
+
+    private static boolean isInBounds(float probability) {
+        return probability >= DISABLED && probability <= ENABLED;
     }
 }

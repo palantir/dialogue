@@ -235,7 +235,7 @@ public final class DefaultClientsTest {
     }
 
     private void testCallingThreadExecutor(boolean enabled) {
-        UseCallingThreadExecutor.get().setCallingThreadExecutorProbability(enabled ? 1.0f : 0.0f);
+        UseCallingThreadExecutor.setCallingThreadExecutorProbability(enabled ? 1.0f : 0.0f);
 
         Request request = Request.builder().build();
         when(stringDeserializer.deserialize(eq(response))).thenReturn(VALUE);

@@ -35,18 +35,16 @@ public final class UseCallingThreadExecutorTest {
     private Random random;
 
     private final TaggedMetricRegistry taggedMetricRegistry = new DefaultTaggedMetricRegistry();
-    private UseCallingThreadExecutor featureFlag;
     private DialogueFeatureFlagsMetrics metrics;
 
     @BeforeEach
     public void beforeEach() {
-        featureFlag = new UseCallingThreadExecutor(random, taggedMetricRegistry);
         metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
     }
 
     @Test
     public void testMarksEnabledMetrics() {
-        featureFlag.setCallingThreadExecutorProbability(0.1f);
+        UseCallingThreadExecutor.Delegate featureFlag = delegate(0.1f);
         when(random.nextFloat()).thenReturn(0.01f);
         assertThat(featureFlag.shouldUseCallingThreadExecutor()).isTrue();
         assertThat(metrics.callingThreadExecutorEnabled().getCount()).isOne();
@@ -55,7 +53,7 @@ public final class UseCallingThreadExecutorTest {
 
     @Test
     public void testMarksDisabledMetrics() {
-        featureFlag.setCallingThreadExecutorProbability(0.1f);
+        UseCallingThreadExecutor.Delegate featureFlag = delegate(0.1f);
         when(random.nextFloat()).thenReturn(0.1f);
         assertThat(featureFlag.shouldUseCallingThreadExecutor()).isFalse();
         assertThat(metrics.callingThreadExecutorEnabled().getCount()).isZero();
@@ -65,14 +63,22 @@ public final class UseCallingThreadExecutorTest {
     @Test
     public void testProbabilityCanBeOverriddenThroughSystemProps() {
         System.setProperty(UseCallingThreadExecutor.SYSTEM_PROPERTY, "0.5");
-        assertThat(new UseCallingThreadExecutor(random, taggedMetricRegistry).getCurrentProbability())
-                .isEqualTo(0.5f);
+        assertThat(UseCallingThreadExecutor.getInitialProbability()).hasValue(0.5f);
     }
 
     @Test
     public void testBogusSystemPropOverrideDoesNotFailStartup() {
         System.setProperty(UseCallingThreadExecutor.SYSTEM_PROPERTY, "hi mum!");
-        assertThat(new UseCallingThreadExecutor(random, taggedMetricRegistry).getCurrentProbability())
-                .isEqualTo(UseCallingThreadExecutor.DEFAULT_PROBABILITY);
+        assertThat(UseCallingThreadExecutor.getInitialProbability()).isEmpty();
+    }
+
+    @Test
+    public void testOutOfBoundPropOverrideDoesNotFailStartup() {
+        System.setProperty(UseCallingThreadExecutor.SYSTEM_PROPERTY, "1234");
+        assertThat(UseCallingThreadExecutor.getInitialProbability()).isEmpty();
+    }
+
+    private UseCallingThreadExecutor.Delegate delegate(float probability) {
+        return new UseCallingThreadExecutor.Delegate(random, taggedMetricRegistry, probability);
     }
 }
