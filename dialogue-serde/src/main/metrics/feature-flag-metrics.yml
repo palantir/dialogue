@@ -3,7 +3,9 @@ options:
   javaVisibility: packagePrivate
 namespaces:
   dialogue.feature-flags:
-    docs: Feature flag metrics.
+    docs: |
+      Feature flag metrics. Metrics in this package should not be relied upon for ongoing monitoring, as they are likely
+      to be removed once a feature is rolled out fully.
     metrics:
       calling-thread-executor.enabled:
         type: meter
