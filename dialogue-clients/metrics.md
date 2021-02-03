@@ -64,6 +64,19 @@ Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
 Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel).
 - `dialogue.roundrobin.success` tagged `channel-name`, `hostIndex` (meter): Meter of the requests that were successfully made, tagged by the index of the host. (Note if there are >10 nodes this metric will not be recorded).
 
+## Dialogue Serde
+
+`com.palantir.dialogue:dialogue-serde`
+
+### dialogue.feature-flags
+Feature flag metrics. Metrics in this package should not be relied upon for ongoing monitoring, as they are likely
+to be removed once a feature is rolled out fully.
+
+- `dialogue.feature-flags.calling-thread-executor.enabled` (meter): Number of calls that used CallingThreadExecutor
+
+- `dialogue.feature-flags.calling-thread-executor.disabled` (meter): Number of calls that did not use CallingThreadExecutor
+
+
 ## Tritium Metrics
 
 `com.palantir.tritium:tritium-metrics`

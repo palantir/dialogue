@@ -1,0 +1,17 @@
+options:
+  javaPackage: com.palantir.conjure.java.dialogue.serde
+  javaVisibility: packagePrivate
+namespaces:
+  dialogue.feature-flags:
+    docs: |
+      Feature flag metrics. Metrics in this package should not be relied upon for ongoing monitoring, as they are likely
+      to be removed once a feature is rolled out fully.
+    metrics:
+      calling-thread-executor.enabled:
+        type: meter
+        docs: |
+          Number of calls that used CallingThreadExecutor
+      calling-thread-executor.disabled:
+        type: meter
+        docs: |
+          Number of calls that did not use CallingThreadExecutor

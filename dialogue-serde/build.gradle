@@ -1,5 +1,6 @@
 apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
+apply plugin: 'com.palantir.metric-schema'
 
 dependencies {
     api project(':dialogue-target')
@@ -9,6 +10,8 @@ dependencies {
     implementation project(':dialogue-futures')
     implementation project(':dialogue-blocking-channels')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.palantir.tritium:tritium-metrics'
+    implementation 'io.dropwizard.metrics:metrics-core'
     implementation 'com.palantir.safethreadlocalrandom:safe-thread-local-random'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.tracing:tracing'
@@ -22,6 +25,7 @@ dependencies {
     implementation 'com.palantir.conjure.java:conjure-lib'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'jakarta.ws.rs:jakarta.ws.rs-api'
+    compileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-example')
