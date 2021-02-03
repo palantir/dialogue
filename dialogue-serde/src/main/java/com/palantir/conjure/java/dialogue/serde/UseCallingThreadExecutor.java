@@ -51,19 +51,22 @@ final class UseCallingThreadExecutor {
             new UseCallingThreadExecutor(SafeThreadLocalRandom.get(), SharedTaggedMetricRegistries.getSingleton());
 
     private final Random random;
-    private final DialogueFeatureFlagsMetrics metrics;
+    private final Meter enabledMeter;
+    private final Meter disabledMeter;
     private volatile float probability;
 
     @VisibleForTesting
     UseCallingThreadExecutor(Random random, TaggedMetricRegistry taggedMetricRegistry) {
         this.random = random;
-        this.metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
+        DialogueFeatureFlagsMetrics metrics = DialogueFeatureFlagsMetrics.of(taggedMetricRegistry);
+        this.enabledMeter = metrics.callingThreadExecutorEnabled();
+        this.disabledMeter = metrics.callingThreadExecutorDisabled();
         probability = getInitialProbability();
     }
 
     boolean shouldUseCallingThreadExecutor() {
         boolean enabled = shouldUseCallingThreadExecutorImpl();
-        Meter meter = enabled ? metrics.callingThreadExecutorEnabled() : metrics.callingThreadExecutorDisabled();
+        Meter meter = enabled ? enabledMeter : disabledMeter;
         meter.mark();
         return enabled;
     }

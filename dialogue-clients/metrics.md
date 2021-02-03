@@ -76,8 +76,6 @@ to be removed once a feature is rolled out fully.
 
 - `dialogue.feature-flags.calling-thread-executor.disabled` (meter): Number of calls that did not use CallingThreadExecutor
 
-- `dialogue.feature-flags.calling-thread-executor.failure` (meter): Incremented when unexpected failure occurs that is a result of a bug.
-
 
 ## Tritium Metrics
 

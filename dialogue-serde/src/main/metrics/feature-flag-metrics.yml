@@ -15,7 +15,3 @@ namespaces:
         type: meter
         docs: |
           Number of calls that did not use CallingThreadExecutor
-      calling-thread-executor.failure:
-        type: meter
-        docs: |
-          Incremented when unexpected failure occurs that is a result of a bug.
