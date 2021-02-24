@@ -26,15 +26,20 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
+import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
+import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.api.TraceHttpHeaders;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
@@ -109,13 +114,57 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // ConnectTimeoutException must be wrapped so it may be retried. SocketTimeoutExceptions are
             // not retried by default, so ours implements SafeLoggable and retains the simple-name for
             // cleaner metrics.
-            long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTime);
-            throw new SafeConnectTimeoutException(
-                    e,
-                    SafeArg.of("durationMillis", durationMillis),
-                    SafeArg.of("connectTimeout", client.clientConfiguration().connectTimeout()),
-                    SafeArg.of("socketTimeout", client.clientConfiguration().readTimeout()),
-                    SafeArg.of("clientName", client.name()));
+            throw new SafeConnectTimeoutException(e, failureDiagnosticArgs(endpoint, request, startTime));
+        } catch (Throwable t) {
+            // We can't wrap all potential exception types, that would cause the failure to lose some amount of type
+            // information. Instead, we add a suppressed throwable with no stack trace which acts as a courier
+            // for our diagnostic information, ensuring it can be recorded in the logs.
+            t.addSuppressed(new Diagnostic(failureDiagnosticArgs(endpoint, request, startTime)));
+            throw t;
+        }
+    }
+
+    private Arg<?>[] failureDiagnosticArgs(Endpoint endpoint, Request request, long startTimeNanos) {
+        long durationMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeNanos);
+        return new Arg<?>[] {
+            SafeArg.of("durationMillis", durationMillis),
+            SafeArg.of("connectTimeout", client.clientConfiguration().connectTimeout()),
+            SafeArg.of("socketTimeout", client.clientConfiguration().readTimeout()),
+            SafeArg.of("clientName", client.name()),
+            SafeArg.of("serviceName", endpoint.serviceName()),
+            SafeArg.of("endpointName", endpoint.endpointName()),
+            SafeArg.of("requestTraceId", request.headerParams().get(TraceHttpHeaders.TRACE_ID)),
+            // Request span ID can be used to associate a failed request with a request log line on the server.
+            SafeArg.of("requestSpanId", request.headerParams().get(TraceHttpHeaders.SPAN_ID)),
+        };
+    }
+
+    private static final class Diagnostic extends RuntimeException implements SafeLoggable {
+
+        private static final String SAFE_MESSAGE = "Client Failure Diagnostic Information";
+
+        private final List<Arg<?>> args;
+
+        Diagnostic(Arg<?>[] args) {
+            super(SafeExceptions.renderMessage(SAFE_MESSAGE, args));
+            this.args = Collections.unmodifiableList(Arrays.asList(args));
+        }
+
+        @Override
+        public String getLogMessage() {
+            return SAFE_MESSAGE;
+        }
+
+        @Override
+        public List<Arg<?>> getArgs() {
+            return args;
+        }
+
+        @Override
+        public Throwable fillInStackTrace() {
+            // no-op: stack trace generation is expensive, this type exists
+            // to simply associate diagnostic information with a failure.
+            return this;
         }
     }
 
