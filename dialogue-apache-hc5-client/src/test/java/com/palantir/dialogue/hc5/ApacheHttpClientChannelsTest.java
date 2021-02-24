@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
+import com.google.common.collect.Lists;
 import com.google.common.collect.MoreCollectors;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
@@ -32,6 +33,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.util.Map;
@@ -56,7 +59,26 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             channel = ApacheHttpClientChannels.createSingleUri("http://foo", client);
             ListenableFuture<Response> response =
                     channel.execute(TestEndpoint.POST, Request.builder().build());
-            assertThatThrownBy(() -> Futures.getUnchecked(response)).hasCauseInstanceOf(UnknownHostException.class);
+            assertThatThrownBy(() -> Futures.getUnchecked(response))
+                    .getCause()
+                    .isInstanceOfSatisfying(UnknownHostException.class, throwable -> assertThat(
+                                    throwable.getSuppressed()[0])
+                            .satisfies(diagnosticThrowable -> assertThat(diagnosticThrowable.getStackTrace())
+                                    .as("Diagnostic exception should have an empty stack trace")
+                                    .isEmpty())
+                            .isInstanceOfSatisfying(SafeLoggable.class, safeLoggable -> {
+                                assertThat(Lists.transform(safeLoggable.getArgs(), Arg::getName))
+                                        .as("Expected a diagnostic exception")
+                                        .containsExactlyInAnyOrder(
+                                                "durationMillis",
+                                                "connectTimeout",
+                                                "socketTimeout",
+                                                "clientName",
+                                                "serviceName",
+                                                "endpointName",
+                                                "requestTraceId",
+                                                "requestSpanId");
+                            }));
         }
 
         ListenableFuture<Response> again =
