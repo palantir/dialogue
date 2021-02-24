@@ -161,6 +161,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        @SuppressWarnings("UnsynchronizedOverridesSynchronized") // nop
         public Throwable fillInStackTrace() {
             // no-op: stack trace generation is expensive, this type exists
             // to simply associate diagnostic information with a failure.
