@@ -9,7 +9,7 @@ com.fasterxml.jackson.datatype:jackson-datatype-guava:2.12.1 (2 constraints: 2f2
 com.fasterxml.jackson.datatype:jackson-datatype-jdk8:2.12.1 (3 constraints: fd37e505)
 com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.12.1 (2 constraints: 2f2ba586)
 com.fasterxml.jackson.module:jackson-module-afterburner:2.12.1 (3 constraints: fd37e505)
-com.github.ben-manes.caffeine:caffeine:3.0.0 (2 constraints: bb17974d)
+com.github.ben-manes.caffeine:caffeine:2.9.0 (2 constraints: c3174d4f)
 com.google.code.findbugs:jsr305:3.0.2 (11 constraints: 6b9fbbdf)
 com.google.errorprone:error_prone_annotations:2.5.1 (8 constraints: 347c3f9d)
 com.google.guava:failureaccess:1.0.1 (1 constraints: 140ae1b4)
