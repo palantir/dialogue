@@ -1,0 +1,9 @@
+//apply from: "$rootDir/gradle/publish-jar.gradle"
+
+dependencies {
+    implementation project(':dialogue-annotations')
+
+    testCompileOnly 'org.immutables:value::annotations'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
