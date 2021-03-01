@@ -69,7 +69,7 @@ class ReflectionTest {
     public static final class Client0Factory implements DialogueServiceFactory<Client0> {
 
         @Override
-        public Client0 create(EndpointChannelFactory EndpointChannelFactory, ConjureRuntime runtime) {
+        public Client0 create(EndpointChannelFactory _endpointChannelFactory, ConjureRuntime _runtime) {
             return Client0Impls.THIRD;
         }
     }
