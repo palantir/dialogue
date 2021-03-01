@@ -36,62 +36,14 @@ final class Reflection {
 
     private Reflection() {}
 
-    static <T> T callStaticEndpointChannelFactoryMethod(
-            Class<T> dialogueInterface, EndpointChannelFactory factory, ConjureRuntime conjureRuntime) {
-        Preconditions.checkNotNull(dialogueInterface, "dialogueInterface");
-        Preconditions.checkNotNull(factory, "EndpointChannelFactory");
-
-        DialogueService dialogueService = dialogueInterface.getAnnotation(DialogueService.class);
-        if (dialogueService != null) {
-            Class<? extends DialogueServiceFactory<?>> serviceFactoryClass = dialogueService.value();
-            try {
-                Object client =
-                        serviceFactoryClass.getConstructor().newInstance().create(factory, conjureRuntime);
-                if (dialogueInterface.isInstance(client)) {
-                    return dialogueInterface.cast(client);
-                }
-                throw new SafeIllegalArgumentException(
-                        "Dialogue service factory produced an incompatible service",
-                        SafeArg.of("dialogueInterface", dialogueInterface),
-                        SafeArg.of("serviceFactoryClass", serviceFactoryClass),
-                        SafeArg.of("invalidClientType", client.getClass()),
-                        SafeArg.of("invalidClient", client));
-            } catch (NoSuchMethodException e) {
-                throw new SafeIllegalArgumentException(
-                        "Failed to reflectively construct dialogue client. The service factory class must have a "
-                                + "public no-arg constructor.",
-                        e,
-                        SafeArg.of("dialogueInterface", dialogueInterface),
-                        SafeArg.of("serviceFactoryClass", serviceFactoryClass));
-            } catch (ReflectiveOperationException e) {
-                throw new SafeIllegalArgumentException(
-                        "Failed to reflectively construct dialogue client.",
-                        e,
-                        SafeArg.of("dialogueInterface", dialogueInterface),
-                        SafeArg.of("serviceFactoryClass", serviceFactoryClass));
-            }
-        }
-
-        try {
-            Method method = getStaticOfMethod(dialogueInterface)
-                    .orElseThrow(() -> new SafeIllegalStateException(
-                            "A static 'of(Channel, ConjureRuntime)' method is required",
-                            SafeArg.of("dialogueInterface", dialogueInterface)));
-
-            return dialogueInterface.cast(method.invoke(null, factory, conjureRuntime));
-
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new SafeIllegalArgumentException(
-                    "Failed to reflectively construct dialogue client. Please check the "
-                            + "dialogue interface class has a public static of(Channel, ConjureRuntime) method",
-                    e,
-                    SafeArg.of("dialogueInterface", dialogueInterface));
-        }
-    }
-
     static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
         Preconditions.checkNotNull(dialogueInterface, "dialogueInterface");
         Preconditions.checkNotNull(channel, "channel");
+
+        DialogueService annotation = dialogueInterface.getAnnotation(DialogueService.class);
+        if (annotation != null) {
+            return createFromAnnotation(dialogueInterface, annotation, channel, conjureRuntime);
+        }
 
         try {
             Method method = getLegacyStaticOfMethod(dialogueInterface)
@@ -119,12 +71,45 @@ final class Reflection {
         }
     }
 
-    private static Optional<Method> getStaticOfMethod(Class<?> dialogueInterface) {
+    private static <T> T createFromAnnotation(
+            Class<T> dialogueInterface,
+            DialogueService dialogueService,
+            Channel channel,
+            ConjureRuntime conjureRuntime) {
+        Class<? extends DialogueServiceFactory<?>> serviceFactoryClass = dialogueService.value();
+        EndpointChannelFactory factory = endpointChannelFactory(channel);
+        Object client;
         try {
-            return Optional.of(dialogueInterface.getMethod("of", EndpointChannelFactory.class, ConjureRuntime.class));
+            client = serviceFactoryClass.getConstructor().newInstance().create(factory, conjureRuntime);
         } catch (NoSuchMethodException e) {
-            log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
-            return Optional.empty();
+            throw new SafeIllegalArgumentException(
+                    "Failed to reflectively construct dialogue client. The service factory class must have a "
+                            + "public no-arg constructor.",
+                    e,
+                    SafeArg.of("dialogueInterface", dialogueInterface),
+                    SafeArg.of("serviceFactoryClass", serviceFactoryClass));
+        } catch (ReflectiveOperationException e) {
+            throw new SafeIllegalArgumentException(
+                    "Failed to reflectively construct dialogue client.",
+                    e,
+                    SafeArg.of("dialogueInterface", dialogueInterface),
+                    SafeArg.of("serviceFactoryClass", serviceFactoryClass));
         }
+        if (dialogueInterface.isInstance(client)) {
+            return dialogueInterface.cast(client);
+        }
+        throw new SafeIllegalArgumentException(
+                "Dialogue service factory produced an incompatible service",
+                SafeArg.of("dialogueInterface", dialogueInterface),
+                SafeArg.of("serviceFactoryClass", serviceFactoryClass),
+                SafeArg.of("invalidClientType", client.getClass()),
+                SafeArg.of("invalidClient", client));
+    }
+
+    private static EndpointChannelFactory endpointChannelFactory(Channel channel) {
+        if (channel instanceof EndpointChannelFactory) {
+            return (EndpointChannelFactory) channel;
+        }
+        return endpoint -> request -> channel.execute(endpoint, request);
     }
 }
