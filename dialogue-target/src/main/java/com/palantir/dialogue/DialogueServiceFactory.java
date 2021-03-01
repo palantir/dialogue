@@ -22,5 +22,5 @@ package com.palantir.dialogue;
 public interface DialogueServiceFactory<T> {
 
     /** Create a dialogue service. */
-    T create(EndpointChannelFactory EndpointChannelFactory, ConjureRuntime runtime);
+    T create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime);
 }
