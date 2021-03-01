@@ -46,13 +46,16 @@ final class Reflection {
         }
 
         try {
-            Method method = getLegacyStaticOfMethod(dialogueInterface)
+            Optional<Method> legacyMethod = getLegacyStaticOfMethod(dialogueInterface);
+            if (legacyMethod.isPresent()) {
+                return dialogueInterface.cast(legacyMethod.get().invoke(null, channel, conjureRuntime));
+            }
+            Method method = getStaticOfMethod(dialogueInterface)
                     .orElseThrow(() -> new SafeIllegalStateException(
                             "A static 'of(Channel, ConjureRuntime)' method is required",
                             SafeArg.of("dialogueInterface", dialogueInterface)));
 
-            return dialogueInterface.cast(method.invoke(null, channel, conjureRuntime));
-
+            return dialogueInterface.cast(method.invoke(null, endpointChannelFactory(channel), conjureRuntime));
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new SafeIllegalArgumentException(
                     "Failed to reflectively construct dialogue client. Please check the "
@@ -65,6 +68,15 @@ final class Reflection {
     private static Optional<Method> getLegacyStaticOfMethod(Class<?> dialogueInterface) {
         try {
             return Optional.of(dialogueInterface.getMethod("of", Channel.class, ConjureRuntime.class));
+        } catch (NoSuchMethodException e) {
+            log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
+            return Optional.empty();
+        }
+    }
+
+    private static Optional<Method> getStaticOfMethod(Class<?> dialogueInterface) {
+        try {
+            return Optional.of(dialogueInterface.getMethod("of", EndpointChannelFactory.class, ConjureRuntime.class));
         } catch (NoSuchMethodException e) {
             log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
             return Optional.empty();
