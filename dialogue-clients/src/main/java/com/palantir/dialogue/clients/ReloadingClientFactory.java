@@ -81,21 +81,21 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T get(Class<T> serviceClass, String serviceName) {
-        Channel channel = getChannel(serviceName);
+        EndpointChannelFactory factory = getChannel(serviceName);
         ConjureRuntime runtime = params.runtime();
-        return Reflection.callStaticFactoryMethod(serviceClass, channel, runtime);
+        return Reflection.callStaticEndpointChannelFactoryMethod(serviceClass, factory, runtime);
     }
 
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
-        Channel channel = cache.getNonReloadingChannel(
+        EndpointChannelFactory factory = cache.getNonReloadingChannel(
                 params, serviceConf, ChannelNames.nonReloading(clazz, params), OptionalInt.empty());
 
-        return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
+        return Reflection.callStaticEndpointChannelFactoryMethod(clazz, factory, params.runtime());
     }
 
     @Override
-    public Channel getChannel(String serviceName) {
+    public LiveReloadingChannel getChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
@@ -166,10 +166,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 return perHostDialogueChannels.map(ImmutableList::copyOf);
             }
 
+            private Refreshable<List<DialogueChannel>> getPerHostChannelsInternal() {
+                return perHostDialogueChannels.map(ImmutableList::copyOf);
+            }
+
             @Override
             public <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
-                return getPerHostChannels().map(channels -> channels.stream()
-                        .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
+                return getPerHostChannelsInternal().map(channels -> channels.stream()
+                        .map(chan -> Reflection.callStaticEndpointChannelFactoryMethod(
+                                clientInterface, (EndpointChannelFactory) chan, params.runtime()))
                         .collect(ImmutableList.toImmutableList()));
             }
 
