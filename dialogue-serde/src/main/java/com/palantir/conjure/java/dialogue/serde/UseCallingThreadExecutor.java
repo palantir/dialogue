@@ -38,7 +38,7 @@ final class UseCallingThreadExecutor {
     static final String SYSTEM_PROPERTY = "dialogue.experimental.blockoncallingthread.rate";
 
     @VisibleForTesting
-    static final float DEFAULT_PROBABILITY = 0.01f;
+    static final float DEFAULT_PROBABILITY = 1.0f;
 
     private static final Logger log = LoggerFactory.getLogger(UseCallingThreadExecutor.class);
 
