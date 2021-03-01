@@ -3,13 +3,14 @@ com.google.guava:guava = 30.1-jre
 com.palantir.conjure:conjure = 4.14.2
 com.palantir.conjure.java:* = 5.45.0
 com.palantir.conjure.java.api:* = 2.16.2
+com.palantir.conjure.java.runtime:* = 6.14.0
 com.palantir.refreshable:* = 1.2.0
 com.palantir.ri:resource-identifier = 1.1.0
 com.palantir.safe-logging:* = 1.14.0
 com.palantir.safethreadlocalrandom:safe-thread-local-random = 0.1.0
 com.palantir.tokens:auth-tokens = 3.6.2
-com.palantir.tracing:* = 4.11.0
-com.palantir.tritium:* = 0.18.5
+com.palantir.tracing:* = 4.12.0
+com.palantir.tritium:* = 0.18.6
 com.uber.nullaway:nullaway = 0.9.0
 io.dropwizard.metrics:metrics-core = 3.2.6
 org.apache.httpcomponents.client5:httpclient5 = 5.0.3
@@ -39,11 +40,6 @@ org.openjdk.jmh:* = 1.28
 # Match conjure-java-runtime okhttp version
 com.squareup.okhttp3:* = 3.13.1
 
-# Don't want to impose a major upgrade on people
-com.palantir.conjure.java.runtime:* = 5.10.0
-# dependency-upgrader:ON
-
-# dependency-upgrader:OFF
 # Avoid forcing consumers to upgrade jackson
 com.fasterxml.jackson.*:jackson-* = 2.11.1
 
