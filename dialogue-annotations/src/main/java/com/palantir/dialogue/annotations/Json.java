@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import javax.annotation.Nullable;
 
-public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
+public final class Json implements DeserializerFactory, SerializerFactory {
 
     private static final BodySerDe DEFAULT_BODY_SERDE =
             DefaultConjureRuntime.builder().encodings(Encodings.json()).build().bodySerDe();
@@ -52,12 +52,12 @@ public final class Json implements DeserializerFactory<Object>, SerializerFactor
     }
 
     @Override
-    public com.palantir.dialogue.Deserializer<Object> deserializerFor(TypeMarker<Object> type) {
+    public <T> com.palantir.dialogue.Deserializer<T> deserializerFor(TypeMarker<T> type) {
         return bodySerDe.deserializer(type);
     }
 
     @Override
-    public com.palantir.dialogue.Serializer<Object> serializerFor(TypeMarker<Object> type) {
+    public <T> com.palantir.dialogue.Serializer<T> serializerFor(TypeMarker<T> type) {
         return bodySerDe.serializer(type);
     }
 

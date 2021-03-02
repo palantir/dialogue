@@ -52,14 +52,15 @@ public interface MyService {
     // method level annotations? e.g.
     // @Request.Header(name="Accept", value="text/plain")
     // This is the dialogue Response object
-    @Request(method = HttpMethod.PUT, path = "/custom/request")
+    @Request(method = HttpMethod.PUT, path = "/custom/request1")
     Response customResponse();
 
-    @Request(method = HttpMethod.POST, path = "/params/{myPathParam}")
+    @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
     void params(
             @Request.QueryParam("q") String query,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
+            @Request.PathParam MyCustomParamType myPathParam2,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,

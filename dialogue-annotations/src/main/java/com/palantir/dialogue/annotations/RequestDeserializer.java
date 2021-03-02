@@ -16,9 +16,25 @@
 
 package com.palantir.dialogue.annotations;
 
-import com.palantir.dialogue.Serializer;
-import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.Response;
+import java.util.Optional;
 
-public interface SerializerFactory {
-    <T> Serializer<T> serializerFor(TypeMarker<T> type);
+public enum RequestDeserializer implements Deserializer<Response> {
+    INSTANCE;
+
+    @Override
+    public Response deserialize(Response response) {
+        return response;
+    }
+
+    @Override
+    public Optional<String> accepts() {
+        return Optional.empty();
+    }
+
+    @Override
+    public String toString() {
+        return "EmptyBodyDeserializer{}";
+    }
 }

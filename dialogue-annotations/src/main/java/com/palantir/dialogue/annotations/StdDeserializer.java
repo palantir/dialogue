@@ -20,7 +20,8 @@ import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.TypeMarker;
 import java.util.Optional;
 
-public abstract class StdDeserializer<T> implements DeserializerFactory<T>, Deserializer<T> {
+@SuppressWarnings({"RawTypes", "unchecked"})
+public abstract class StdDeserializer<T> implements DeserializerFactory, Deserializer<T> {
 
     private final Optional<String> accepts;
 
@@ -34,7 +35,7 @@ public abstract class StdDeserializer<T> implements DeserializerFactory<T>, Dese
     }
 
     @Override
-    public final Deserializer<T> deserializerFor(TypeMarker<T> _type) {
-        return this;
+    public final <T1> Deserializer<T1> deserializerFor(TypeMarker<T1> _type) {
+        return (Deserializer) this;
     }
 }

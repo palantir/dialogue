@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations;
+package com.palantir.myservice.service;
 
-import com.palantir.dialogue.Serializer;
-import com.palantir.dialogue.TypeMarker;
+public final class MyCustomParamType {
 
-public interface SerializerFactory {
-    <T> Serializer<T> serializerFor(TypeMarker<T> type);
+    private final String value;
+
+    public MyCustomParamType(String value) {
+        this.value = value;
+    }
+
+    public String valueOf() {
+        return value;
+    }
 }

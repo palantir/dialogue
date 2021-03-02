@@ -19,9 +19,11 @@ package com.palantir.dialogue.annotations;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 
-public abstract class StdSerializer<T> implements SerializerFactory<T>, Serializer<T> {
+@SuppressWarnings({"RawTypes", "unchecked"})
+public abstract class StdSerializer<T> implements SerializerFactory, Serializer<T> {
+
     @Override
-    public final Serializer<T> serializerFor(TypeMarker<T> _type) {
-        return this;
+    public final <T1> Serializer<T1> serializerFor(TypeMarker<T1> _type) {
+        return (Serializer) this;
     }
 }

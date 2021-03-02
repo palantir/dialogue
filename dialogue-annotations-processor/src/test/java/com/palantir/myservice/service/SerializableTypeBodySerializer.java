@@ -24,13 +24,11 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.StdSerializer;
 
-@SuppressWarnings({"unchecked", "RawTypes"})
 public final class SerializableTypeBodySerializer extends StdSerializer<SerializableType> {
 
-    private static final TypeMarker<SerializableType> TYPE_MARKER = new TypeMarker<SerializableType>() {};
     private static final Serializer<SerializableType> SERIALIZER = new Json(
                     new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))
-            .serializerFor((TypeMarker) TYPE_MARKER);
+            .serializerFor(new TypeMarker<SerializableType>() {});
 
     @Override
     public RequestBody serialize(SerializableType value) {
