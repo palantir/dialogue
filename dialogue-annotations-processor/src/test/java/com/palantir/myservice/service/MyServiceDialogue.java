@@ -14,20 +14,16 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations;
+package com.palantir.myservice.service;
 
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.DialogueServiceFactory;
+import com.palantir.dialogue.EndpointChannelFactory;
 
-/**
- * Marker annotation for interfaces that use {@link Request} annotations.
- *
- * Instructs the processor to generate a dialogue client implementation of the annotated interface.
- */
-@Documented
-@Retention(RetentionPolicy.CLASS)
-@Target(ElementType.TYPE)
-public @interface DialogueClient {}
+interface MyServiceDialogue extends DialogueServiceFactory<MyService> {
+
+    @Override
+    default MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+        return null;
+    }
+}

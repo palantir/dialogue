@@ -17,15 +17,15 @@
 package com.palantir.myservice.service;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.annotations.DialogueClient;
 import com.palantir.dialogue.annotations.Request;
 import java.util.OptionalInt;
 import java.util.UUID;
 
-@DialogueClient
+@DialogueService(MyServiceDialogue.class)
 public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/greet")
