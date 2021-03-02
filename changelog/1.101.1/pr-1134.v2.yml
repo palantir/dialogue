@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Downgrade Caffeine cache to 2.9.0 to avoid a java 11 requirement
+  links:
+  - https://github.com/palantir/dialogue/pull/1134
