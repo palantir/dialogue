@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Annotation based solution to avoid static method string matching
+  links:
+  - https://github.com/palantir/dialogue/pull/1138
