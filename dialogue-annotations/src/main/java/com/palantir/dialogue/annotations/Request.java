@@ -48,7 +48,7 @@ public @interface Request {
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
-    Class<? extends Deserializer> accept() default Json.class;
+    Class<? extends DeserializerFactory> accept() default Json.class;
 
     /** Annotates the request body. */
     @Retention(RetentionPolicy.SOURCE)
@@ -61,7 +61,7 @@ public @interface Request {
          * @return class that implements a zero-arg constructor to be used to serialize the body. Defaults to
          * {@link Json}
          */
-        Class<? extends Serializer> value() default Json.class;
+        Class<? extends SerializerFactory> value() default Json.class;
     }
 
     /** Annotates a header param. */

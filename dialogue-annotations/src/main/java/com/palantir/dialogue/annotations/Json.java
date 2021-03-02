@@ -16,43 +16,121 @@
 
 package com.palantir.dialogue.annotations;
 
-import com.palantir.dialogue.Deserializer;
-import com.palantir.dialogue.RequestBody;
-import com.palantir.dialogue.Response;
-import com.palantir.dialogue.Serializer;
-import java.io.OutputStream;
-import java.util.Optional;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
+import com.fasterxml.jackson.databind.exc.MismatchedInputException;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.conjure.java.dialogue.serde.Encoding;
+import com.palantir.conjure.java.dialogue.serde.Encodings;
+import com.palantir.dialogue.BodySerDe;
+import com.palantir.dialogue.TypeMarker;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.IOException;
+import java.io.InputStream;
+import javax.annotation.Nullable;
 
-@SuppressWarnings("RawTypes")
-public final class Json implements Deserializer, Serializer {
-    @Override
-    public Object deserialize(Response response) {
-        return response;
+public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
+
+    private static final BodySerDe DEFAULT_BODY_SERDE =
+            DefaultConjureRuntime.builder().encodings(Encodings.json()).build().bodySerDe();
+
+    private final BodySerDe bodySerDe;
+
+    public Json() {
+        this(DEFAULT_BODY_SERDE);
+    }
+
+    public Json(ObjectMapper mapper) {
+        this(DefaultConjureRuntime.builder().encodings(json(mapper)).build().bodySerDe());
+    }
+
+    private Json(BodySerDe bodySerDe) {
+        this.bodySerDe = bodySerDe;
     }
 
     @Override
-    public Optional<String> accepts() {
-        return Optional.empty();
+    public com.palantir.dialogue.Deserializer<Object> deserializerFor(TypeMarker<Object> type) {
+        return bodySerDe.deserializer(type);
     }
 
     @Override
-    public RequestBody serialize(Object _value) {
-        return new RequestBody() {
-            @Override
-            public void writeTo(OutputStream _output) {}
+    public com.palantir.dialogue.Serializer<Object> serializerFor(TypeMarker<Object> type) {
+        return bodySerDe.serializer(type);
+    }
+
+    // Copied code, tbd how to share.
+
+    private static Encoding json(ObjectMapper mapper) {
+        return new AbstractJacksonEncoding(mapper) {
+            private static final String CONTENT_TYPE = "application/json";
 
             @Override
-            public String contentType() {
-                return "application/json";
+            public String getContentType() {
+                return CONTENT_TYPE;
             }
 
             @Override
-            public boolean repeatable() {
-                return true;
+            public boolean supportsContentType(String contentType) {
+                return matchesContentType(CONTENT_TYPE, contentType);
             }
-
-            @Override
-            public void close() {}
         };
+    }
+
+    private abstract static class AbstractJacksonEncoding implements Encoding {
+
+        private final ObjectMapper mapper;
+
+        AbstractJacksonEncoding(ObjectMapper mapper) {
+            this.mapper = Preconditions.checkNotNull(mapper, "ObjectMapper is required");
+        }
+
+        @Override
+        public final <T> Serializer<T> serializer(TypeMarker<T> type) {
+            ObjectWriter writer = mapper.writerFor(mapper.constructType(type.getType()));
+            return (value, output) -> {
+                Preconditions.checkNotNull(value, "cannot serialize null value");
+                try {
+                    writer.writeValue(output, value);
+                } catch (IOException e) {
+                    throw new SafeRuntimeException("Failed to serialize payload", e);
+                }
+            };
+        }
+
+        @Override
+        public final <T> Deserializer<T> deserializer(TypeMarker<T> type) {
+            ObjectReader reader = mapper.readerFor(mapper.constructType(type.getType()));
+            return input -> {
+                try (InputStream inputStream = input) {
+                    T value = reader.readValue(inputStream);
+                    // Bad input should result in a 4XX response status, throw IAE rather than NPE.
+                    Preconditions.checkArgument(value != null, "cannot deserialize a JSON null value");
+                    return value;
+                } catch (MismatchedInputException e) {
+                    throw new SafeRuntimeException(
+                            "Failed to deserialize response stream. Syntax error?",
+                            e,
+                            SafeArg.of("type", type.getType()));
+                } catch (IOException e) {
+                    throw new SafeRuntimeException(
+                            "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));
+                }
+            };
+        }
+
+        @Override
+        public final String toString() {
+            return "AbstractJacksonEncoding{" + getContentType() + '}';
+        }
+    }
+
+    static boolean matchesContentType(String contentType, @Nullable String typeToCheck) {
+        // TODO(ckozak): support wildcards? See javax.ws.rs.core.MediaType.isCompatible
+        return typeToCheck != null
+                // Use startsWith to avoid failures due to charset
+                && typeToCheck.startsWith(contentType);
     }
 }

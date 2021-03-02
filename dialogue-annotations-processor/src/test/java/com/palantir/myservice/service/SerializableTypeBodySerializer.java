@@ -16,29 +16,24 @@
 
 package com.palantir.myservice.service;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Serializer;
-import java.io.OutputStream;
+import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.StdSerializer;
 
-public final class SerializableTypeBodySerializer implements Serializer<SerializableType> {
+@SuppressWarnings({"unchecked", "RawTypes"})
+public final class SerializableTypeBodySerializer extends StdSerializer<SerializableType> {
+
+    private static final TypeMarker<SerializableType> TYPE_MARKER = new TypeMarker<SerializableType>() {};
+    private static final Serializer<SerializableType> SERIALIZER = new Json(
+                    new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))
+            .serializerFor((TypeMarker) TYPE_MARKER);
+
     @Override
-    public RequestBody serialize(SerializableType _value) {
-        return new RequestBody() {
-            @Override
-            public void writeTo(OutputStream _output) {}
-
-            @Override
-            public String contentType() {
-                return "application/json";
-            }
-
-            @Override
-            public boolean repeatable() {
-                return true;
-            }
-
-            @Override
-            public void close() {}
-        };
+    public RequestBody serialize(SerializableType value) {
+        return SERIALIZER.serialize(value);
     }
 }

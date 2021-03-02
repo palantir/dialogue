@@ -3,10 +3,11 @@
 dependencies {
     api project(':dialogue-target')
 
+    implementation project(':dialogue-serde')
+
     testCompileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-core')
     testImplementation project(':dialogue-test-common')
-    testImplementation project(':dialogue-serde')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }
