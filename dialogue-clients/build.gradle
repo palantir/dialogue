@@ -23,7 +23,6 @@ dependencies {
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
-    testCompileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-test-common')
     testImplementation project(':dialogue-serde')
