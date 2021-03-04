@@ -29,7 +29,6 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.UrlBuilder;
 import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -48,9 +47,6 @@ public final class UserAgentEndpointChannelTest {
 
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
-
-    @BeforeEach
-    public void before() {}
 
     private Request request = Request.builder()
             .putHeaderParams("header", "value")
