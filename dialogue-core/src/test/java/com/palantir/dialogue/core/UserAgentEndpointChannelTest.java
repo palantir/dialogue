@@ -21,11 +21,14 @@ import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.UrlBuilder;
+import java.util.Map;
 import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -45,13 +48,6 @@ public final class UserAgentEndpointChannelTest {
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
 
-    private EndpointChannel channel;
-
-    @BeforeEach
-    public void before() {
-        channel = UserAgentEndpointChannel.create(delegate, TestEndpoint.POST, baseAgent);
-    }
-
     private Request request = Request.builder()
             .putHeaderParams("header", "value")
             .putQueryParams("query", "value")
@@ -60,6 +56,7 @@ public final class UserAgentEndpointChannelTest {
 
     @Test
     public void injectsDialogueVersionAndEndpointVersion() {
+        EndpointChannel channel = UserAgentEndpointChannel.create(delegate, TestEndpoint.POST, baseAgent);
         // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
                 .orElse("0.0.0");
@@ -68,5 +65,43 @@ public final class UserAgentEndpointChannelTest {
         verify(delegate).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
                 .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
+    }
+
+    @Test
+    public void testServiceNameIsNotValidConjureAgent() {
+        EndpointChannel channel = UserAgentEndpointChannel.create(
+                delegate,
+                new Endpoint() {
+                    @Override
+                    public void renderPath(Map<String, String> _params, UrlBuilder _url) {}
+
+                    @Override
+                    public HttpMethod httpMethod() {
+                        return HttpMethod.GET;
+                    }
+
+                    @Override
+                    public String serviceName() {
+                        return "Service_Name";
+                    }
+
+                    @Override
+                    public String endpointName() {
+                        return "endpoint";
+                    }
+
+                    @Override
+                    public String version() {
+                        return "4.5.6";
+                    }
+                },
+                baseAgent);
+        // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
+        String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
+        channel.execute(request);
+        verify(delegate).execute(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
+                .containsExactly("test-class/1.2.3 dialogue/" + dialogueVersion);
     }
 }
