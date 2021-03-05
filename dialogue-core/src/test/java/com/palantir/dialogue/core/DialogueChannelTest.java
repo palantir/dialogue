@@ -25,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -34,18 +35,31 @@ import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.TestTracing;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.file.Paths;
+import java.time.Duration;
 import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -182,6 +196,76 @@ public final class DialogueChannelTest {
         assertThatThrownBy(rejected::get)
                 .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("queue is full");
+    }
+
+    static class ThrowingOutputStream extends OutputStream {
+        private final Supplier<IOException> supplier;
+
+        ThrowingOutputStream(Supplier<IOException> supplier) {
+            this.supplier = supplier;
+        }
+
+        @Override
+        public void write(int _byte) throws IOException {
+            throw supplier.get();
+        }
+
+        @Override
+        public void write(byte _buf[], int _off, int _len) throws IOException {
+            throw supplier.get();
+        }
+    }
+
+    private ListenableFuture<Response> makeStructuredRequestToClosedConnection(Supplier<IOException> failure) {
+        AtomicInteger channelInteractions = new AtomicInteger();
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .channelFactory(_uri -> (_endpoint, currentRequest) -> {
+                    int interactions = channelInteractions.incrementAndGet();
+                    if (interactions > 1) {
+                        return Futures.immediateFuture(new TestResponse()
+                                .code(204)
+                                .withHeader("Interactions", Integer.toString(interactions)));
+                    }
+                    Optional<RequestBody> body = currentRequest.body();
+                    assertThat(body).isPresent();
+                    try {
+                        body.get().writeTo(new ThrowingOutputStream(failure));
+                    } catch (IOException e) {
+                        return Futures.immediateFailedFuture(e);
+                    }
+                    throw new AssertionError("Expected an exception");
+                })
+                .random(new Random(123456L))
+                .maxQueueSize(1)
+                .build();
+        RequestBody defaultStructuredBody = DefaultConjureRuntime.builder()
+                .build()
+                .bodySerDe()
+                .serializer(new TypeMarker<List<String>>() {})
+                .serialize(ImmutableList.of("test"));
+        return channel.execute(
+                endpoint, Request.builder().body(defaultStructuredBody).build());
+    }
+
+    @Test
+    void test_serialization_socket_error_is_retried() {
+        ListenableFuture<Response> result =
+                makeStructuredRequestToClosedConnection(() -> new SocketException("broken pipe"));
+        assertThat(result).succeedsWithin(Duration.ofSeconds(2)).satisfies(res -> {
+            assertThat(res.code()).isEqualTo(204);
+            assertThat(res.getFirstHeader("Interactions"))
+                    .as("Expected retries")
+                    .hasValue("2");
+        });
+    }
+
+    @Test
+    void test_serialization_socket_timeout_is_not_retried() {
+        ListenableFuture<Response> result =
+                makeStructuredRequestToClosedConnection(() -> new SocketTimeoutException("oops"));
+        assertThat(result).as("Socket timeouts should not be retried").failsWithin(Duration.ofSeconds(2));
     }
 
     @Test

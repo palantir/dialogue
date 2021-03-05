@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tracing.CloseableTracer;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Type;
@@ -85,7 +86,7 @@ final class TracedEncoding implements Encoding {
         }
 
         @Override
-        public void serialize(T value, OutputStream output) {
+        public void serialize(T value, OutputStream output) throws IOException {
             try (CloseableTracer ignored = CloseableTracer.startSpan(operation)) {
                 delegate.serialize(value, output);
             }
@@ -108,7 +109,7 @@ final class TracedEncoding implements Encoding {
         }
 
         @Override
-        public T deserialize(InputStream input) {
+        public T deserialize(InputStream input) throws IOException {
             try (CloseableTracer ignored = CloseableTracer.startSpan(operation)) {
                 return delegate.deserialize(input);
             }
