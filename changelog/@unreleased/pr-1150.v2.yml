@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Network failures while writing request bytes are retried
+  links:
+  - https://github.com/palantir/dialogue/pull/1150
