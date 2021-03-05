@@ -211,7 +211,7 @@ public final class DialogueChannelTest {
         }
 
         @Override
-        public void write(byte _buf[], int _off, int _len) throws IOException {
+        public void write(byte[] _buf, int _off, int _len) throws IOException {
             throw supplier.get();
         }
     }
