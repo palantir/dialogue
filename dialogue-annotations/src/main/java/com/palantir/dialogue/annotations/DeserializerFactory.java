@@ -19,6 +19,6 @@ package com.palantir.dialogue.annotations;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.TypeMarker;
 
-public interface DeserializerFactory {
-    <T> Deserializer<T> deserializerFor(TypeMarker<T> type);
+public interface DeserializerFactory<U> {
+    <T extends U> Deserializer<T> deserializerFor(TypeMarker<T> type);
 }
