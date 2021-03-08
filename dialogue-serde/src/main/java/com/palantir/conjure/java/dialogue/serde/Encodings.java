@@ -56,9 +56,7 @@ public final class Encodings {
             return input -> {
                 try (InputStream inputStream = input) {
                     T value = reader.readValue(inputStream);
-                    // Bad input should result in a 4XX response status, throw IAE rather than NPE.
-                    Preconditions.checkArgument(value != null, "cannot deserialize a JSON null value");
-                    return value;
+                    return Preconditions.checkNotNull(value, "cannot deserialize a JSON null value");
                 }
             };
         }
