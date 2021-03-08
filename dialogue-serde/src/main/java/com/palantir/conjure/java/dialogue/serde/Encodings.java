@@ -20,21 +20,14 @@ import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.google.common.base.Suppliers;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 
-// TODO(rfink): Consider async Jackson, see
-//              https://github.com/spring-projects/spring-framework/commit/31e0e537500c0763a36d3af2570d5c253a374690
-//              and https://groups.google.com/forum/#!topic/jackson-user/m_prSo8d_Pw
 public final class Encodings {
 
     private Encodings() {}
@@ -53,14 +46,8 @@ public final class Encodings {
         @Override
         public final <T> Serializer<T> serializer(TypeMarker<T> type) {
             ObjectWriter writer = mapper.writerFor(mapper.constructType(type.getType()));
-            return (value, output) -> {
-                Preconditions.checkNotNull(value, "cannot serialize null value");
-                try {
-                    writer.writeValue(output, value);
-                } catch (IOException e) {
-                    throw new SafeRuntimeException("Failed to serialize payload", e);
-                }
-            };
+            return (value, output) ->
+                    writer.writeValue(output, Preconditions.checkNotNull(value, "cannot serialize null value"));
         }
 
         @Override
@@ -70,14 +57,6 @@ public final class Encodings {
                 try (InputStream inputStream = input) {
                     T value = reader.readValue(inputStream);
                     return Preconditions.checkNotNull(value, "cannot deserialize a JSON null value");
-                } catch (MismatchedInputException e) {
-                    throw new SafeRuntimeException(
-                            "Failed to deserialize response stream. Syntax error?",
-                            e,
-                            SafeArg.of("type", type.getType()));
-                } catch (IOException e) {
-                    throw new SafeRuntimeException(
-                            "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));
                 }
             };
         }

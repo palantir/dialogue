@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.google.common.base.Suppliers;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.function.Supplier;
@@ -73,7 +74,7 @@ final class LazilyInitializedEncoding implements Encoding {
         }
 
         @Override
-        public void serialize(T value, OutputStream output) {
+        public void serialize(T value, OutputStream output) throws IOException {
             delegate.get().serialize(value, output);
         }
 
@@ -92,7 +93,7 @@ final class LazilyInitializedEncoding implements Encoding {
         }
 
         @Override
-        public T deserialize(InputStream input) {
+        public T deserialize(InputStream input) throws IOException {
             return delegate.get().deserialize(input);
         }
 
