@@ -23,7 +23,7 @@ import com.palantir.dialogue.TypeMarker;
 public abstract class StdSerializer<T> implements SerializerFactory<T>, Serializer<T> {
 
     @Override
-    public <T1 extends T> Serializer<T1> serializerFor(TypeMarker<T1> _type) {
+    public final <T1 extends T> Serializer<T1> serializerFor(TypeMarker<T1> _type) {
         return (Serializer<T1>) this;
     }
 }
