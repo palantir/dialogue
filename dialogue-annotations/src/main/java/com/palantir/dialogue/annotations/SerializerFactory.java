@@ -19,6 +19,6 @@ package com.palantir.dialogue.annotations;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 
-public interface SerializerFactory {
-    <T> Serializer<T> serializerFor(TypeMarker<T> type);
+public interface SerializerFactory<U> {
+    <T extends U> Serializer<T> serializerFor(TypeMarker<T> type);
 }

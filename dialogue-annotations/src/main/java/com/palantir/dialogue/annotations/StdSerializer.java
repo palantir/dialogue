@@ -20,10 +20,10 @@ import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 
 @SuppressWarnings({"RawTypes", "unchecked"})
-public abstract class StdSerializer<T> implements SerializerFactory, Serializer<T> {
+public abstract class StdSerializer<T> implements SerializerFactory<T>, Serializer<T> {
 
     @Override
-    public final <T1> Serializer<T1> serializerFor(TypeMarker<T1> _type) {
-        return (Serializer) this;
+    public final <T1 extends T> Serializer<T1> serializerFor(TypeMarker<T1> _type) {
+        return (Serializer<T1>) this;
     }
 }
