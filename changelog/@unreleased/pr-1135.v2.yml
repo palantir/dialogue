@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: <!-- User-facing outcomes this PR delivers -->
+  description: Annotation based Dialogue client API + manual test implementation.
   links:
   - https://github.com/palantir/dialogue/pull/1135
