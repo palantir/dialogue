@@ -40,10 +40,10 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 
-interface MyServiceDialogue extends DialogueServiceFactory<MyService> {
+public final class MyServiceDialogue implements DialogueServiceFactory<MyService> {
 
     @Override
-    default MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+    public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
 
             private final PlainSerDe plainSerDe = runtime.plainSerDe();
@@ -121,7 +121,7 @@ interface MyServiceDialogue extends DialogueServiceFactory<MyService> {
         };
     }
 
-    enum Endpoints implements Endpoint {
+    private enum Endpoints implements Endpoint {
         greet {
             private final PathTemplate pathTemplate =
                     PathTemplate.builder().fixed("greet").build();

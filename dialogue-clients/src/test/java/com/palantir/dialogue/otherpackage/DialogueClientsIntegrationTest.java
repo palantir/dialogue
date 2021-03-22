@@ -20,23 +20,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.google.common.collect.Iterables;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
-import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.UndertowServer;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
-import io.undertow.Undertow;
-import io.undertow.server.HttpHandler;
-import io.undertow.server.handlers.BlockingHandler;
-import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -44,49 +39,35 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import javax.net.ssl.SSLContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 public class DialogueClientsIntegrationTest {
     private ServiceConfiguration serviceConfig;
-    private Undertow undertow;
-    private HttpHandler undertowHandler;
     private ServicesConfigBlock scb;
     private PartialServiceConfiguration foo1;
     private PartialServiceConfiguration foo2;
 
+    @RegisterExtension
+    public final UndertowServer undertow = new UndertowServer();
+
     @BeforeEach
     public void before() {
-        SSLContext sslContext = SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG);
-        undertow = Undertow.builder()
-                .addHttpsListener(
-                        0,
-                        "localhost",
-                        sslContext,
-                        new BlockingHandler(exchange -> undertowHandler.handleRequest(exchange)))
-                .build();
-        undertow.start();
         serviceConfig = ServiceConfiguration.builder()
                 .security(TestConfigurations.SSL_CONFIG)
-                .addUris(getUri(undertow))
+                .addUris(undertow.getUri())
                 .build();
         foo1 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo1")
+                .addUris(undertow.getUri() + "/foo1")
                 .build();
         foo2 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo2")
+                .addUris(undertow.getUri() + "/foo2")
                 .build();
         scb = ServicesConfigBlock.builder()
                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                 .putServices("foo", foo1)
                 .build();
-    }
-
-    @AfterEach
-    public void after() {
-        undertow.stop();
     }
 
     @Test
@@ -99,10 +80,10 @@ public class DialogueClientsIntegrationTest {
     @Test
     void reload_uris_works() {
         List<String> requestPaths = new ArrayList<>();
-        undertowHandler = exchange -> {
+        undertow.setHandler(exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(200);
-        };
+        });
 
         SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
         DialogueClients.ReloadingFactory factory =
@@ -122,15 +103,15 @@ public class DialogueClientsIntegrationTest {
     void building_non_reloading_clients_always_gives_the_same_instance() {
         AtomicInteger statusCode = new AtomicInteger(200);
         Set<String> requestPaths = new HashSet<>();
-        undertowHandler = exchange -> {
+        undertow.setHandler(exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(statusCode.get());
-        };
+        });
 
         serviceConfig = ServiceConfiguration.builder()
                 .security(TestConfigurations.SSL_CONFIG)
                 .addUris(IntStream.range(0, 100)
-                        .mapToObj(i -> getUri(undertow) + "/api" + i)
+                        .mapToObj(i -> undertow.getUri() + "/api" + i)
                         .toArray(String[]::new))
                 .maxNumRetries(0)
                 .build();
@@ -157,14 +138,14 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     void test_conn_timeout_with_unlimited_socket_timeout() {
-        undertowHandler = _exchange -> Thread.sleep(1_000L);
+        undertow.setHandler(_exchange -> Thread.sleep(1_000L));
         SampleServiceBlocking client = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0)
                 .getNonReloading(
                         SampleServiceBlocking.class,
                         ServiceConfiguration.builder()
-                                .addUris(getUri(undertow))
+                                .addUris(undertow.getUri())
                                 .security(TestConfigurations.SSL_CONFIG)
                                 .connectTimeout(Duration.ofMillis(300))
                                 // socket timeouts use zero as a sentinel for unlimited duration
@@ -181,14 +162,14 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     void test_unlimited_timeouts() {
-        undertowHandler = _exchange -> Thread.sleep(1_000L);
+        undertow.setHandler(_exchange -> Thread.sleep(1_000L));
         SampleServiceBlocking client = DialogueClients.create(Refreshable.only(null))
                 .withUserAgent(TestConfigurations.AGENT)
                 .withMaxNumRetries(0)
                 .getNonReloading(
                         SampleServiceBlocking.class,
                         ServiceConfiguration.builder()
-                                .addUris(getUri(undertow))
+                                .addUris(undertow.getUri())
                                 .security(TestConfigurations.SSL_CONFIG)
                                 // socket timeouts use zero as a sentinel for unlimited duration
                                 .connectTimeout(Duration.ZERO)
@@ -201,12 +182,5 @@ public class DialogueClientsIntegrationTest {
         assertThatCode(client::voidToVoid)
                 .as("subsequent requests reusing the connection should not throw")
                 .doesNotThrowAnyException();
-    }
-
-    private static String getUri(Undertow undertow) {
-        Undertow.ListenerInfo listenerInfo = Iterables.getOnlyElement(undertow.getListenerInfo());
-        return String.format(
-                "%s://localhost:%d",
-                listenerInfo.getProtcol(), ((InetSocketAddress) listenerInfo.getAddress()).getPort());
     }
 }

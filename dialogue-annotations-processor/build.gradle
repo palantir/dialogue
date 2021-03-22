@@ -5,5 +5,8 @@ dependencies {
 
     testCompileOnly 'org.immutables:value::annotations'
 
+    testImplementation project(':dialogue-clients')
+    testImplementation project(':dialogue-test-common')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'io.undertow:undertow-core'
 }
