@@ -39,7 +39,10 @@ public @interface Request {
     /**
      * Request path.
      *
-     * Tell the people what the format here is!
+     * Follows conjure format. Path parameter names must correspond to parameters on the annotated method.
+     *
+     * @see
+     * <a href="https://github.com/palantir/conjure/blob/master/docs/spec/conjure_definitions.md#pathstring">Path string</a>
      */
     String path();
 
@@ -50,7 +53,6 @@ public @interface Request {
      */
     Class<? extends DeserializerFactory> accept() default Json.class;
 
-    /** Annotates the request body. */
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
     @interface Body {
@@ -64,7 +66,6 @@ public @interface Request {
         Class<? extends SerializerFactory> value() default Json.class;
     }
 
-    /** Annotates a header param. */
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
     @interface Header {
