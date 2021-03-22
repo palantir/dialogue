@@ -16,7 +16,11 @@
 
 package com.palantir.myservice.service;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import org.immutables.value.Value;
 
 @Value.Immutable
-public interface SerializableType {}
+@JsonSerialize(as = ImmutableMySerializableType.class)
+public interface MySerializableType {
+    String value();
+}

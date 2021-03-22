@@ -1,11 +1,15 @@
-//apply from: "$rootDir/gradle/publish-jar.gradle"
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
 
 dependencies {
     implementation project(':dialogue-annotations')
 
-    testCompileOnly 'org.immutables:value::annotations'
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-clients')
+    testImplementation project(':dialogue-test-common')
     testImplementation 'com.squareup.okhttp3:mockwebserver'
+    testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

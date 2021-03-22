@@ -24,14 +24,14 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.StdSerializer;
 
-public final class SerializableTypeBodySerializer extends StdSerializer<SerializableType> {
+public final class MySerializableTypeBodySerializer extends StdSerializer<MySerializableType> {
 
-    private static final Serializer<SerializableType> SERIALIZER = new Json(
+    private static final Serializer<MySerializableType> SERIALIZER = new Json(
                     new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))
-            .serializerFor(new TypeMarker<SerializableType>() {});
+            .serializerFor(new TypeMarker<MySerializableType>() {});
 
     @Override
-    public RequestBody serialize(SerializableType value) {
+    public RequestBody serialize(MySerializableType value) {
         return SERIALIZER.serialize(value);
     }
 }

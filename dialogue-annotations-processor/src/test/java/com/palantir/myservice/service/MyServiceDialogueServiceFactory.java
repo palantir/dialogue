@@ -68,7 +68,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<Response> customResponseDeserializer = RequestDeserializer.INSTANCE;
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
-            private final Serializer<SerializableType> paramsBodySerializer = new SerializableTypeBodySerializer();
+            private final Serializer<MySerializableType> paramsBodySerializer = new MySerializableTypeBodySerializer();
             private final Deserializer<Void> paramsDeserializer = bodySerDe.emptyBodyDeserializer();
 
             @Override
@@ -105,7 +105,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     MyCustomParamType myPathParam2,
                     int requestHeaderValue,
                     OptionalInt maybeRequestHeaderValue,
-                    SerializableType body) {
+                    MySerializableType body) {
                 Request.Builder request = Request.builder();
                 request.putQueryParams("q", query);
                 request.putPathParams("myPathParam", plainSerDe.serializeUuid(myPathParam));

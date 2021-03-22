@@ -68,5 +68,5 @@ public interface MyService {
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have
             // it's own object mapper; this is same as BodySerDe in dialogue
-            @Request.Body(SerializableTypeBodySerializer.class) SerializableType body);
+            @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 }

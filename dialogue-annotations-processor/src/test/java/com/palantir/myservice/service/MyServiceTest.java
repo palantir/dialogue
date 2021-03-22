@@ -32,6 +32,8 @@ import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.OptionalInt;
+import java.util.UUID;
 import java.util.function.Consumer;
 import okhttp3.HttpUrl;
 import okhttp3.mockwebserver.MockResponse;
@@ -81,6 +83,7 @@ public final class MyServiceTest {
             assertThat(request.getRequestUrl()).isEqualTo(url("/greet"));
             assertThat(request.getHeader("Accept")).isEqualTo("application/json");
             assertThat(request.getHeader("Content-Type")).isEqualTo("application/json");
+            assertThat(request.getBody().readUtf8()).isEqualTo("\"Hello\"");
         });
     }
 
@@ -98,6 +101,7 @@ public final class MyServiceTest {
             assertThat(request.getRequestUrl()).isEqualTo(url("/greeting"));
             assertThat(request.getHeader("Accept")).isEqualTo("text/csv");
             assertThat(request.getHeader("Content-Type")).isNull();
+            assertThat(request.getBodySize()).isEqualTo(0);
         });
     }
 
@@ -148,7 +152,49 @@ public final class MyServiceTest {
             assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request1"));
             assertThat(request.getHeader("Accept")).isNull();
             assertThat(request.getHeader("Content-Type")).isNull();
-            assertThat(request.getBody().readUtf8()).isEqualTo("");
+            assertThat(request.getBodySize()).isEqualTo(0);
+        });
+    }
+
+    @Test
+    public void testParamsWithCustomHeader() {
+        testParams(OptionalInt.of(3));
+    }
+
+    @Test
+    public void testParamsNoCustomHeader() {
+        testParams(OptionalInt.empty());
+    }
+
+    private void testParams(OptionalInt customHeaderOptionalValue) {
+        server.enqueue(new MockResponse().setResponseCode(200));
+
+        UUID uuid = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
+        myServiceDialogue.params(
+                "query",
+                uuid,
+                new MyCustomParamType("my-custom-param-value"),
+                2,
+                customHeaderOptionalValue,
+                ImmutableMySerializableType.builder()
+                        .value("my-serializable-type-value")
+                        .build());
+
+        assertRequest(request -> {
+            assertThat(request.getMethod()).isEqualTo(HttpMethod.POST.toString());
+            assertThat(request.getRequestUrl())
+                    .isEqualTo(url("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value?q=query"));
+            assertThat(request.getHeader("Accept")).isNull();
+            assertThat(request.getHeader("Content-Type")).isEqualTo("application/json");
+            assertThat(request.getHeader("Custom-Header")).isEqualTo("2");
+            if (customHeaderOptionalValue.isPresent()) {
+                assertThat(request.getHeader("Custom-Optional-Header"))
+                        .isEqualTo(Integer.toString(customHeaderOptionalValue.getAsInt()));
+            } else {
+                assertThat(request.getHeader("Custom-Optional-Header")).isNull();
+            }
+
+            assertThat(request.getBody().readUtf8()).isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
         });
     }
 
