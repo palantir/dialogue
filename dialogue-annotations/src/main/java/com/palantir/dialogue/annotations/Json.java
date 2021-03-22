@@ -19,16 +19,12 @@ package com.palantir.dialogue.annotations;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.ObjectWriter;
-import com.fasterxml.jackson.databind.exc.MismatchedInputException;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.conjure.java.dialogue.serde.Encoding;
 import com.palantir.conjure.java.dialogue.serde.Encodings;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import java.io.IOException;
 import java.io.InputStream;
 import javax.annotation.Nullable;
 
@@ -90,14 +86,8 @@ public final class Json implements DeserializerFactory<Object>, SerializerFactor
         @Override
         public final <T> Serializer<T> serializer(TypeMarker<T> type) {
             ObjectWriter writer = mapper.writerFor(mapper.constructType(type.getType()));
-            return (value, output) -> {
-                Preconditions.checkNotNull(value, "cannot serialize null value");
-                try {
-                    writer.writeValue(output, value);
-                } catch (IOException e) {
-                    throw new SafeRuntimeException("Failed to serialize payload", e);
-                }
-            };
+            return (value, output) ->
+                    writer.writeValue(output, Preconditions.checkNotNull(value, "cannot serialize null value"));
         }
 
         @Override
@@ -106,17 +96,7 @@ public final class Json implements DeserializerFactory<Object>, SerializerFactor
             return input -> {
                 try (InputStream inputStream = input) {
                     T value = reader.readValue(inputStream);
-                    // Bad input should result in a 4XX response status, throw IAE rather than NPE.
-                    Preconditions.checkArgument(value != null, "cannot deserialize a JSON null value");
-                    return value;
-                } catch (MismatchedInputException e) {
-                    throw new SafeRuntimeException(
-                            "Failed to deserialize response stream. Syntax error?",
-                            e,
-                            SafeArg.of("type", type.getType()));
-                } catch (IOException e) {
-                    throw new SafeRuntimeException(
-                            "Failed to deserialize response stream", e, SafeArg.of("type", type.getType()));
+                    return Preconditions.checkNotNull(value, "cannot deserialize a JSON null value");
                 }
             };
         }
