@@ -35,6 +35,6 @@ public enum RequestDeserializer implements Deserializer<Response> {
 
     @Override
     public String toString() {
-        return "EmptyBodyDeserializer{}";
+        return "RequestDeserializer{}";
     }
 }
