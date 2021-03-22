@@ -4,8 +4,8 @@ apply plugin: 'com.palantir.revapi'
 dependencies {
     implementation project(':dialogue-annotations')
 
-    annotationProcessor 'org.immutables:value'
-    compileOnly 'org.immutables:value::annotations'
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
