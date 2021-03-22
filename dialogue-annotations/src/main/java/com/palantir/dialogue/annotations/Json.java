@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import javax.annotation.Nullable;
 
-public final class Json implements DeserializerFactory, SerializerFactory {
+public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
 
     private static final BodySerDe DEFAULT_BODY_SERDE =
             DefaultConjureRuntime.builder().encodings(Encodings.json()).build().bodySerDe();
