@@ -34,7 +34,7 @@ import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.Json;
-import com.palantir.dialogue.annotations.RequestDeserializer;
+import com.palantir.dialogue.annotations.ResponseDeserializer;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -65,7 +65,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
-            private final Deserializer<Response> customResponseDeserializer = RequestDeserializer.INSTANCE;
+            private final Deserializer<Response> customResponseDeserializer = ResponseDeserializer.INSTANCE;
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
             private final Serializer<MySerializableType> paramsBodySerializer = new MySerializableTypeBodySerializer();

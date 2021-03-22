@@ -20,7 +20,7 @@ import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
 
-public enum RequestDeserializer implements Deserializer<Response> {
+public enum ResponseDeserializer implements Deserializer<Response> {
     INSTANCE;
 
     @Override
