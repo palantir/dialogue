@@ -150,7 +150,7 @@ public final class MyServiceTest {
         assertRequest(request -> {
             assertThat(request.getMethod()).isEqualTo(HttpMethod.PUT.toString());
             assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request1"));
-            assertThat(request.getHeader("Accept")).isNull();
+            assertThat(request.getHeader("Accept")).isEqualTo("*/*");
             assertThat(request.getHeader("Content-Type")).isNull();
             assertThat(request.getBodySize()).isEqualTo(0);
         });
