@@ -30,7 +30,7 @@ public enum RequestDeserializer implements Deserializer<Response> {
 
     @Override
     public Optional<String> accepts() {
-        return Optional.empty();
+        return Optional.of("*/*");
     }
 
     @Override
