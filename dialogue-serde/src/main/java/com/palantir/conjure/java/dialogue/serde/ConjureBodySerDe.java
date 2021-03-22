@@ -172,7 +172,7 @@ final class ConjureBodySerDe implements BodySerDe {
             return new RequestBody() {
 
                 @Override
-                public void writeTo(OutputStream output) {
+                public void writeTo(OutputStream output) throws IOException {
                     encoding.serializer.serialize(value, output);
                 }
 
@@ -258,6 +258,12 @@ final class ConjureBodySerDe implements BodySerDe {
                 // deserializer has taken on responsibility for closing the response body
                 closeResponse = false;
                 return deserialized;
+            } catch (IOException e) {
+                throw new SafeRuntimeException(
+                        "Failed to deserialize response stream",
+                        e,
+                        SafeArg.of("contentType", response.getFirstHeader(HttpHeaders.CONTENT_TYPE)),
+                        SafeArg.of("type", token));
             } finally {
                 if (closeResponse) {
                     response.close();

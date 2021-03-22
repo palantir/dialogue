@@ -144,7 +144,7 @@ public abstract class AbstractSampleServiceClientTest {
         server.enqueue(new MockResponse().addHeader(HttpHeaders.CONTENT_TYPE, "application/json"));
         assertThatThrownBy(() -> blockingClient.objectToObject(HEADER, PATH, QUERY, BODY))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining("Failed to deserialize response stream. Syntax error?");
+                .hasMessageContaining("Failed to deserialize response stream");
     }
 
     @Test

@@ -24,6 +24,9 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.SafeArg;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
@@ -31,6 +34,7 @@ import com.palantir.dialogue.Response;
  * {@link Endpoint}'s target service and endpoint.
  */
 final class UserAgentEndpointChannel implements EndpointChannel {
+    private static final Logger log = LoggerFactory.getLogger(UserAgentEndpointChannel.class);
     static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
     private final EndpointChannel delegate;
@@ -56,20 +60,36 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
-        String endpointVersion = endpoint.version();
+        return tryAddEndpointAgent(baseAgent, endpoint).addAgent(DIALOGUE_AGENT);
+    }
 
+    private static UserAgent tryAddEndpointAgent(UserAgent baseAgent, Endpoint endpoint) {
+        String endpointService = endpoint.serviceName();
+        String endpointVersion = getEndpointVersion(endpoint);
+        try {
+            return baseAgent.addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion));
+        } catch (IllegalArgumentException e) {
+            log.debug(
+                    "Failed to construct UserAgent for service {} version {}. "
+                            + "This information will not be included",
+                    SafeArg.of("service", endpointService),
+                    SafeArg.of("version", endpointVersion),
+                    e);
+            return baseAgent;
+        }
+    }
+
+    private static String getEndpointVersion(Endpoint endpoint) {
+        String endpointVersion = endpoint.version();
         // Until conjure-java 5.14.2, we mistakenly embedded 0.0.0 in everything. This fallback logic attempts
         // to work-around this and produce a more helpful user agent
-        if (endpointVersion.equals("0.0.0")) {
+        if ("0.0.0".equals(endpointVersion)) {
             String jarVersion = endpoint.getClass().getPackage().getImplementationVersion();
             if (jarVersion != null) {
-                endpointVersion = jarVersion;
+                return jarVersion;
             }
         }
-
-        return baseAgent
-                .addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion))
-                .addAgent(DIALOGUE_AGENT);
+        return endpointVersion;
     }
 
     private static UserAgent.Agent extractDialogueAgent() {

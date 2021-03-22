@@ -157,6 +157,21 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method void com.palantir.dialogue.RequestBody::close()"
       justification: "internal interface not for extension"
+  "1.104.0":
+    com.palantir.dialogue:dialogue-serde:
+    - code: "java.method.exception.checkedAdded"
+      old: "method T com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer<T>::deserialize(java.io.InputStream)"
+      new: "method T com.palantir.conjure.java.dialogue.serde.Encoding.Deserializer<T>::deserialize(java.io.InputStream)\
+        \ throws java.io.IOException"
+      justification: "Encodings are implemented internally, RequestBody.writeTo already\
+        \ throws IOException"
+    - code: "java.method.exception.checkedAdded"
+      old: "method void com.palantir.conjure.java.dialogue.serde.Encoding.Serializer<T>::serialize(T,\
+        \ java.io.OutputStream)"
+      new: "method void com.palantir.conjure.java.dialogue.serde.Encoding.Serializer<T>::serialize(T,\
+        \ java.io.OutputStream) throws java.io.IOException"
+      justification: "Encodings are implemented internally, RequestBody.writeTo already\
+        \ throws IOException"
   "1.30.0":
     com.palantir.dialogue:dialogue-core:
     - code: "java.method.visibilityReduced"

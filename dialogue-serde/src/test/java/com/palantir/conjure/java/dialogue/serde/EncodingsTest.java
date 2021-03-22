@@ -22,10 +22,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import com.fasterxml.jackson.databind.exc.InvalidFormatException;
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -42,10 +41,9 @@ public final class EncodingsTest {
     // TODO(rfink): Wire tests for JSON serializer
 
     @Test
-    public void json_deserialize_throwsDeserializationErrorsAsIllegalArgumentException() {
+    public void json_deserialize_throwsDeserializationErrorsWithoutWrapping() {
         assertThatThrownBy(() -> deserialize(asStream("\"2018-08-bogus\""), new TypeMarker<OffsetDateTime>() {}))
-                .isInstanceOf(SafeRuntimeException.class)
-                .hasMessageContaining("Failed to deserialize");
+                .isInstanceOf(InvalidFormatException.class);
     }
 
     @Test
@@ -58,7 +56,7 @@ public final class EncodingsTest {
     public void json_deserialize_rejectsNulls() throws IOException {
         // TODO(rfink): Do we need to test this for all primitive types?
         assertThatThrownBy(() -> deserialize(asStream("null"), new TypeMarker<String>() {}))
-                .isInstanceOf(SafeIllegalArgumentException.class);
+                .isInstanceOf(SafeNullPointerException.class);
         assertThat(deserialize(asStream("null"), new TypeMarker<Optional<String>>() {}))
                 .isEmpty();
     }
