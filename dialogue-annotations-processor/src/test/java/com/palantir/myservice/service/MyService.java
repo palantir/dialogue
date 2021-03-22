@@ -25,7 +25,7 @@ import com.palantir.dialogue.annotations.Request;
 import java.util.OptionalInt;
 import java.util.UUID;
 
-@DialogueService(MyServiceDialogue.class)
+@DialogueService(MyServiceDialogueServiceFactory.class)
 public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/greet")

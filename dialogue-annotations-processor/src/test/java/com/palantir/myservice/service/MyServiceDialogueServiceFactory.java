@@ -40,7 +40,7 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 
-public final class MyServiceDialogue implements DialogueServiceFactory<MyService> {
+public final class MyServiceDialogueServiceFactory implements DialogueServiceFactory<MyService> {
 
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
