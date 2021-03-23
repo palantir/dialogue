@@ -18,7 +18,7 @@ package com.palantir.myservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.common.io.ByteStreams;
+import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -30,6 +30,7 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.OptionalInt;
@@ -139,21 +140,13 @@ public final class MyServiceTest {
     }
 
     @Test
-    public void testCustomResponse() throws IOException {
-        server.enqueue(new MockResponse().setResponseCode(200).setHeader("My-Custom-Header", "my-custom-header-value"));
+    public void testCustomResponse200() {
+        testCustomResponse(200);
+    }
 
-        try (Response response = myServiceDialogue.customResponse()) {
-            assertThat(ByteStreams.exhaust(response.body())).isEqualTo(0L);
-            assertThat(response.headers().get("My-Custom-Header")).containsExactly("my-custom-header-value");
-        }
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.PUT.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request1"));
-            assertThat(request.getHeader("Accept")).isEqualTo("*/*");
-            assertThat(request.getHeader("Content-Type")).isNull();
-            assertThat(request.getBodySize()).isEqualTo(0);
-        });
+    @Test
+    public void testCustomResponse500() {
+        testCustomResponse(500);
     }
 
     @Test
@@ -164,6 +157,30 @@ public final class MyServiceTest {
     @Test
     public void testParamsNoCustomHeader() {
         testParams(OptionalInt.empty());
+    }
+
+    private void testCustomResponse(int code) {
+        server.enqueue(new MockResponse()
+                .setResponseCode(code)
+                .setHeader("My-Custom-Header", "my-custom-header-value")
+                .setBody("Custom Body"));
+
+        try (Response response = myServiceDialogue.customResponse()) {
+            assertThat(response.code()).isEqualTo(code);
+            assertThat(CharStreams.toString(new InputStreamReader(response.body(), StandardCharsets.UTF_8)))
+                    .isEqualTo("Custom Body");
+            assertThat(response.headers().get("My-Custom-Header")).containsExactly("my-custom-header-value");
+        } catch (IOException e) {
+            throw new SafeRuntimeException(e);
+        }
+
+        assertRequest(request -> {
+            assertThat(request.getMethod()).isEqualTo(HttpMethod.PUT.toString());
+            assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request1"));
+            assertThat(request.getHeader("Accept")).isEqualTo("*/*");
+            assertThat(request.getHeader("Content-Type")).isNull();
+            assertThat(request.getBodySize()).isEqualTo(0);
+        });
     }
 
     private void testParams(OptionalInt customHeaderOptionalValue) {

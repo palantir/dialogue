@@ -14,14 +14,16 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations;
+package com.palantir.myservice.service;
 
-import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
-import java.util.Optional;
+import com.palantir.dialogue.annotations.StdDeserializer;
 
-public enum ResponseDeserializer implements Deserializer<Response> {
-    INSTANCE;
+public final class MyResponseDeserializer extends StdDeserializer<Response> {
+
+    public MyResponseDeserializer() {
+        super("*/*");
+    }
 
     @Override
     public Response deserialize(Response response) {
@@ -29,12 +31,7 @@ public enum ResponseDeserializer implements Deserializer<Response> {
     }
 
     @Override
-    public Optional<String> accepts() {
-        return Optional.of("*/*");
-    }
-
-    @Override
     public String toString() {
-        return "RequestDeserializer{}";
+        return "MyResponseDeserializer{}";
     }
 }
