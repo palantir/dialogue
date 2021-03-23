@@ -1,0 +1,19 @@
+apply from: "$rootDir/gradle/publish-jar.gradle"
+apply plugin: 'com.palantir.revapi'
+
+dependencies {
+    api project(':dialogue-target')
+
+    implementation project(':dialogue-serde')
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.safe-logging:safe-logging'
+
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
+
+    testImplementation project(':dialogue-core')
+    testImplementation project(':dialogue-test-common')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
