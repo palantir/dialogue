@@ -37,7 +37,6 @@ import javax.annotation.Nullable;
  *     {@link com.palantir.conjure.java.api.errors.RemoteException} will be thrown.</li>
  *     <li>If that fails, {@link com.palantir.conjure.java.api.errors.UnknownRemoteException} will be thrown.</li>
  * </ul>
- *
  */
 public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
 
