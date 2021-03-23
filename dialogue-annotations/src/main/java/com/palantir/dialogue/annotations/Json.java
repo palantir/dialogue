@@ -28,6 +28,17 @@ import com.palantir.logsafe.Preconditions;
 import java.io.InputStream;
 import javax.annotation.Nullable;
 
+/**
+ * Implements conjure-style json body and response handling.
+ *
+ * <ul>
+ *     <li>Successful responses are deserialized using the specified {@link ObjectMapper}.</li>
+ *     <li>Error responses will be deserialized as {@link com.palantir.conjure.java.api.errors.SerializableError} and
+ *     {@link com.palantir.conjure.java.api.errors.RemoteException} will be thrown.</li>
+ *     <li>If that fails, {@link com.palantir.conjure.java.api.errors.UnknownRemoteException} will be thrown.</li>
+ * </ul>
+ *
+ */
 public final class Json implements DeserializerFactory<Object>, SerializerFactory<Object> {
 
     private static final BodySerDe DEFAULT_BODY_SERDE =
