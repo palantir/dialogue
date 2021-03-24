@@ -34,7 +34,7 @@ org.knowm.xchart:xchart = 3.6.1
 com.palantir.conjure.verification:* = 0.18.5
 io.undertow:undertow-core = 2.2.5.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
-org.openjdk.jmh:* = 1.28
+org.openjdk.jmh:* = 1.29
 
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
