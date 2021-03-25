@@ -1,0 +1,7 @@
+package com.palantir.myservice.service;
+
+import javax.annotation.Generated;
+
+@Generated("com.palantir.dialogue.annotations.processor.DialogueServiceFactoryGenerator")
+public interface MyServiceDialogueServiceFactory {
+}

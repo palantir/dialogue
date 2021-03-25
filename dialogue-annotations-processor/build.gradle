@@ -2,13 +2,20 @@ apply from: "$rootDir/gradle/publish-jar.gradle"
 apply plugin: 'com.palantir.revapi'
 
 dependencies {
-    implementation project(':dialogue-annotations')
+    api project(':dialogue-annotations')
+
+    annotationProcessor 'com.google.auto.service:auto-service'
+    compileOnly 'com.google.auto.service:auto-service'
+    compile 'com.squareup:javapoet'
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
 
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
+    testImplementation 'com.google.guava:guava'
+    testImplementation 'com.google.testing.compile:compile-testing'
+    testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'com.squareup.okhttp3:mockwebserver'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
