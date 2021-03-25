@@ -110,13 +110,5 @@ public final class DialogueAnnotationsProcessor extends BasicAnnotationProcessor
         private void warning(String msg) {
             messager.printMessage(Kind.WARNING, msg);
         }
-
-        private void warning(String msg, Element element) {
-            messager.printMessage(Kind.WARNING, msg, element);
-        }
-
-        private void note(String msg) {
-            messager.printMessage(Kind.NOTE, msg);
-        }
     }
 }

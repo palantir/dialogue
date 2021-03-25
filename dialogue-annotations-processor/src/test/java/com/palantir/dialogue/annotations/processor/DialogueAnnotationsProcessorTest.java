@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.io.ByteSource;
-import com.google.common.io.Resources;
 import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
@@ -36,9 +35,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Set;
-import java.util.stream.Collectors;
 import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import org.junit.jupiter.api.Test;
@@ -67,9 +63,8 @@ public final class DialogueAnnotationsProcessorTest {
         String generatedFqnClassName = clazz.getPackage().getName() + "." + generatedClassName;
         String generatedClassFileRelativePath = generatedFqnClassName.replaceAll("\\.", "/") + ".java";
         assertThat(compilation.generatedFile(StandardLocation.SOURCE_OUTPUT, generatedClassFileRelativePath))
-                .hasValueSatisfying(javaFileObject -> {
-                    assertContentsMatch(javaFileObject, generatedClassFileRelativePath);
-                });
+                .hasValueSatisfying(
+                        javaFileObject -> assertContentsMatch(javaFileObject, generatedClassFileRelativePath));
     }
 
     private Compilation compileTestClass(Class<?> clazz) {
@@ -84,20 +79,6 @@ public final class DialogueAnnotationsProcessorTest {
         } catch (MalformedURLException e) {
             throw new SafeRuntimeException(e);
         }
-    }
-
-    private Compilation compileResource(String... sourceFilesAsResources) {
-        return Compiler.javac()
-                .withOptions("-source", "8")
-                .withProcessors(new DialogueAnnotationsProcessor())
-                .compile(resourcesAsSourceFiles(sourceFilesAsResources));
-    }
-
-    private Set<JavaFileObject> resourcesAsSourceFiles(String... sourceFilesAsResources) {
-        return Arrays.stream(sourceFilesAsResources)
-                .map(sourceFile -> Resources.getResource(getClass(), sourceFile))
-                .map(JavaFileObjects::forResource)
-                .collect(Collectors.toSet());
     }
 
     private void assertContentsMatch(JavaFileObject javaFileObject, String generatedClassFile) {
@@ -115,17 +96,15 @@ public final class DialogueAnnotationsProcessorTest {
     }
 
     private String readJavaFileObject(JavaFileObject javaFileObject) throws IOException {
-        return (new ByteSource() {
-                    @Override
-                    public InputStream openStream() throws IOException {
-                        return javaFileObject.openInputStream();
-                    }
-                })
-                .asCharSource(StandardCharsets.UTF_8)
-                .read();
+        return new ByteSource() {
+            @Override
+            public InputStream openStream() throws IOException {
+                return javaFileObject.openInputStream();
+            }
+        }.asCharSource(StandardCharsets.UTF_8).read();
     }
 
-    protected static String readFromFile(Path file) throws IOException {
+    private static String readFromFile(Path file) throws IOException {
         return new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
     }
 }
