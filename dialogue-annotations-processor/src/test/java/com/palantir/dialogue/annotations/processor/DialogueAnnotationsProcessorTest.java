@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
 
 public final class DialogueAnnotationsProcessorTest {
 
-    private static final boolean DEV_MODE = true;
+    private static final boolean DEV_MODE = false;
     private static final Path TEST_CLASSES_BASE_DIR = Paths.get("src", "test", "java");
     private static final Path RESOURCES_BASE_DIR = Paths.get("src", "test", "resources");
 
