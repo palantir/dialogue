@@ -8,8 +8,8 @@ import javax.annotation.Generated;
 
 @Generated("com.palantir.dialogue.annotations.processor.DialogueServiceFactoryGenerator")
 public final class MyServiceDialogueServiceFactory implements DialogueServiceFactory<MyService> {
-  @Override
-  public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
-    throw new UnsupportedOperationException();
-  }
+    @Override
+    public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+        throw new UnsupportedOperationException();
+    }
 }

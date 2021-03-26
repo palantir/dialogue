@@ -48,4 +48,6 @@ com.fasterxml.jackson.*:jackson-* = 2.11.1
 
 # Avoid forcing a java 11 requirement
 com.github.ben-manes.caffeine:caffeine = 2.9.0
+# Generator should be compatible with java 8
+com.palantir.javaformat:palantir-java-format = 1.1.0
 # dependency-upgrader:ON

@@ -22,6 +22,7 @@ import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.processor.util.Goethe;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
@@ -91,7 +92,8 @@ public final class DialogueAnnotationsProcessor extends AbstractProcessor {
 
         TypeSpec generatedClass = new DialogueServiceFactoryGenerator(outputClass).generate();
         try {
-            JavaFile.builder(outputClass.packageName(), generatedClass).build().writeTo(filer);
+            Goethe.formatAndEmit(
+                    JavaFile.builder(outputClass.packageName(), generatedClass).build(), filer);
         } catch (IOException e) {
             error("Could not generate", elementForErrorReporting, e);
             return false;

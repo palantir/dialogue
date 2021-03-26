@@ -12,10 +12,11 @@ dependencies {
     api project(':dialogue-annotations')
 
     implementation project(':dialogue-target')
-    implementation 'com.squareup:javapoet'
+    implementation 'com.palantir.javaformat:palantir-java-format'
+    implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.google.auto:auto-common'
     implementation 'com.google.guava:guava'
-    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.squareup:javapoet'
 
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
