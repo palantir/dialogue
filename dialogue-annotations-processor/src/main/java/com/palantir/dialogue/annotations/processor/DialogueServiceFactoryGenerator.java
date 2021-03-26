@@ -17,8 +17,8 @@
 package com.palantir.dialogue.annotations.processor;
 
 import com.squareup.javapoet.AnnotationSpec;
+import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeSpec;
-import javax.annotation.Generated;
 import javax.lang.model.element.Modifier;
 
 public final class DialogueServiceFactoryGenerator {
@@ -31,7 +31,7 @@ public final class DialogueServiceFactoryGenerator {
 
     public TypeSpec generate() {
         return TypeSpec.interfaceBuilder(className)
-                .addAnnotation(AnnotationSpec.builder(Generated.class)
+                .addAnnotation(AnnotationSpec.builder(ClassName.get("javax.annotation", "Generated"))
                         .addMember("value", "$S", getClass().getCanonicalName())
                         .build())
                 .addModifiers(Modifier.PUBLIC)

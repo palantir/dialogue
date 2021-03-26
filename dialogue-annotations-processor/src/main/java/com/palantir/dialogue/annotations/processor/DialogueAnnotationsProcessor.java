@@ -23,11 +23,12 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.annotation.Annotation;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -72,10 +73,12 @@ public final class DialogueAnnotationsProcessor extends BasicAnnotationProcessor
                 return ImmutableSet.of();
             }
 
+            Element elementForErrorReporting = Iterables.getFirst(elements, null);
+
             Set<Element> enclosingElements =
                     elements.stream().map(Element::getEnclosingElement).collect(Collectors.toSet());
             if (enclosingElements.size() > 1) {
-                warning("Found multiple enclosing elements: " + enclosingElements);
+                warning("Found multiple enclosing elements: " + enclosingElements, elementForErrorReporting);
                 return ImmutableSet.of();
             }
 
@@ -98,7 +101,8 @@ public final class DialogueAnnotationsProcessor extends BasicAnnotationProcessor
                         .build()
                         .writeTo(filer);
             } catch (IOException e) {
-                throw new SafeRuntimeException("Could not generate", e);
+                error("Could not generate", elementForErrorReporting, e);
+                return ImmutableSet.of();
             }
             return ImmutableSet.of();
         }
@@ -107,8 +111,14 @@ public final class DialogueAnnotationsProcessor extends BasicAnnotationProcessor
             messager.printMessage(Kind.ERROR, msg);
         }
 
-        private void warning(String msg) {
-            messager.printMessage(Kind.WARNING, msg);
+        private void error(String msg, Element element, Throwable throwable) {
+            StringWriter stringWriter = new StringWriter();
+            throwable.printStackTrace(new PrintWriter(stringWriter));
+            messager.printMessage(Kind.ERROR, msg + ": exception " + stringWriter.toString(), element);
+        }
+
+        private void warning(String msg, Element element) {
+            messager.printMessage(Kind.WARNING, msg, element);
         }
     }
 }
