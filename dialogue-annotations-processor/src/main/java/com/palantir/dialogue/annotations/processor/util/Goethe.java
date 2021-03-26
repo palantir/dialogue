@@ -81,7 +81,7 @@ public final class Goethe {
         return file.packageName.isEmpty() ? file.typeSpec.name : file.packageName + "." + file.typeSpec.name;
     }
 
-    @SuppressWarnings("EmptyCatchBlock")
+    @SuppressWarnings("EmptyCatch")
     private static void writeTo(String fileName, String sourceCode, Filer filer) throws IOException {
         JavaFileObject filerSourceFile = filer.createSourceFile(fileName);
         try (Writer writer = filerSourceFile.openWriter()) {
@@ -89,7 +89,7 @@ public final class Goethe {
         } catch (Exception e) {
             try {
                 filerSourceFile.delete();
-            } catch (Exception ignored) {
+            } catch (Exception _ignored) {
             }
             throw e;
         }
