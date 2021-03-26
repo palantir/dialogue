@@ -1,7 +1,15 @@
 package com.palantir.myservice.service;
 
+import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.DialogueServiceFactory;
+import com.palantir.dialogue.EndpointChannelFactory;
+import java.lang.Override;
 import javax.annotation.Generated;
 
 @Generated("com.palantir.dialogue.annotations.processor.DialogueServiceFactoryGenerator")
-public interface MyServiceDialogueServiceFactory {
+public final class MyServiceDialogueServiceFactory implements DialogueServiceFactory<MyService> {
+  @Override
+  public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
+    throw new UnsupportedOperationException();
+  }
 }

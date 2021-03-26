@@ -19,7 +19,7 @@ package com.palantir.myservice.service;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.annotations.Request;
 
-public abstract class MyServiceClass {
+public abstract class RequestAnnotatedClass {
     @Request(method = HttpMethod.POST, path = "/greet")
     abstract String greet(@Request.Body String greeting);
 }

@@ -17,6 +17,7 @@
 package com.palantir.myservice.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
@@ -42,9 +43,10 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-public final class MyServiceTest {
+public final class MyServiceIntegrationTest {
 
     public final MockWebServer server = new MockWebServer();
 
@@ -52,17 +54,20 @@ public final class MyServiceTest {
 
     @BeforeEach
     public void beforeEach() throws IOException {
-        server.start();
-        PartialServiceConfiguration partialServiceConfiguration = PartialServiceConfiguration.builder()
-                .addUris(url("").url().toString())
-                .build();
-        ServicesConfigBlock scb = ServicesConfigBlock.builder()
-                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                .putServices("myServiceDialogue", partialServiceConfiguration)
-                .build();
-        DialogueClients.ReloadingFactory factory =
-                DialogueClients.create(Refreshable.create(scb)).withUserAgent(TestConfigurations.AGENT);
-        myServiceDialogue = factory.get(MyService.class, "myServiceDialogue");
+        assertThatThrownBy(() -> {
+                    server.start();
+                    PartialServiceConfiguration partialServiceConfiguration = PartialServiceConfiguration.builder()
+                            .addUris(url("").url().toString())
+                            .build();
+                    ServicesConfigBlock scb = ServicesConfigBlock.builder()
+                            .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                            .putServices("myServiceDialogue", partialServiceConfiguration)
+                            .build();
+                    DialogueClients.ReloadingFactory factory =
+                            DialogueClients.create(Refreshable.create(scb)).withUserAgent(TestConfigurations.AGENT);
+                    myServiceDialogue = factory.get(MyService.class, "myServiceDialogue");
+                })
+                .isExactlyInstanceOf(UnsupportedOperationException.class);
     }
 
     @AfterEach
@@ -71,6 +76,7 @@ public final class MyServiceTest {
     }
 
     @Test
+    @Disabled
     public void testGreet() {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -89,6 +95,7 @@ public final class MyServiceTest {
     }
 
     @Test
+    @Disabled
     public void testGetGreetingAsync() {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -107,6 +114,7 @@ public final class MyServiceTest {
     }
 
     @Test
+    @Disabled
     public void testCustomRequest() {
         server.enqueue(new MockResponse().setResponseCode(200));
 
@@ -140,21 +148,25 @@ public final class MyServiceTest {
     }
 
     @Test
+    @Disabled
     public void testCustomResponse200() {
         testCustomResponse(200);
     }
 
     @Test
+    @Disabled
     public void testCustomResponse500() {
         testCustomResponse(500);
     }
 
     @Test
+    @Disabled
     public void testParamsWithCustomHeader() {
         testParams(OptionalInt.of(3));
     }
 
     @Test
+    @Disabled
     public void testParamsNoCustomHeader() {
         testParams(OptionalInt.empty());
     }

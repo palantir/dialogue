@@ -27,7 +27,7 @@ import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.myservice.service.MyService;
-import com.palantir.myservice.service.MyServiceClass;
+import com.palantir.myservice.service.RequestAnnotatedClass;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -42,22 +42,23 @@ import org.junit.jupiter.api.Test;
 public final class DialogueAnnotationsProcessorTest {
 
     private static final boolean DEV_MODE = Boolean.valueOf(System.getProperty("recreate", "false"));
+    private static final Path TEST_CASES_BASE_DIR = Paths.get("src", "testCases", "java");
     private static final Path TEST_CLASSES_BASE_DIR = Paths.get("src", "test", "java");
     private static final Path RESOURCES_BASE_DIR = Paths.get("src", "test", "resources");
 
     @Test
     public void testExampleFileCompiles() {
-        assertTestFileCompileAndMatches(MyService.class);
+        assertTestFileCompileAndMatches(TEST_CASES_BASE_DIR, MyService.class);
     }
 
     @Test
     public void testCannotAnnotateClass() {
-        assertThat(compileTestClass(MyServiceClass.class))
+        assertThat(compileTestClass(TEST_CLASSES_BASE_DIR, RequestAnnotatedClass.class))
                 .hadErrorContaining("Only methods on interfaces can be annotated");
     }
 
-    private void assertTestFileCompileAndMatches(Class<?> clazz) {
-        Compilation compilation = compileTestClass(clazz);
+    private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
+        Compilation compilation = compileTestClass(basePath, clazz);
         assertThat(compilation).succeededWithoutWarnings();
         String generatedClassName = clazz.getSimpleName() + "DialogueServiceFactory";
         String generatedFqnClassName = clazz.getPackage().getName() + "." + generatedClassName;
@@ -67,8 +68,8 @@ public final class DialogueAnnotationsProcessorTest {
                         javaFileObject -> assertContentsMatch(javaFileObject, generatedClassFileRelativePath));
     }
 
-    private Compilation compileTestClass(Class<?> clazz) {
-        Path clazzPath = TEST_CLASSES_BASE_DIR.resolve(Paths.get(
+    private Compilation compileTestClass(Path basePath, Class<?> clazz) {
+        Path clazzPath = basePath.resolve(Paths.get(
                 Joiner.on("/").join(Splitter.on(".").split(clazz.getPackage().getName())),
                 clazz.getSimpleName() + ".java"));
         try {

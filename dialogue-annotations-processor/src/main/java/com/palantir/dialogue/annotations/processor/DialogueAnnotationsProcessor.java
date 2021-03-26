@@ -16,109 +16,100 @@
 
 package com.palantir.dialogue.annotations.processor;
 
-import com.google.auto.common.BasicAnnotationProcessor;
 import com.google.auto.common.MoreElements;
 import com.google.auto.service.AutoService;
+import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.annotations.Request;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.annotation.Annotation;
 import java.util.Set;
 import java.util.stream.Collectors;
+import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.Processor;
+import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.TypeElement;
 import javax.tools.Diagnostic.Kind;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @AutoService(Processor.class)
-public final class DialogueAnnotationsProcessor extends BasicAnnotationProcessor {
+public final class DialogueAnnotationsProcessor extends AbstractProcessor {
+
+    private Messager messager;
+    private Filer filer;
 
     @Override
-    protected Iterable<? extends ProcessingStep> initSteps() {
-        return ImmutableSet.of(new GenerateDialogueServiceFactory(processingEnv));
+    public synchronized void init(ProcessingEnvironment processingEnv) {
+        super.init(processingEnv);
+        this.messager = processingEnv.getMessager();
+        this.filer = processingEnv.getFiler();
     }
 
-    private static final class GenerateDialogueServiceFactory implements ProcessingStep {
+    @Override
+    public Set<String> getSupportedAnnotationTypes() {
+        return ImmutableSet.of(Request.class.getCanonicalName());
+    }
 
-        private final Messager messager;
-        private final Filer filer;
-
-        private GenerateDialogueServiceFactory(ProcessingEnvironment processingEnvironment) {
-            this.messager = processingEnvironment.getMessager();
-            this.filer = processingEnvironment.getFiler();
+    @Override
+    public boolean process(Set<? extends TypeElement> _annotations, RoundEnvironment roundEnv) {
+        Set<Element> elements = roundEnv.getElementsAnnotatedWith(Request.class).stream()
+                .map(e -> (Element) e)
+                .collect(Collectors.toSet());
+        if (elements.isEmpty()) {
+            return false;
         }
 
-        @Override
-        public Set<? extends Class<? extends Annotation>> annotations() {
-            return ImmutableSet.of(Request.class);
+        Element elementForErrorReporting = Iterables.getFirst(elements, null);
+
+        Set<Element> enclosingElements =
+                elements.stream().map(Element::getEnclosingElement).collect(Collectors.toSet());
+        if (enclosingElements.size() > 1) {
+            warning("Found multiple enclosing elements: " + enclosingElements, elementForErrorReporting);
+            return false;
         }
 
-        @Override
-        public Set<Element> process(SetMultimap<Class<? extends Annotation>, Element> elementsByAnnotation) {
-            Set<Element> elements = elementsByAnnotation.get(Request.class);
-            if (elements.isEmpty()) {
-                return ImmutableSet.of();
-            }
-
-            Element elementForErrorReporting = Iterables.getFirst(elements, null);
-
-            Set<Element> enclosingElements =
-                    elements.stream().map(Element::getEnclosingElement).collect(Collectors.toSet());
-            if (enclosingElements.size() > 1) {
-                warning("Found multiple enclosing elements: " + enclosingElements, elementForErrorReporting);
-                return ImmutableSet.of();
-            }
-
-            Element annotatedInterface = Iterables.getOnlyElement(enclosingElements);
-            ElementKind kind = annotatedInterface.getKind();
-            if (!kind.isInterface()) {
-                error("Only methods on interfaces can be annotated");
-                return ImmutableSet.of();
-            }
-
-            ClassName outputClass = ClassName.get(
-                    MoreElements.getPackage(annotatedInterface)
-                            .getQualifiedName()
-                            .toString(),
-                    annotatedInterface.getSimpleName().toString());
-
-            TypeSpec generatedClass = new DialogueServiceFactoryGenerator(outputClass.simpleName()).generate();
-            try {
-                JavaFile.builder(outputClass.packageName(), generatedClass)
-                        .build()
-                        .writeTo(filer);
-            } catch (IOException e) {
-                error("Could not generate", elementForErrorReporting, e);
-                return ImmutableSet.of();
-            }
-            return ImmutableSet.of();
+        Element annotatedInterface = Iterables.getOnlyElement(enclosingElements);
+        ElementKind kind = annotatedInterface.getKind();
+        if (!kind.isInterface()) {
+            error("Only methods on interfaces can be annotated");
+            return false;
         }
 
-        private void error(String msg) {
-            messager.printMessage(Kind.ERROR, msg);
+        ClassName outputClass = ClassName.get(
+                MoreElements.getPackage(annotatedInterface).getQualifiedName().toString(),
+                annotatedInterface.getSimpleName().toString());
+
+        TypeSpec generatedClass = new DialogueServiceFactoryGenerator(outputClass).generate();
+        try {
+            JavaFile.builder(outputClass.packageName(), generatedClass).build().writeTo(filer);
+        } catch (IOException e) {
+            error("Could not generate", elementForErrorReporting, e);
+            return false;
         }
 
-        private void error(String msg, Element element, Throwable throwable) {
-            StringWriter stringWriter = new StringWriter();
-            throwable.printStackTrace(new PrintWriter(stringWriter));
-            messager.printMessage(Kind.ERROR, msg + ": exception " + stringWriter.toString(), element);
-        }
+        return false;
+    }
 
-        private void warning(String msg, Element element) {
-            messager.printMessage(Kind.WARNING, msg, element);
-        }
+    private void error(String msg) {
+        messager.printMessage(Kind.ERROR, msg);
+    }
+
+    private void error(String msg, Element element, Throwable throwable) {
+        String trace = Throwables.getStackTraceAsString(throwable);
+        messager.printMessage(Kind.ERROR, msg + ": threw an exception " + trace, element);
+    }
+
+    private void warning(String msg, Element element) {
+        messager.printMessage(Kind.WARNING, msg, element);
     }
 }

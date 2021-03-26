@@ -1,8 +1,17 @@
 apply plugin: 'com.palantir.external-publish-jar'
+apply plugin: 'org.unbroken-dome.test-sets'
+
+testSets {
+    libraries { testCases }
+    unitTest {
+        imports libraries.testCases
+    }
+}
 
 dependencies {
     api project(':dialogue-annotations')
 
+    implementation project(':dialogue-target')
     implementation 'com.squareup:javapoet'
     implementation 'com.google.auto:auto-common'
     implementation 'com.google.guava:guava'
@@ -11,9 +20,18 @@ dependencies {
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
 
-    testAnnotationProcessor 'org.immutables:value'
-    testCompileOnly 'org.immutables:value::annotations'
-    testAnnotationProcessor project(':dialogue-annotations-processor')
+    testCasesAnnotationProcessor 'org.immutables:value'
+    testCasesCompileOnly 'org.immutables:value::annotations'
+    testCasesCompileOnly project(':dialogue-annotations')
+    testCasesAnnotationProcessor project(':dialogue-annotations-processor')
+    testCasesImplementation project(':dialogue-target')
+    testCasesImplementation 'com.fasterxml.jackson.core:jackson-annotations'
+    testCasesImplementation 'com.fasterxml.jackson.core:jackson-databind'
+    testCasesImplementation 'com.google.code.findbugs:jsr305'
+    testCasesImplementation 'com.google.errorprone:error_prone_annotations'
+    testCasesImplementation 'com.google.guava:guava'
+    testCasesImplementation 'com.palantir.safe-logging:preconditions'
+    testCasesImplementation 'com.palantir.safe-logging:safe-logging'
 
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
