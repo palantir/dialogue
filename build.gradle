@@ -26,11 +26,11 @@ buildscript {
     }
 
     dependencies {
+        classpath 'com.netflix.nebula:gradle-info-plugin:9.3.0'
+        classpath 'com.netflix.nebula:nebula-publishing-plugin:17.3.2'
+        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:0.4.0'
         classpath 'com.palantir.gradle.revapi:gradle-revapi:1.4.4'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.0.1'
-        classpath 'com.netflix.nebula:gradle-info-plugin:9.3.0'
-        classpath 'com.jfrog.bintray.gradle:gradle-bintray-plugin:1.8.5'
-        classpath 'com.netflix.nebula:nebula-publishing-plugin:17.3.2'
         classpath 'com.palantir.baseline:gradle-baseline-java:3.75.0'
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.3.0'
@@ -43,6 +43,7 @@ plugins {
     id 'com.palantir.consistent-versions' version '1.28.0'
 }
 
+apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
 
