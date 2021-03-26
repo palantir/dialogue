@@ -4,9 +4,13 @@ apply plugin: 'com.palantir.revapi'
 dependencies {
     api project(':dialogue-annotations')
 
+    implementation 'com.squareup:javapoet'
+    implementation 'com.google.auto:auto-common'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.safe-logging:preconditions'
+
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
-    compile 'com.squareup:javapoet'
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
