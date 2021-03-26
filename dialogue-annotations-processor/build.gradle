@@ -1,5 +1,4 @@
 apply plugin: 'com.palantir.external-publish-jar'
-apply plugin: 'com.palantir.revapi'
 
 dependencies {
     api project(':dialogue-annotations')
@@ -14,6 +13,7 @@ dependencies {
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
+    testAnnotationProcessor project(':dialogue-annotations-processor')
 
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
