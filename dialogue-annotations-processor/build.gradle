@@ -16,6 +16,9 @@ dependencies {
     compile 'com.google.errorprone:javac-shaded'
     compile 'org.functionaljava:functionaljava'
 
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.palantir.safe-logging:safe-logging'
+
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
 
