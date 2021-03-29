@@ -86,7 +86,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        groupByEnclosingElement(elements).forEach((interfaceElement, annotatedMethods) -> {
+        groupByEnclosingElement(elements).forEach((interfaceElement, _annotatedMethods) -> {
             JavaFile javaFile;
             try {
                 javaFile = generateDialogueServiceFactory(interfaceElement, elements);
@@ -150,10 +150,6 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
     private void error(@CompileTimeConstant String msg, Element element, Throwable throwable) {
         printWithKind(Kind.ERROR, msg, element, throwable);
-    }
-
-    private void warn(@CompileTimeConstant String msg, Element element, Throwable throwable) {
-        printWithKind(Kind.WARNING, msg, element, throwable);
     }
 
     private void printWithKind(Kind kind, @CompileTimeConstant String msg, Element element, Throwable throwable) {
