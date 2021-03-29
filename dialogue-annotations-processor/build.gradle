@@ -11,6 +11,8 @@ dependencies {
     compile 'com.google.auto:auto-common'
     compile 'com.google.guava:guava'
     compile 'com.squareup:javapoet'
+    // For HttpPath parsing
+    compile 'org.glassfish.jersey.core:jersey-common'
 
     // fragile: copied from foundry/timber: it's here to make palantir-java-format work in the processor
     compile 'com.google.errorprone:javac-shaded'
@@ -21,9 +23,11 @@ dependencies {
 
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+    annotationProcessor 'org.derive4j:derive4j'
+    compileOnly 'org.derive4j:derive4j-annotation'
 
-    testAnnotationProcessor 'org.immutables:value'
-    testCompileOnly 'org.immutables:value::annotations'
     testImplementation project(':dialogue-annotations')
     testImplementation project(':dialogue-target')
     testImplementation 'com.fasterxml.jackson.core:jackson-annotations'

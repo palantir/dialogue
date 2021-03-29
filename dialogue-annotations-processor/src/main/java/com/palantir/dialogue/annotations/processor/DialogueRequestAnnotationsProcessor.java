@@ -18,12 +18,19 @@ package com.palantir.dialogue.annotations.processor;
 
 import com.google.auto.common.MoreElements;
 import com.google.auto.service.AutoService;
+import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.SetMultimap;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
+import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
+import com.palantir.dialogue.annotations.processor.data.ErrorContext;
+import com.palantir.dialogue.annotations.processor.data.ImmutableServiceDefinition;
+import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
+import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
 import com.palantir.dialogue.annotations.processor.util.Goethe;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -31,6 +38,8 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
+import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -86,7 +95,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        groupByEnclosingElement(elements).forEach((interfaceElement, _annotatedMethods) -> {
+        groupByEnclosingElement(elements).forEach((interfaceElement, annotatedMethods) -> {
             JavaFile javaFile;
             try {
                 javaFile = generateDialogueServiceFactory(interfaceElement, elements);
@@ -127,23 +136,44 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
         Preconditions.checkArgument(nonMethodElements.isEmpty(), "Only methods can be annotated with @Request");
 
+        List<EndpointDefinition> endpoints = processingStep(ctx -> {
+            EndpointDefinitions endpointDefinitions = new EndpointDefinitions(ctx);
+            List<Optional<EndpointDefinition>> maybeEndpoints = elements.stream()
+                    .map(MoreElements::asExecutable)
+                    .map(endpointDefinitions::tryParseEndpointDefinition)
+                    .collect(Collectors.toList());
+
+            Preconditions.checkArgument(
+                    maybeEndpoints.stream()
+                            .filter(Predicates.not(Optional::isPresent))
+                            .collect(Collectors.toList())
+                            .isEmpty(),
+                    "Failed validation");
+            return maybeEndpoints.stream().map(Optional::get).collect(Collectors.toList());
+        });
+
         ClassName serviceInterface = ClassName.get(
                 MoreElements.getPackage(annotatedInterface).getQualifiedName().toString(),
                 annotatedInterface.getSimpleName().toString());
 
-        TypeSpec generatedClass = new DialogueServiceFactoryGenerator(serviceInterface).generate();
+        ServiceDefinition serviceDefinition = ImmutableServiceDefinition.builder()
+                .serviceInterface(serviceInterface)
+                .addAllEndpoints(endpoints)
+                .build();
+
+        TypeSpec generatedClass = new DialogueServiceFactoryGenerator(serviceDefinition).generate();
         return JavaFile.builder(serviceInterface.packageName(), generatedClass).build();
     }
 
-    private void validationStep(Consumer<ErrorContext> validationFunction) {
+    private void validationStep(Consumer<DefaultErrorContext> validationFunction) {
         processingStep(ctx -> {
             validationFunction.accept(ctx);
             return null;
         });
     }
 
-    private <T> T processingStep(Function<ErrorContext, T> stepFunction) {
-        try (ErrorContext ctx = new ErrorContext(messager)) {
+    private <T> T processingStep(Function<DefaultErrorContext, T> stepFunction) {
+        try (DefaultErrorContext ctx = new DefaultErrorContext(messager)) {
             return stepFunction.apply(ctx);
         }
     }
@@ -157,15 +187,16 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         messager.printMessage(kind, msg + ": threw an exception " + trace, element);
     }
 
-    private static final class ErrorContext implements AutoCloseable {
+    private static final class DefaultErrorContext implements AutoCloseable, ErrorContext {
 
         private final Messager messager;
         private volatile boolean errors = false;
 
-        private ErrorContext(Messager messager) {
+        private DefaultErrorContext(Messager messager) {
             this.messager = messager;
         }
 
+        @Override
         public void reportError(String message, Element element) {
             tripWire();
             messager.printMessage(Kind.ERROR, message, element);

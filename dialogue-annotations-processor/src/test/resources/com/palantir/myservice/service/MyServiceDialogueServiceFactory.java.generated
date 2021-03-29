@@ -1,15 +1,52 @@
 package com.palantir.myservice.service;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.Response;
 import java.lang.Override;
+import java.lang.String;
+import java.util.OptionalInt;
+import java.util.UUID;
 import javax.annotation.Generated;
 
-@Generated("com.palantir.dialogue.annotations.processor.DialogueServiceFactoryGenerator")
+@Generated("com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator")
 public final class MyServiceDialogueServiceFactory implements DialogueServiceFactory<MyService> {
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
-        throw new UnsupportedOperationException();
+        return new MyService() {
+            @Override
+            public void customRequest(RequestBody requestBody) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ListenableFuture<String> getGreetingAsync() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Response customResponse() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String greet(String greeting) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void params(
+                    String query,
+                    UUID myPathParam,
+                    MyCustomParamType myPathParam2,
+                    int requestHeaderValue,
+                    OptionalInt maybeRequestHeaderValue,
+                    MySerializableType body) {
+                throw new UnsupportedOperationException();
+            }
+        };
     }
 }
