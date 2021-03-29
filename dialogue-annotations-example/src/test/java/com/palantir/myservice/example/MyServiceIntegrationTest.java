@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.myservice.example;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

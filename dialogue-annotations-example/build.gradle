@@ -1,0 +1,45 @@
+/*
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+apply plugin: 'org.inferred.processors'
+
+dependencies {
+    // IntelliJ does not seem to invoke the processor without this line
+    implementation project(':dialogue-annotations-processor')
+    implementation project(':dialogue-target')
+    implementation 'com.fasterxml.jackson.core:jackson-annotations'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.errorprone:error_prone_annotations'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.safe-logging:preconditions'
+    implementation 'com.palantir.safe-logging:safe-logging'
+
+    annotationProcessor project(':dialogue-annotations-processor')
+    implementation project(':dialogue-annotations')
+
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+
+    testImplementation project(':dialogue-clients')
+    testImplementation project(':dialogue-test-common')
+    testImplementation 'com.google.guava:guava'
+    testImplementation 'com.google.testing.compile:compile-testing'
+    testImplementation 'com.palantir.safe-logging:preconditions-assertj'
+    testImplementation 'com.squareup.okhttp3:mockwebserver'
+    testImplementation 'org.assertj:assertj-core'
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+}
