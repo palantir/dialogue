@@ -100,7 +100,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             } catch (FilerException e) {
                 // Happens when same file is written twice. Dunno why this is a problem
             } catch (IOException e) {
-                error("Could not generate", interfaceElement, e);
+                error("Failed to format generated code", interfaceElement, e);
             }
         });
 

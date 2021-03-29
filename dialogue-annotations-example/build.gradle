@@ -19,6 +19,7 @@ apply plugin: 'org.inferred.processors'
 dependencies {
     // IntelliJ does not seem to invoke the processor without this line
     implementation project(':dialogue-annotations-processor')
+    implementation project(':dialogue-target')
     implementation 'com.fasterxml.jackson.core:jackson-annotations'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.google.code.findbugs:jsr305'
