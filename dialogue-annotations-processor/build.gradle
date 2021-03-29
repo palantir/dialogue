@@ -1,39 +1,36 @@
 apply plugin: 'com.palantir.external-publish-jar'
-apply plugin: 'org.unbroken-dome.test-sets'
-
-testSets {
-    libraries { testCases }
-    unitTest {
-        imports libraries.testCases
-    }
-}
+apply plugin: 'org.inferred.processors'
 
 dependencies {
-    api project(':dialogue-annotations')
 
-    implementation project(':dialogue-target')
-    implementation 'com.palantir.javaformat:palantir-java-format'
-    implementation 'com.palantir.javaformat:palantir-java-format-spi'
-    implementation 'com.palantir.safe-logging:preconditions'
-    implementation 'com.google.auto:auto-common'
-    implementation 'com.google.guava:guava'
-    implementation 'com.squareup:javapoet'
+    // All those must be compile because of some IntelliJ classpath issue
+    compile project(':dialogue-annotations')
+    compile project(':dialogue-target')
+    compile 'com.palantir.javaformat:palantir-java-format'
+    compile 'com.palantir.javaformat:palantir-java-format-spi'
+    compile 'com.palantir.safe-logging:preconditions'
+    compile 'com.google.auto:auto-common'
+    compile 'com.google.guava:guava'
+    compile 'com.squareup:javapoet'
+
+    // fragile: copied from foundry/timber: it's here to make palantir-java-format work in the processor
+    compile 'com.google.errorprone:javac-shaded'
+    compile 'org.functionaljava:functionaljava'
 
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
 
-    testCasesAnnotationProcessor 'org.immutables:value'
-    testCasesCompileOnly 'org.immutables:value::annotations'
-    testCasesCompileOnly project(':dialogue-annotations')
-    testCasesAnnotationProcessor project(':dialogue-annotations-processor')
-    testCasesImplementation project(':dialogue-target')
-    testCasesImplementation 'com.fasterxml.jackson.core:jackson-annotations'
-    testCasesImplementation 'com.fasterxml.jackson.core:jackson-databind'
-    testCasesImplementation 'com.google.code.findbugs:jsr305'
-    testCasesImplementation 'com.google.errorprone:error_prone_annotations'
-    testCasesImplementation 'com.google.guava:guava'
-    testCasesImplementation 'com.palantir.safe-logging:preconditions'
-    testCasesImplementation 'com.palantir.safe-logging:safe-logging'
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
+    testImplementation project(':dialogue-annotations')
+    testImplementation project(':dialogue-target')
+    testImplementation 'com.fasterxml.jackson.core:jackson-annotations'
+    testImplementation 'com.fasterxml.jackson.core:jackson-databind'
+    testImplementation 'com.google.code.findbugs:jsr305'
+    testImplementation 'com.google.errorprone:error_prone_annotations'
+    testImplementation 'com.google.guava:guava'
+    testImplementation 'com.palantir.safe-logging:preconditions'
+    testImplementation 'com.palantir.safe-logging:safe-logging'
 
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')

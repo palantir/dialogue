@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.myservice.example;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.DialogueService;

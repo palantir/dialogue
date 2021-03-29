@@ -39,16 +39,15 @@ import javax.tools.JavaFileObject;
 import javax.tools.StandardLocation;
 import org.junit.jupiter.api.Test;
 
-public final class DialogueAnnotationsProcessorTest {
+public final class DialogueRequestAnnotationsProcessorTest {
 
     private static final boolean DEV_MODE = Boolean.valueOf(System.getProperty("recreate", "false"));
-    private static final Path TEST_CASES_BASE_DIR = Paths.get("src", "testCases", "java");
     private static final Path TEST_CLASSES_BASE_DIR = Paths.get("src", "test", "java");
     private static final Path RESOURCES_BASE_DIR = Paths.get("src", "test", "resources");
 
     @Test
     public void testExampleFileCompiles() {
-        assertTestFileCompileAndMatches(TEST_CASES_BASE_DIR, MyService.class);
+        assertTestFileCompileAndMatches(TEST_CLASSES_BASE_DIR, MyService.class);
     }
 
     @Test
@@ -75,7 +74,7 @@ public final class DialogueAnnotationsProcessorTest {
         try {
             return Compiler.javac()
                     .withOptions("-source", "8")
-                    .withProcessors(new DialogueAnnotationsProcessor())
+                    .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {
             throw new SafeRuntimeException(e);
