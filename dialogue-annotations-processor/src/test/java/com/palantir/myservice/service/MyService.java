@@ -24,6 +24,7 @@ import com.palantir.dialogue.annotations.Request;
 import java.util.OptionalInt;
 import java.util.UUID;
 
+// Annotation processor is not invoked directly here.
 // @DialogueService(MyServiceDialogueServiceFactory.class)
 public interface MyService {
 
