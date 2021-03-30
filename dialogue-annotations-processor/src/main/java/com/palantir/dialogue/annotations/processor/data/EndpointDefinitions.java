@@ -77,6 +77,8 @@ public final class EndpointDefinitions {
             return Optional.empty();
         }
 
+        // TODO(12345): More validations around repeats etc.
+
         return Optional.of(ImmutableEndpointDefinition.builder()
                 .endpointName(ImmutableEndpointName.of(element.getSimpleName().toString()))
                 .httpMethod(requestAnnotation.method())
@@ -179,9 +181,7 @@ public final class EndpointDefinitions {
         }
 
         default <T> T getValueStrict(Class<T> valueClazz) {
-            Object nullableValue = Preconditions.checkNotNull(values().get("value"), "Unknown value");
-            Preconditions.checkArgument(valueClazz.isInstance(nullableValue), "Value not of the right type");
-            return (T) nullableValue;
+            return getValueMaybe(valueClazz).orElseThrow(() -> new SafeIllegalStateException("Unknown value"));
         }
     }
 }
