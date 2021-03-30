@@ -33,6 +33,7 @@ import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFacto
 import com.palantir.dialogue.annotations.processor.util.Goethe;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
@@ -202,7 +203,8 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         @Override
         public void reportError(@CompileTimeConstant String message, Element element, Arg<?>... args) {
             tripWire();
-            messager.printMessage(Kind.ERROR, message, element);
+            String renderedMessage = SafeExceptions.renderMessage(message, args);
+            messager.printMessage(Kind.ERROR, renderedMessage, element);
         }
 
         private void tripWire() {

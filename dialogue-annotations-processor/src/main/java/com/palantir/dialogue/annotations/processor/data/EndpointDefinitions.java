@@ -130,8 +130,7 @@ public final class EndpointDefinitions {
         AnnotationReflector annotationReflector =
                 ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
-            return Optional.of(
-                    ParameterTypes.body(Optional.ofNullable(annotationReflector.getValue(TypeMirror.class))));
+            return Optional.of(ParameterTypes.body(annotationReflector.getValueMaybe(TypeMirror.class)));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValue()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
@@ -139,7 +138,7 @@ public final class EndpointDefinitions {
         } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
             return Optional.of(ParameterTypes.path());
         } else if (annotationReflector.isAnnotation(Request.QueryParam.class)) {
-            return Optional.of(ParameterTypes.query(annotationReflector.getValue(String.class)));
+            return Optional.of(ParameterTypes.query(annotationReflector.getValueStrict(String.class)));
         }
 
         throw new SafeIllegalStateException("Not possible");
@@ -168,11 +167,21 @@ public final class EndpointDefinitions {
         }
 
         default String getStringValue() {
-            return getValue(String.class);
+            return getValueStrict(String.class);
         }
 
-        default <T> T getValue(Class<?> valueClazz) {
-            return (T) values().get("value");
+        default <T> Optional<T> getValueMaybe(Class<T> valueClazz) {
+            Optional<Object> maybeValue = Optional.ofNullable(values().get("value"));
+            return maybeValue.map(value -> {
+                Preconditions.checkArgument(valueClazz.isInstance(value), "Value not of the right type");
+                return (T) value;
+            });
+        }
+
+        default <T> T getValueStrict(Class<T> valueClazz) {
+            Object nullableValue = Preconditions.checkNotNull(values().get("value"), "Unknown value");
+            Preconditions.checkArgument(valueClazz.isInstance(nullableValue), "Value not of the right type");
+            return (T) nullableValue;
         }
     }
 }
