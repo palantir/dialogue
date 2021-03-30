@@ -21,9 +21,8 @@ import com.google.auto.service.AutoService;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.SetMultimap;
 import com.google.errorprone.annotations.CompileTimeConstant;
+import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
@@ -32,6 +31,7 @@ import com.palantir.dialogue.annotations.processor.data.ImmutableServiceDefiniti
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
 import com.palantir.dialogue.annotations.processor.util.Goethe;
+import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.squareup.javapoet.ClassName;
@@ -57,6 +57,8 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
@@ -65,12 +67,16 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
     private Messager messager;
     private Filer filer;
+    private Elements elements;
+    private Types types;
 
     @Override
     public synchronized void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         this.messager = processingEnv.getMessager();
         this.filer = processingEnv.getFiler();
+        this.elements = processingEnv.getElementUtils();
+        this.types = processingEnv.getTypeUtils();
     }
 
     @Override
@@ -89,47 +95,43 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        Set<Element> elements = roundEnv.getElementsAnnotatedWith(Request.class).stream()
+        Set<Element> annotatedElements = roundEnv.getElementsAnnotatedWith(Request.class).stream()
                 .map(e -> (Element) e)
                 .collect(Collectors.toSet());
-        if (elements.isEmpty()) {
+        if (annotatedElements.isEmpty()) {
             return false;
         }
 
-        groupByEnclosingElement(elements).asMap().forEach((interfaceElement, annotatedMethods) -> {
-            JavaFile javaFile;
-            try {
-                javaFile = generateDialogueServiceFactory(interfaceElement, annotatedMethods);
-            } catch (Throwable e) {
-                error("Code generation failed", interfaceElement, e);
-                return;
-            }
+        KeyedStream.of(annotatedElements)
+                .mapKeys(Element::getEnclosingElement)
+                .collectToSetMultimap()
+                .asMap()
+                .forEach((interfaceElement, annotatedMethods) -> {
+                    JavaFile javaFile;
+                    try {
+                        javaFile = generateDialogueServiceFactory(interfaceElement, annotatedMethods);
+                    } catch (Throwable e) {
+                        error("Code generation failed", interfaceElement, e);
+                        return;
+                    }
 
-            try {
-                Goethe.formatAndEmit(javaFile, filer);
-            } catch (FilerException e) {
-                // Happens when same file is written twice. Dunno why this is a problem
-            } catch (IOException e) {
-                error("Failed to format generated code", interfaceElement, e);
-            }
-        });
+                    try {
+                        Goethe.formatAndEmit(javaFile, filer);
+                    } catch (FilerException e) {
+                        // Happens when same file is written twice. Dunno why this is a problem
+                    } catch (IOException e) {
+                        error("Failed to format generated code", interfaceElement, e);
+                    }
+                });
 
         return false;
     }
 
-    private SetMultimap<Element, Element> groupByEnclosingElement(Set<Element> elements) {
-        SetMultimap<Element, Element> ret = LinkedHashMultimap.create();
-        for (Element element : elements) {
-            ret.put(element.getEnclosingElement(), element);
-        }
-        return ret;
-    }
-
-    private JavaFile generateDialogueServiceFactory(Element annotatedInterface, Collection<Element> elements) {
+    private JavaFile generateDialogueServiceFactory(Element annotatedInterface, Collection<Element> annotatedMethods) {
         ElementKind kind = annotatedInterface.getKind();
         Preconditions.checkArgument(kind.isInterface(), "Only methods on interfaces can be annotated with @Request");
 
-        Set<Element> nonMethodElements = elements.stream()
+        Set<Element> nonMethodElements = annotatedMethods.stream()
                 .filter(element -> !element.getKind().equals(ElementKind.METHOD))
                 .collect(Collectors.toSet());
         validationStep(ctx -> nonMethodElements.forEach(
@@ -138,8 +140,8 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         Preconditions.checkArgument(nonMethodElements.isEmpty(), "Only methods can be annotated with @Request");
 
         List<EndpointDefinition> endpoints = processingStep(ctx -> {
-            EndpointDefinitions endpointDefinitions = new EndpointDefinitions(ctx);
-            List<Optional<EndpointDefinition>> maybeEndpoints = elements.stream()
+            EndpointDefinitions endpointDefinitions = new EndpointDefinitions(ctx, elements, types);
+            List<Optional<EndpointDefinition>> maybeEndpoints = annotatedMethods.stream()
                     .map(MoreElements::asExecutable)
                     .map(endpointDefinitions::tryParseEndpointDefinition)
                     .collect(Collectors.toList());
@@ -198,7 +200,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         }
 
         @Override
-        public void reportError(@CompileTimeConstant String message, Element element) {
+        public void reportError(@CompileTimeConstant String message, Element element, Arg<?>... args) {
             tripWire();
             messager.printMessage(Kind.ERROR, message, element);
         }

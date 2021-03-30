@@ -8,6 +8,7 @@ dependencies {
     compile project(':dialogue-annotations')
     compile project(':dialogue-target')
     compile 'com.google.code.findbugs:jsr305'
+    compile 'com.palantir.common:streams'
     compile 'com.palantir.javaformat:palantir-java-format'
     compile 'com.palantir.javaformat:palantir-java-format-spi'
     compile 'com.palantir.safe-logging:preconditions'

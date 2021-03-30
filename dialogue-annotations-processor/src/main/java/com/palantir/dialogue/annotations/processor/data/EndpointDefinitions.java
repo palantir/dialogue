@@ -16,28 +16,50 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
+import com.palantir.common.streams.KeyedStream;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.Request.Body;
-import com.palantir.dialogue.annotations.Request.PathParam;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.squareup.javapoet.TypeName;
+import java.lang.annotation.Annotation;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import javax.lang.model.element.AnnotationMirror;
+import javax.lang.model.element.AnnotationValue;
 import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.MirroredTypeException;
 import javax.lang.model.type.TypeMirror;
+import javax.lang.model.util.Elements;
+import javax.lang.model.util.Types;
 import org.glassfish.jersey.uri.internal.UriTemplateParser;
+import org.immutables.value.Value;
 
 public final class EndpointDefinitions {
 
-    @SuppressWarnings("StrictUnusedVariable")
-    private final ErrorContext errorContext;
+    private static final ImmutableSet<Class<?>> PARAM_ANNOTATION_CLASSES = ImmutableSet.of(
+            Request.Body.class, Request.PathParam.class, Request.QueryParam.class, Request.Header.class);
+    private static final ImmutableSet<String> PARAM_ANNOTATIONS =
+            PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
 
-    public EndpointDefinitions(ErrorContext errorContext) {
+    private final ErrorContext errorContext;
+    private final Types types;
+    private final TypeMirror requestBodyType;
+
+    public EndpointDefinitions(ErrorContext errorContext, Elements elements, Types types) {
         this.errorContext = errorContext;
+        this.types = types;
+        this.requestBodyType =
+                elements.getTypeElement(RequestBody.class.getCanonicalName()).asType();
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
@@ -65,47 +87,92 @@ public final class EndpointDefinitions {
     }
 
     private Optional<ArgumentDefinition> getArgumentDefinition(VariableElement param) {
-        return Optional.of(ImmutableArgumentDefinition.builder()
+        return getParameterType(param).map(paramType -> ImmutableArgumentDefinition.builder()
                 .argName(ImmutableArgumentName.of(param.getSimpleName().toString()))
                 .type(TypeName.get(param.asType()))
-                .paramType(getParameterType(param))
+                .paramType(paramType)
                 .build());
     }
 
-    private ParameterType getParameterType(VariableElement variableElement) {
-        // This should be tightened:
-        // 1. check that only single annotation is present etc.
-        // 2. check that values are not empty/of the right shape etc.
-        // 3. Rewrite using TypeMirrors:
-        // https://hauchee.blogspot.com/2015/12/compile-time-annotation-processing-getting-class-value.html
-        Body body = variableElement.getAnnotation(Body.class);
-        if (body != null) {
-            try {
-                // Always going to throw
-                return ParameterTypes.body((TypeMirror) (Object) body.value());
-            } catch (MirroredTypeException e) {
-                TypeMirror typeMirror = e.getTypeMirror();
-                return ParameterTypes.body(typeMirror);
+    @SuppressWarnings("CyclomaticComplexity")
+    private Optional<ParameterType> getParameterType(VariableElement variableElement) {
+        List<AnnotationMirror> paramAnnotationMirrors = new ArrayList<>();
+        for (AnnotationMirror annotationMirror : variableElement.getAnnotationMirrors()) {
+            TypeElement annotationTypeElement =
+                    MoreElements.asType(annotationMirror.getAnnotationType().asElement());
+            if (PARAM_ANNOTATIONS.contains(
+                    annotationTypeElement.getQualifiedName().toString())) {
+                paramAnnotationMirrors.add(annotationMirror);
             }
         }
 
-        Request.Header header = variableElement.getAnnotation(Request.Header.class);
-        if (header != null) {
-            return ParameterTypes.header(header.value());
+        if (paramAnnotationMirrors.isEmpty()) {
+            if (types.isSameType(variableElement.asType(), requestBodyType)) {
+                return Optional.of(ParameterTypes.rawBody());
+            } else {
+                errorContext.reportError(
+                        "At least one annotation should be present or type should be RequestBody",
+                        variableElement,
+                        SafeArg.of("requestBody", requestBodyType),
+                        SafeArg.of("supportedAnnotations", PARAM_ANNOTATION_CLASSES));
+                return Optional.empty();
+            }
         }
 
-        PathParam pathParam = variableElement.getAnnotation(Request.PathParam.class);
-        if (pathParam != null) {
-            return ParameterTypes.path();
+        if (paramAnnotationMirrors.size() > 1) {
+            errorContext.reportError(
+                    "Only single annotation can be used",
+                    variableElement,
+                    SafeArg.of("annotations", paramAnnotationMirrors));
+            return Optional.empty();
         }
 
-        Request.QueryParam queryParam = variableElement.getAnnotation(Request.QueryParam.class);
-        if (queryParam != null) {
-            return ParameterTypes.query(queryParam.value());
+        AnnotationReflector annotationReflector =
+                ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
+        if (annotationReflector.isAnnotation(Request.Body.class)) {
+            return Optional.of(
+                    ParameterTypes.body(Optional.ofNullable(annotationReflector.getValue(TypeMirror.class))));
+        } else if (annotationReflector.isAnnotation(Request.Header.class)) {
+            return Optional.of(ParameterTypes.header(annotationReflector.getStringValue()));
+        } else if (annotationReflector.isAnnotation(Request.Header.class)) {
+            return Optional.of(ParameterTypes.header(annotationReflector.getStringValue()));
+        } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
+            return Optional.of(ParameterTypes.path());
+        } else if (annotationReflector.isAnnotation(Request.QueryParam.class)) {
+            return Optional.of(ParameterTypes.query(annotationReflector.getValue(String.class)));
         }
 
-        // Check type is actually RequestBody;
+        throw new SafeIllegalStateException("Not possible");
+    }
 
-        return ParameterTypes.rawBody();
+    @Value.Immutable
+    interface AnnotationReflector {
+        @Value.Parameter
+        AnnotationMirror annotationMirror();
+
+        @Value.Derived
+        default TypeElement annotationTypeElement() {
+            return MoreElements.asType(annotationMirror().getAnnotationType().asElement());
+        }
+
+        @Value.Derived
+        default Map<String, Object> values() {
+            return KeyedStream.stream(annotationMirror().getElementValues())
+                    .mapKeys(key -> key.getSimpleName().toString())
+                    .map(AnnotationValue::getValue)
+                    .collectToMap();
+        }
+
+        default boolean isAnnotation(Class<? extends Annotation> annotationClazz) {
+            return annotationTypeElement().getQualifiedName().contentEquals(annotationClazz.getCanonicalName());
+        }
+
+        default String getStringValue() {
+            return getValue(String.class);
+        }
+
+        default <T> T getValue(Class<?> valueClazz) {
+            return (T) values().get("value");
+        }
     }
 }

@@ -17,8 +17,9 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
+import com.palantir.logsafe.Arg;
 import javax.lang.model.element.Element;
 
 public interface ErrorContext {
-    void reportError(@CompileTimeConstant String message, Element element);
+    void reportError(@CompileTimeConstant String message, Element element, Arg<?>... args);
 }
