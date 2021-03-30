@@ -52,7 +52,7 @@ public final class EndpointsEnumGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             enumBuilder.addEnumConstant(
                     endpoint.endpointName().get(),
-                    endpointField(endpoint, serviceDefinition.serviceInterface().simpleName(), Optional.empty()));
+                    endpointField(endpoint, serviceDefinition.serviceInterface().simpleName()));
         });
 
         enumBuilder.addField(FieldSpec.builder(
@@ -66,7 +66,7 @@ public final class EndpointsEnumGenerator {
         return enumBuilder.build();
     }
 
-    private TypeSpec endpointField(EndpointDefinition def, String serviceName, Optional<String> apiVersion) {
+    private TypeSpec endpointField(EndpointDefinition def, String serviceName) {
         TypeSpec.Builder builder = TypeSpec.anonymousClassBuilder("");
 
         builder.addField(FieldSpec.builder(
