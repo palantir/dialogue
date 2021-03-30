@@ -16,10 +16,11 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import java.util.List;
 import org.immutables.value.Value;
 
 @Value.Immutable
 public interface HttpPath {
     @Value.Parameter
-    String get();
+    List<HttpPathSegment> get();
 }

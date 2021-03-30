@@ -16,27 +16,15 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.palantir.dialogue.HttpMethod;
-import com.squareup.javapoet.TypeName;
-import java.util.List;
-import org.immutables.value.Value;
+import org.derive4j.Data;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface EndpointDefinition {
+@Data
+public interface HttpPathSegment {
+    interface Cases<R> {
+        R fixed(String value);
 
-    EndpointName endpointName();
-
-    HttpMethod httpMethod();
-
-    HttpPath httpPath();
-
-    List<ArgumentDefinition> arguments();
-
-    TypeName returns();
-
-    @Value.Derived
-    default String channelFieldName() {
-        return endpointName().get() + "Channel";
+        R variable(String variableName);
     }
+
+    <R> R match(HttpPathSegment.Cases<R> cases);
 }

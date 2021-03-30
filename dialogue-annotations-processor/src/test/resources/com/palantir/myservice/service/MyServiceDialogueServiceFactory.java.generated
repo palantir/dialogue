@@ -3,12 +3,19 @@ package com.palantir.myservice.service;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.DialogueServiceFactory;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.UrlBuilder;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.UnsupportedOperationException;
+import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 import javax.annotation.processing.Generated;
@@ -18,6 +25,19 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
+            private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
+
+            private final EndpointChannel getGreetingAsyncChannel =
+                    endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
+
+            private final EndpointChannel customRequestChannel =
+                    endpointChannelFactory.endpoint(Endpoints.customRequest);
+
+            private final EndpointChannel customResponseChannel =
+                    endpointChannelFactory.endpoint(Endpoints.customResponse);
+
+            private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
+
             @Override
             public String greet(String greeting) {
                 throw new UnsupportedOperationException();
@@ -49,5 +69,164 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 throw new UnsupportedOperationException();
             }
         };
+    }
+
+    private enum Endpoints implements Endpoint {
+        greet {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("greet").build();
+
+            @Override
+            public void renderPath(Map<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.POST;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "greet";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        getGreetingAsync {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("greeting").build();
+
+            @Override
+            public void renderPath(Map<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "getGreetingAsync";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        customRequest {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("custom").fixed("request").build();
+
+            @Override
+            public void renderPath(Map<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.PUT;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "customRequest";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        customResponse {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("custom").fixed("request1").build();
+
+            @Override
+            public void renderPath(Map<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.PUT;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "customResponse";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        params {
+            private final PathTemplate pathTemplate = PathTemplate.builder()
+                    .fixed("params")
+                    .variable("myPathParam")
+                    .variable("myPathParam2")
+                    .build();
+
+            @Override
+            public void renderPath(Map<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.POST;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "params";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        };
+
+        private static final String VERSION = Optional.ofNullable(
+                        MyService.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
     }
 }

@@ -16,8 +16,11 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
+import com.squareup.javapoet.ClassName;
+import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
 import com.squareup.javapoet.TypeSpec;
@@ -38,6 +41,7 @@ public final class ServiceImplementationGenerator {
                 TypeSpec.anonymousClassBuilder("").addSuperinterface(serviceDefinition.serviceInterface());
 
         serviceDefinition.endpoints().forEach(endpoint -> {
+            impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
         });
 
@@ -61,5 +65,16 @@ public final class ServiceImplementationGenerator {
         methodBuilder.addCode("throw new $T();", UnsupportedOperationException.class);
 
         return methodBuilder.build();
+    }
+
+    private FieldSpec bindEndpointChannel(EndpointDefinition endpoint) {
+        return FieldSpec.builder(ClassName.get(EndpointChannel.class), endpoint.channelFieldName())
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer(
+                        "$L.endpoint($T.$L)",
+                        serviceDefinition.endpointChannelFactoryArgName(),
+                        serviceDefinition.endpointsEnum(),
+                        endpoint.endpointName().get())
+                .build();
     }
 }

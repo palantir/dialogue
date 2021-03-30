@@ -18,6 +18,7 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
+import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.common.streams.KeyedStream;
@@ -94,7 +95,24 @@ public final class EndpointDefinitions {
     private Optional<HttpPath> getHttpPath(Element context, Request requestAnnotation) {
         try {
             UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
-            return Optional.of(ImmutableHttpPath.of(uriTemplateParser.getNormalizedTemplate()));
+
+            Splitter splitter = Splitter.on('/');
+            Iterable<String> rawSegments = splitter.split(uriTemplateParser.getNormalizedTemplate());
+
+            List<HttpPathSegment> pathSegments = new ArrayList<>();
+            for (String segment : rawSegments) {
+                if (segment.isEmpty()) {
+                    continue; // avoid empty segments; typically the first segment is empty
+                }
+
+                if (segment.startsWith("{") && segment.endsWith("}")) {
+                    pathSegments.add(HttpPathSegments.variable(segment.substring(1, segment.length() - 1)));
+                } else {
+                    pathSegments.add(HttpPathSegments.fixed(segment));
+                }
+            }
+
+            return Optional.of(ImmutableHttpPath.of(pathSegments));
         } catch (IllegalArgumentException e) {
             errorContext.reportError("Failed to parse http path", context, e);
             return Optional.empty();
