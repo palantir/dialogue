@@ -14,6 +14,7 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.UnsupportedOperationException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 import javax.annotation.processing.Generated;
@@ -83,7 +84,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String version() {
-                return "0.0.0";
+                return VERSION;
             }
         },
 
@@ -113,7 +114,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String version() {
-                return "0.0.0";
+                return VERSION;
             }
         },
 
@@ -143,7 +144,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String version() {
-                return "0.0.0";
+                return VERSION;
             }
         },
 
@@ -173,7 +174,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String version() {
-                return "0.0.0";
+                return VERSION;
             }
         },
 
@@ -206,8 +207,12 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String version() {
-                return "0.0.0";
+                return VERSION;
             }
-        }
+        };
+
+        private static final String VERSION = Optional.ofNullable(
+                        MyService.class.getPackage().getImplementationVersion())
+                .orElse("0.0.0");
     }
 }

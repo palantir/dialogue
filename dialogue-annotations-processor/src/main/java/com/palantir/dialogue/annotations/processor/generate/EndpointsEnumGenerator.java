@@ -52,8 +52,16 @@ public final class EndpointsEnumGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             enumBuilder.addEnumConstant(
                     endpoint.endpointName().get(),
-                    endpointField(endpoint, serviceDefinition.serviceInterface().simpleName(), Optional.of("0.0.0")));
+                    endpointField(endpoint, serviceDefinition.serviceInterface().simpleName(), Optional.empty()));
         });
+
+        enumBuilder.addField(FieldSpec.builder(
+                        TypeName.get(String.class), "VERSION", Modifier.PRIVATE, Modifier.STATIC, Modifier.FINAL)
+                .initializer(
+                        "$T.ofNullable($T.class.getPackage().getImplementationVersion()).orElse(\"0.0.0\")",
+                        TypeName.get(Optional.class),
+                        serviceDefinition.serviceInterface())
+                .build());
 
         return enumBuilder.build();
     }
