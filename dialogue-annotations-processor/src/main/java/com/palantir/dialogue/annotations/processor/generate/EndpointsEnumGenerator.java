@@ -45,7 +45,7 @@ public final class EndpointsEnumGenerator {
     }
 
     TypeSpec generate() {
-        TypeSpec.Builder enumBuilder = TypeSpec.enumBuilder("Endpoints")
+        TypeSpec.Builder enumBuilder = TypeSpec.enumBuilder(serviceDefinition.endpointsEnum())
                 .addModifiers(Modifier.PRIVATE)
                 .addSuperinterface(ClassName.get(Endpoint.class));
 

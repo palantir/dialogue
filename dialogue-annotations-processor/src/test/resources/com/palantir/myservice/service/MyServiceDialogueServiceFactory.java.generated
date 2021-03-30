@@ -4,6 +4,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
@@ -24,6 +25,19 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
+            private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
+
+            private final EndpointChannel getGreetingAsyncChannel =
+                    endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
+
+            private final EndpointChannel customRequestChannel =
+                    endpointChannelFactory.endpoint(Endpoints.customRequest);
+
+            private final EndpointChannel customResponseChannel =
+                    endpointChannelFactory.endpoint(Endpoints.customResponse);
+
+            private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
+
             @Override
             public String greet(String greeting) {
                 throw new UnsupportedOperationException();

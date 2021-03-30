@@ -25,5 +25,26 @@ import org.immutables.value.Value;
 public interface ServiceDefinition {
     ClassName serviceInterface();
 
+    @Value.Derived
+    default ClassName serviceFactory() {
+        return ClassName.get(
+                serviceInterface().packageName(), serviceInterface().simpleName() + "DialogueServiceFactory");
+    }
+
+    @Value.Derived
+    default ClassName endpointsEnum() {
+        return serviceFactory().nestedClass("Endpoints");
+    }
+
+    @Value.Derived
+    default String endpointChannelFactoryArgName() {
+        return "endpointChannelFactory";
+    }
+
+    @Value.Derived
+    default String conjureRuntimeArgName() {
+        return "runtime";
+    }
+
     List<EndpointDefinition> endpoints();
 }

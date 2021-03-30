@@ -32,20 +32,18 @@ import javax.lang.model.element.Modifier;
 public final class DialogueServiceFactoryGenerator {
 
     private final ServiceDefinition serviceDefinition;
-    private final String className;
     private final ServiceImplementationGenerator serviceImplementationGenerator;
     private final EndpointsEnumGenerator endpointsEnumGenerator;
 
     public DialogueServiceFactoryGenerator(ServiceDefinition serviceDefinition) {
         this.serviceDefinition = serviceDefinition;
-        className = serviceDefinition.serviceInterface().simpleName() + "DialogueServiceFactory";
         this.serviceImplementationGenerator = new ServiceImplementationGenerator(serviceDefinition);
         this.endpointsEnumGenerator = new EndpointsEnumGenerator(serviceDefinition);
     }
 
     public TypeSpec generate() {
 
-        TypeSpec.Builder serviceFactoryBuilder = TypeSpec.classBuilder(className)
+        TypeSpec.Builder serviceFactoryBuilder = TypeSpec.classBuilder(serviceDefinition.serviceFactory())
                 .addAnnotation(AnnotationSpec.builder(ClassName.get(Generated.class))
                         .addMember("value", "$S", getClass().getCanonicalName())
                         .build())
@@ -53,21 +51,20 @@ public final class DialogueServiceFactoryGenerator {
                 .addSuperinterface(ParameterizedTypeName.get(
                         ClassName.get(DialogueServiceFactory.class), serviceDefinition.serviceInterface()));
 
-        TypeSpec serviceImplementation = serviceImplementationGenerator.generate();
         TypeSpec endpointsEnum = endpointsEnumGenerator.generate();
+        serviceFactoryBuilder.addType(endpointsEnum);
 
+        TypeSpec serviceImplementation = serviceImplementationGenerator.generate();
         serviceFactoryBuilder.addMethod(MethodSpec.methodBuilder("create")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(serviceDefinition.serviceInterface())
-                .addParameter(EndpointChannelFactory.class, "endpointChannelFactory")
-                .addParameter(ConjureRuntime.class, "runtime")
+                .addParameter(EndpointChannelFactory.class, serviceDefinition.endpointChannelFactoryArgName())
+                .addParameter(ConjureRuntime.class, serviceDefinition.conjureRuntimeArgName())
                 .addCode(CodeBlock.builder()
                         .add("return $L;", serviceImplementation)
                         .build())
                 .build());
-
-        serviceFactoryBuilder.addType(endpointsEnum);
 
         return serviceFactoryBuilder.build();
     }

@@ -34,4 +34,9 @@ public interface EndpointDefinition {
     List<ArgumentDefinition> arguments();
 
     TypeName returns();
+
+    @Value.Derived
+    default String channelFieldName() {
+        return endpointName().get() + "Channel";
+    }
 }
