@@ -29,6 +29,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
+import com.palantir.myservice.service.UnparseableHttpPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -64,6 +65,16 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 .hadErrorContaining("Only single annotation can be used")
                 .inFile(compilation.sourceFiles().get(0))
                 .onLineContaining("String greet(@Request.PathParam @Request.Body String greeting)");
+        assertThat(compilation).hadErrorCount(2);
+    }
+
+    @Test
+    public void testHttpPathIsParsed() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UnparseableHttpPath.class);
+        assertThat(compilation)
+                .hadErrorContaining("Failed to parse http path")
+                .inFile(compilation.sourceFiles().get(0))
+                .onLineContaining("String greet(@Request.PathParam String greeting)");
         assertThat(compilation).hadErrorCount(2);
     }
 

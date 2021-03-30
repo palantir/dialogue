@@ -35,6 +35,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
@@ -64,16 +65,17 @@ public final class EndpointDefinitions {
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
         Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class), "No annotation");
-        UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
 
+        Optional<HttpPath> maybeHttpPath = getHttpPath(element, requestAnnotation);
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
                 .map(this::getArgumentDefinition)
                 .collect(Collectors.toList());
 
         if (!args.stream()
-                .filter(Predicates.not(Optional::isPresent))
-                .collect(Collectors.toList())
-                .isEmpty()) {
+                        .filter(Predicates.not(Optional::isPresent))
+                        .collect(Collectors.toList())
+                        .isEmpty()
+                || maybeHttpPath.isEmpty()) {
             return Optional.empty();
         }
 
@@ -82,10 +84,20 @@ public final class EndpointDefinitions {
         return Optional.of(ImmutableEndpointDefinition.builder()
                 .endpointName(ImmutableEndpointName.of(element.getSimpleName().toString()))
                 .httpMethod(requestAnnotation.method())
-                .httpPath(ImmutableHttpPath.of(uriTemplateParser.getNormalizedTemplate()))
+                .httpPath(maybeHttpPath.get())
                 .returns(TypeName.get(element.getReturnType()))
                 .addAllArguments(args.stream().map(Optional::get).collect(Collectors.toList()))
                 .build());
+    }
+
+    private Optional<HttpPath> getHttpPath(Element context, Request requestAnnotation) {
+        try {
+            UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
+            return Optional.of(ImmutableHttpPath.of(uriTemplateParser.getNormalizedTemplate()));
+        } catch (IllegalArgumentException e) {
+            errorContext.reportError("Failed to parse http path", context);
+            return Optional.empty();
+        }
     }
 
     private Optional<ArgumentDefinition> getArgumentDefinition(VariableElement param) {
