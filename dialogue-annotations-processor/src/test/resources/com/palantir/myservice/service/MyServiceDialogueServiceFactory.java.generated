@@ -8,6 +8,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
+import com.palantir.dialogue.PlainSerDe;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.UrlBuilder;
@@ -25,6 +27,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
+            private final PlainSerDe _plainSerDe = runtime.plainSerDe();
+
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
             private final EndpointChannel getGreetingAsyncChannel =
@@ -40,21 +44,25 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public String greet(String greeting) {
+                Request.Builder _request = Request.builder();
                 throw new UnsupportedOperationException();
             }
 
             @Override
             public ListenableFuture<String> getGreetingAsync() {
+                Request.Builder _request = Request.builder();
                 throw new UnsupportedOperationException();
             }
 
             @Override
             public void customRequest(RequestBody requestBody) {
+                Request.Builder _request = Request.builder();
                 throw new UnsupportedOperationException();
             }
 
             @Override
             public Response customResponse() {
+                Request.Builder _request = Request.builder();
                 throw new UnsupportedOperationException();
             }
 
@@ -66,6 +74,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     int requestHeaderValue,
                     OptionalInt maybeRequestHeaderValue,
                     MySerializableType body) {
+                Request.Builder _request = Request.builder();
+                _request.putPathParams("myPathParam", _plainSerDe.serializeUuid(myPathParam));
                 throw new UnsupportedOperationException();
             }
         };
