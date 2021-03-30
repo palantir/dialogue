@@ -108,11 +108,7 @@ public final class EndpointsEnumGenerator {
                         .addAnnotation(Override.class)
                         .addModifiers(Modifier.PUBLIC)
                         .returns(String.class)
-                        .addCode(CodeBlock.builder()
-                                .add(apiVersion
-                                        .map(s -> CodeBlock.of("return $S;", s))
-                                        .orElseGet(() -> CodeBlock.of("return VERSION;")))
-                                .build())
+                        .addCode(CodeBlock.of("return VERSION;"))
                         .build());
         return builder.build();
     }
