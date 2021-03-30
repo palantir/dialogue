@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.processor.ErrorContext;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -95,7 +96,7 @@ public final class EndpointDefinitions {
             UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
             return Optional.of(ImmutableHttpPath.of(uriTemplateParser.getNormalizedTemplate()));
         } catch (IllegalArgumentException e) {
-            errorContext.reportError("Failed to parse http path", context);
+            errorContext.reportError("Failed to parse http path", context, e);
             return Optional.empty();
         }
     }

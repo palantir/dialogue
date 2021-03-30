@@ -26,7 +26,6 @@ import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
-import com.palantir.dialogue.annotations.processor.data.ErrorContext;
 import com.palantir.dialogue.annotations.processor.data.ImmutableServiceDefinition;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
@@ -185,7 +184,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         messager.printMessage(kind, msg + ": threw an exception " + trace, element);
     }
 
-    private static final class DefaultErrorContext implements AutoCloseable, ErrorContext {
+    private final class DefaultErrorContext implements AutoCloseable, ErrorContext {
 
         private final Messager messager;
         private volatile boolean errors = false;
@@ -199,6 +198,12 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             tripWire();
             String renderedMessage = SafeExceptions.renderMessage(message, args);
             messager.printMessage(Kind.ERROR, renderedMessage, element);
+        }
+
+        @Override
+        public void reportError(String message, Element element, Throwable throwable) {
+            tripWire();
+            error(message, element, throwable);
         }
 
         private void tripWire() {

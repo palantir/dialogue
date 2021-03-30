@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.dialogue.annotations.processor;
 
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.logsafe.Arg;
@@ -22,4 +22,6 @@ import javax.lang.model.element.Element;
 
 public interface ErrorContext {
     void reportError(@CompileTimeConstant String message, Element element, Arg<?>... args);
+
+    void reportError(@CompileTimeConstant String message, Element element, Throwable throwable);
 }

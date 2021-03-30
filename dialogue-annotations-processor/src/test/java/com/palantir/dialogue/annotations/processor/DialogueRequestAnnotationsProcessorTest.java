@@ -72,7 +72,9 @@ public final class DialogueRequestAnnotationsProcessorTest {
     public void testHttpPathIsParsed() {
         Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UnparseableHttpPath.class);
         assertThat(compilation)
-                .hadErrorContaining("Failed to parse http path")
+                .hadErrorContaining("Failed to parse http path: threw an exception java.lang.IllegalArgumentException: "
+                        + "Invalid syntax in the template \"/greet/{oops\". "
+                        + "Check if a path parameter is terminated with a \"}\".")
                 .inFile(compilation.sourceFiles().get(0))
                 .onLineContaining("String greet(@Request.PathParam String greeting)");
         assertThat(compilation).hadErrorCount(2);
