@@ -201,7 +201,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         }
 
         @Override
-        public void reportError(String message, Element element, Throwable throwable) {
+        public void reportError(@CompileTimeConstant String message, Element element, Throwable throwable) {
             tripWire();
             error(message, element, throwable);
         }
