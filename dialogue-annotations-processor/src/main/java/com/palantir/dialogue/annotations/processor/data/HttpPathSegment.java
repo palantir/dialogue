@@ -16,11 +16,15 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import java.util.List;
-import org.immutables.value.Value;
+import org.derive4j.Data;
 
-@Value.Immutable
-public interface HttpPath {
-    @Value.Parameter
-    List<HttpPathSegment> get();
+@Data
+public interface HttpPathSegment {
+    interface Cases<R> {
+        R fixed(String value);
+
+        R variable(String variableName);
+    }
+
+    <R> R match(HttpPathSegment.Cases<R> cases);
 }

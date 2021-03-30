@@ -16,13 +16,14 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
-import com.google.common.base.Splitter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.HttpPath;
+import com.palantir.dialogue.annotations.processor.data.HttpPathSegment;
+import com.palantir.dialogue.annotations.processor.data.HttpPathSegment.Cases;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -34,7 +35,6 @@ import com.squareup.javapoet.TypeSpec;
 import java.util.Map;
 import java.util.Optional;
 import javax.lang.model.element.Modifier;
-import org.glassfish.jersey.uri.internal.UriTemplateParser;
 
 public final class EndpointsEnumGenerator {
 
@@ -117,24 +117,23 @@ public final class EndpointsEnumGenerator {
         return builder.build();
     }
 
-    // TODO(rfink): Integrate/consolidate with checking code in PathDefinition class
     private static CodeBlock pathTemplateInitializer(HttpPath path) {
-        UriTemplateParser uriTemplateParser = new UriTemplateParser(path.get());
-        Splitter splitter = Splitter.on('/');
-        Iterable<String> rawSegments = splitter.split(uriTemplateParser.getNormalizedTemplate());
-
         CodeBlock.Builder pathTemplateBuilder = CodeBlock.builder().add("$T.builder()", PathTemplate.class);
 
-        for (String segment : rawSegments) {
-            if (segment.isEmpty()) {
-                continue; // avoid empty segments; typically the first segment is empty
-            }
+        for (HttpPathSegment segment : path.get()) {
+            segment.match(new Cases<Void>() {
+                @Override
+                public Void fixed(String value) {
+                    pathTemplateBuilder.add(".fixed($S)", value);
+                    return null;
+                }
 
-            if (segment.startsWith("{") && segment.endsWith("}")) {
-                pathTemplateBuilder.add(".variable($S)", segment.substring(1, segment.length() - 1));
-            } else {
-                pathTemplateBuilder.add(".fixed($S)", segment);
-            }
+                @Override
+                public Void variable(String variableName) {
+                    pathTemplateBuilder.add(".variable($S)", variableName);
+                    return null;
+                }
+            });
         }
 
         CodeBlock build = pathTemplateBuilder.add(".build()").build();
