@@ -58,7 +58,7 @@ public final class ServiceImplementationGenerator {
 
         methodBuilder.returns(def.returns());
 
-        methodBuilder.addCode("throw new UnsupportedOperationException();");
+        methodBuilder.addCode("throw new $T();", UnsupportedOperationException.class);
 
         return methodBuilder.build();
     }
