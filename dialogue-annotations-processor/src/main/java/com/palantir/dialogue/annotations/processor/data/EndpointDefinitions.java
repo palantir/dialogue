@@ -129,6 +129,8 @@ public final class EndpointDefinitions {
             return Optional.empty();
         }
 
+        // TODO(12345): More validation of values.
+
         AnnotationReflector annotationReflector =
                 ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
