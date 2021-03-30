@@ -26,6 +26,7 @@ import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
 import java.io.IOException;
@@ -54,6 +55,13 @@ public final class DialogueRequestAnnotationsProcessorTest {
     public void testCannotAnnotateClass() {
         assertThat(compileTestClass(TEST_CLASSES_BASE_DIR, RequestAnnotatedClass.class))
                 .hadErrorContaining("Only methods on interfaces can be annotated");
+    }
+
+    @Test
+    public void testCannotAnnotateParamsWithMultipleAnnotations() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, MultipleParamAnnotations.class);
+        assertThat(compilation).hadErrorContaining("Only single annotation can be used");
+        assertThat(compilation).hadErrorCount(2);
     }
 
     private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
