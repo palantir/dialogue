@@ -96,14 +96,8 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        Set<Element> annotatedElements = roundEnv.getElementsAnnotatedWith(Request.class).stream()
+        KeyedStream.of(roundEnv.getElementsAnnotatedWith(Request.class))
                 .map(e -> (Element) e)
-                .collect(Collectors.toSet());
-        if (annotatedElements.isEmpty()) {
-            return false;
-        }
-
-        KeyedStream.of(annotatedElements)
                 .mapKeys(Element::getEnclosingElement)
                 .collectToSetMultimap()
                 .asMap()

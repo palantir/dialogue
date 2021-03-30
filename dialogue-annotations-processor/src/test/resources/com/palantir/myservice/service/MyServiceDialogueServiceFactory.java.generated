@@ -29,6 +29,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             }
 
             @Override
+            public void customRequest(RequestBody requestBody) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public Response customResponse() {
                 throw new UnsupportedOperationException();
             }
@@ -41,11 +46,6 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     int requestHeaderValue,
                     OptionalInt maybeRequestHeaderValue,
                     MySerializableType body) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void customRequest(RequestBody requestBody) {
                 throw new UnsupportedOperationException();
             }
         };
