@@ -34,16 +34,18 @@ public final class DialogueServiceFactoryGenerator {
     private final ServiceDefinition serviceDefinition;
     private final String className;
     private final ServiceImplementationGenerator serviceImplementationGenerator;
+    private final EndpointsEnumGenerator endpointsEnumGenerator;
 
     public DialogueServiceFactoryGenerator(ServiceDefinition serviceDefinition) {
         this.serviceDefinition = serviceDefinition;
         className = serviceDefinition.serviceInterface().simpleName() + "DialogueServiceFactory";
         this.serviceImplementationGenerator = new ServiceImplementationGenerator(serviceDefinition);
+        this.endpointsEnumGenerator = new EndpointsEnumGenerator(serviceDefinition);
     }
 
     public TypeSpec generate() {
 
-        TypeSpec.Builder method = TypeSpec.classBuilder(className)
+        TypeSpec.Builder serviceFactoryBuilder = TypeSpec.classBuilder(className)
                 .addAnnotation(AnnotationSpec.builder(ClassName.get(Generated.class))
                         .addMember("value", "$S", getClass().getCanonicalName())
                         .build())
@@ -52,8 +54,9 @@ public final class DialogueServiceFactoryGenerator {
                         ClassName.get(DialogueServiceFactory.class), serviceDefinition.serviceInterface()));
 
         TypeSpec serviceImplementation = serviceImplementationGenerator.generate();
+        TypeSpec endpointsEnum = endpointsEnumGenerator.generate();
 
-        method.addMethod(MethodSpec.methodBuilder("create")
+        serviceFactoryBuilder.addMethod(MethodSpec.methodBuilder("create")
                 .addAnnotation(Override.class)
                 .addModifiers(Modifier.PUBLIC)
                 .returns(serviceDefinition.serviceInterface())
@@ -64,6 +67,8 @@ public final class DialogueServiceFactoryGenerator {
                         .build())
                 .build());
 
-        return method.build();
+        serviceFactoryBuilder.addType(endpointsEnum);
+
+        return serviceFactoryBuilder.build();
     }
 }
