@@ -41,7 +41,7 @@ public final class EndpointDefinitions {
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
-        Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class));
+        Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class), "No annotation");
         UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
 
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()

@@ -7,6 +7,7 @@ dependencies {
     // All those must be compile because of some IntelliJ classpath issue
     compile project(':dialogue-annotations')
     compile project(':dialogue-target')
+    compile 'com.google.code.findbugs:jsr305'
     compile 'com.palantir.javaformat:palantir-java-format'
     compile 'com.palantir.javaformat:palantir-java-format-spi'
     compile 'com.palantir.safe-logging:preconditions'
