@@ -60,7 +60,10 @@ public final class DialogueRequestAnnotationsProcessorTest {
     @Test
     public void testCannotAnnotateParamsWithMultipleAnnotations() {
         Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, MultipleParamAnnotations.class);
-        assertThat(compilation).hadErrorContaining("Only single annotation can be used");
+        assertThat(compilation)
+                .hadErrorContaining("Only single annotation can be used")
+                .inFile(compilation.sourceFiles().get(0))
+                .onLineContaining("String greet(@Request.PathParam @Request.Body String greeting)");
         assertThat(compilation).hadErrorCount(2);
     }
 
