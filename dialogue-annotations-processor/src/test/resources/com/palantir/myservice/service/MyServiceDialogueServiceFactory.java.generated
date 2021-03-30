@@ -19,7 +19,12 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
             @Override
-            public Response customResponse() {
+            public void customRequest(RequestBody requestBody) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String greet(String greeting) {
                 throw new UnsupportedOperationException();
             }
 
@@ -35,12 +40,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             }
 
             @Override
-            public void customRequest(RequestBody requestBody) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String greet(String greeting) {
+            public Response customResponse() {
                 throw new UnsupportedOperationException();
             }
 
