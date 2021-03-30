@@ -26,8 +26,10 @@ import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
+import com.palantir.myservice.service.UnparseableHttpPath;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -56,6 +58,28 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 .hadErrorContaining("Only methods on interfaces can be annotated");
     }
 
+    @Test
+    public void testCannotAnnotateParamsWithMultipleAnnotations() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, MultipleParamAnnotations.class);
+        assertThat(compilation)
+                .hadErrorContaining("Only single annotation can be used")
+                .inFile(compilation.sourceFiles().get(0))
+                .onLineContaining("String greet(@Request.PathParam @Request.Body String greeting)");
+        assertThat(compilation).hadErrorCount(2);
+    }
+
+    @Test
+    public void testHttpPathIsParsed() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UnparseableHttpPath.class);
+        assertThat(compilation)
+                .hadErrorContaining("Failed to parse http path: threw an exception java.lang.IllegalArgumentException: "
+                        + "Invalid syntax in the template \"/greet/{oops\". "
+                        + "Check if a path parameter is terminated with a \"}\".")
+                .inFile(compilation.sourceFiles().get(0))
+                .onLineContaining("String greet(@Request.PathParam String greeting)");
+        assertThat(compilation).hadErrorCount(2);
+    }
+
     private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
         Compilation compilation = compileTestClass(basePath, clazz);
         assertThat(compilation).succeededWithoutWarnings();
@@ -73,7 +97,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 clazz.getSimpleName() + ".java"));
         try {
             return Compiler.javac()
-                    .withOptions("-source", "8")
+                    .withOptions("-source", "11")
                     .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {

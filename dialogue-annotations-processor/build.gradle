@@ -1,16 +1,22 @@
 apply plugin: 'com.palantir.external-publish-jar'
 apply plugin: 'org.inferred.processors'
 
+sourceCompatibility = 11
+
 dependencies {
     // All those must be compile because of some IntelliJ classpath issue
     compile project(':dialogue-annotations')
     compile project(':dialogue-target')
+    compile 'com.google.code.findbugs:jsr305'
+    compile 'com.palantir.common:streams'
     compile 'com.palantir.javaformat:palantir-java-format'
     compile 'com.palantir.javaformat:palantir-java-format-spi'
     compile 'com.palantir.safe-logging:preconditions'
     compile 'com.google.auto:auto-common'
     compile 'com.google.guava:guava'
     compile 'com.squareup:javapoet'
+    // For HttpPath parsing
+    compile 'org.glassfish.jersey.core:jersey-common'
 
     // fragile: copied from foundry/timber: it's here to make palantir-java-format work in the processor
     compile 'com.google.errorprone:javac-shaded'
@@ -21,6 +27,10 @@ dependencies {
 
     annotationProcessor 'com.google.auto.service:auto-service'
     compileOnly 'com.google.auto.service:auto-service'
+    annotationProcessor 'org.immutables:value'
+    compileOnly 'org.immutables:value::annotations'
+    annotationProcessor 'org.derive4j:derive4j'
+    compileOnly 'org.derive4j:derive4j-annotation'
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
