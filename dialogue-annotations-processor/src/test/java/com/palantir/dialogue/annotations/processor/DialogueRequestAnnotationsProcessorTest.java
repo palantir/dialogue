@@ -73,7 +73,7 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 clazz.getSimpleName() + ".java"));
         try {
             return Compiler.javac()
-                    .withOptions("-source", "8")
+                    .withOptions("-source", "11")
                     .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {

@@ -1,6 +1,8 @@
 apply plugin: 'com.palantir.external-publish-jar'
 apply plugin: 'org.inferred.processors'
 
+sourceCompatibility = 11
+
 dependencies {
     // All those must be compile because of some IntelliJ classpath issue
     compile project(':dialogue-annotations')
@@ -28,6 +30,8 @@ dependencies {
     annotationProcessor 'org.derive4j:derive4j'
     compileOnly 'org.derive4j:derive4j-annotation'
 
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
     testImplementation project(':dialogue-annotations')
     testImplementation project(':dialogue-target')
     testImplementation 'com.fasterxml.jackson.core:jackson-annotations'

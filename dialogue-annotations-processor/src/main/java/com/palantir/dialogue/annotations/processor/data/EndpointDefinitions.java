@@ -33,6 +33,7 @@ import org.glassfish.jersey.uri.internal.UriTemplateParser;
 
 public final class EndpointDefinitions {
 
+    @SuppressWarnings("StrictUnusedVariable")
     private final ErrorContext errorContext;
 
     public EndpointDefinitions(ErrorContext errorContext) {

@@ -26,6 +26,7 @@ import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeSpec;
+import javax.annotation.processing.Generated;
 import javax.lang.model.element.Modifier;
 
 public final class DialogueServiceFactoryGenerator {
@@ -43,7 +44,7 @@ public final class DialogueServiceFactoryGenerator {
     public TypeSpec generate() {
 
         TypeSpec.Builder method = TypeSpec.classBuilder(className)
-                .addAnnotation(AnnotationSpec.builder(ClassName.get("javax.annotation", "Generated"))
+                .addAnnotation(AnnotationSpec.builder(ClassName.get(Generated.class))
                         .addMember("value", "$S", getClass().getCanonicalName())
                         .build())
                 .addModifiers(Modifier.PUBLIC, Modifier.FINAL)

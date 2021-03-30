@@ -38,6 +38,7 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -79,7 +80,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.latestSupported();
+        return SourceVersion.RELEASE_11;
     }
 
     @Override
@@ -95,10 +96,10 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
             return false;
         }
 
-        groupByEnclosingElement(elements).forEach((interfaceElement, annotatedMethods) -> {
+        groupByEnclosingElement(elements).asMap().forEach((interfaceElement, annotatedMethods) -> {
             JavaFile javaFile;
             try {
-                javaFile = generateDialogueServiceFactory(interfaceElement, elements);
+                javaFile = generateDialogueServiceFactory(interfaceElement, annotatedMethods);
             } catch (Throwable e) {
                 error("Code generation failed", interfaceElement, e);
                 return;
@@ -124,7 +125,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         return ret;
     }
 
-    private JavaFile generateDialogueServiceFactory(Element annotatedInterface, Set<Element> elements) {
+    private JavaFile generateDialogueServiceFactory(Element annotatedInterface, Collection<Element> elements) {
         ElementKind kind = annotatedInterface.getKind();
         Preconditions.checkArgument(kind.isInterface(), "Only methods on interfaces can be annotated with @Request");
 
@@ -197,7 +198,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         }
 
         @Override
-        public void reportError(String message, Element element) {
+        public void reportError(@CompileTimeConstant String message, Element element) {
             tripWire();
             messager.printMessage(Kind.ERROR, message, element);
         }
