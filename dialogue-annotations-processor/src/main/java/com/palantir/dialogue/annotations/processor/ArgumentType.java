@@ -14,18 +14,21 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.dialogue.annotations.processor;
 
-import com.palantir.dialogue.annotations.processor.ArgumentType;
-import org.immutables.value.Value;
+import com.squareup.javapoet.TypeName;
+import org.derive4j.Data;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface ArgumentDefinition {
+@Data
+public interface ArgumentType {
+    interface Cases<R> {
+        /** Should be handled by {@link com.palantir.dialogue.PlainSerDe}. */
+        R primitive(TypeName javaTypeName, String planSerDeMethodName);
 
-    ArgumentName argName();
+        R rawRequestBody(TypeName requestBodyTypeName);
 
-    ArgumentType argType();
+        R customType(TypeName customTypeName, String valueOfMethodName);
+    }
 
-    ParameterType paramType();
+    <R> R match(ArgumentType.Cases<R> cases);
 }

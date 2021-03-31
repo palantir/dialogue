@@ -12,6 +12,7 @@ dependencies {
     compile 'com.palantir.javaformat:palantir-java-format'
     compile 'com.palantir.javaformat:palantir-java-format-spi'
     compile 'com.palantir.safe-logging:preconditions'
+    compile 'com.palantir.tokens:auth-tokens'
     compile 'com.google.auto:auto-common'
     compile 'com.google.guava:guava'
     compile 'com.squareup:javapoet'

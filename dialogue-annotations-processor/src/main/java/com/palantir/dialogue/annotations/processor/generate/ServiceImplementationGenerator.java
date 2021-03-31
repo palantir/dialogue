@@ -16,11 +16,10 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
-import com.google.common.collect.ImmutableMap;
-import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
@@ -34,8 +33,6 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.type.TypeMirror;
@@ -70,8 +67,25 @@ public final class ServiceImplementationGenerator {
 
     private MethodSpec clientImpl(EndpointDefinition def) {
         List<ParameterSpec> params = def.arguments().stream()
-                .map(arg ->
-                        ParameterSpec.builder(arg.type(), arg.argName().get()).build())
+                .map(arg -> ParameterSpec.builder(
+                                arg.argType().match(new ArgumentType.Cases<TypeName>() {
+                                    @Override
+                                    public TypeName primitive(TypeName javaTypeName, String planSerDeMethodName) {
+                                        return javaTypeName;
+                                    }
+
+                                    @Override
+                                    public TypeName rawRequestBody(TypeName rawRequestBodyTypeName) {
+                                        return rawRequestBodyTypeName;
+                                    }
+
+                                    @Override
+                                    public TypeName customType(TypeName customTypeName, String _unused) {
+                                        return customTypeName;
+                                    }
+                                }),
+                                arg.argName().get())
+                        .build())
                 .collect(Collectors.toList());
 
         MethodSpec.Builder methodBuilder = MethodSpec.methodBuilder(
@@ -108,7 +122,7 @@ public final class ServiceImplementationGenerator {
     }
 
     private CodeBlock generateParam(String endpointName, ArgumentDefinition param) {
-        return param.paramType().match(new Cases<CodeBlock>() {
+        return param.paramType().match(new Cases<>() {
             @Override
             public CodeBlock rawBody() {
                 return null;
@@ -153,7 +167,7 @@ public final class ServiceImplementationGenerator {
 
     private CodeBlock generateHeaderParam(ArgumentDefinition param, String headerName) {
         return generatePlainSerializer(
-                "putHeaderParams", headerName, CodeBlock.of(param.argName().get()), param.type());
+                "putHeaderParams", headerName, CodeBlock.of(param.argName().get()), param.argType());
     }
 
     private CodeBlock generatePathParam(ArgumentDefinition param) {
@@ -161,26 +175,32 @@ public final class ServiceImplementationGenerator {
                 "putPathParams",
                 param.argName().get(),
                 CodeBlock.of("$L", param.argName().get()),
-                param.type());
+                param.argType());
     }
 
     private CodeBlock generateQueryParam(ArgumentDefinition param, String paramName) {
         return generatePlainSerializer(
-                "putQueryParams", paramName, CodeBlock.of(param.argName().get()), param.type());
+                "putQueryParams", paramName, CodeBlock.of(param.argName().get()), param.argType());
     }
 
-    private CodeBlock generatePlainSerializer(String method, String key, CodeBlock argName, TypeName type) {
-        if (isPrimitive(type)) {
-            return CodeBlock.of(
-                    "$L.$L($S, $L.serialize$L($L));",
-                    REQUEST,
-                    method,
-                    key,
-                    PLAIN_SER_DE,
-                    primitiveTypeName(type),
-                    argName);
-        }
-        return null;
+    private CodeBlock generatePlainSerializer(String method, String key, CodeBlock argName, ArgumentType type) {
+        return type.match(new ArgumentType.Cases<CodeBlock>() {
+            @Override
+            public CodeBlock primitive(TypeName javaTypeName, String plainSerDeMethodName) {
+                return CodeBlock.of(
+                        "$L.$L($S, $L.$L($L));", REQUEST, method, key, PLAIN_SER_DE, plainSerDeMethodName, argName);
+            }
+
+            @Override
+            public CodeBlock rawRequestBody(TypeName requestBodyTypeName) {
+                throw new UnsupportedOperationException("This should not happen");
+            }
+
+            @Override
+            public CodeBlock customType(TypeName customTypeName, String valueOfMethodName) {
+                return CodeBlock.of("$L.$L($S, $L.$L());", REQUEST, method, key, argName, valueOfMethodName);
+            }
+        });
         // return type.accept(new Type.Visitor<CodeBlock>() {
         //     @Override
         //     public CodeBlock visitPrimitive(PrimitiveType primitiveType) {
@@ -273,31 +293,4 @@ public final class ServiceImplementationGenerator {
     //     }
     //     return "get";
     // }
-
-    private static final ImmutableMap<TypeName, String> PRIMITIVE_TO_TYPE_NAME =
-            ImmutableMap.copyOf(KeyedStream.stream(new ImmutableMap.Builder<Class<?>, String>()
-                            // .put(PrimitiveType.Value.BEARERTOKEN, "BearerToken")
-                            // .put(PrimitiveType.Value.BOOLEAN, "Boolean")
-                            // .put(PrimitiveType.Value.DATETIME, "DateTime")
-                            // .put(PrimitiveType.Value.DOUBLE, "Double")
-                            // .put(PrimitiveType.Value.INTEGER, "Integer")
-                            // .put(PrimitiveType.Value.RID, "Rid")
-                            // .put(PrimitiveType.Value.SAFELONG, "SafeLong")
-                            // .put(PrimitiveType.Value.STRING, "String")
-                            .put(UUID.class, "Uuid")
-                            .build())
-                    .mapKeys((Function<Class<?>, ClassName>) ClassName::get)
-                    .collectToMap());
-
-    private static boolean isPrimitive(TypeName in) {
-        return PRIMITIVE_TO_TYPE_NAME.containsKey(in);
-    }
-
-    private static String primitiveTypeName(TypeName in) {
-        String typeName = PRIMITIVE_TO_TYPE_NAME.get(in);
-        if (typeName == null) {
-            throw new IllegalStateException("unrecognized primitive type: " + in);
-        }
-        return typeName;
-    }
 }
