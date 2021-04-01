@@ -214,7 +214,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock customTypeWithValueOf(TypeName _unused, String valueOfMethodName) {
+            public CodeBlock customTypeWithValueOf(TypeName _unused, String asStringMethodName) {
                 return CodeBlock.of(
                         "$L.$L($S, $L.serializeString($L.$L()));",
                         REQUEST,
@@ -222,7 +222,7 @@ public final class ServiceImplementationGenerator {
                         key,
                         PLAIN_SER_DE,
                         argName,
-                        valueOfMethodName);
+                        asStringMethodName);
             }
 
             @Override

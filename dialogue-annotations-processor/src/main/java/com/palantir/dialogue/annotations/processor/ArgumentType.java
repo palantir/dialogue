@@ -31,7 +31,7 @@ public interface ArgumentType {
 
         R optional(TypeName optionalJavaType, OptionalType optionalType);
 
-        R customTypeWithValueOf(TypeName customTypeName, String valueOfMethodName);
+        R customTypeWithValueOf(TypeName customTypeName, String asStringMethodName);
 
         R customType(TypeName customTypeName);
     }
