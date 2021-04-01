@@ -18,6 +18,7 @@ package com.palantir.dialogue.annotations.processor;
 
 import com.squareup.javapoet.TypeName;
 import org.derive4j.Data;
+import org.immutables.value.Value;
 
 @Data
 public interface ArgumentType {
@@ -25,10 +26,25 @@ public interface ArgumentType {
         /** Should be handled by {@link com.palantir.dialogue.PlainSerDe}. */
         R primitive(TypeName javaTypeName, String planSerDeMethodName);
 
+        /** Arg will be always {@link com.palantir.dialogue.RequestBody}, passing it this way for ease of codegen. */
         R rawRequestBody(TypeName requestBodyTypeName);
 
-        R customType(TypeName customTypeName, String valueOfMethodName);
+        R optional(TypeName optionalJavaType, OptionalType optionalType);
+
+        R customTypeWithValueOf(TypeName customTypeName, String valueOfMethodName);
+
+        R customType(TypeName customTypeName);
     }
 
     <R> R match(ArgumentType.Cases<R> cases);
+
+    @Value.Immutable
+    @Value.Style(stagedBuilder = true)
+    interface OptionalType {
+        String isPresentMethodName();
+
+        String valueGetMethodName();
+
+        ArgumentType underlyingType();
+    }
 }

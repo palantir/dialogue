@@ -45,9 +45,11 @@ public final class EndpointDefinitions {
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
         Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class), "No annotation");
 
+        EndpointName endpointName =
+                ImmutableEndpointName.of(element.getSimpleName().toString());
         Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotation);
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
-                .map(this::getArgumentDefinition)
+                .map(arg -> getArgumentDefinition(endpointName, arg))
                 .collect(Collectors.toList());
 
         if (!args.stream()
@@ -61,7 +63,7 @@ public final class EndpointDefinitions {
         // TODO(12345): More validations around repeats etc.
 
         return Optional.of(ImmutableEndpointDefinition.builder()
-                .endpointName(ImmutableEndpointName.of(element.getSimpleName().toString()))
+                .endpointName(endpointName)
                 .httpMethod(requestAnnotation.method())
                 .httpPath(maybeHttpPath.get())
                 .returns(TypeName.get(element.getReturnType()))
@@ -69,13 +71,16 @@ public final class EndpointDefinitions {
                 .build());
     }
 
-    private Optional<ArgumentDefinition> getArgumentDefinition(VariableElement param) {
+    private Optional<ArgumentDefinition> getArgumentDefinition(EndpointName endpointName, VariableElement param) {
         Optional<ArgumentType> argumentType = argumentTypesResolver.getArgumentType(param);
-        Optional<ParameterType> parameterType = paramTypesResolver.getParameterType(param);
+        Optional<ParameterType> parameterType = paramTypesResolver.getParameterType(endpointName, param);
 
         if (argumentType.isEmpty() || parameterType.isEmpty()) {
             return Optional.empty();
         }
+
+        // TODO(12345): More validation around ArgumentType and ParameterType actually agreeing, e.g. if
+        //  ArgumentType#requestBody then ParameterType#rawBody.
 
         return Optional.of(ImmutableArgumentDefinition.builder()
                 .argName(ImmutableArgumentName.of(param.getSimpleName().toString()))

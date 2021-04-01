@@ -12,7 +12,10 @@ import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.Serializer;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.annotations.Json;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.UnsupportedOperationException;
@@ -29,6 +32,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
         return new MyService() {
             private final PlainSerDe _plainSerDe = runtime.plainSerDe();
 
+            private final Serializer<String> greetSerializer = new Json().serializerFor(new TypeMarker<String>() {});
+
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
             private final EndpointChannel getGreetingAsyncChannel =
@@ -40,11 +45,15 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
 
+            private final Serializer<MySerializableType> paramsSerializer =
+                    new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
+
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
 
             @Override
             public String greet(String greeting) {
                 Request.Builder _request = Request.builder();
+                _request.body(greetSerializer.serialize(greeting));
                 throw new UnsupportedOperationException();
             }
 
@@ -57,6 +66,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             @Override
             public void customRequest(RequestBody requestBody) {
                 Request.Builder _request = Request.builder();
+                _request.body(requestBody);
                 throw new UnsupportedOperationException();
             }
 
@@ -72,10 +82,32 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     UUID myPathParam,
                     MyCustomParamType myPathParam2,
                     int requestHeaderValue,
-                    OptionalInt maybeRequestHeaderValue,
+                    Optional<String> maybeCustomOptionalHeader1Value,
+                    OptionalInt maybeCustomOptionalHeader2Value,
+                    Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
+                _request.putQueryParams("q", _plainSerDe.serializeString(query));
                 _request.putPathParams("myPathParam", _plainSerDe.serializeUuid(myPathParam));
+                _request.putPathParams("myPathParam2", _plainSerDe.serializeString(myPathParam2.valueOf()));
+                _request.putHeaderParams("Custom-Header", _plainSerDe.serializeInteger(requestHeaderValue));
+                if (maybeCustomOptionalHeader1Value.isPresent()) {
+                    _request.putHeaderParams(
+                            "Custom-Optional-Header1",
+                            _plainSerDe.serializeString(maybeCustomOptionalHeader1Value.get()));
+                }
+                if (maybeCustomOptionalHeader2Value.isPresent()) {
+                    _request.putHeaderParams(
+                            "Custom-Optional-Header2",
+                            _plainSerDe.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
+                }
+                if (maybeCustomOptionalHeader3Value.isPresent()) {
+                    _request.putHeaderParams(
+                            "Custom-Optional-Header3",
+                            _plainSerDe.serializeString(
+                                    maybeCustomOptionalHeader3Value.get().valueOf()));
+                }
+                _request.body(paramsSerializer.serialize(body));
                 throw new UnsupportedOperationException();
             }
         };

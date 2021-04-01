@@ -21,6 +21,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 
@@ -63,7 +64,9 @@ public interface MyService {
             @Request.PathParam MyCustomParamType myPathParam2,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
-            @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
+            @Request.Header("Custom-Optional-Header1") Optional<String> maybeCustomOptionalHeader1Value,
+            @Request.Header("Custom-Optional-Header2") OptionalInt maybeCustomOptionalHeader2Value,
+            @Request.Header("Custom-Optional-Header3") Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have

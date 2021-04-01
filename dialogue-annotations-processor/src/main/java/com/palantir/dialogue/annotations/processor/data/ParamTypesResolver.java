@@ -21,11 +21,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.squareup.javapoet.TypeName;
 import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,16 +52,19 @@ public final class ParamTypesResolver {
     private final ErrorContext errorContext;
     private final Types types;
     private final TypeMirror requestBodyType;
+    private final TypeMirror jsonDeserializerSerializerType;
 
     public ParamTypesResolver(ErrorContext errorContext, Elements elements, Types types) {
         this.errorContext = errorContext;
         this.types = types;
         this.requestBodyType =
                 elements.getTypeElement(RequestBody.class.getCanonicalName()).asType();
+        this.jsonDeserializerSerializerType =
+                elements.getTypeElement(Json.class.getCanonicalName()).asType();
     }
 
     @SuppressWarnings("CyclomaticComplexity")
-    public Optional<ParameterType> getParameterType(VariableElement variableElement) {
+    public Optional<ParameterType> getParameterType(EndpointName endpointName, VariableElement variableElement) {
         List<AnnotationMirror> paramAnnotationMirrors = new ArrayList<>();
         for (AnnotationMirror annotationMirror : variableElement.getAnnotationMirrors()) {
             TypeElement annotationTypeElement =
@@ -96,7 +101,13 @@ public final class ParamTypesResolver {
         AnnotationReflector annotationReflector =
                 ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
-            return Optional.of(ParameterTypes.body(annotationReflector.getValueMaybe(TypeMirror.class)));
+            // default annotation param values are not available at annotation processing time
+            String serializerName = endpointName.get() + "Serializer";
+            Optional<TypeMirror> customSerializer = annotationReflector.getValueMaybe(TypeMirror.class);
+            // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
+            //  match
+            return Optional.of(ParameterTypes.body(
+                    TypeName.get(customSerializer.orElse(jsonDeserializerSerializerType)), serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValue()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {

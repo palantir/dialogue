@@ -19,23 +19,27 @@ package com.palantir.dialogue.annotations.processor.generate;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Serializer;
+import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
+import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
+import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
+import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
 import com.squareup.javapoet.FieldSpec;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterSpec;
+import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
-import javax.lang.model.type.TypeMirror;
 
 public final class ServiceImplementationGenerator {
 
@@ -58,6 +62,13 @@ public final class ServiceImplementationGenerator {
                 .build());
 
         serviceDefinition.endpoints().forEach(endpoint -> {
+            endpoint.arguments().stream()
+                    .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
+                            .body((serializer, serializerFieldName) -> serializer(arg, serializer, serializerFieldName))
+                            .otherwiseEmpty()
+                            .stream())
+                    .findAny()
+                    .ifPresent(impl::addField);
             impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
         });
@@ -68,22 +79,12 @@ public final class ServiceImplementationGenerator {
     private MethodSpec clientImpl(EndpointDefinition def) {
         List<ParameterSpec> params = def.arguments().stream()
                 .map(arg -> ParameterSpec.builder(
-                                arg.argType().match(new ArgumentType.Cases<TypeName>() {
-                                    @Override
-                                    public TypeName primitive(TypeName javaTypeName, String planSerDeMethodName) {
-                                        return javaTypeName;
-                                    }
-
-                                    @Override
-                                    public TypeName rawRequestBody(TypeName rawRequestBodyTypeName) {
-                                        return rawRequestBodyTypeName;
-                                    }
-
-                                    @Override
-                                    public TypeName customType(TypeName customTypeName, String _unused) {
-                                        return customTypeName;
-                                    }
-                                }),
+                                ArgumentTypes.caseOf(arg.argType())
+                                        .primitive((javaTypeName, _unused) -> javaTypeName)
+                                        .rawRequestBody(typeName -> typeName)
+                                        .optional((optionalJavaType, _unused) -> optionalJavaType)
+                                        .customTypeWithValueOf((customTypeName, _unused) -> customTypeName)
+                                        .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
                 .collect(Collectors.toList());
@@ -97,7 +98,7 @@ public final class ServiceImplementationGenerator {
         methodBuilder.addCode("$T $L = $T.builder();", Request.Builder.class, REQUEST, Request.class);
 
         def.arguments().forEach(arg -> {
-            CodeBlock codeBlock = generateParam(def.endpointName().get(), arg);
+            CodeBlock codeBlock = generateParam(arg);
             if (codeBlock != null) {
                 methodBuilder.addCode(codeBlock);
             }
@@ -121,16 +122,34 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
-    private CodeBlock generateParam(String endpointName, ArgumentDefinition param) {
+    private FieldSpec serializer(
+            ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
+        TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
+                .primitive((javaTypeName, _unused) -> javaTypeName)
+                .customType(typeName -> typeName)
+                .otherwiseEmpty()
+                .get();
+        ParameterizedTypeName deserializerType = ParameterizedTypeName.get(ClassName.get(Serializer.class), className);
+        return FieldSpec.builder(deserializerType, serializerFieldName)
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className)
+                .build();
+    }
+
+    private CodeBlock generateParam(ArgumentDefinition param) {
         return param.paramType().match(new Cases<>() {
             @Override
             public CodeBlock rawBody() {
-                return null;
+                return CodeBlock.of("$L.body($L);", REQUEST, param.argName().get());
             }
 
             @Override
-            public CodeBlock body(Optional<TypeMirror> serializer) {
-                return null;
+            public CodeBlock body(TypeName _unused, String serializerFieldName) {
+                return CodeBlock.of(
+                        "$L.body($L.serialize($L));",
+                        REQUEST,
+                        serializerFieldName,
+                        param.argName().get());
             }
 
             @Override
@@ -147,21 +166,6 @@ public final class ServiceImplementationGenerator {
             public CodeBlock query(String paramName) {
                 return generateQueryParam(param, paramName);
             }
-
-            // @Override
-            // public CodeBlock visitBody(BodyParameterType value) {
-            //     if (parameterTypes
-            //             .baseType(param.getType())
-            //             .equals(parameterTypes.baseType(Type.primitive(PrimitiveType.BINARY)))) {
-            //         return CodeBlock.of(
-            //                 "$L.body($L.bodySerDe().serialize($L));",
-            //                 REQUEST,
-            //                 StaticFactoryMethodGenerator.RUNTIME,
-            //                 param.getArgName());
-            //     }
-            //     return CodeBlock.of("$L.body($LSerializer.serialize($L));", REQUEST, endpointName,
-            // param.getArgName());
-            // }
         });
     }
 
@@ -184,113 +188,47 @@ public final class ServiceImplementationGenerator {
     }
 
     private CodeBlock generatePlainSerializer(String method, String key, CodeBlock argName, ArgumentType type) {
-        return type.match(new ArgumentType.Cases<CodeBlock>() {
+        return type.match(new ArgumentType.Cases<>() {
             @Override
-            public CodeBlock primitive(TypeName javaTypeName, String plainSerDeMethodName) {
+            public CodeBlock primitive(TypeName _unused, String plainSerDeMethodName) {
                 return CodeBlock.of(
                         "$L.$L($S, $L.$L($L));", REQUEST, method, key, PLAIN_SER_DE, plainSerDeMethodName, argName);
             }
 
             @Override
-            public CodeBlock rawRequestBody(TypeName requestBodyTypeName) {
+            public CodeBlock rawRequestBody(TypeName _unused) {
                 throw new UnsupportedOperationException("This should not happen");
             }
 
             @Override
-            public CodeBlock customType(TypeName customTypeName, String valueOfMethodName) {
-                return CodeBlock.of("$L.$L($S, $L.$L());", REQUEST, method, key, argName, valueOfMethodName);
+            public CodeBlock optional(TypeName _unused, OptionalType optionalType) {
+                return CodeBlock.builder()
+                        .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
+                        .add(generatePlainSerializer(
+                                method,
+                                key,
+                                CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
+                                optionalType.underlyingType()))
+                        .endControlFlow()
+                        .build();
+            }
+
+            @Override
+            public CodeBlock customTypeWithValueOf(TypeName _unused, String valueOfMethodName) {
+                return CodeBlock.of(
+                        "$L.$L($S, $L.serializeString($L.$L()));",
+                        REQUEST,
+                        method,
+                        key,
+                        PLAIN_SER_DE,
+                        argName,
+                        valueOfMethodName);
+            }
+
+            @Override
+            public CodeBlock customType(TypeName _unused) {
+                throw new UnsupportedOperationException("This should not happen");
             }
         });
-        // return type.accept(new Type.Visitor<CodeBlock>() {
-        //     @Override
-        //     public CodeBlock visitPrimitive(PrimitiveType primitiveType) {
-        //         return CodeBlock.of(
-        //                 "$L.$L($S, $L.serialize$L($L));",
-        //                 "_request",
-        //                 method,
-        //                 key,
-        //                 PLAIN_SER_DE,
-        //                 primitiveTypeName(primitiveType),
-        //                 argName);
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitOptional(OptionalType optionalType) {
-        //
-        //         return CodeBlock.builder()
-        //                 .beginControlFlow("if ($L.isPresent())", argName)
-        //                 .add(generatePlainSerializer(
-        //                         method,
-        //                         key,
-        //                         CodeBlock.of("$L.$L()", argName, getOptionalAccessor(optionalType.getItemType())),
-        //                         optionalType.getItemType()))
-        //                 .endControlFlow()
-        //                 .build();
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitList(ListType value) {
-        //         return visitCollection(value.getItemType());
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitSet(SetType value) {
-        //         return visitCollection(value.getItemType());
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitMap(MapType value) {
-        //         throw new SafeIllegalStateException("Maps can not be query parameters");
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitReference(com.palantir.conjure.spec.TypeName typeName) {
-        //         TypeDefinition typeDef = typeNameResolver.resolve(typeName);
-        //         if (typeDef.accept(TypeDefinitionVisitor.IS_ALIAS)) {
-        //             return generatePlainSerializer(
-        //                     method,
-        //                     key,
-        //                     CodeBlock.of("$L.get()", argName),
-        //                     typeDef.accept(TypeDefinitionVisitor.ALIAS).getAlias());
-        //         } else if (typeDef.accept(TypeDefinitionVisitor.IS_ENUM)) {
-        //             return CodeBlock.of("$L.$L($S, $T.toString($L));", "_request", method, key, Objects.class,
-        // argName);
-        //         }
-        //         throw new IllegalStateException("Plain serialization can only be aliases and enums");
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitExternal(ExternalReference value) {
-        //         // TODO(forozco): we could probably do something smarter than just calling toString
-        //         return CodeBlock.of("$L.$L($S, $T.toString($L));", "_request", method, key, Objects.class, argName);
-        //     }
-        //
-        //     @Override
-        //     public CodeBlock visitUnknown(String unknownType) {
-        //         throw new SafeIllegalStateException("Unknown param type", SafeArg.of("type", unknownType));
-        //     }
-        //
-        //     private CodeBlock visitCollection(Type itemType) {
-        //         CodeBlock elementVariable = CodeBlock.of("$LElement", argName);
-        //         return CodeBlock.builder()
-        //                 .beginControlFlow(
-        //                         "for ($T $L : $L)", parameterTypes.baseType(itemType), elementVariable, argName)
-        //                 .add(generatePlainSerializer(method, key, elementVariable, itemType))
-        //                 .endControlFlow()
-        //                 .build();
-        //     }
-        // });
     }
-
-    // private static String getOptionalAccessor(Type type) {
-    //     if (type.accept(TypeVisitor.IS_PRIMITIVE)) {
-    //         PrimitiveType primitive = type.accept(TypeVisitor.PRIMITIVE);
-    //         if (primitive.equals(PrimitiveType.DOUBLE)) {
-    //             return "getAsDouble";
-    //         } else if (primitive.equals(PrimitiveType.INTEGER)) {
-    //             return "getAsInt";
-    //         }
-    //     }
-    //     return "get";
-    // }
 }
