@@ -38,6 +38,7 @@ import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -96,12 +97,7 @@ public final class ServiceImplementationGenerator {
 
         methodBuilder.addCode("$T $L = $T.builder();", Request.Builder.class, REQUEST, Request.class);
 
-        def.arguments().forEach(arg -> {
-            CodeBlock codeBlock = generateParam(arg);
-            if (codeBlock != null) {
-                methodBuilder.addCode(codeBlock);
-            }
-        });
+        def.arguments().forEach(arg -> generateParam(arg).ifPresent(methodBuilder::addCode));
 
         methodBuilder.returns(def.returns());
 
@@ -135,45 +131,46 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
-    private CodeBlock generateParam(ArgumentDefinition param) {
+    private Optional<CodeBlock> generateParam(ArgumentDefinition param) {
         return param.paramType().match(new Cases<>() {
             @Override
-            public CodeBlock rawBody() {
-                return CodeBlock.of("$L.body($L);", REQUEST, param.argName().get());
+            public Optional<CodeBlock> rawBody() {
+                return Optional.of(
+                        CodeBlock.of("$L.body($L);", REQUEST, param.argName().get()));
             }
 
             @Override
-            public CodeBlock body(TypeName _unused, String serializerFieldName) {
-                return CodeBlock.of(
+            public Optional<CodeBlock> body(TypeName _unused, String serializerFieldName) {
+                return Optional.of(CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,
                         serializerFieldName,
-                        param.argName().get());
+                        param.argName().get()));
             }
 
             @Override
-            public CodeBlock header(String headerName) {
+            public Optional<CodeBlock> header(String headerName) {
                 return generateHeaderParam(param, headerName);
             }
 
             @Override
-            public CodeBlock path() {
+            public Optional<CodeBlock> path() {
                 return generatePathParam(param);
             }
 
             @Override
-            public CodeBlock query(String paramName) {
+            public Optional<CodeBlock> query(String paramName) {
                 return generateQueryParam(param, paramName);
             }
         });
     }
 
-    private CodeBlock generateHeaderParam(ArgumentDefinition param, String headerName) {
+    private Optional<CodeBlock> generateHeaderParam(ArgumentDefinition param, String headerName) {
         return generatePlainSerializer(
                 "putHeaderParams", headerName, CodeBlock.of(param.argName().get()), param.argType());
     }
 
-    private CodeBlock generatePathParam(ArgumentDefinition param) {
+    private Optional<CodeBlock> generatePathParam(ArgumentDefinition param) {
         return generatePlainSerializer(
                 "putPathParams",
                 param.argName().get(),
@@ -181,43 +178,42 @@ public final class ServiceImplementationGenerator {
                 param.argType());
     }
 
-    private CodeBlock generateQueryParam(ArgumentDefinition param, String paramName) {
+    private Optional<CodeBlock> generateQueryParam(ArgumentDefinition param, String paramName) {
         return generatePlainSerializer(
                 "putQueryParams", paramName, CodeBlock.of(param.argName().get()), param.argType());
     }
 
-    private CodeBlock generatePlainSerializer(String method, String key, CodeBlock argName, ArgumentType type) {
+    private Optional<CodeBlock> generatePlainSerializer(
+            String method, String key, CodeBlock argName, ArgumentType type) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
-            public CodeBlock primitive(TypeName _unused, String plainSerDeMethodName) {
-                return CodeBlock.of(
-                        "$L.$L($S, $L.$L($L));", REQUEST, method, key, PLAIN_SER_DE, plainSerDeMethodName, argName);
+            public Optional<CodeBlock> primitive(TypeName _unused, String plainSerDeMethodName) {
+                return Optional.of(CodeBlock.of(
+                        "$L.$L($S, $L.$L($L));", REQUEST, method, key, PLAIN_SER_DE, plainSerDeMethodName, argName));
             }
 
             @Override
-            public CodeBlock rawRequestBody(TypeName _unused) {
+            public Optional<CodeBlock> rawRequestBody(TypeName _unused) {
                 throw new UnsupportedOperationException("This should not happen");
             }
 
             @Override
-            public CodeBlock optional(TypeName _unused, OptionalType optionalType) {
-                CodeBlock codeBlock = generatePlainSerializer(
-                        method,
-                        key,
-                        CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
-                        optionalType.underlyingType());
-                return codeBlock != null
-                        ? CodeBlock.builder()
+            public Optional<CodeBlock> optional(TypeName _unused, OptionalType optionalType) {
+                return generatePlainSerializer(
+                                method,
+                                key,
+                                CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
+                                optionalType.underlyingType())
+                        .map(inner -> CodeBlock.builder()
                                 .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
-                                .add(codeBlock)
+                                .add(inner)
                                 .endControlFlow()
-                                .build()
-                        : null;
+                                .build());
             }
 
             @Override
-            public CodeBlock customType(TypeName _unused) {
-                return null;
+            public Optional<CodeBlock> customType(TypeName _unused) {
+                return Optional.empty();
             }
         });
     }

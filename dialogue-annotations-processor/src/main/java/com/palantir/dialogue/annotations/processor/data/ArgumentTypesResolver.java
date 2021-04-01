@@ -46,8 +46,6 @@ import javax.lang.model.util.Types;
 
 public final class ArgumentTypesResolver {
 
-    private static final String TO_STRING_PARAM_VALUE_METHOD = "toStringParamValue";
-
     /**
      * Why not generate this by inspecting the {@link com.palantir.dialogue.PlainSerDe} interface?
      * If we suddenly decide to provide special serialization for a widely used type, we could break wire
