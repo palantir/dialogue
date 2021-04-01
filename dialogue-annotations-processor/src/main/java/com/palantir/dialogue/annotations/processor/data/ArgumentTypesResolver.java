@@ -51,7 +51,7 @@ import javax.lang.model.util.Types;
 
 public final class ArgumentTypesResolver {
 
-    private static final String AS_STRING_METHOD_NAME = "asString";
+    private static final String TO_STRING_PARAM_VALUE_METHOD = "toStringParamValue";
 
     /**
      * Why not generate this by inspecting the {@link com.palantir.dialogue.PlainSerDe} interface?
@@ -121,7 +121,7 @@ public final class ArgumentTypesResolver {
             // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
             return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
         } else if (isCustomAndHasValueOfMethod(actualTypeMirror)) {
-            return Optional.of(ArgumentTypes.customTypeWithValueOf(typeName, AS_STRING_METHOD_NAME));
+            return Optional.of(ArgumentTypes.customTypeWithValueOf(typeName, TO_STRING_PARAM_VALUE_METHOD));
         } else {
             return Optional.of(ArgumentTypes.customType(typeName));
         }
@@ -189,7 +189,7 @@ public final class ArgumentTypesResolver {
         Visibility visibility = Visibility.ofElement(executableElement);
         Set<Modifier> modifiers = executableElement.getModifiers();
         // TODO(12345): Actually give the user good feedback on what exactly they need to add to make this type comply.
-        return executableElement.getSimpleName().toString().equals(AS_STRING_METHOD_NAME)
+        return executableElement.getSimpleName().toString().equals(TO_STRING_PARAM_VALUE_METHOD)
                 && executableElement.getParameters().isEmpty()
                 && executableElement.getTypeParameters().isEmpty()
                 && types.isSameType(executableElement.getReturnType(), stringType)

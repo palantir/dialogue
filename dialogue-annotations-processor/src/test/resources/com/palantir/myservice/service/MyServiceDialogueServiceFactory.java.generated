@@ -89,7 +89,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q", _plainSerDe.serializeString(query));
                 _request.putPathParams("myPathParam", _plainSerDe.serializeUuid(myPathParam));
-                _request.putPathParams("myPathParam2", _plainSerDe.serializeString(myPathParam2.valueOf()));
+                _request.putPathParams("myPathParam2", _plainSerDe.serializeString(myPathParam2.toStringParamValue()));
                 _request.putHeaderParams("Custom-Header", _plainSerDe.serializeInteger(requestHeaderValue));
                 if (maybeCustomOptionalHeader1Value.isPresent()) {
                     _request.putHeaderParams(
@@ -105,7 +105,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     _request.putHeaderParams(
                             "Custom-Optional-Header3",
                             _plainSerDe.serializeString(
-                                    maybeCustomOptionalHeader3Value.get().valueOf()));
+                                    maybeCustomOptionalHeader3Value.get().toStringParamValue()));
                 }
                 _request.body(paramsSerializer.serialize(body));
                 throw new UnsupportedOperationException();
