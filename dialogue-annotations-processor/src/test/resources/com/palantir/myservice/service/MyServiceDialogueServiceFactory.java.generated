@@ -44,8 +44,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
-            private final Deserializer<ListenableFuture<String>> getGreetingAsyncDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<ListenableFuture<String>>() {});
+            private final Deserializer<String> getGreetingAsyncDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);

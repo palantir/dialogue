@@ -137,7 +137,8 @@ public final class ServiceImplementationGenerator {
     }
 
     private Optional<FieldSpec> deserializer(EndpointName endpointName, ReturnType type) {
-        TypeName innerType = type.returnType().box();
+        TypeName fullReturnType = type.returnType().box();
+        TypeName innerType = type.isAsync().map(TypeName::box).orElse(fullReturnType);
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
@@ -146,7 +147,7 @@ public final class ServiceImplementationGenerator {
         CodeBlock initializer = CodeBlock.of(
                 "$L.bodySerDe().$L",
                 serviceDefinition.conjureRuntimeArgName(),
-                innerType.equals(TypeName.VOID) ? voidDeserializer : realDeserializer);
+                fullReturnType.equals(TypeName.VOID) ? voidDeserializer : realDeserializer);
 
         return Optional.of(FieldSpec.builder(deserializerType, endpointName.get() + "Deserializer")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)

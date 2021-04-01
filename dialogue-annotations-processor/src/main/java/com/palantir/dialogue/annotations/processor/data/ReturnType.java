@@ -17,10 +17,15 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.squareup.javapoet.TypeName;
+import java.util.Optional;
 import org.immutables.value.Value;
 
 @Value.Immutable
 @Value.Style(stagedBuilder = true)
 public interface ReturnType {
     TypeName returnType();
+
+    Optional<TypeName> isAsync();
+
+    Optional<TypeName> customDeserializer();
 }

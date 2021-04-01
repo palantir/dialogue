@@ -41,7 +41,7 @@ public final class EndpointDefinitions {
         this.paramTypesResolver = new ParamTypesResolver(errorContext, elements, types);
         this.httpPathParser = new HttpPathParser(errorContext);
         this.argumentTypesResolver = new ArgumentTypesResolver(errorContext, elements, types);
-        this.returnTypesResolver = new ReturnTypesResolver(errorContext, types);
+        this.returnTypesResolver = new ReturnTypesResolver(errorContext, elements, types);
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
