@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.google.auto.common.MoreElements;
-import com.google.auto.common.Visibility;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.palantir.common.streams.KeyedStream;
@@ -36,12 +34,9 @@ import com.squareup.javapoet.TypeName;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ExecutableElement;
-import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.DeclaredType;
@@ -77,11 +72,12 @@ public final class ArgumentTypesResolver {
     @SuppressWarnings("StrictUnusedVariable")
     private final ErrorContext errorContext;
 
+    @SuppressWarnings("StrictUnusedVariable")
     private final Elements elements;
+
     private final Types types;
 
     private final TypeMirror requestBodyType;
-    private final TypeMirror stringType;
     private final TypeElement genericOptionalType;
     private final TypeMirror optionalIntType;
 
@@ -93,9 +89,6 @@ public final class ArgumentTypesResolver {
         this.elements = elements;
         this.requestBodyType =
                 elements.getTypeElement(RequestBody.class.getCanonicalName()).asType();
-        this.stringType =
-                elements.getTypeElement(String.class.getCanonicalName()).asType();
-
         this.genericOptionalType = elements.getTypeElement(Optional.class.getCanonicalName());
         this.optionalIntType =
                 elements.getTypeElement(OptionalInt.class.getCanonicalName()).asType();
@@ -120,8 +113,6 @@ public final class ArgumentTypesResolver {
         } else if (optionalType.isPresent()) {
             // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
             return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
-        } else if (isCustomAndHasValueOfMethod(actualTypeMirror)) {
-            return Optional.of(ArgumentTypes.customTypeWithValueOf(typeName, TO_STRING_PARAM_VALUE_METHOD));
         } else {
             return Optional.of(ArgumentTypes.customType(typeName));
         }
@@ -170,31 +161,5 @@ public final class ArgumentTypesResolver {
         } else {
             return Optional.empty();
         }
-    }
-
-    /**
-     * Checks if type has method {@code public String valueOf()}.
-     */
-    private boolean isCustomAndHasValueOfMethod(TypeMirror typeMirror) {
-        Element element = types.asElement(typeMirror);
-        // Unclear if this is idiomatic?
-        if (!(element instanceof TypeElement)) {
-            return false;
-        }
-        TypeElement typeElement = (TypeElement) element;
-        return MoreElements.getAllMethods(typeElement, types, elements).stream().anyMatch(this::isValueOfMethod);
-    }
-
-    private boolean isValueOfMethod(ExecutableElement executableElement) {
-        Visibility visibility = Visibility.ofElement(executableElement);
-        Set<Modifier> modifiers = executableElement.getModifiers();
-        // TODO(12345): Actually give the user good feedback on what exactly they need to add to make this type comply.
-        return executableElement.getSimpleName().toString().equals(TO_STRING_PARAM_VALUE_METHOD)
-                && executableElement.getParameters().isEmpty()
-                && executableElement.getTypeParameters().isEmpty()
-                && types.isSameType(executableElement.getReturnType(), stringType)
-                // TODO(12345): Maybe be nice and allow package private IFF in the same package?
-                && visibility.equals(Visibility.PUBLIC)
-                && !modifiers.contains(Modifier.STATIC);
     }
 }

@@ -83,7 +83,6 @@ public final class ServiceImplementationGenerator {
                                         .primitive((javaTypeName, _unused) -> javaTypeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .optional((optionalJavaType, _unused) -> optionalJavaType)
-                                        .customTypeWithValueOf((customTypeName, _unused) -> customTypeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
@@ -202,32 +201,23 @@ public final class ServiceImplementationGenerator {
 
             @Override
             public CodeBlock optional(TypeName _unused, OptionalType optionalType) {
-                return CodeBlock.builder()
-                        .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
-                        .add(generatePlainSerializer(
-                                method,
-                                key,
-                                CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
-                                optionalType.underlyingType()))
-                        .endControlFlow()
-                        .build();
-            }
-
-            @Override
-            public CodeBlock customTypeWithValueOf(TypeName _unused, String toStringParamValue) {
-                return CodeBlock.of(
-                        "$L.$L($S, $L.serializeString($L.$L()));",
-                        REQUEST,
+                CodeBlock codeBlock = generatePlainSerializer(
                         method,
                         key,
-                        PLAIN_SER_DE,
-                        argName,
-                        toStringParamValue);
+                        CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
+                        optionalType.underlyingType());
+                return codeBlock != null
+                        ? CodeBlock.builder()
+                                .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
+                                .add(codeBlock)
+                                .endControlFlow()
+                                .build()
+                        : null;
             }
 
             @Override
             public CodeBlock customType(TypeName _unused) {
-                throw new UnsupportedOperationException("This should not happen");
+                return null;
             }
         });
     }
