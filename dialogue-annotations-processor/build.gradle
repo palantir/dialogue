@@ -8,10 +8,13 @@ dependencies {
     compile project(':dialogue-annotations')
     compile project(':dialogue-target')
     compile 'com.google.code.findbugs:jsr305'
+    compile 'com.palantir.conjure.java:conjure-lib'
     compile 'com.palantir.common:streams'
     compile 'com.palantir.javaformat:palantir-java-format'
     compile 'com.palantir.javaformat:palantir-java-format-spi'
+    compile 'com.palantir.ri:resource-identifier'
     compile 'com.palantir.safe-logging:preconditions'
+    compile 'com.palantir.tokens:auth-tokens'
     compile 'com.google.auto:auto-common'
     compile 'com.google.guava:guava'
     compile 'com.squareup:javapoet'

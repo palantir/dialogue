@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.squareup.javapoet.TypeName;
+import com.palantir.dialogue.annotations.processor.ArgumentType;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -25,7 +25,7 @@ public interface ArgumentDefinition {
 
     ArgumentName argName();
 
-    TypeName type();
+    ArgumentType argType();
 
     ParameterType paramType();
 }
