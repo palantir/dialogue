@@ -2,6 +2,7 @@ package com.palantir.myservice.service;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -19,6 +20,7 @@ import com.palantir.dialogue.annotations.Json;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.UnsupportedOperationException;
+import java.lang.Void;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -36,19 +38,34 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
+            private final Deserializer<String> greetDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
+
+            private final Deserializer<ListenableFuture<String>> getGreetingAsyncDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<ListenableFuture<String>>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
 
+            private final Deserializer<Void> customRequestDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<Void>() {});
+
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
+
+            private final Deserializer<Response> customResponseDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<Response>() {});
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
+
+            private final Deserializer<Void> paramsDeserializer =
+                    runtime.bodySerDe().deserializer(new TypeMarker<Void>() {});
 
             @Override
             public String greet(String greeting) {

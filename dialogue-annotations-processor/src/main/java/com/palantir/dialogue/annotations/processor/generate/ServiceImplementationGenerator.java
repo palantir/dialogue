@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
@@ -26,8 +27,10 @@ import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
+import com.palantir.dialogue.annotations.processor.data.EndpointName;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
 import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
+import com.palantir.dialogue.annotations.processor.data.ReturnType;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -72,6 +75,8 @@ public final class ServiceImplementationGenerator {
                     .ifPresent(impl::addField);
             impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
+
+            deserializer(endpoint.endpointName(), endpoint.returns()).ifPresent(impl::addField);
         });
 
         return impl.build();
@@ -99,7 +104,7 @@ public final class ServiceImplementationGenerator {
 
         def.arguments().forEach(arg -> generateParam(arg).ifPresent(methodBuilder::addCode));
 
-        methodBuilder.returns(def.returns());
+        methodBuilder.returns(def.returns().returnType());
 
         methodBuilder.addCode("throw new $T();", UnsupportedOperationException.class);
 
@@ -129,6 +134,24 @@ public final class ServiceImplementationGenerator {
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("new $T().serializerFor(new $T<$T>() {})", serializerType, TypeMarker.class, className)
                 .build();
+    }
+
+    private Optional<FieldSpec> deserializer(EndpointName endpointName, ReturnType type) {
+        TypeName innerType = type.returnType().box();
+        ParameterizedTypeName deserializerType =
+                ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
+
+        CodeBlock realDeserializer = CodeBlock.of("deserializer(new $T<$T>() {})", TypeMarker.class, innerType);
+        CodeBlock voidDeserializer = CodeBlock.of("emptyBodyDeserializer()");
+        CodeBlock initializer = CodeBlock.of(
+                "$L.bodySerDe().$L",
+                serviceDefinition.conjureRuntimeArgName(),
+                innerType.equals(TypeName.VOID) ? voidDeserializer : realDeserializer);
+
+        return Optional.of(FieldSpec.builder(deserializerType, endpointName.get() + "Deserializer")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer(initializer)
+                .build());
     }
 
     private Optional<CodeBlock> generateParam(ArgumentDefinition param) {
