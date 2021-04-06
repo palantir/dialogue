@@ -17,6 +17,7 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.annotations.Json;
 import com.squareup.javapoet.TypeName;
 import java.util.Optional;
 import javax.lang.model.type.TypeMirror;
@@ -29,15 +30,19 @@ public final class ReturnTypesResolver {
         this.context = context;
     }
 
-    public Optional<ReturnType> getReturnType(AnnotationReflector requestAnnotation, TypeMirror returnType) {
-        Optional<TypeName> customDeserializer =
-                requestAnnotation.getFieldMaybe("accepts", TypeMirror.class).map(TypeName::get);
+    public Optional<ReturnType> getReturnType(
+            EndpointName endpointName, AnnotationReflector requestAnnotation, TypeMirror returnType) {
+        TypeName deserializer = requestAnnotation
+                .getFieldMaybe("accepts", TypeMirror.class)
+                .map(TypeName::get)
+                .orElseGet(() -> context.getTypeName(Json.class));
         Optional<TypeName> maybeListenableFutureInnerType =
                 getListenableFutureInnerType(returnType).map(TypeName::get);
         return Optional.of(ImmutableReturnType.builder()
                 .returnType(TypeName.get(returnType))
-                .isAsync(maybeListenableFutureInnerType)
-                .customDeserializer(customDeserializer)
+                .deserializerFactory(deserializer)
+                .deserializerFieldName(endpointName.get() + "Deserializer")
+                .asyncInnerType(maybeListenableFutureInnerType)
                 .build());
     }
 

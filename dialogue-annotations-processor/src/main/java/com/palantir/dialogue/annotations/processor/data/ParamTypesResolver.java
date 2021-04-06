@@ -40,10 +40,10 @@ public final class ParamTypesResolver {
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
 
-    private final ResolverContext resolverContext;
+    private final ResolverContext context;
 
-    public ParamTypesResolver(ResolverContext resolverContext) {
-        this.resolverContext = resolverContext;
+    public ParamTypesResolver(ResolverContext context) {
+        this.context = context;
     }
 
     @SuppressWarnings("CyclomaticComplexity")
@@ -59,10 +59,10 @@ public final class ParamTypesResolver {
         }
 
         if (paramAnnotationMirrors.isEmpty()) {
-            if (resolverContext.isSameTypes(variableElement.asType(), RequestBody.class)) {
+            if (context.isSameTypes(variableElement.asType(), RequestBody.class)) {
                 return Optional.of(ParameterTypes.rawBody());
             } else {
-                resolverContext.reportError(
+                context.reportError(
                         "At least one annotation should be present or type should be RequestBody",
                         variableElement,
                         SafeArg.of("requestBody", RequestBody.class),
@@ -72,7 +72,7 @@ public final class ParamTypesResolver {
         }
 
         if (paramAnnotationMirrors.size() > 1) {
-            resolverContext.reportError(
+            context.reportError(
                     "Only single annotation can be used",
                     variableElement,
                     SafeArg.of("annotations", paramAnnotationMirrors));
@@ -90,8 +90,7 @@ public final class ParamTypesResolver {
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
             return Optional.of(ParameterTypes.body(
-                    TypeName.get(customSerializer.orElseGet(() -> resolverContext.getTypeMirror(Json.class))),
-                    serializerName));
+                    TypeName.get(customSerializer.orElseGet(() -> context.getTypeMirror(Json.class))), serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {

@@ -27,7 +27,6 @@ import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
-import com.palantir.dialogue.annotations.processor.data.EndpointName;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
 import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
 import com.palantir.dialogue.annotations.processor.data.ReturnType;
@@ -76,7 +75,7 @@ public final class ServiceImplementationGenerator {
             impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
 
-            deserializer(endpoint.endpointName(), endpoint.returns()).ifPresent(impl::addField);
+            deserializer(endpoint.returns()).ifPresent(impl::addField);
         });
 
         return impl.build();
@@ -136,22 +135,21 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
-    private Optional<FieldSpec> deserializer(EndpointName endpointName, ReturnType type) {
+    private Optional<FieldSpec> deserializer(ReturnType type) {
         TypeName fullReturnType = type.returnType().box();
-        TypeName innerType = type.isAsync().map(TypeName::box).orElse(fullReturnType);
+        TypeName deserializerFactoryType = type.deserializerFactory();
+        TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
-        CodeBlock realDeserializer = CodeBlock.of("deserializer(new $T<$T>() {})", TypeMarker.class, innerType);
-        CodeBlock voidDeserializer = CodeBlock.of("emptyBodyDeserializer()");
-        CodeBlock initializer = CodeBlock.of(
-                "$L.bodySerDe().$L",
-                serviceDefinition.conjureRuntimeArgName(),
-                fullReturnType.equals(TypeName.VOID) ? voidDeserializer : realDeserializer);
+        CodeBlock realDeserializer = CodeBlock.of(
+                "new $T().deserializerFor(new $T<$T>() {})", deserializerFactoryType, TypeMarker.class, innerType);
+        CodeBlock voidDeserializer =
+                CodeBlock.of("$L.bodySerDe().emptyBodyDeserializer()", serviceDefinition.conjureRuntimeArgName());
 
-        return Optional.of(FieldSpec.builder(deserializerType, endpointName.get() + "Deserializer")
+        return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(initializer)
+                .initializer(fullReturnType.equals(TypeName.VOID.box()) ? voidDeserializer : realDeserializer)
                 .build());
     }
 
@@ -164,7 +162,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> body(TypeName _unused, String serializerFieldName) {
+            public Optional<CodeBlock> body(TypeName serializerFactory, String serializerFieldName) {
                 return Optional.of(CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,

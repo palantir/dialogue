@@ -39,25 +39,25 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
             private final Deserializer<String> greetDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+                    new Json().deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
             private final Deserializer<String> getGreetingAsyncDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<String>() {});
+                    new Json().deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
 
             private final Deserializer<Void> customRequestDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<Void>() {});
+                    runtime.bodySerDe().emptyBodyDeserializer();
 
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
 
             private final Deserializer<Response> customResponseDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<Response>() {});
+                    new Json().deserializerFor(new TypeMarker<Response>() {});
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
@@ -65,7 +65,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
 
             private final Deserializer<Void> paramsDeserializer =
-                    runtime.bodySerDe().deserializer(new TypeMarker<Void>() {});
+                    runtime.bodySerDe().emptyBodyDeserializer();
 
             @Override
             public String greet(String greeting) {

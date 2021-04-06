@@ -58,7 +58,7 @@ public final class EndpointDefinitions {
                 ImmutableEndpointName.of(element.getSimpleName().toString());
         Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotation);
         Optional<ReturnType> maybeReturnType =
-                returnTypesResolver.getReturnType(requestAnnotationReflector, element.getReturnType());
+                returnTypesResolver.getReturnType(endpointName, requestAnnotationReflector, element.getReturnType());
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
                 .map(arg -> getArgumentDefinition(endpointName, arg))
                 .collect(Collectors.toList());

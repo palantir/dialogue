@@ -25,7 +25,7 @@ public interface ParameterType {
 
         R rawBody();
 
-        R body(TypeName serializer, String serializerFieldName);
+        R body(TypeName serializerFactory, String serializerFieldName);
 
         R header(String headerName);
 

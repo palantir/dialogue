@@ -25,7 +25,9 @@ import org.immutables.value.Value;
 public interface ReturnType {
     TypeName returnType();
 
-    Optional<TypeName> isAsync();
+    TypeName deserializerFactory();
 
-    Optional<TypeName> customDeserializer();
+    String deserializerFieldName();
+
+    Optional<TypeName> asyncInnerType();
 }
