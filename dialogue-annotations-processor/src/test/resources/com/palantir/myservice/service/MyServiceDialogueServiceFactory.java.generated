@@ -44,7 +44,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
             private final Deserializer<String> getGreetingAsyncDeserializer =
-                    new Json().deserializerFor(new TypeMarker<String>() {});
+                    new CustomStringDeserializer().deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
@@ -56,7 +56,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
 
             private final Deserializer<Response> customResponseDeserializer =
-                    new Json().deserializerFor(new TypeMarker<Response>() {});
+                    new MyResponseDeserializer().deserializerFor(new TypeMarker<Response>() {});
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});

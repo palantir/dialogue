@@ -33,7 +33,7 @@ public final class ReturnTypesResolver {
     public Optional<ReturnType> getReturnType(
             EndpointName endpointName, AnnotationReflector requestAnnotation, TypeMirror returnType) {
         TypeName deserializer = requestAnnotation
-                .getFieldMaybe("accepts", TypeMirror.class)
+                .getFieldMaybe("accept", TypeMirror.class)
                 .map(TypeName::get)
                 .orElseGet(() -> context.getTypeName(Json.class));
         Optional<TypeName> maybeListenableFutureInnerType =
