@@ -90,7 +90,8 @@ public final class ParamTypesResolver {
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
             return Optional.of(ParameterTypes.body(
-                    TypeName.get(customSerializer.orElse(resolverContext.getTypeMirror(Json.class))), serializerName));
+                    TypeName.get(customSerializer.orElseGet(() -> resolverContext.getTypeMirror(Json.class))),
+                    serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
