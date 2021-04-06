@@ -19,7 +19,6 @@ import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.Json;
 import java.lang.Override;
 import java.lang.String;
-import java.lang.UnsupportedOperationException;
 import java.lang.Void;
 import java.util.Map;
 import java.util.Optional;
@@ -71,26 +70,27 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             public String greet(String greeting) {
                 Request.Builder _request = Request.builder();
                 _request.body(greetSerializer.serialize(greeting));
-                throw new UnsupportedOperationException();
+                return runtime.clients().callBlocking(greetChannel, _request.build(), greetDeserializer);
             }
 
             @Override
             public ListenableFuture<String> getGreetingAsync() {
                 Request.Builder _request = Request.builder();
-                throw new UnsupportedOperationException();
+                return runtime.clients().call(getGreetingAsyncChannel, _request.build(), getGreetingAsyncDeserializer);
             }
 
             @Override
             public void customRequest(RequestBody requestBody) {
                 Request.Builder _request = Request.builder();
                 _request.body(requestBody);
-                throw new UnsupportedOperationException();
+                runtime.clients().callBlocking(customRequestChannel, _request.build(), customRequestDeserializer);
             }
 
             @Override
             public Response customResponse() {
                 Request.Builder _request = Request.builder();
-                throw new UnsupportedOperationException();
+                return runtime.clients()
+                        .callBlocking(customResponseChannel, _request.build(), customResponseDeserializer);
             }
 
             @Override
@@ -118,7 +118,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                             _plainSerDe.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
                 }
                 _request.body(paramsSerializer.serialize(body));
-                throw new UnsupportedOperationException();
+                runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
             }
         };
     }

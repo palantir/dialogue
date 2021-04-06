@@ -105,7 +105,19 @@ public final class ServiceImplementationGenerator {
 
         methodBuilder.returns(def.returns().returnType());
 
-        methodBuilder.addCode("throw new $T();", UnsupportedOperationException.class);
+        boolean isAsync = def.returns().asyncInnerType().isPresent();
+
+        String executeCode = isAsync
+                ? "$L.clients().call($L, $L.build" + "(), $L);"
+                : "$L.clients().callBlocking($L, $L.build(), $L);";
+        CodeBlock execute = CodeBlock.of(
+                executeCode,
+                serviceDefinition.conjureRuntimeArgName(),
+                def.channelFieldName(),
+                REQUEST,
+                def.returns().deserializerFieldName());
+        methodBuilder.addCode(isAsync ? "return " : (def.returns().isVoid() ? "" : "return "));
+        methodBuilder.addCode(execute);
 
         return methodBuilder.build();
     }
@@ -149,7 +161,7 @@ public final class ServiceImplementationGenerator {
 
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(fullReturnType.equals(TypeName.VOID.box()) ? voidDeserializer : realDeserializer)
+                .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
                 .build());
     }
 

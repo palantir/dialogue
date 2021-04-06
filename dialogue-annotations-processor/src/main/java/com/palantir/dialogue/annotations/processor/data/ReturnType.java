@@ -30,4 +30,10 @@ public interface ReturnType {
     String deserializerFieldName();
 
     Optional<TypeName> asyncInnerType();
+
+    @Value.Derived
+    default boolean isVoid() {
+        TypeName type = asyncInnerType().orElseGet(this::returnType);
+        return type.box().equals(TypeName.VOID.box());
+    }
 }
