@@ -22,7 +22,6 @@ import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.processor.ErrorContext;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.squareup.javapoet.TypeName;
@@ -33,8 +32,6 @@ import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 
 public final class ParamTypesResolver {
 
@@ -43,18 +40,10 @@ public final class ParamTypesResolver {
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
 
-    private final ErrorContext errorContext;
-    private final Types types;
-    private final TypeMirror requestBodyType;
-    private final TypeMirror jsonDeserializerSerializerType;
+    private final ResolverContext resolverContext;
 
-    public ParamTypesResolver(ErrorContext errorContext, Elements elements, Types types) {
-        this.errorContext = errorContext;
-        this.types = types;
-        this.requestBodyType =
-                elements.getTypeElement(RequestBody.class.getCanonicalName()).asType();
-        this.jsonDeserializerSerializerType =
-                elements.getTypeElement(Json.class.getCanonicalName()).asType();
+    public ParamTypesResolver(ResolverContext resolverContext) {
+        this.resolverContext = resolverContext;
     }
 
     @SuppressWarnings("CyclomaticComplexity")
@@ -70,20 +59,20 @@ public final class ParamTypesResolver {
         }
 
         if (paramAnnotationMirrors.isEmpty()) {
-            if (types.isSameType(variableElement.asType(), requestBodyType)) {
+            if (resolverContext.isSameTypes(variableElement.asType(), RequestBody.class)) {
                 return Optional.of(ParameterTypes.rawBody());
             } else {
-                errorContext.reportError(
+                resolverContext.reportError(
                         "At least one annotation should be present or type should be RequestBody",
                         variableElement,
-                        SafeArg.of("requestBody", requestBodyType),
+                        SafeArg.of("requestBody", RequestBody.class),
                         SafeArg.of("supportedAnnotations", PARAM_ANNOTATION_CLASSES));
                 return Optional.empty();
             }
         }
 
         if (paramAnnotationMirrors.size() > 1) {
-            errorContext.reportError(
+            resolverContext.reportError(
                     "Only single annotation can be used",
                     variableElement,
                     SafeArg.of("annotations", paramAnnotationMirrors));
@@ -101,7 +90,7 @@ public final class ParamTypesResolver {
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
             return Optional.of(ParameterTypes.body(
-                    TypeName.get(customSerializer.orElse(jsonDeserializerSerializerType)), serializerName));
+                    TypeName.get(customSerializer.orElse(resolverContext.getTypeMirror(Json.class))), serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {

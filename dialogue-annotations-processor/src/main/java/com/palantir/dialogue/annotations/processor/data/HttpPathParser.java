@@ -18,7 +18,6 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.base.Splitter;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.processor.ErrorContext;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -27,13 +26,13 @@ import org.glassfish.jersey.uri.internal.UriTemplateParser;
 
 public final class HttpPathParser {
 
-    private final ErrorContext errorContext;
+    private final ResolverContext context;
 
-    public HttpPathParser(ErrorContext errorContext) {
-        this.errorContext = errorContext;
+    public HttpPathParser(ResolverContext context) {
+        this.context = context;
     }
 
-    public Optional<HttpPath> getHttpPath(Element context, Request requestAnnotation) {
+    public Optional<HttpPath> getHttpPath(Element element, Request requestAnnotation) {
         try {
             UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
 
@@ -55,7 +54,7 @@ public final class HttpPathParser {
 
             return Optional.of(ImmutableHttpPath.of(pathSegments));
         } catch (IllegalArgumentException e) {
-            errorContext.reportError("Failed to parse http path", context, e);
+            context.reportError("Failed to parse http path", element, e);
             return Optional.empty();
         }
     }
