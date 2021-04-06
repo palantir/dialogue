@@ -17,6 +17,7 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.collect.Iterables;
+import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
 import com.palantir.logsafe.Arg;
 import com.squareup.javapoet.TypeName;
@@ -75,12 +76,12 @@ public final class ResolverContext implements ErrorContext {
     }
 
     @Override
-    public void reportError(String message, Element element, Arg<?>... args) {
+    public void reportError(@CompileTimeConstant String message, Element element, Arg<?>... args) {
         errorContext.reportError(message, element, args);
     }
 
     @Override
-    public void reportError(String message, Element element, Throwable throwable) {
+    public void reportError(@CompileTimeConstant String message, Element element, Throwable throwable) {
         errorContext.reportError(message, element, throwable);
     }
 
