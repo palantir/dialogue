@@ -27,7 +27,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
-import javax.lang.model.util.SimpleTypeVisitor8;
+import javax.lang.model.util.SimpleTypeVisitor9;
 import javax.lang.model.util.Types;
 
 public final class ResolverContext implements ErrorContext {
@@ -98,7 +98,7 @@ public final class ResolverContext implements ErrorContext {
         }
     }
 
-    private abstract static class OptionalTypeVisitor<T> extends SimpleTypeVisitor8<Optional<T>, Void> {
+    private abstract static class OptionalTypeVisitor<T> extends SimpleTypeVisitor9<Optional<T>, Void> {
         OptionalTypeVisitor() {
             super(Optional.empty());
         }
