@@ -108,7 +108,7 @@ public final class ServiceImplementationGenerator {
         boolean isAsync = def.returns().asyncInnerType().isPresent();
 
         String executeCode = isAsync
-                ? "$L.clients().call($L, $L.build" + "(), $L);"
+                ? "$L.clients().call($L, $L.build(), $L);"
                 : "$L.clients().callBlocking($L, $L.build(), $L);";
         CodeBlock execute = CodeBlock.of(
                 executeCode,
