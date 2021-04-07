@@ -17,7 +17,6 @@
 package com.palantir.myservice.example;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
@@ -54,20 +53,17 @@ public final class MyServiceIntegrationTest {
 
     @BeforeEach
     public void beforeEach() throws IOException {
-        assertThatThrownBy(() -> {
-                    server.start();
-                    PartialServiceConfiguration partialServiceConfiguration = PartialServiceConfiguration.builder()
-                            .addUris(url("").url().toString())
-                            .build();
-                    ServicesConfigBlock scb = ServicesConfigBlock.builder()
-                            .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                            .putServices("myServiceDialogue", partialServiceConfiguration)
-                            .build();
-                    DialogueClients.ReloadingFactory factory =
-                            DialogueClients.create(Refreshable.create(scb)).withUserAgent(TestConfigurations.AGENT);
-                    myServiceDialogue = factory.get(MyService.class, "myServiceDialogue");
-                })
-                .isExactlyInstanceOf(UnsupportedOperationException.class);
+        server.start();
+        PartialServiceConfiguration partialServiceConfiguration = PartialServiceConfiguration.builder()
+                .addUris(url("").url().toString())
+                .build();
+        ServicesConfigBlock scb = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                .putServices("myServiceDialogue", partialServiceConfiguration)
+                .build();
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(Refreshable.create(scb)).withUserAgent(TestConfigurations.AGENT);
+        myServiceDialogue = factory.get(MyService.class, "myServiceDialogue");
     }
 
     @AfterEach
@@ -76,7 +72,6 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    @Disabled
     public void testGreet() {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -95,7 +90,6 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    @Disabled
     public void testGetGreetingAsync() {
         server.enqueue(new MockResponse()
                 .setResponseCode(200)
@@ -114,7 +108,6 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    @Disabled
     public void testCustomRequest() {
         server.enqueue(new MockResponse().setResponseCode(200));
 
@@ -148,13 +141,11 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    @Disabled
     public void testCustomResponse200() {
         testCustomResponse(200);
     }
 
     @Test
-    @Disabled
     public void testCustomResponse500() {
         testCustomResponse(500);
     }

@@ -17,14 +17,12 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
-import com.palantir.dialogue.annotations.processor.ErrorContext;
 import com.palantir.dialogue.annotations.processor.ImmutableOptionalType;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.ri.ResourceIdentifier;
@@ -37,12 +35,8 @@ import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Function;
 import javax.lang.model.element.Element;
-import javax.lang.model.element.TypeElement;
 import javax.lang.model.element.VariableElement;
-import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
-import javax.lang.model.util.Elements;
-import javax.lang.model.util.Types;
 
 public final class ArgumentTypesResolver {
 
@@ -67,33 +61,14 @@ public final class ArgumentTypesResolver {
                     .map(value -> "serialize" + value)
                     .collectToMap());
 
-    @SuppressWarnings("StrictUnusedVariable")
-    private final ErrorContext errorContext;
-
-    @SuppressWarnings("StrictUnusedVariable")
-    private final Elements elements;
-
-    private final Types types;
-
-    private final TypeMirror requestBodyType;
-    private final TypeElement genericOptionalType;
-    private final TypeMirror optionalIntType;
+    private final ResolverContext context;
 
     private final ArgumentType integerArgumentType;
 
-    public ArgumentTypesResolver(ErrorContext errorContext, Elements elements, Types types) {
-        this.errorContext = errorContext;
-        this.types = types;
-        this.elements = elements;
-        this.requestBodyType =
-                elements.getTypeElement(RequestBody.class.getCanonicalName()).asType();
-        this.genericOptionalType = elements.getTypeElement(Optional.class.getCanonicalName());
-        this.optionalIntType =
-                elements.getTypeElement(OptionalInt.class.getCanonicalName()).asType();
-        TypeMirror integerType =
-                elements.getTypeElement(Integer.class.getCanonicalName()).asType();
-        this.integerArgumentType =
-                ArgumentTypes.primitive(TypeName.get(integerType), planSerDeMethodName(TypeName.get(integerType)));
+    public ArgumentTypesResolver(ResolverContext context) {
+        this.context = context;
+        TypeName integerType = context.getTypeName(Integer.class);
+        this.integerArgumentType = ArgumentTypes.primitive(integerType, planSerDeMethodName(integerType));
     }
 
     public Optional<ArgumentType> getArgumentType(VariableElement param) {
@@ -107,7 +82,7 @@ public final class ArgumentTypesResolver {
         if (isPrimitive(typeName)) {
             return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName)));
         } else if (isRawRequestBody(actualTypeMirror)) {
-            return Optional.of(ArgumentTypes.rawRequestBody(TypeName.get(requestBodyType)));
+            return Optional.of(ArgumentTypes.rawRequestBody(context.getTypeName(RequestBody.class)));
         } else if (optionalType.isPresent()) {
             // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
             return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
@@ -126,16 +101,11 @@ public final class ArgumentTypesResolver {
     }
 
     private boolean isRawRequestBody(TypeMirror in) {
-        return types.isSameType(in, requestBodyType);
+        return context.isSameTypes(in, RequestBody.class);
     }
 
     private Optional<OptionalType> getOptionalType(Element paramContext, TypeMirror typeName) {
-        // "They tryin'a make me use a visitor, but I say: NO, NO NO!"
-        if (!(typeName instanceof DeclaredType)) {
-            return Optional.empty();
-        }
-        DeclaredType declaredType = (DeclaredType) typeName;
-        if (types.isSameType(declaredType, optionalIntType)) {
+        if (context.isSameTypes(typeName, OptionalInt.class)) {
             return Optional.of(ImmutableOptionalType.builder()
                     .isPresentMethodName("isPresent")
                     .valueGetMethodName("getAsInt")
@@ -143,21 +113,12 @@ public final class ArgumentTypesResolver {
                     .build());
         }
 
-        if (declaredType.getTypeArguments().size() != 1) {
-            return Optional.empty();
-        }
-
-        TypeMirror innerType = Iterables.getOnlyElement(declaredType.getTypeArguments());
-        DeclaredType genericOptional = types.getDeclaredType(genericOptionalType, innerType);
-
-        if (types.isSameType(genericOptional, declaredType)) {
-            return getArgumentTypeImpl(paramContext, innerType).map(argumentType -> ImmutableOptionalType.builder()
-                    .isPresentMethodName("isPresent")
-                    .valueGetMethodName("get")
-                    .underlyingType(argumentType)
-                    .build());
-        } else {
-            return Optional.empty();
-        }
+        return context.getGenericInnerType(Optional.class, typeName)
+                .flatMap(innerType -> getArgumentTypeImpl(paramContext, innerType)
+                        .map(argumentType -> ImmutableOptionalType.builder()
+                                .isPresentMethodName("isPresent")
+                                .valueGetMethodName("get")
+                                .underlyingType(argumentType)
+                                .build()));
     }
 }

@@ -17,22 +17,23 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.squareup.javapoet.TypeName;
-import org.derive4j.Data;
+import java.util.Optional;
+import org.immutables.value.Value;
 
-@Data
-public interface ParameterType {
-    interface Cases<R> {
+@Value.Immutable
+@Value.Style(stagedBuilder = true)
+public interface ReturnType {
+    TypeName returnType();
 
-        R rawBody();
+    TypeName deserializerFactory();
 
-        R body(TypeName serializerFactory, String serializerFieldName);
+    String deserializerFieldName();
 
-        R header(String headerName);
+    Optional<TypeName> asyncInnerType();
 
-        R path();
-
-        R query(String paramName);
+    @Value.Derived
+    default boolean isVoid() {
+        TypeName type = asyncInnerType().orElseGet(this::returnType);
+        return type.box().equals(TypeName.VOID.box());
     }
-
-    <R> R match(Cases<R> cases);
 }

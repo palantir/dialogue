@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
+import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
@@ -28,6 +29,7 @@ import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
 import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
+import com.palantir.dialogue.annotations.processor.data.ReturnType;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.CodeBlock;
@@ -72,6 +74,8 @@ public final class ServiceImplementationGenerator {
                     .ifPresent(impl::addField);
             impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
+
+            deserializer(endpoint.returns()).ifPresent(impl::addField);
         });
 
         return impl.build();
@@ -99,9 +103,19 @@ public final class ServiceImplementationGenerator {
 
         def.arguments().forEach(arg -> generateParam(arg).ifPresent(methodBuilder::addCode));
 
-        methodBuilder.returns(def.returns());
+        methodBuilder.returns(def.returns().returnType());
 
-        methodBuilder.addCode("throw new $T();", UnsupportedOperationException.class);
+        boolean isAsync = def.returns().asyncInnerType().isPresent();
+
+        String executeCode =
+                isAsync ? "$L.clients().call($L, $L.build(), $L);" : "$L.clients().callBlocking($L, $L.build(), $L);";
+        CodeBlock execute = CodeBlock.of(
+                executeCode,
+                serviceDefinition.conjureRuntimeArgName(),
+                def.channelFieldName(),
+                REQUEST,
+                def.returns().deserializerFieldName());
+        methodBuilder.addCode(!def.returns().isVoid() || isAsync ? "return $L" : "$L", execute);
 
         return methodBuilder.build();
     }
@@ -131,6 +145,24 @@ public final class ServiceImplementationGenerator {
                 .build();
     }
 
+    private Optional<FieldSpec> deserializer(ReturnType type) {
+        TypeName fullReturnType = type.returnType().box();
+        TypeName deserializerFactoryType = type.deserializerFactory();
+        TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
+        ParameterizedTypeName deserializerType =
+                ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
+
+        CodeBlock realDeserializer = CodeBlock.of(
+                "new $T().deserializerFor(new $T<$T>() {})", deserializerFactoryType, TypeMarker.class, innerType);
+        CodeBlock voidDeserializer =
+                CodeBlock.of("$L.bodySerDe().emptyBodyDeserializer()", serviceDefinition.conjureRuntimeArgName());
+
+        return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
+                .build());
+    }
+
     private Optional<CodeBlock> generateParam(ArgumentDefinition param) {
         return param.paramType().match(new Cases<>() {
             @Override
@@ -140,7 +172,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> body(TypeName _unused, String serializerFieldName) {
+            public Optional<CodeBlock> body(TypeName _serializerFactory, String serializerFieldName) {
                 return Optional.of(CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,

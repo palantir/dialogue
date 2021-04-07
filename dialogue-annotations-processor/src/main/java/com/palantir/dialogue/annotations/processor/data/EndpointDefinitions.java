@@ -16,12 +16,12 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
-import com.palantir.logsafe.Preconditions;
-import com.squareup.javapoet.TypeName;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -35,19 +35,33 @@ public final class EndpointDefinitions {
     private final ParamTypesResolver paramTypesResolver;
     private final HttpPathParser httpPathParser;
     private final ArgumentTypesResolver argumentTypesResolver;
+    private final ReturnTypesResolver returnTypesResolver;
 
     public EndpointDefinitions(ErrorContext errorContext, Elements elements, Types types) {
-        this.paramTypesResolver = new ParamTypesResolver(errorContext, elements, types);
-        this.httpPathParser = new HttpPathParser(errorContext);
-        this.argumentTypesResolver = new ArgumentTypesResolver(errorContext, elements, types);
+        ResolverContext context = new ResolverContext(errorContext, elements, types);
+        this.paramTypesResolver = new ParamTypesResolver(context);
+        this.httpPathParser = new HttpPathParser(context);
+        this.argumentTypesResolver = new ArgumentTypesResolver(context);
+        this.returnTypesResolver = new ReturnTypesResolver(context);
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
-        Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class), "No annotation");
+        AnnotationReflector requestAnnotationReflector = MoreElements.getAnnotationMirror(element, Request.class)
+                .toJavaUtil()
+                .map(ImmutableAnnotationReflector::of)
+                .orElseThrow();
 
         EndpointName endpointName =
                 ImmutableEndpointName.of(element.getSimpleName().toString());
-        Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotation);
+
+        HttpMethod method = HttpMethod.valueOf(requestAnnotationReflector
+                .getFieldMaybe("method", VariableElement.class)
+                .get()
+                .getSimpleName()
+                .toString());
+        Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotationReflector);
+        Optional<ReturnType> maybeReturnType =
+                returnTypesResolver.getReturnType(endpointName, element, requestAnnotationReflector);
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
                 .map(arg -> getArgumentDefinition(endpointName, arg))
                 .collect(Collectors.toList());
@@ -56,7 +70,8 @@ public final class EndpointDefinitions {
                         .filter(Predicates.not(Optional::isPresent))
                         .collect(Collectors.toList())
                         .isEmpty()
-                || maybeHttpPath.isEmpty()) {
+                || maybeHttpPath.isEmpty()
+                || maybeReturnType.isEmpty()) {
             return Optional.empty();
         }
 
@@ -64,9 +79,9 @@ public final class EndpointDefinitions {
 
         return Optional.of(ImmutableEndpointDefinition.builder()
                 .endpointName(endpointName)
-                .httpMethod(requestAnnotation.method())
+                .httpMethod(method)
                 .httpPath(maybeHttpPath.get())
-                .returns(TypeName.get(element.getReturnType()))
+                .returns(maybeReturnType.get())
                 .addAllArguments(args.stream().map(Optional::get).collect(Collectors.toList()))
                 .build());
     }

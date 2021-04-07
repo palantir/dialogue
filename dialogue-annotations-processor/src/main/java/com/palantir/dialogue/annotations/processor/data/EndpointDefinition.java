@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.palantir.dialogue.HttpMethod;
-import com.squareup.javapoet.TypeName;
 import java.util.List;
 import org.immutables.value.Value;
 
@@ -33,7 +32,7 @@ public interface EndpointDefinition {
 
     List<ArgumentDefinition> arguments();
 
-    TypeName returns();
+    ReturnType returns();
 
     @Value.Derived
     default String channelFieldName() {
