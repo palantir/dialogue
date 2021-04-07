@@ -19,7 +19,6 @@ package com.palantir.dialogue.annotations.processor.data;
 import com.google.auto.common.MoreElements;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.lang.annotation.Annotation;
 import java.util.Map;
@@ -64,16 +63,12 @@ public interface AnnotationReflector {
         return getValueFieldMaybe(valueClazz).orElseThrow(() -> new SafeIllegalStateException("Unknown value"));
     }
 
+    @SuppressWarnings("unchecked")
     default <T> Optional<T> getFieldMaybe(String fieldName, Class<T> valueClazz) {
         Optional<Object> maybeValue = Optional.ofNullable(values().get(fieldName));
         return maybeValue.map(value -> {
             Preconditions.checkArgument(valueClazz.isInstance(value), "Value not of the right type");
             return (T) value;
         });
-    }
-
-    default <T> T getFieldStrict(String fieldName, Class<T> valueClazz) {
-        return getFieldMaybe(fieldName, valueClazz)
-                .orElseThrow(() -> new SafeIllegalStateException("Unknown value", SafeArg.of("fieldName", fieldName)));
     }
 }

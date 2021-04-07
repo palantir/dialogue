@@ -174,7 +174,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> body(TypeName serializerFactory, String serializerFieldName) {
+            public Optional<CodeBlock> body(TypeName _serializerFactory, String serializerFieldName) {
                 return Optional.of(CodeBlock.of(
                         "$L.body($L.serialize($L));",
                         REQUEST,
