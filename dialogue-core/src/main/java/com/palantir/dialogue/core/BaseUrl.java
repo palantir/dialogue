@@ -98,8 +98,9 @@ public final class BaseUrl {
         private DefaultUrlBuilder(URL url) {
             this.protocol = url.getProtocol();
             this.host = url.getHost();
-            this.port = url.getPort() == -1 ? url.getDefaultPort() : url.getPort();
-            Preconditions.checkArgument(port >= 0 && port <= 65535, "port must be in range [0, 65535]");
+            this.port = url.getPort();
+            Preconditions.checkArgument(
+                    port >= -1 && port <= 65535, "port must be in range [0, 65535] or default [-1]");
             String strippedBasePath = stripSlashes(url.getPath());
             if (!strippedBasePath.isEmpty()) {
                 encodedPathSegments(strippedBasePath);
@@ -155,7 +156,8 @@ public final class BaseUrl {
             try {
                 Preconditions.checkNotNull(protocol, "protocol must be set");
                 Preconditions.checkNotNull(host, "host must be set");
-                Preconditions.checkArgument(port != -1, "port must be set");
+                // Allow default ports
+                Preconditions.checkArgument(port >= -1, "port must be set");
 
                 StringBuilder file = new StringBuilder();
                 encodePath(pathSegments, file);
