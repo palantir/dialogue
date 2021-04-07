@@ -47,7 +47,7 @@ public final class ReturnTypesResolver {
     }
 
     private Optional<TypeMirror> getListenableFutureInnerType(TypeMirror typeName) {
-        return context.asDeclaredType(typeName)
+        return context.maybeAsDeclaredType(typeName)
                 .flatMap(declaredType -> context.getGenericInnerType(ListenableFuture.class, declaredType));
     }
 }

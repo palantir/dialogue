@@ -27,6 +27,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.type.DeclaredType;
 import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
+import javax.lang.model.util.SimpleTypeVisitor8;
 import javax.lang.model.util.Types;
 
 public final class ResolverContext implements ErrorContext {
@@ -53,13 +54,12 @@ public final class ResolverContext implements ErrorContext {
         return getTypeElement(clazz).asType();
     }
 
-    public Optional<DeclaredType> asDeclaredType(TypeMirror typeName) {
-        // "They tryin'a make me use a visitor, but I say: NO, NO NO!"
-        return Optional.ofNullable(typeName instanceof DeclaredType ? (DeclaredType) typeName : null);
+    public Optional<DeclaredType> maybeAsDeclaredType(TypeMirror typeName) {
+        return typeName.accept(DeclaredTypeOptionalVisitor.INSTANCE, null);
     }
 
     public Optional<TypeMirror> getGenericInnerType(Class<?> clazz, TypeMirror typeMirror) {
-        return asDeclaredType(typeMirror).flatMap(declaredType -> {
+        return maybeAsDeclaredType(typeMirror).flatMap(declaredType -> {
             if (declaredType.getTypeArguments().size() != 1) {
                 return Optional.empty();
             }
@@ -87,5 +87,20 @@ public final class ResolverContext implements ErrorContext {
 
     private TypeElement getTypeElement(Class<?> clazz) {
         return elements.getTypeElement(clazz.getCanonicalName());
+    }
+
+    private static final class DeclaredTypeOptionalVisitor extends OptionalTypeVisitor<DeclaredType> {
+        private static final DeclaredTypeOptionalVisitor INSTANCE = new DeclaredTypeOptionalVisitor();
+
+        @Override
+        public Optional<DeclaredType> visitDeclared(DeclaredType declaredType, Void unused) {
+            return Optional.of(declaredType);
+        }
+    }
+
+    private abstract static class OptionalTypeVisitor<T> extends SimpleTypeVisitor8<Optional<T>, Void> {
+        OptionalTypeVisitor() {
+            super(Optional.empty());
+        }
     }
 }
