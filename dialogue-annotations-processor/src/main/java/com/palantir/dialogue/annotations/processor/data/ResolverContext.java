@@ -93,7 +93,7 @@ public final class ResolverContext implements ErrorContext {
         private static final DeclaredTypeOptionalVisitor INSTANCE = new DeclaredTypeOptionalVisitor();
 
         @Override
-        public Optional<DeclaredType> visitDeclared(DeclaredType declaredType, Void unused) {
+        public Optional<DeclaredType> visitDeclared(DeclaredType declaredType, Void _unused) {
             return Optional.of(declaredType);
         }
     }
