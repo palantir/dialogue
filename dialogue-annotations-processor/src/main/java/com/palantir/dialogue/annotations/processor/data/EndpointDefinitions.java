@@ -61,7 +61,7 @@ public final class EndpointDefinitions {
                 .toString());
         Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotationReflector);
         Optional<ReturnType> maybeReturnType =
-                returnTypesResolver.getReturnType(endpointName, requestAnnotationReflector, element.getReturnType());
+                returnTypesResolver.getReturnType(endpointName, element, requestAnnotationReflector);
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
                 .map(arg -> getArgumentDefinition(endpointName, arg))
                 .collect(Collectors.toList());

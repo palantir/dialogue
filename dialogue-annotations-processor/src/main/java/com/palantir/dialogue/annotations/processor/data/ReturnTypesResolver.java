@@ -20,6 +20,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.annotations.Json;
 import com.squareup.javapoet.TypeName;
 import java.util.Optional;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 
 public final class ReturnTypesResolver {
@@ -31,19 +32,20 @@ public final class ReturnTypesResolver {
     }
 
     public Optional<ReturnType> getReturnType(
-            EndpointName endpointName, AnnotationReflector requestAnnotation, TypeMirror returnType) {
-        TypeName deserializer = requestAnnotation
-                .getFieldMaybe("accept", TypeMirror.class)
-                .map(TypeName::get)
-                .orElseGet(() -> context.getTypeName(Json.class));
-        // TODO(12345): Validate the deserializer has the right type etc.
-        Optional<TypeName> maybeListenableFutureInnerType =
-                getListenableFutureInnerType(returnType).map(TypeName::get);
+            EndpointName endpointName, ExecutableElement element, AnnotationReflector requestAnnotation) {
+        TypeMirror returnType = element.getReturnType();
+
+        Optional<TypeMirror> maybeListenableFutureInnerType = getListenableFutureInnerType(returnType);
+        // TODO(12345): Validate deserializer types match
+        Optional<TypeMirror> maybeAcceptDeserializerFactory =
+                requestAnnotation.getFieldMaybe("accept", TypeMirror.class);
         return Optional.of(ImmutableReturnType.builder()
                 .returnType(TypeName.get(returnType))
-                .deserializerFactory(deserializer)
+                .deserializerFactory(maybeAcceptDeserializerFactory
+                        .map(TypeName::get)
+                        .orElseGet(() -> context.getTypeName(Json.class)))
                 .deserializerFieldName(endpointName.get() + "Deserializer")
-                .asyncInnerType(maybeListenableFutureInnerType)
+                .asyncInnerType(maybeListenableFutureInnerType.map(TypeName::get))
                 .build());
     }
 
