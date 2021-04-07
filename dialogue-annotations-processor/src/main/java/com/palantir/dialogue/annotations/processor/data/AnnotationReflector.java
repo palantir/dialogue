@@ -19,13 +19,16 @@ package com.palantir.dialogue.annotations.processor.data;
 import com.google.auto.common.MoreElements;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.lang.annotation.Annotation;
 import java.util.Map;
 import java.util.Optional;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.AnnotationValue;
+import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.util.ElementFilter;
 import org.immutables.value.Value;
 
 @Value.Immutable
@@ -37,6 +40,13 @@ public interface AnnotationReflector {
     @Value.Derived
     default TypeElement annotationTypeElement() {
         return MoreElements.asType(annotationMirror().getAnnotationType().asElement());
+    }
+
+    @Value.Derived
+    default Map<String, ExecutableElement> methods() {
+        return KeyedStream.of(ElementFilter.methodsIn(annotationTypeElement().getEnclosedElements()))
+                .mapKeys(element -> element.getSimpleName().toString())
+                .collectToMap();
     }
 
     @Value.Derived
@@ -65,6 +75,12 @@ public interface AnnotationReflector {
 
     @SuppressWarnings("unchecked")
     default <T> Optional<T> getFieldMaybe(String fieldName, Class<T> valueClazz) {
+        Preconditions.checkArgument(
+                methods().containsKey(fieldName),
+                "Unknown field",
+                SafeArg.of("fieldName", fieldName),
+                SafeArg.of("type", annotationTypeElement()),
+                SafeArg.of("fields", methods()));
         Optional<Object> maybeValue = Optional.ofNullable(values().get(fieldName));
         return maybeValue.map(value -> {
             Preconditions.checkArgument(valueClazz.isInstance(value), "Value not of the right type");

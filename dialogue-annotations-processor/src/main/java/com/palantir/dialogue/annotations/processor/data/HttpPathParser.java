@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.base.Splitter;
-import com.palantir.dialogue.annotations.Request;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -32,9 +31,10 @@ public final class HttpPathParser {
         this.context = context;
     }
 
-    public Optional<HttpPath> getHttpPath(Element element, Request requestAnnotation) {
+    public Optional<HttpPath> getHttpPath(Element element, AnnotationReflector requestAnnotation) {
         try {
-            UriTemplateParser uriTemplateParser = new UriTemplateParser(requestAnnotation.path());
+            UriTemplateParser uriTemplateParser = new UriTemplateParser(
+                    requestAnnotation.getFieldMaybe("path", String.class).orElseThrow());
 
             Splitter splitter = Splitter.on('/');
             Iterable<String> rawSegments = splitter.split(uriTemplateParser.getNormalizedTemplate());

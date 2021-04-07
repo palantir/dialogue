@@ -18,10 +18,10 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
-import com.palantir.logsafe.Preconditions;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -38,17 +38,14 @@ public final class EndpointDefinitions {
     private final ReturnTypesResolver returnTypesResolver;
 
     public EndpointDefinitions(ErrorContext errorContext, Elements elements, Types types) {
-        ResolverContext resolverContext = new ResolverContext(errorContext, elements, types);
-        this.paramTypesResolver = new ParamTypesResolver(resolverContext);
-        this.httpPathParser = new HttpPathParser(resolverContext);
-        this.argumentTypesResolver = new ArgumentTypesResolver(resolverContext);
-        this.returnTypesResolver = new ReturnTypesResolver(resolverContext);
+        ResolverContext context = new ResolverContext(errorContext, elements, types);
+        this.paramTypesResolver = new ParamTypesResolver(context);
+        this.httpPathParser = new HttpPathParser(context);
+        this.argumentTypesResolver = new ArgumentTypesResolver(context);
+        this.returnTypesResolver = new ReturnTypesResolver(context);
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
-        // Q: Why use both #getAnnotation and #getAnnotationMirror?
-        // A: Because enum values are really hard to pull out from the mirrors.
-        Request requestAnnotation = Preconditions.checkNotNull(element.getAnnotation(Request.class), "No annotation");
         AnnotationReflector requestAnnotationReflector = MoreElements.getAnnotationMirror(element, Request.class)
                 .toJavaUtil()
                 .map(ImmutableAnnotationReflector::of)
@@ -56,7 +53,13 @@ public final class EndpointDefinitions {
 
         EndpointName endpointName =
                 ImmutableEndpointName.of(element.getSimpleName().toString());
-        Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotation);
+
+        HttpMethod method = HttpMethod.valueOf(requestAnnotationReflector
+                .getFieldMaybe("method", VariableElement.class)
+                .get()
+                .getSimpleName()
+                .toString());
+        Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotationReflector);
         Optional<ReturnType> maybeReturnType =
                 returnTypesResolver.getReturnType(endpointName, requestAnnotationReflector, element.getReturnType());
         List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
@@ -76,7 +79,7 @@ public final class EndpointDefinitions {
 
         return Optional.of(ImmutableEndpointDefinition.builder()
                 .endpointName(endpointName)
-                .httpMethod(requestAnnotation.method())
+                .httpMethod(method)
                 .httpPath(maybeHttpPath.get())
                 .returns(maybeReturnType.get())
                 .addAllArguments(args.stream().map(Optional::get).collect(Collectors.toList()))
