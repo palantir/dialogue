@@ -107,17 +107,15 @@ public final class ServiceImplementationGenerator {
 
         boolean isAsync = def.returns().asyncInnerType().isPresent();
 
-        String executeCode = isAsync
-                ? "$L.clients().call($L, $L.build(), $L);"
-                : "$L.clients().callBlocking($L, $L.build(), $L);";
+        String executeCode =
+                isAsync ? "$L.clients().call($L, $L.build(), $L);" : "$L.clients().callBlocking($L, $L.build(), $L);";
         CodeBlock execute = CodeBlock.of(
                 executeCode,
                 serviceDefinition.conjureRuntimeArgName(),
                 def.channelFieldName(),
                 REQUEST,
                 def.returns().deserializerFieldName());
-        methodBuilder.addCode(isAsync ? "return " : (def.returns().isVoid() ? "" : "return "));
-        methodBuilder.addCode(execute);
+        methodBuilder.addCode(!def.returns().isVoid() || isAsync ? "return $L" : "$L", execute);
 
         return methodBuilder.build();
     }
