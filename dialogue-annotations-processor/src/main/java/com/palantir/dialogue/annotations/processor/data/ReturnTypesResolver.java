@@ -36,6 +36,7 @@ public final class ReturnTypesResolver {
                 .getFieldMaybe("accept", TypeMirror.class)
                 .map(TypeName::get)
                 .orElseGet(() -> context.getTypeName(Json.class));
+        // TODO(12345): Validate the deserializer has the right type etc.
         Optional<TypeName> maybeListenableFutureInnerType =
                 getListenableFutureInnerType(returnType).map(TypeName::get);
         return Optional.of(ImmutableReturnType.builder()
