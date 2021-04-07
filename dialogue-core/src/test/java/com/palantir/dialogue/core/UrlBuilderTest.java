@@ -38,22 +38,23 @@ public final class UrlBuilderTest {
     }
 
     @Test
-    public void populatesDefaultPort() throws Exception {
+    public void doesNotPopulateDefaultPort() throws Exception {
+        // Some servers do not allow ports in the Host header, so we respect the input URI.
         assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("http://host"))
                         .build()
                         .toString())
-                .isEqualTo("http://host:80");
+                .isEqualTo("http://host");
         assertThat(BaseUrl.DefaultUrlBuilder.from(new URL("https://host"))
                         .build()
                         .toString())
-                .isEqualTo("https://host:443");
+                .isEqualTo("https://host");
     }
 
     @Test
     public void validatesPort() {
         assertThatThrownBy(() -> BaseUrl.DefaultUrlBuilder.from(new URL("http://host:65536"))
                         .build())
-                .hasMessage("port must be in range [0, 65535]");
+                .hasMessage("port must be in range [0, 65535] or default [-1]");
     }
 
     @Test
