@@ -18,10 +18,11 @@ package com.palantir.dialogue.annotations.processor.generate;
 
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
+import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
@@ -47,7 +48,7 @@ import javax.lang.model.element.Modifier;
 public final class ServiceImplementationGenerator {
 
     private static final String REQUEST = "_request";
-    private static final String PLAIN_SER_DE = "_plainSerDe";
+    private static final String PARAMETER_SERIALIZER = "_parameterSerializer";
 
     private final ServiceDefinition serviceDefinition;
 
@@ -59,9 +60,9 @@ public final class ServiceImplementationGenerator {
         TypeSpec.Builder impl =
                 TypeSpec.anonymousClassBuilder("").addSuperinterface(serviceDefinition.serviceInterface());
 
-        impl.addField(FieldSpec.builder(PlainSerDe.class, PLAIN_SER_DE)
+        impl.addField(FieldSpec.builder(ParameterSerializer.class, PARAMETER_SERIALIZER)
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(CodeBlock.of("$L.plainSerDe()", serviceDefinition.conjureRuntimeArgName()))
+                .initializer(CodeBlock.of("$T.INSTANCE", DefaultParameterSerializer.class))
                 .build());
 
         serviceDefinition.endpoints().forEach(endpoint -> {
@@ -219,9 +220,15 @@ public final class ServiceImplementationGenerator {
             String method, String key, CodeBlock argName, ArgumentType type) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
-            public Optional<CodeBlock> primitive(TypeName _unused, String plainSerDeMethodName) {
+            public Optional<CodeBlock> primitive(TypeName _unused, String parameterSerializerMethodName) {
                 return Optional.of(CodeBlock.of(
-                        "$L.$L($S, $L.$L($L));", REQUEST, method, key, PLAIN_SER_DE, plainSerDeMethodName, argName));
+                        "$L.$L($S, $L.$L($L));",
+                        REQUEST,
+                        method,
+                        key,
+                        PARAMETER_SERIALIZER,
+                        parameterSerializerMethodName,
+                        argName));
             }
 
             @Override

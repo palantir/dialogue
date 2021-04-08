@@ -15,5 +15,6 @@ dependencies {
 
     testImplementation project(':dialogue-core')
     testImplementation project(':dialogue-test-common')
+    testImplementation 'org.apache.commons:commons-lang3'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

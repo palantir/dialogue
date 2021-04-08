@@ -17,49 +17,45 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.collect.ImmutableMap;
-import com.palantir.common.streams.KeyedStream;
-import com.palantir.conjure.java.lib.SafeLong;
+import com.google.common.primitives.Primitives;
 import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.ImmutableOptionalType;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.ri.ResourceIdentifier;
-import com.palantir.tokens.auth.BearerToken;
+import com.palantir.logsafe.SafeArg;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
-import java.time.OffsetDateTime;
+import java.lang.reflect.Method;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.UUID;
-import java.util.function.Function;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 
 public final class ArgumentTypesResolver {
 
-    /**
-     * Why not generate this by inspecting the {@link com.palantir.dialogue.PlainSerDe} interface?
-     * If we suddenly decide to provide special serialization for a widely used type, we could break wire
-     * compatibility.
-     */
-    private static final ImmutableMap<TypeName, String> PLAIN_SER_DE_TYPES =
-            ImmutableMap.copyOf(KeyedStream.stream(new ImmutableMap.Builder<Class<?>, String>()
-                            .put(BearerToken.class, "BearerToken")
-                            .put(Boolean.class, "Boolean")
-                            .put(OffsetDateTime.class, "DateTime")
-                            .put(Double.class, "Double")
-                            .put(Integer.class, "Integer")
-                            .put(ResourceIdentifier.class, "Rid")
-                            .put(SafeLong.class, "SafeLong")
-                            .put(String.class, "String")
-                            .put(UUID.class, "Uuid")
-                            .build())
-                    .mapKeys((Function<Class<?>, ClassName>) ClassName::get)
-                    .map(value -> "serialize" + value)
-                    .collectToMap());
+    private static final ImmutableMap<TypeName, String> PARAMETER_SERIALIZER_TYPES;
+
+    static {
+        ImmutableMap.Builder<TypeName, String> builder = ImmutableMap.builder();
+        for (Method method : ParameterSerializer.class.getDeclaredMethods()) {
+            Preconditions.checkArgument(
+                    method.getReturnType().equals(String.class),
+                    "Return type is not String",
+                    SafeArg.of("method", method));
+            Preconditions.checkArgument(
+                    method.getParameterCount() == 1,
+                    "Serializer methods should have a single " + "arg",
+                    SafeArg.of("method", method));
+
+            ClassName parameterType = ClassName.get(Primitives.wrap(method.getParameterTypes()[0]));
+            builder.put(parameterType, method.getName());
+        }
+        PARAMETER_SERIALIZER_TYPES = builder.build();
+    }
 
     private final ResolverContext context;
 
@@ -92,11 +88,11 @@ public final class ArgumentTypesResolver {
     }
 
     private boolean isPrimitive(TypeName in) {
-        return PLAIN_SER_DE_TYPES.containsKey(in.box());
+        return PARAMETER_SERIALIZER_TYPES.containsKey(in.box());
     }
 
     private String planSerDeMethodName(TypeName in) {
-        String typeName = PLAIN_SER_DE_TYPES.get(in.box());
+        String typeName = PARAMETER_SERIALIZER_TYPES.get(in.box());
         return Preconditions.checkNotNull(typeName, "Unknown type");
     }
 
