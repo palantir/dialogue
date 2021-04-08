@@ -43,8 +43,6 @@ public interface ParameterSerializer {
 
     String serializeChar(char in);
 
-    String serializeByte(byte in);
-
     String serializeRid(ResourceIdentifier in);
 
     String serializeSafeLong(SafeLong in);

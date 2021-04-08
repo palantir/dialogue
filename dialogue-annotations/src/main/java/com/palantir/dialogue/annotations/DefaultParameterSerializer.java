@@ -57,11 +57,6 @@ public enum DefaultParameterSerializer implements ParameterSerializer {
     }
 
     @Override
-    public String serializeByte(byte in) {
-        return Byte.toString(in);
-    }
-
-    @Override
     public String serializeBearerToken(BearerToken in) {
         return in.toString();
     }

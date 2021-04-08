@@ -108,15 +108,6 @@ public final class ParameterSerializerTest {
     }
 
     @Test
-    public void testByte() {
-        for (Pair<Byte, String> inOut : Arrays.asList(Pair.of((byte) 0x0, "0"), Pair.of((byte) 0xde, "-34"))) {
-            byte in = inOut.getLeft();
-            String out = inOut.getRight();
-            assertThat(PLAIN.serializeByte(in)).isEqualTo(out);
-        }
-    }
-
-    @Test
     public void testSerializeRid() {
         ResourceIdentifier in = ResourceIdentifier.of("ri.service.instance.folder.foo");
         String out = "ri.service.instance.folder.foo";

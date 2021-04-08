@@ -54,7 +54,6 @@ public final class ArgumentTypesResolver {
                             .put(Integer.class, "Integer")
                             .put(Long.class, "Long")
                             .put(Character.class, "Char")
-                            .put(Byte.class, "Byte")
                             .put(ResourceIdentifier.class, "Rid")
                             .put(SafeLong.class, "SafeLong")
                             .put(String.class, "String")
