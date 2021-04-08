@@ -16,46 +16,53 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.primitives.Primitives;
+import com.palantir.common.streams.KeyedStream;
+import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.RequestBody;
-import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.ImmutableOptionalType;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.SafeArg;
+import com.palantir.ri.ResourceIdentifier;
+import com.palantir.tokens.auth.AuthHeader;
+import com.palantir.tokens.auth.BearerToken;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
-import java.lang.reflect.Method;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.UUID;
+import java.util.function.Function;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 
 public final class ArgumentTypesResolver {
 
-    private static final ImmutableMap<TypeName, String> PARAMETER_SERIALIZER_TYPES;
-
-    static {
-        ImmutableMap.Builder<TypeName, String> builder = ImmutableMap.builder();
-        for (Method method : ParameterSerializer.class.getDeclaredMethods()) {
-            Preconditions.checkArgument(
-                    method.getReturnType().equals(String.class),
-                    "Return type is not String",
-                    SafeArg.of("method", method));
-            Preconditions.checkArgument(
-                    method.getParameterCount() == 1,
-                    "Serializer methods should have a single " + "arg",
-                    SafeArg.of("method", method));
-
-            ClassName parameterType = ClassName.get(Primitives.wrap(method.getParameterTypes()[0]));
-            builder.put(parameterType, method.getName());
-        }
-        PARAMETER_SERIALIZER_TYPES = builder.build();
-    }
+    @VisibleForTesting
+    static final ImmutableMap<TypeName, String> PARAMETER_SERIALIZER_TYPES =
+            ImmutableMap.copyOf(KeyedStream.stream(new ImmutableMap.Builder<Class<?>, String>()
+                            .put(BearerToken.class, "BearerToken")
+                            .put(AuthHeader.class, "AuthHeader")
+                            .put(Boolean.class, "Boolean")
+                            .put(OffsetDateTime.class, "DateTime")
+                            .put(Double.class, "Double")
+                            .put(Float.class, "Float")
+                            .put(Integer.class, "Integer")
+                            .put(Long.class, "Long")
+                            .put(Character.class, "Char")
+                            .put(Byte.class, "Byte")
+                            .put(ResourceIdentifier.class, "Rid")
+                            .put(SafeLong.class, "SafeLong")
+                            .put(String.class, "String")
+                            .put(UUID.class, "Uuid")
+                            .build())
+                    .mapKeys((Function<Class<?>, ClassName>) ClassName::get)
+                    .map(value -> "serialize" + value)
+                    .collectToMap());
 
     private final ResolverContext context;
 
