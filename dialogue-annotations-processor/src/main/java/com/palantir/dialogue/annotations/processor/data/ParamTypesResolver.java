@@ -24,6 +24,7 @@ import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.tokens.auth.AuthHeader;
 import com.squareup.javapoet.TypeName;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,6 +62,8 @@ public final class ParamTypesResolver {
         if (paramAnnotationMirrors.isEmpty()) {
             if (context.isSameTypes(variableElement.asType(), RequestBody.class)) {
                 return Optional.of(ParameterTypes.rawBody());
+            } else if (context.isSameTypes(variableElement.asType(), AuthHeader.class)) {
+                return Optional.of(ParameterTypes.header("Authorization"));
             } else {
                 context.reportError(
                         "At least one annotation should be present or type should be RequestBody",
@@ -91,8 +94,6 @@ public final class ParamTypesResolver {
             //  match
             return Optional.of(ParameterTypes.body(
                     TypeName.get(customSerializer.orElseGet(() -> context.getTypeMirror(Json.class))), serializerName));
-        } else if (annotationReflector.isAnnotation(Request.Header.class)) {
-            return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
         } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
