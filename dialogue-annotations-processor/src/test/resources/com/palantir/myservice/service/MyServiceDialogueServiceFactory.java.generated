@@ -18,6 +18,7 @@ import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
+import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
@@ -68,8 +69,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     runtime.bodySerDe().emptyBodyDeserializer();
 
             @Override
-            public String greet(String greeting) {
+            public String greet(AuthHeader authHeader, String greeting) {
                 Request.Builder _request = Request.builder();
+                _request.putHeaderParams("Authorization", _parameterSerializer.serializeAuthHeader(authHeader));
                 _request.body(greetSerializer.serialize(greeting));
                 return runtime.clients().callBlocking(greetChannel, _request.build(), greetDeserializer);
             }

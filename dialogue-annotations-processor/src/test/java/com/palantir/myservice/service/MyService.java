@@ -21,6 +21,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.tokens.auth.AuthHeader;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -31,6 +32,7 @@ public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/greet")
     String greet(
+            AuthHeader authHeader,
             // Idea is that Json.class provides the encoder to transform the
             // greeting string into application/json. Another hand-written
             // CustomJson.class may provide a custom ObjectMapper, but we
