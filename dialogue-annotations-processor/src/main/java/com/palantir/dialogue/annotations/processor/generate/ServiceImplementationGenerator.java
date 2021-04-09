@@ -22,6 +22,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
@@ -44,6 +46,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -72,9 +75,9 @@ public final class ServiceImplementationGenerator {
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
                             .body((serializer, serializerFieldName) ->
                                     Optional.of(serializer(arg, serializer, serializerFieldName)))
-                            .header((_headerName, headerParamEncoder) -> headerParamEncoder.map(this::encoder))
-                            .path(parameterEncoderType -> parameterEncoderType.map(this::encoder))
-                            .query((_paramName, paramEncoder) -> paramEncoder.map(this::encoder))
+                            .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
                     .forEach(impl::addField);
@@ -169,12 +172,32 @@ public final class ServiceImplementationGenerator {
                 .build());
     }
 
-    private FieldSpec encoder(ParameterEncoderType type) {
-        // TODO(12345): Don't be cheeky, create the right parameterized interface.
-        return FieldSpec.builder(type.encoderJavaType(), type.encoderFieldName())
+    private FieldSpec encoder(ArgumentDefinition arg, ParameterEncoderType type) {
+        Class<?> encoderInterface = type.type().match(new EncoderType.Cases<>() {
+            @Override
+            public Class<?> param() {
+                return ParamEncoder.class;
+            }
+
+            @Override
+            public Class<?> listParam() {
+                return ListParamEncoder.class;
+            }
+        });
+        ParameterizedTypeName encoderType =
+                ParameterizedTypeName.get(ClassName.get(encoderInterface), underlyingCustomType(arg.argType()));
+        return FieldSpec.builder(encoderType, type.encoderFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(CodeBlock.of("new $T()", type.encoderJavaType()))
                 .build();
+    }
+
+    private TypeName underlyingCustomType(ArgumentType argumentType) {
+        return ArgumentTypes.caseOf(argumentType)
+                .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
+                .customType(Function.identity())
+                .otherwiseEmpty()
+                .orElseThrow();
     }
 
     private Optional<CodeBlock> generateParam(ArgumentDefinition param) {

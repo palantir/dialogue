@@ -17,6 +17,8 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
@@ -60,13 +62,16 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<Response> customResponseDeserializer =
                     new MyResponseDeserializer().deserializerFor(new TypeMarker<Response>() {});
 
-            private final MyCustomParamTypeParameterEncoder paramsQuery1Encoder =
+            private final ListParamEncoder<MyCustomParamType> paramsQuery1Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsQuery2Encoder =
+            private final ListParamEncoder<MyCustomParamType> paramsQuery2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsMaybeCustomOptionalHeader3ValueEncoder =
+            private final ParamEncoder<MyCustomParamType> paramsMyPathParam2Encoder =
+                    new MyCustomParamTypeParameterEncoder();
+
+            private final ListParamEncoder<MyCustomParamType> paramsMaybeCustomOptionalHeader3ValueEncoder =
                     new MyCustomParamTypeParameterEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
@@ -124,6 +129,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     _request.putAllQueryParams("q2", paramsQuery2Encoder.toParamValues(query2.get()));
                 }
                 _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
+                _request.putPathParams("myPathParam2", paramsMyPathParam2Encoder.toParamValue(myPathParam2));
                 _request.putHeaderParams("Custom-Header", _parameterSerializer.serializeInteger(requestHeaderValue));
                 if (maybeCustomOptionalHeader1Value.isPresent()) {
                     _request.putHeaderParams(
