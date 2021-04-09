@@ -20,12 +20,16 @@ import com.google.auto.common.MoreElements;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.annotations.HeaderParamEncoder;
 import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tokens.auth.AuthHeader;
 import com.squareup.javapoet.TypeName;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -40,6 +44,17 @@ public final class ParamTypesResolver {
             Request.Body.class, Request.PathParam.class, Request.QueryParam.class, Request.Header.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
+    private static final Method paramEncoderMethod;
+    private static final Method headerParamEncoderMethod;
+
+    static {
+        try {
+            paramEncoderMethod = ParamEncoder.class.getMethod("toParamValue", Object.class);
+            headerParamEncoderMethod = HeaderParamEncoder.class.getMethod("toHeaderParamValues", Object.class);
+        } catch (NoSuchMethodException e) {
+            throw new SafeRuntimeException("Method renamed: are you sure you want to cause a break?", e);
+        }
+    }
 
     private final ResolverContext context;
 
@@ -63,7 +78,7 @@ public final class ParamTypesResolver {
             if (context.isSameTypes(variableElement.asType(), RequestBody.class)) {
                 return Optional.of(ParameterTypes.rawBody());
             } else if (context.isSameTypes(variableElement.asType(), AuthHeader.class)) {
-                return Optional.of(ParameterTypes.header("Authorization"));
+                return Optional.of(ParameterTypes.header("Authorization", Optional.empty()));
             } else {
                 context.reportError(
                         "At least one annotation should be present or type should be RequestBody",
@@ -95,13 +110,48 @@ public final class ParamTypesResolver {
             return Optional.of(ParameterTypes.body(
                     TypeName.get(customSerializer.orElseGet(() -> context.getTypeMirror(Json.class))), serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
-            return Optional.of(ParameterTypes.header(annotationReflector.getStringValueField()));
+            return Optional.of(ParameterTypes.header(
+                    annotationReflector.getStringValueField(),
+                    getParameterEncoder(
+                            endpointName,
+                            variableElement,
+                            annotationReflector,
+                            EncoderTypes.headerParam(),
+                            paramEncoderMethod)));
         } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
-            return Optional.of(ParameterTypes.path());
+            return Optional.of(ParameterTypes.path(getParameterEncoder(
+                    endpointName, variableElement, annotationReflector, EncoderTypes.param(), paramEncoderMethod)));
         } else if (annotationReflector.isAnnotation(Request.QueryParam.class)) {
-            return Optional.of(ParameterTypes.query(annotationReflector.getValueStrict(String.class)));
+            return Optional.of(ParameterTypes.query(
+                    annotationReflector.getValueStrict(String.class),
+                    getParameterEncoder(
+                            endpointName,
+                            variableElement,
+                            annotationReflector,
+                            EncoderTypes.param(),
+                            paramEncoderMethod)));
         }
 
         throw new SafeIllegalStateException("Not possible");
+    }
+
+    private Optional<ParameterEncoderType> getParameterEncoder(
+            EndpointName endpointName,
+            VariableElement variableElement,
+            AnnotationReflector annotationReflector,
+            ParameterEncoderType.EncoderType encoderType,
+            Method encoderMethod) {
+        return annotationReflector
+                .getFieldMaybe("encoder", TypeMirror.class)
+                .map(TypeName::get)
+                .map(encoderJavaType -> ImmutableParameterEncoderType.builder()
+                        .type(encoderType)
+                        .encoderJavaType(encoderJavaType)
+                        .encoderFieldName(InstanceVariables.joinCamelCase(
+                                endpointName.get(),
+                                variableElement.getSimpleName().toString(),
+                                "Encoder"))
+                        .encoderMethodName(encoderMethod.getName())
+                        .build());
     }
 }

@@ -17,6 +17,7 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.squareup.javapoet.TypeName;
+import java.util.Optional;
 import org.derive4j.Data;
 
 @Data
@@ -27,11 +28,11 @@ public interface ParameterType {
 
         R body(TypeName serializerFactory, String serializerFieldName);
 
-        R header(String headerName);
+        R header(String headerName, Optional<ParameterEncoderType> headerParamEncoder);
 
-        R path();
+        R path(Optional<ParameterEncoderType> paramEncoder);
 
-        R query(String paramName);
+        R query(String paramName, Optional<ParameterEncoderType> paramEncoder);
     }
 
     <R> R match(Cases<R> cases);

@@ -61,6 +61,10 @@ public interface MyService {
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
     void params(
             @Request.QueryParam("q") String query,
+            @Request.QueryParam(value = "q1", encoder = MyCustomParamTypeParameterEncoder.class)
+                    MyCustomParamType query1,
+            @Request.QueryParam(value = "q2", encoder = MyCustomParamTypeParameterEncoder.class)
+                    Optional<MyCustomParamType> query2,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
             @Request.PathParam MyCustomParamType myPathParam2,
@@ -68,7 +72,8 @@ public interface MyService {
             // Headers can be optional
             @Request.Header("Custom-Optional-Header1") Optional<String> maybeCustomOptionalHeader1Value,
             @Request.Header("Custom-Optional-Header2") OptionalInt maybeCustomOptionalHeader2Value,
-            @Request.Header("Custom-Optional-Header3") Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
+            @Request.Header(value = "Custom-Optional-Header3", encoder = MyCustomParamTypeParameterEncoder.class)
+                    Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have

@@ -70,15 +70,21 @@ public @interface Request {
     @Target(ElementType.PARAMETER)
     @interface Header {
         String value();
+
+        Class<? extends HeaderParamEncoder<?>> encoder() default DefaultHeaderParamEncoder.class;
     }
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
-    @interface PathParam {}
+    @interface PathParam {
+        Class<? extends ParamEncoder<?>> encoder() default DefaultParamEncoder.class;
+    }
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
     @interface QueryParam {
         String value();
+
+        Class<? extends ParamEncoder<?>> encoder() default DefaultParamEncoder.class;
     }
 }

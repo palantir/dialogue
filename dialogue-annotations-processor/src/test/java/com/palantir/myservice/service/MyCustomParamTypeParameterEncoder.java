@@ -16,15 +16,20 @@
 
 package com.palantir.myservice.service;
 
-public final class MyCustomParamType {
+import com.palantir.dialogue.annotations.HeaderParamEncoder;
+import com.palantir.dialogue.annotations.ParamEncoder;
+import java.util.Collections;
+import java.util.List;
 
-    private final String value;
-
-    public MyCustomParamType(String value) {
-        this.value = value;
+public final class MyCustomParamTypeParameterEncoder
+        implements ParamEncoder<MyCustomParamType>, HeaderParamEncoder<MyCustomParamType> {
+    @Override
+    public String toParamValue(MyCustomParamType value) {
+        return value.value();
     }
 
-    public String value() {
-        return value;
+    @Override
+    public List<String> toHeaderParamValues(MyCustomParamType value) {
+        return Collections.singletonList(value.value());
     }
 }

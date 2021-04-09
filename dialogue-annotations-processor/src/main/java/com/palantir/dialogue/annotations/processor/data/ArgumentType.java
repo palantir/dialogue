@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor;
+package com.palantir.dialogue.annotations.processor.data;
 
 import com.squareup.javapoet.TypeName;
 import org.derive4j.Data;

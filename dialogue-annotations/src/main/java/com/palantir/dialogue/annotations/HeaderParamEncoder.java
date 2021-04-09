@@ -14,17 +14,10 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.dialogue.annotations;
 
-public final class MyCustomParamType {
+import java.util.List;
 
-    private final String value;
-
-    public MyCustomParamType(String value) {
-        this.value = value;
-    }
-
-    public String value() {
-        return value;
-    }
+public interface HeaderParamEncoder<T> {
+    List<String> toHeaderParamValues(T value);
 }

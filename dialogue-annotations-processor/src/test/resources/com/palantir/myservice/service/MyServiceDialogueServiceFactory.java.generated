@@ -60,6 +60,15 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<Response> customResponseDeserializer =
                     new MyResponseDeserializer().deserializerFor(new TypeMarker<Response>() {});
 
+            private final MyCustomParamTypeParameterEncoder paramsquery1Encoder =
+                    new MyCustomParamTypeParameterEncoder();
+
+            private final MyCustomParamTypeParameterEncoder paramsquery2Encoder =
+                    new MyCustomParamTypeParameterEncoder();
+
+            private final MyCustomParamTypeParameterEncoder paramsmaybeCustomOptionalHeader3ValueEncoder =
+                    new MyCustomParamTypeParameterEncoder();
+
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
 
@@ -99,6 +108,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             @Override
             public void params(
                     String query,
+                    MyCustomParamType query1,
+                    Optional<MyCustomParamType> query2,
                     UUID myPathParam,
                     MyCustomParamType myPathParam2,
                     int requestHeaderValue,
@@ -108,6 +119,10 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q", _parameterSerializer.serializeString(query));
+                _request.putQueryParams("q1", paramsquery1Encoder.toParamValue(query1));
+                if (query2.isPresent()) {
+                    _request.putQueryParams("q2", paramsquery2Encoder.toParamValue(query2.get()));
+                }
                 _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
                 _request.putHeaderParams("Custom-Header", _parameterSerializer.serializeInteger(requestHeaderValue));
                 if (maybeCustomOptionalHeader1Value.isPresent()) {

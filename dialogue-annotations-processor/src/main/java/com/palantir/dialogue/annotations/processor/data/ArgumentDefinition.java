@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.palantir.dialogue.annotations.processor.ArgumentType;
 import org.immutables.value.Value;
 
 @Value.Immutable

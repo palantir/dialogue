@@ -20,7 +20,6 @@ import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.processor.ArgumentType;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
 import java.util.List;
 import java.util.Optional;
