@@ -24,7 +24,7 @@ public final class MyCustomParamType {
         this.value = value;
     }
 
-    public String toStringParamValue() {
+    public String value() {
         return value;
     }
 }

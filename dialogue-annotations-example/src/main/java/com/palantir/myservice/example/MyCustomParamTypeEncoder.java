@@ -14,17 +14,13 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.myservice.example;
 
-public final class MyCustomParamType {
+import com.palantir.dialogue.annotations.ParamEncoder;
 
-    private final String value;
-
-    public MyCustomParamType(String value) {
-        this.value = value;
-    }
-
-    public String value() {
-        return value;
+public final class MyCustomParamTypeEncoder implements ParamEncoder<MyCustomParamType> {
+    @Override
+    public String toParamValue(MyCustomParamType value) {
+        return value.value();
     }
 }

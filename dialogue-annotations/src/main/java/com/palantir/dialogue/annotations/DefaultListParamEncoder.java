@@ -14,17 +14,9 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.dialogue.annotations;
 
-public final class MyCustomParamType {
-
-    private final String value;
-
-    public MyCustomParamType(String value) {
-        this.value = value;
-    }
-
-    public String value() {
-        return value;
-    }
-}
+/**
+ * Marker interface to appease the compiler. Not used at runtime.
+ */
+public interface DefaultListParamEncoder extends ListParamEncoder<Object> {}

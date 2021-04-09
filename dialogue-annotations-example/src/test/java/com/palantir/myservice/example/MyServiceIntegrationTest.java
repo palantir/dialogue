@@ -42,7 +42,6 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public final class MyServiceIntegrationTest {
@@ -151,13 +150,11 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    @Disabled
     public void testParamsWithCustomHeader() {
         testParams(OptionalInt.of(3));
     }
 
     @Test
-    @Disabled
     public void testParamsNoCustomHeader() {
         testParams(OptionalInt.empty());
     }

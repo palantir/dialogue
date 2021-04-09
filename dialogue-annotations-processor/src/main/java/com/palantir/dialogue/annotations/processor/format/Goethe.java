@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.util;
+package com.palantir.dialogue.annotations.processor.format;
 
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Splitter;

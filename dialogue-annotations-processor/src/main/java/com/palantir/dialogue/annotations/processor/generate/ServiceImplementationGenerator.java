@@ -22,12 +22,16 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
-import com.palantir.dialogue.annotations.processor.ArgumentType;
-import com.palantir.dialogue.annotations.processor.ArgumentType.OptionalType;
-import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
+import com.palantir.dialogue.annotations.processor.data.ArgumentType;
+import com.palantir.dialogue.annotations.processor.data.ArgumentType.OptionalType;
+import com.palantir.dialogue.annotations.processor.data.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
+import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType;
+import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
 import com.palantir.dialogue.annotations.processor.data.ParameterType.Cases;
 import com.palantir.dialogue.annotations.processor.data.ParameterTypes;
 import com.palantir.dialogue.annotations.processor.data.ReturnType;
@@ -42,6 +46,7 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -68,11 +73,14 @@ public final class ServiceImplementationGenerator {
         serviceDefinition.endpoints().forEach(endpoint -> {
             endpoint.arguments().stream()
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
-                            .body((serializer, serializerFieldName) -> serializer(arg, serializer, serializerFieldName))
-                            .otherwiseEmpty()
+                            .body((serializer, serializerFieldName) ->
+                                    Optional.of(serializer(arg, serializer, serializerFieldName)))
+                            .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .otherwise_(Optional.empty())
                             .stream())
-                    .findAny()
-                    .ifPresent(impl::addField);
+                    .forEach(impl::addField);
             impl.addField(bindEndpointChannel(endpoint));
             impl.addMethod(clientImpl(endpoint));
 
@@ -164,6 +172,34 @@ public final class ServiceImplementationGenerator {
                 .build());
     }
 
+    private FieldSpec encoder(ArgumentDefinition arg, ParameterEncoderType type) {
+        Class<?> encoderInterface = type.type().match(new EncoderType.Cases<>() {
+            @Override
+            public Class<?> param() {
+                return ParamEncoder.class;
+            }
+
+            @Override
+            public Class<?> listParam() {
+                return ListParamEncoder.class;
+            }
+        });
+        ParameterizedTypeName encoderType =
+                ParameterizedTypeName.get(ClassName.get(encoderInterface), underlyingCustomType(arg.argType()));
+        return FieldSpec.builder(encoderType, type.encoderFieldName())
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer(CodeBlock.of("new $T()", type.encoderJavaType()))
+                .build();
+    }
+
+    private TypeName underlyingCustomType(ArgumentType argumentType) {
+        return ArgumentTypes.caseOf(argumentType)
+                .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
+                .customType(Function.identity())
+                .otherwiseEmpty()
+                .orElseThrow();
+    }
+
     private Optional<CodeBlock> generateParam(ArgumentDefinition param) {
         return param.paramType().match(new Cases<>() {
             @Override
@@ -182,49 +218,69 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> header(String headerName) {
-                return generateHeaderParam(param, headerName);
+            public Optional<CodeBlock> header(String headerName, Optional<ParameterEncoderType> paramEncoderType) {
+                return generateHeaderParam(param, headerName, paramEncoderType);
             }
 
             @Override
-            public Optional<CodeBlock> path() {
-                return generatePathParam(param);
+            public Optional<CodeBlock> path(Optional<ParameterEncoderType> paramEncoderType) {
+                return generatePathParam(param, paramEncoderType);
             }
 
             @Override
-            public Optional<CodeBlock> query(String paramName) {
-                return generateQueryParam(param, paramName);
+            public Optional<CodeBlock> query(String paramName, Optional<ParameterEncoderType> paramEncoderType) {
+                return generateQueryParam(param, paramName, paramEncoderType);
             }
         });
     }
 
-    private Optional<CodeBlock> generateHeaderParam(ArgumentDefinition param, String headerName) {
+    private Optional<CodeBlock> generateHeaderParam(
+            ArgumentDefinition param, String headerName, Optional<ParameterEncoderType> headerParamEncoder) {
         return generatePlainSerializer(
-                "putHeaderParams", headerName, CodeBlock.of(param.argName().get()), param.argType());
+                "putHeaderParams",
+                "putAllHeaderParams",
+                headerName,
+                CodeBlock.of(param.argName().get()),
+                param.argType(),
+                headerParamEncoder);
     }
 
-    private Optional<CodeBlock> generatePathParam(ArgumentDefinition param) {
+    private Optional<CodeBlock> generatePathParam(
+            ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {
         return generatePlainSerializer(
                 "putPathParams",
+                "nope",
                 param.argName().get(),
                 CodeBlock.of("$L", param.argName().get()),
-                param.argType());
+                param.argType(),
+                paramEncoder);
     }
 
-    private Optional<CodeBlock> generateQueryParam(ArgumentDefinition param, String paramName) {
+    private Optional<CodeBlock> generateQueryParam(
+            ArgumentDefinition param, String paramName, Optional<ParameterEncoderType> paramEncoder) {
         return generatePlainSerializer(
-                "putQueryParams", paramName, CodeBlock.of(param.argName().get()), param.argType());
+                "putQueryParams",
+                "putAllQueryParams",
+                paramName,
+                CodeBlock.of(param.argName().get()),
+                param.argType(),
+                paramEncoder);
     }
 
     private Optional<CodeBlock> generatePlainSerializer(
-            String method, String key, CodeBlock argName, ArgumentType type) {
+            String singleValueMethod,
+            String multiValueMethod,
+            String key,
+            CodeBlock argName,
+            ArgumentType type,
+            Optional<ParameterEncoderType> maybeParameterEncoderType) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
             public Optional<CodeBlock> primitive(TypeName _unused, String parameterSerializerMethodName) {
                 return Optional.of(CodeBlock.of(
                         "$L.$L($S, $L.$L($L));",
                         REQUEST,
-                        method,
+                        singleValueMethod,
                         key,
                         PARAMETER_SERIALIZER,
                         parameterSerializerMethodName,
@@ -239,10 +295,12 @@ public final class ServiceImplementationGenerator {
             @Override
             public Optional<CodeBlock> optional(TypeName _unused, OptionalType optionalType) {
                 return generatePlainSerializer(
-                                method,
+                                singleValueMethod,
+                                multiValueMethod,
                                 key,
                                 CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
-                                optionalType.underlyingType())
+                                optionalType.underlyingType(),
+                                maybeParameterEncoderType)
                         .map(inner -> CodeBlock.builder()
                                 .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
                                 .add(inner)
@@ -251,8 +309,38 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> customType(TypeName _unused) {
-                return Optional.empty();
+            public Optional<CodeBlock> customType(TypeName _typeName) {
+                if (maybeParameterEncoderType.isEmpty()) {
+                    return Optional.empty();
+                }
+
+                return maybeParameterEncoderType.flatMap(parameterEncoderType -> parameterEncoderType
+                        .type()
+                        .match(new EncoderType.Cases<Optional<CodeBlock>>() {
+                            @Override
+                            public Optional<CodeBlock> param() {
+                                return Optional.of(CodeBlock.of(
+                                        "$L.$L($S, $L.$L($L));",
+                                        REQUEST,
+                                        singleValueMethod,
+                                        key,
+                                        parameterEncoderType.encoderFieldName(),
+                                        parameterEncoderType.encoderMethodName(),
+                                        argName));
+                            }
+
+                            @Override
+                            public Optional<CodeBlock> listParam() {
+                                return Optional.of(CodeBlock.of(
+                                        "$L.$L($S, $L.$L($L));",
+                                        REQUEST,
+                                        multiValueMethod,
+                                        key,
+                                        parameterEncoderType.encoderFieldName(),
+                                        parameterEncoderType.encoderMethodName(),
+                                        argName));
+                            }
+                        }));
             }
         });
     }

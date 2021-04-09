@@ -14,17 +14,32 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.dialogue.annotations.processor.data;
 
-public final class MyCustomParamType {
+import com.squareup.javapoet.TypeName;
+import org.derive4j.Data;
+import org.immutables.value.Value;
 
-    private final String value;
+@Value.Immutable
+@Value.Style(stagedBuilder = true)
+public interface ParameterEncoderType {
 
-    public MyCustomParamType(String value) {
-        this.value = value;
-    }
+    EncoderType type();
 
-    public String value() {
-        return value;
+    TypeName encoderJavaType();
+
+    String encoderFieldName();
+
+    String encoderMethodName();
+
+    @Data
+    interface EncoderType {
+        interface Cases<R> {
+            R param();
+
+            R listParam();
+        }
+
+        <R> R match(EncoderType.Cases<R> cases);
     }
 }

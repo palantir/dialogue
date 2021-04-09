@@ -44,7 +44,7 @@ public final class ReturnTypesResolver {
                 .deserializerFactory(maybeAcceptDeserializerFactory
                         .map(TypeName::get)
                         .orElseGet(() -> context.getTypeName(Json.class)))
-                .deserializerFieldName(endpointName.get() + "Deserializer")
+                .deserializerFieldName(InstanceVariables.joinCamelCase(endpointName.get(), "Deserializer"))
                 .asyncInnerType(maybeListenableFutureInnerType.map(TypeName::get))
                 .build());
     }

@@ -60,7 +60,7 @@ public interface MyService {
             @Request.QueryParam("q") String query,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
-            @Request.PathParam MyCustomParamType myPathParam2,
+            @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
