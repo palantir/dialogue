@@ -22,8 +22,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
-import com.palantir.dialogue.annotations.ListParamEncoder;
-import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
@@ -173,17 +171,6 @@ public final class ServiceImplementationGenerator {
 
     private FieldSpec encoder(ParameterEncoderType type) {
         // TODO(12345): Don't be cheeky, create the right parameterized interface.
-        TypeName encoderInterface = type.type().match(new EncoderType.Cases<>() {
-            @Override
-            public TypeName param() {
-                return ClassName.get(ParamEncoder.class);
-            }
-
-            @Override
-            public TypeName listParam() {
-                return ClassName.get(ListParamEncoder.class);
-            }
-        });
         return FieldSpec.builder(type.encoderJavaType(), type.encoderFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(CodeBlock.of("new $T()", type.encoderJavaType()))
@@ -299,7 +286,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> customType(TypeName typeName) {
+            public Optional<CodeBlock> customType(TypeName _typeName) {
                 if (maybeParameterEncoderType.isEmpty()) {
                     return Optional.empty();
                 }

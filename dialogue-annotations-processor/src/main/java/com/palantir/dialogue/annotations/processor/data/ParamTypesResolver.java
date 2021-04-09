@@ -30,7 +30,6 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tokens.auth.AuthHeader;
 import com.squareup.javapoet.TypeName;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -45,13 +44,16 @@ public final class ParamTypesResolver {
             Request.Body.class, Request.PathParam.class, Request.QueryParam.class, Request.Header.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
-    private static final Method paramEncoderMethod;
-    private static final Method listParamEncoderMethod;
+    private static final String paramEncoderMethod;
+    private static final String listParamEncoderMethod;
 
     static {
         try {
-            paramEncoderMethod = ParamEncoder.class.getMethod("toParamValue", Object.class);
-            listParamEncoderMethod = ListParamEncoder.class.getMethod("toParamValues", Object.class);
+            paramEncoderMethod =
+                    ParamEncoder.class.getMethod("toParamValue", Object.class).getName();
+            listParamEncoderMethod = ListParamEncoder.class
+                    .getMethod("toParamValues", Object.class)
+                    .getName();
         } catch (NoSuchMethodException e) {
             throw new SafeRuntimeException("Method renamed: are you sure you want to cause a break?", e);
         }
@@ -143,18 +145,19 @@ public final class ParamTypesResolver {
                                 endpointName.get(),
                                 variableElement.getSimpleName().toString(),
                                 "Encoder"))
-                        .encoderMethodName(encoderTypeAndMethod.method.getName())
+                        .encoderMethodName(encoderTypeAndMethod.method)
                         .build());
     }
 
-    enum EncoderTypeAndMethod {
+    @SuppressWarnings("ImmutableEnumChecker")
+    private enum EncoderTypeAndMethod {
         PARAM(EncoderTypes.param(), paramEncoderMethod),
         LIST(EncoderTypes.listParam(), listParamEncoderMethod);
 
         private final ParameterEncoderType.EncoderType encoderType;
-        private final Method method;
+        private final String method;
 
-        EncoderTypeAndMethod(EncoderType encoderType, Method method) {
+        EncoderTypeAndMethod(EncoderType encoderType, String method) {
             this.encoderType = encoderType;
             this.method = method;
         }
