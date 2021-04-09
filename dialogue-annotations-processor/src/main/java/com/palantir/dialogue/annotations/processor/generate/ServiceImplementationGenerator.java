@@ -22,7 +22,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
-import com.palantir.dialogue.annotations.HeaderParamEncoder;
+import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
@@ -180,8 +180,8 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public TypeName headerParam() {
-                return ClassName.get(HeaderParamEncoder.class);
+            public TypeName listParam() {
+                return ClassName.get(ListParamEncoder.class);
             }
         });
         return FieldSpec.builder(type.encoderJavaType(), type.encoderFieldName())
@@ -228,6 +228,7 @@ public final class ServiceImplementationGenerator {
             ArgumentDefinition param, String headerName, Optional<ParameterEncoderType> headerParamEncoder) {
         return generatePlainSerializer(
                 "putHeaderParams",
+                "putAllHeaderParams",
                 headerName,
                 CodeBlock.of(param.argName().get()),
                 param.argType(),
@@ -238,6 +239,7 @@ public final class ServiceImplementationGenerator {
             ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {
         return generatePlainSerializer(
                 "putPathParams",
+                "nope",
                 param.argName().get(),
                 CodeBlock.of("$L", param.argName().get()),
                 param.argType(),
@@ -247,11 +249,17 @@ public final class ServiceImplementationGenerator {
     private Optional<CodeBlock> generateQueryParam(
             ArgumentDefinition param, String paramName, Optional<ParameterEncoderType> paramEncoder) {
         return generatePlainSerializer(
-                "putQueryParams", paramName, CodeBlock.of(param.argName().get()), param.argType(), paramEncoder);
+                "putQueryParams",
+                "putAllQueryParams",
+                paramName,
+                CodeBlock.of(param.argName().get()),
+                param.argType(),
+                paramEncoder);
     }
 
     private Optional<CodeBlock> generatePlainSerializer(
-            String method,
+            String singleValueMethod,
+            String multiValueMethod,
             String key,
             CodeBlock argName,
             ArgumentType type,
@@ -262,7 +270,7 @@ public final class ServiceImplementationGenerator {
                 return Optional.of(CodeBlock.of(
                         "$L.$L($S, $L.$L($L));",
                         REQUEST,
-                        method,
+                        singleValueMethod,
                         key,
                         PARAMETER_SERIALIZER,
                         parameterSerializerMethodName,
@@ -277,7 +285,8 @@ public final class ServiceImplementationGenerator {
             @Override
             public Optional<CodeBlock> optional(TypeName _unused, OptionalType optionalType) {
                 return generatePlainSerializer(
-                                method,
+                                singleValueMethod,
+                                multiValueMethod,
                                 key,
                                 CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
                                 optionalType.underlyingType(),
@@ -303,7 +312,7 @@ public final class ServiceImplementationGenerator {
                                 return Optional.of(CodeBlock.of(
                                         "$L.$L($S, $L.$L($L));",
                                         REQUEST,
-                                        method,
+                                        singleValueMethod,
                                         key,
                                         parameterEncoderType.encoderFieldName(),
                                         parameterEncoderType.encoderMethodName(),
@@ -311,8 +320,15 @@ public final class ServiceImplementationGenerator {
                             }
 
                             @Override
-                            public Optional<CodeBlock> headerParam() {
-                                return Optional.empty();
+                            public Optional<CodeBlock> listParam() {
+                                return Optional.of(CodeBlock.of(
+                                        "$L.$L($S, $L.$L($L));",
+                                        REQUEST,
+                                        multiValueMethod,
+                                        key,
+                                        parameterEncoderType.encoderFieldName(),
+                                        parameterEncoderType.encoderMethodName(),
+                                        argName));
                             }
                         }));
             }

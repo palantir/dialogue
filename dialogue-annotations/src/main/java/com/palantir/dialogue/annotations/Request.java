@@ -71,7 +71,7 @@ public @interface Request {
     @interface Header {
         String value();
 
-        Class<? extends HeaderParamEncoder<?>> encoder() default DefaultHeaderParamEncoder.class;
+        Class<? extends ListParamEncoder<?>> encoder() default DefaultListParamEncoder.class;
     }
 
     @Retention(RetentionPolicy.SOURCE)
@@ -85,6 +85,6 @@ public @interface Request {
     @interface QueryParam {
         String value();
 
-        Class<? extends ParamEncoder<?>> encoder() default DefaultParamEncoder.class;
+        Class<? extends ListParamEncoder<?>> encoder() default DefaultListParamEncoder.class;
     }
 }

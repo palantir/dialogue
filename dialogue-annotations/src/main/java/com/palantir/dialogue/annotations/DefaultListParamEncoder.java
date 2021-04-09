@@ -16,8 +16,7 @@
 
 package com.palantir.dialogue.annotations;
 
-import java.util.List;
-
-public interface HeaderParamEncoder<T> {
-    List<String> toHeaderParamValues(T value);
-}
+/**
+ * Marker interface to appease the compiler. Not used at runtime.
+ */
+public interface DefaultListParamEncoder extends ListParamEncoder<Object> {}

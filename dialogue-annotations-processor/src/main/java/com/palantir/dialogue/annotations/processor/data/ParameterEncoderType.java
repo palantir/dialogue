@@ -37,7 +37,7 @@ public interface ParameterEncoderType {
         interface Cases<R> {
             R param();
 
-            R headerParam();
+            R listParam();
         }
 
         <R> R match(EncoderType.Cases<R> cases);

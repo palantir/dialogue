@@ -60,13 +60,13 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<Response> customResponseDeserializer =
                     new MyResponseDeserializer().deserializerFor(new TypeMarker<Response>() {});
 
-            private final MyCustomParamTypeParameterEncoder paramsquery1Encoder =
+            private final MyCustomParamTypeParameterEncoder paramsQuery1Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsquery2Encoder =
+            private final MyCustomParamTypeParameterEncoder paramsQuery2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsmaybeCustomOptionalHeader3ValueEncoder =
+            private final MyCustomParamTypeParameterEncoder paramsMaybeCustomOptionalHeader3ValueEncoder =
                     new MyCustomParamTypeParameterEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
@@ -119,9 +119,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q", _parameterSerializer.serializeString(query));
-                _request.putQueryParams("q1", paramsquery1Encoder.toParamValue(query1));
+                _request.putAllQueryParams("q1", paramsQuery1Encoder.toParamValues(query1));
                 if (query2.isPresent()) {
-                    _request.putQueryParams("q2", paramsquery2Encoder.toParamValue(query2.get()));
+                    _request.putAllQueryParams("q2", paramsQuery2Encoder.toParamValues(query2.get()));
                 }
                 _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
                 _request.putHeaderParams("Custom-Header", _parameterSerializer.serializeInteger(requestHeaderValue));
@@ -134,6 +134,12 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     _request.putHeaderParams(
                             "Custom-Optional-Header2",
                             _parameterSerializer.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
+                }
+                if (maybeCustomOptionalHeader3Value.isPresent()) {
+                    _request.putAllHeaderParams(
+                            "Custom-Optional-Header3",
+                            paramsMaybeCustomOptionalHeader3ValueEncoder.toParamValues(
+                                    maybeCustomOptionalHeader3Value.get()));
                 }
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);

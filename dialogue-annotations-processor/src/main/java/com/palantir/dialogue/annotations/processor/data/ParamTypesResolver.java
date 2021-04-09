@@ -20,10 +20,11 @@ import com.google.auto.common.MoreElements;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
-import com.palantir.dialogue.annotations.HeaderParamEncoder;
 import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -45,12 +46,12 @@ public final class ParamTypesResolver {
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final Method paramEncoderMethod;
-    private static final Method headerParamEncoderMethod;
+    private static final Method listParamEncoderMethod;
 
     static {
         try {
             paramEncoderMethod = ParamEncoder.class.getMethod("toParamValue", Object.class);
-            headerParamEncoderMethod = HeaderParamEncoder.class.getMethod("toHeaderParamValues", Object.class);
+            listParamEncoderMethod = ListParamEncoder.class.getMethod("toParamValues", Object.class);
         } catch (NoSuchMethodException e) {
             throw new SafeRuntimeException("Method renamed: are you sure you want to cause a break?", e);
         }
@@ -103,7 +104,7 @@ public final class ParamTypesResolver {
                 ImmutableAnnotationReflector.of(Iterables.getOnlyElement(paramAnnotationMirrors));
         if (annotationReflector.isAnnotation(Request.Body.class)) {
             // default annotation param values are not available at annotation processing time
-            String serializerName = endpointName.get() + "Serializer";
+            String serializerName = InstanceVariables.joinCamelCase(endpointName.get(), "Serializer");
             Optional<TypeMirror> customSerializer = annotationReflector.getValueFieldMaybe(TypeMirror.class);
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
@@ -113,23 +114,15 @@ public final class ParamTypesResolver {
             return Optional.of(ParameterTypes.header(
                     annotationReflector.getStringValueField(),
                     getParameterEncoder(
-                            endpointName,
-                            variableElement,
-                            annotationReflector,
-                            EncoderTypes.headerParam(),
-                            paramEncoderMethod)));
+                            endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
         } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
             return Optional.of(ParameterTypes.path(getParameterEncoder(
-                    endpointName, variableElement, annotationReflector, EncoderTypes.param(), paramEncoderMethod)));
+                    endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.PARAM)));
         } else if (annotationReflector.isAnnotation(Request.QueryParam.class)) {
             return Optional.of(ParameterTypes.query(
                     annotationReflector.getValueStrict(String.class),
                     getParameterEncoder(
-                            endpointName,
-                            variableElement,
-                            annotationReflector,
-                            EncoderTypes.param(),
-                            paramEncoderMethod)));
+                            endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
         }
 
         throw new SafeIllegalStateException("Not possible");
@@ -139,19 +132,31 @@ public final class ParamTypesResolver {
             EndpointName endpointName,
             VariableElement variableElement,
             AnnotationReflector annotationReflector,
-            ParameterEncoderType.EncoderType encoderType,
-            Method encoderMethod) {
+            EncoderTypeAndMethod encoderTypeAndMethod) {
         return annotationReflector
                 .getFieldMaybe("encoder", TypeMirror.class)
                 .map(TypeName::get)
                 .map(encoderJavaType -> ImmutableParameterEncoderType.builder()
-                        .type(encoderType)
+                        .type(encoderTypeAndMethod.encoderType)
                         .encoderJavaType(encoderJavaType)
                         .encoderFieldName(InstanceVariables.joinCamelCase(
                                 endpointName.get(),
                                 variableElement.getSimpleName().toString(),
                                 "Encoder"))
-                        .encoderMethodName(encoderMethod.getName())
+                        .encoderMethodName(encoderTypeAndMethod.method.getName())
                         .build());
+    }
+
+    enum EncoderTypeAndMethod {
+        PARAM(EncoderTypes.param(), paramEncoderMethod),
+        LIST(EncoderTypes.listParam(), listParamEncoderMethod);
+
+        private final ParameterEncoderType.EncoderType encoderType;
+        private final Method method;
+
+        EncoderTypeAndMethod(EncoderType encoderType, Method method) {
+            this.encoderType = encoderType;
+            this.method = method;
+        }
     }
 }

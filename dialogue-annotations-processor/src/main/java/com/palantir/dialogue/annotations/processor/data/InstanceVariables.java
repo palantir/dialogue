@@ -30,10 +30,12 @@ final class InstanceVariables {
                 .join(IntStream.range(0, segments.length)
                         .mapToObj(i -> {
                             String segment = segments[i];
+                            CaseFormat caseFormat =
+                                    CaseFormats.estimate(segment).get();
                             if (i == 0) {
-                                return CaseFormat.LOWER_CAMEL.to(CaseFormat.LOWER_CAMEL, segment);
+                                return caseFormat.to(CaseFormat.LOWER_CAMEL, segment);
                             }
-                            return CaseFormat.UPPER_CAMEL.to(CaseFormat.UPPER_CAMEL, segment);
+                            return caseFormat.to(CaseFormat.UPPER_CAMEL, segment);
                         })
                         .collect(Collectors.toList()));
     }
