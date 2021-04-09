@@ -218,18 +218,18 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public Optional<CodeBlock> header(String headerName, Optional<ParameterEncoderType> headerParamEncoder) {
-                return generateHeaderParam(param, headerName, headerParamEncoder);
+            public Optional<CodeBlock> header(String headerName, Optional<ParameterEncoderType> paramEncoderType) {
+                return generateHeaderParam(param, headerName, paramEncoderType);
             }
 
             @Override
-            public Optional<CodeBlock> path(Optional<ParameterEncoderType> paramEncoder) {
-                return generatePathParam(param, paramEncoder);
+            public Optional<CodeBlock> path(Optional<ParameterEncoderType> paramEncoderType) {
+                return generatePathParam(param, paramEncoderType);
             }
 
             @Override
-            public Optional<CodeBlock> query(String paramName, Optional<ParameterEncoderType> paramEncoder) {
-                return generateQueryParam(param, paramName, paramEncoder);
+            public Optional<CodeBlock> query(String paramName, Optional<ParameterEncoderType> paramEncoderType) {
+                return generateQueryParam(param, paramName, paramEncoderType);
             }
         });
     }

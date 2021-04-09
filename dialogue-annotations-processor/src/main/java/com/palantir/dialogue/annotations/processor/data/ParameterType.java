@@ -28,11 +28,11 @@ public interface ParameterType {
 
         R body(TypeName serializerFactory, String serializerFieldName);
 
-        R header(String headerName, Optional<ParameterEncoderType> headerParamEncoder);
+        R header(String headerName, Optional<ParameterEncoderType> paramEncoderType);
 
-        R path(Optional<ParameterEncoderType> paramEncoder);
+        R path(Optional<ParameterEncoderType> paramEncoderType);
 
-        R query(String paramName, Optional<ParameterEncoderType> paramEncoder);
+        R query(String paramName, Optional<ParameterEncoderType> paramEncoderType);
     }
 
     <R> R match(Cases<R> cases);
