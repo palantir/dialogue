@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.conjure.java.lib.SafeLong;
@@ -26,6 +27,7 @@ import com.palantir.dialogue.annotations.processor.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.ImmutableOptionalType;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.ri.ResourceIdentifier;
+import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
@@ -40,18 +42,18 @@ import javax.lang.model.type.TypeMirror;
 
 public final class ArgumentTypesResolver {
 
-    /**
-     * Why not generate this by inspecting the {@link com.palantir.dialogue.PlainSerDe} interface?
-     * If we suddenly decide to provide special serialization for a widely used type, we could break wire
-     * compatibility.
-     */
-    private static final ImmutableMap<TypeName, String> PLAIN_SER_DE_TYPES =
+    @VisibleForTesting
+    static final ImmutableMap<TypeName, String> PARAMETER_SERIALIZER_TYPES =
             ImmutableMap.copyOf(KeyedStream.stream(new ImmutableMap.Builder<Class<?>, String>()
                             .put(BearerToken.class, "BearerToken")
+                            .put(AuthHeader.class, "AuthHeader")
                             .put(Boolean.class, "Boolean")
                             .put(OffsetDateTime.class, "DateTime")
                             .put(Double.class, "Double")
+                            .put(Float.class, "Float")
                             .put(Integer.class, "Integer")
+                            .put(Long.class, "Long")
+                            .put(Character.class, "Char")
                             .put(ResourceIdentifier.class, "Rid")
                             .put(SafeLong.class, "SafeLong")
                             .put(String.class, "String")
@@ -92,11 +94,11 @@ public final class ArgumentTypesResolver {
     }
 
     private boolean isPrimitive(TypeName in) {
-        return PLAIN_SER_DE_TYPES.containsKey(in.box());
+        return PARAMETER_SERIALIZER_TYPES.containsKey(in.box());
     }
 
     private String planSerDeMethodName(TypeName in) {
-        String typeName = PLAIN_SER_DE_TYPES.get(in.box());
+        String typeName = PARAMETER_SERIALIZER_TYPES.get(in.box());
         return Preconditions.checkNotNull(typeName, "Unknown type");
     }
 

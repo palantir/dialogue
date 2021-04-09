@@ -3,6 +3,9 @@ apply plugin: 'com.palantir.revapi'
 
 dependencies {
     api project(':dialogue-target')
+    api 'com.palantir.conjure.java:conjure-lib'
+    api 'com.palantir.ri:resource-identifier'
+    api 'com.palantir.tokens:auth-tokens'
 
     implementation project(':dialogue-serde')
     implementation 'com.fasterxml.jackson.core:jackson-databind'
@@ -15,5 +18,6 @@ dependencies {
 
     testImplementation project(':dialogue-core')
     testImplementation project(':dialogue-test-common')
+    testImplementation 'org.apache.commons:commons-lang3'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

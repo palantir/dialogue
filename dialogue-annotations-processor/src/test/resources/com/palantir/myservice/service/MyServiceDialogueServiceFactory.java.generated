@@ -9,14 +9,15 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
-import com.palantir.dialogue.PlainSerDe;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ParameterSerializer;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
@@ -31,7 +32,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
     @Override
     public MyService create(EndpointChannelFactory endpointChannelFactory, ConjureRuntime runtime) {
         return new MyService() {
-            private final PlainSerDe _plainSerDe = runtime.plainSerDe();
+            private final ParameterSerializer _parameterSerializer = DefaultParameterSerializer.INSTANCE;
 
             private final Serializer<String> greetSerializer = new Json().serializerFor(new TypeMarker<String>() {});
 
@@ -104,18 +105,18 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
-                _request.putQueryParams("q", _plainSerDe.serializeString(query));
-                _request.putPathParams("myPathParam", _plainSerDe.serializeUuid(myPathParam));
-                _request.putHeaderParams("Custom-Header", _plainSerDe.serializeInteger(requestHeaderValue));
+                _request.putQueryParams("q", _parameterSerializer.serializeString(query));
+                _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
+                _request.putHeaderParams("Custom-Header", _parameterSerializer.serializeInteger(requestHeaderValue));
                 if (maybeCustomOptionalHeader1Value.isPresent()) {
                     _request.putHeaderParams(
                             "Custom-Optional-Header1",
-                            _plainSerDe.serializeString(maybeCustomOptionalHeader1Value.get()));
+                            _parameterSerializer.serializeString(maybeCustomOptionalHeader1Value.get()));
                 }
                 if (maybeCustomOptionalHeader2Value.isPresent()) {
                     _request.putHeaderParams(
                             "Custom-Optional-Header2",
-                            _plainSerDe.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
+                            _parameterSerializer.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
                 }
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
