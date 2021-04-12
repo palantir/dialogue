@@ -21,7 +21,7 @@ import java.io.OutputStream;
 
 public final class EmptyRequestBody implements RequestBody {
     @Override
-    public void writeTo(OutputStream output) {
+    public void writeTo(OutputStream _ignored) {
         // Noop
     }
 
