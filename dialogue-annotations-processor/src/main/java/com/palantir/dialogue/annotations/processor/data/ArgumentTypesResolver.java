@@ -81,7 +81,7 @@ public final class ArgumentTypesResolver {
         if (isPrimitive(typeName)) {
             return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName)));
         } else if (isRawRequestBody(actualTypeMirror)) {
-            return Optional.of(ArgumentTypes.rawRequestBody(context.getTypeName(RequestBody.class)));
+            return Optional.of(ArgumentTypes.rawRequestBody(TypeName.get(actualTypeMirror)));
         } else if (optionalType.isPresent()) {
             // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
             return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
@@ -100,7 +100,7 @@ public final class ArgumentTypesResolver {
     }
 
     private boolean isRawRequestBody(TypeMirror in) {
-        return context.isSameTypes(in, RequestBody.class);
+        return context.isAssignable(in, RequestBody.class);
     }
 
     private Optional<OptionalType> getOptionalType(Element paramContext, TypeMirror typeName) {

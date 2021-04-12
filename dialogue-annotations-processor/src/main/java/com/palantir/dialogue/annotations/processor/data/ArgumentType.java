@@ -26,8 +26,7 @@ public interface ArgumentType {
         /** Should be handled by {@link com.palantir.dialogue.annotations.ParameterSerializer}. */
         R primitive(TypeName javaTypeName, String parameterSerializerMethodName);
 
-        /** Arg will be always {@link com.palantir.dialogue.RequestBody}, passing it this way for ease of codegen. */
-        R rawRequestBody(TypeName requestBodyTypeName);
+        R rawRequestBody(TypeName requestBodyType);
 
         R optional(TypeName optionalJavaType, OptionalType optionalType);
 
