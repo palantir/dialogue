@@ -6,7 +6,7 @@
 
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
-- `dialogue.client.response.leak` tagged `client-name`, `endpoint`, `service-name` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.server.timing.overhead` tagged `client-name` (timer): Difference in request time reported by the client and by the server. This metric is only reported when the remote server provides a `Server-Timing` response header with a timing value for `server`.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
@@ -22,7 +22,7 @@ Connection pool metrics from the dialogue Apache client.
 
 ### client
 General client metrics produced by dialogue. These metrics are meant to be applicable to all conjure clients without being implementation-specific.
-- `client.response` tagged `channel-name`, `endpoint`, `service-name`, `status` (timer): Request time split by status and endpoint. Possible status values are:
+- `client.response` tagged `channel-name`, `service-name`, `endpoint`, `status` (timer): Request time split by status and endpoint. Possible status values are:
 * success: 2xx requests, always excludes time spent reading the response body.
 * failure:
   - QoS failures (429, 308, 503)
@@ -37,12 +37,12 @@ Instrumentation for BalancedChannel internals.
 
 ### dialogue.client
 Dialogue-specific metrics that are not necessarily applicable to other client implementations.
-- `dialogue.client.response.leak` tagged `client-name`, `endpoint`, `service-name` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+- `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
-- `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `endpoint`, `service-name` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
+- `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `service-name`, `endpoint` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
-- `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `endpoint`, `service-name` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
+- `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `service-name`, `endpoint` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 
 ### dialogue.concurrencylimiter
@@ -113,4 +113,4 @@ Java virtual machine memory usage metrics by memory pool.
 
 ### tls
 Transport layer security metrics.
-- `tls.handshake` tagged `cipher`, `context`, `protocol` (meter): Measures the rate of TLS handshake by SSLContext, cipher suite, and TLS protocol. A high rate of handshake suggests that clients are not properly reusing connections, which results in additional CPU overhead and round trips.
+- `tls.handshake` tagged `context`, `cipher`, `protocol` (meter): Measures the rate of TLS handshake by SSLContext, cipher suite, and TLS protocol. A high rate of handshake suggests that clients are not properly reusing connections, which results in additional CPU overhead and round trips.
