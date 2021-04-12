@@ -18,7 +18,6 @@ package com.palantir.myservice.service;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.HttpMethod;
-import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.tokens.auth.AuthHeader;
@@ -46,7 +45,7 @@ public interface MyService {
     // No decoders allowed (void method)
     // No encoders allowed (RequestBody is pre-encoded)
     @Request(method = HttpMethod.PUT, path = "/custom/request")
-    void customRequest(RequestBody requestBody);
+    void customRequest(EmptyRequestBody requestBody);
 
     // No decoders allowed (Response is raw)
     // Unclear: If the response status is non-200, do we throw?

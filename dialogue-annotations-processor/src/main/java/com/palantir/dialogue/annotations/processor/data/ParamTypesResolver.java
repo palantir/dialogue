@@ -78,7 +78,7 @@ public final class ParamTypesResolver {
         }
 
         if (paramAnnotationMirrors.isEmpty()) {
-            if (context.isSameTypes(variableElement.asType(), RequestBody.class)) {
+            if (context.isAssignable(variableElement.asType(), RequestBody.class)) {
                 return Optional.of(ParameterTypes.rawBody());
             } else if (context.isSameTypes(variableElement.asType(), AuthHeader.class)) {
                 return Optional.of(ParameterTypes.header("Authorization", Optional.empty()));

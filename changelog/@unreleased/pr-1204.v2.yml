@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Support implementations of RequestBody.
+  links:
+  - https://github.com/palantir/dialogue/pull/1204
