@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -24,31 +26,62 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TagRecorder;
 import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
     private final String operationNameInitial;
+    private final ImmutableMap<String, String> tags;
+    private final TagRecorder<Response> responseRecorder;
+    private final TagRecorder<Throwable> throwableRecorder;
 
-    private TracedChannel(EndpointChannel delegate, String operationName) {
+    private TracedChannel(EndpointChannel delegate, String operationName, ImmutableMap<String, String> tags) {
         this.delegate = delegate;
         this.operationName = operationName;
         this.operationNameInitial = operationName + " initial";
+        this.tags = tags;
+        this.responseRecorder = new TagRecorder<Response>() {
+
+            @Override
+            public <T> void record(TagAdapter<T> sink, T target, Response response) {
+                int status = response.code();
+                sink.tag(target, "outcome", status / 100 == 2 ? "success" : "failure");
+                sink.tag(target, tags);
+                sink.tag(target, "status", Integer.toString(status));
+            }
+        };
+
+        this.throwableRecorder = new TagRecorder<Throwable>() {
+
+            @Override
+            public <T> void record(TagAdapter<T> sink, T target, Throwable response) {
+                sink.tag(target, "outcome", "failure");
+                sink.tag(target, tags);
+                sink.tag(target, "cause", response.getClass().getSimpleName());
+            }
+        };
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
-        String operationName =
-                "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName() + meshSuffix(cf.mesh());
-        return new TracedChannel(delegate, operationName);
+        return new TracedChannel(delegate, "Dialogue: request", tracingTags(cf, endpoint));
     }
 
-    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate) {
-        return new TracedChannel(delegate, "Dialogue-request-attempt" + meshSuffix(cf.mesh()));
+    private static ImmutableMap<String, String> tracingTags(Config cf, Endpoint endpoint) {
+        return ImmutableMap.of(
+                "endpointService",
+                endpoint.serviceName(),
+                "endpointName",
+                endpoint.endpointName(),
+                "channel",
+                cf.channelName(),
+                "mesh",
+                Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH));
     }
 
-    private static String meshSuffix(MeshMode meshMode) {
-        return meshMode == MeshMode.USE_EXTERNAL_MESH ? " (Mesh)" : "";
+    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        return new TracedChannel(delegate, "Dialogue-request-attempt", tracingTags(cf, endpoint));
     }
 
     @Override
@@ -66,9 +99,19 @@ final class TracedChannel implements EndpointChannel {
             future = delegate.execute(request);
         } finally {
             if (future != null) {
-                future.addListener(span::complete, DialogueFutures.safeDirectExecutor());
+                DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        span.complete(responseRecorder, response);
+                    }
+
+                    @Override
+                    public void onFailure(Throwable throwable) {
+                        span.complete(throwableRecorder, throwable);
+                    }
+                });
             } else {
-                span.complete();
+                span.complete(tags);
             }
         }
         return future;

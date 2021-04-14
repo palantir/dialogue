@@ -150,7 +150,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
-                channel = TracedChannel.requestAttempt(cf, channel);
+                channel = TracedChannel.requestAttempt(cf, channel, endpoint);
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(
                         channel, endpoint, cf.clientConf().userAgent().get());
