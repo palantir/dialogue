@@ -40,26 +40,8 @@ final class TracedChannel implements EndpointChannel {
         this.delegate = delegate;
         this.operationName = operationName;
         this.operationNameInitial = operationName + " initial";
-        this.responseTranslator = new TagTranslator<Response>() {
-
-            @Override
-            public <T> void translate(TagAdapter<T> sink, T target, Response response) {
-                int status = response.code();
-                sink.tag(target, "outcome", status / 100 == 2 ? "success" : "failure");
-                sink.tag(target, tags);
-                sink.tag(target, "status", Integer.toString(status));
-            }
-        };
-
-        this.throwableTranslator = new TagTranslator<Throwable>() {
-
-            @Override
-            public <T> void translate(TagAdapter<T> sink, T target, Throwable response) {
-                sink.tag(target, "outcome", "failure");
-                sink.tag(target, tags);
-                sink.tag(target, "cause", response.getClass().getSimpleName());
-            }
-        };
+        this.responseTranslator = DialogueTracing.responseTranslator(tags);
+        this.throwableTranslator = DialogueTracing.failureTranslator(tags);
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
@@ -67,15 +49,10 @@ final class TracedChannel implements EndpointChannel {
     }
 
     private static ImmutableMap<String, String> tracingTags(Config cf, Endpoint endpoint) {
-        return ImmutableMap.of(
-                "endpointService",
-                endpoint.serviceName(),
-                "endpointName",
-                endpoint.endpointName(),
-                "channel",
-                cf.channelName(),
-                "mesh",
-                Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH));
+        return ImmutableMap.<String, String>builder()
+                .putAll(DialogueTracing.tracingTags(endpoint))
+                .putAll(DialogueTracing.tracingTags(cf))
+                .build();
     }
 
     static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate, Endpoint endpoint) {

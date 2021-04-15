@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -24,6 +26,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.TraceMetadata;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.api.SpanType;
@@ -34,9 +37,13 @@ final class TraceEnrichingChannel implements Channel {
     private static final String OPERATION = "Dialogue-http-request";
     private static final String INITIAL = OPERATION + " initial";
     private final NeverThrowChannel delegate; // important to ensure the span is definitely completed!
+    private final TagTranslator<Response> responseTranslator;
+    private final TagTranslator<Throwable> throwableTranslator;
 
-    TraceEnrichingChannel(Channel delegate) {
+    TraceEnrichingChannel(Channel delegate, ImmutableMap<String, String> tags) {
         this.delegate = new NeverThrowChannel(delegate);
+        this.responseTranslator = DialogueTracing.responseTranslator(tags);
+        this.throwableTranslator = DialogueTracing.failureTranslator(tags);
     }
 
     @Override
@@ -55,7 +62,17 @@ final class TraceEnrichingChannel implements Channel {
         // no active trace, the detached span would not be associated with work initiated by delegateFactory.
         try (CloseableSpan ignored = span.childSpan(INITIAL, SpanType.CLIENT_OUTGOING)) {
             ListenableFuture<Response> future = executeInternal(endpoint, request);
-            return DialogueFutures.addDirectListener(future, span::complete);
+            return DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    span.complete(responseTranslator, response);
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    span.complete(throwableTranslator, throwable);
+                }
+            });
         }
     }
 
