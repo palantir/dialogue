@@ -26,26 +26,24 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
-import com.palantir.tracing.TagRecorder;
+import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
     private final String operationNameInitial;
-    private final ImmutableMap<String, String> tags;
-    private final TagRecorder<Response> responseRecorder;
-    private final TagRecorder<Throwable> throwableRecorder;
+    private final TagTranslator<Response> responseTranslator;
+    private final TagTranslator<Throwable> throwableTranslator;
 
     private TracedChannel(EndpointChannel delegate, String operationName, ImmutableMap<String, String> tags) {
         this.delegate = delegate;
         this.operationName = operationName;
         this.operationNameInitial = operationName + " initial";
-        this.tags = tags;
-        this.responseRecorder = new TagRecorder<Response>() {
+        this.responseTranslator = new TagTranslator<Response>() {
 
             @Override
-            public <T> void record(TagAdapter<T> sink, T target, Response response) {
+            public <T> void translate(TagAdapter<T> sink, T target, Response response) {
                 int status = response.code();
                 sink.tag(target, "outcome", status / 100 == 2 ? "success" : "failure");
                 sink.tag(target, tags);
@@ -53,10 +51,10 @@ final class TracedChannel implements EndpointChannel {
             }
         };
 
-        this.throwableRecorder = new TagRecorder<Throwable>() {
+        this.throwableTranslator = new TagTranslator<Throwable>() {
 
             @Override
-            public <T> void record(TagAdapter<T> sink, T target, Throwable response) {
+            public <T> void translate(TagAdapter<T> sink, T target, Throwable response) {
                 sink.tag(target, "outcome", "failure");
                 sink.tag(target, tags);
                 sink.tag(target, "cause", response.getClass().getSimpleName());
@@ -94,27 +92,22 @@ final class TracedChannel implements EndpointChannel {
 
     private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
-        ListenableFuture<Response> future = null;
         try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
-            future = delegate.execute(request);
-        } finally {
-            if (future != null) {
-                DialogueFutures.addDirectCallback(future, new FutureCallback<Response>() {
-                    @Override
-                    public void onSuccess(Response response) {
-                        span.complete(responseRecorder, response);
-                    }
+            return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    span.complete(responseTranslator, response);
+                }
 
-                    @Override
-                    public void onFailure(Throwable throwable) {
-                        span.complete(throwableRecorder, throwable);
-                    }
-                });
-            } else {
-                span.complete(tags);
-            }
+                @Override
+                public void onFailure(Throwable throwable) {
+                    span.complete(throwableTranslator, throwable);
+                }
+            });
+        } catch (Throwable t) {
+            span.complete(throwableTranslator, t);
+            throw t;
         }
-        return future;
     }
 
     @Override
