@@ -25,7 +25,7 @@ public abstract class StdDeserializer<T> implements DeserializerFactory<T>, Dese
 
     private final Optional<String> accepts;
 
-    public StdDeserializer(String accepts) {
+    protected StdDeserializer(String accepts) {
         this.accepts = Optional.of(accepts);
     }
 
