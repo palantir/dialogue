@@ -21,6 +21,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -51,7 +52,7 @@ class TraceEnrichingChannelTest {
     void when_span_sampling_is_turned_off_we_still_send_zipkin_headers() {
         Tracer.setSampler(() -> false);
         try (CloseableTracer hello = CloseableTracer.startSpan("hello")) {
-            TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
+            TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate, ImmutableMap.of());
             channel.execute(TestEndpoint.POST, Request.builder().build());
 
             verify(delegate).execute(any(), requestCaptor.capture());
@@ -68,7 +69,7 @@ class TraceEnrichingChannelTest {
         Tracer.setSampler(() -> true);
         assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
 
-        TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate);
+        TraceEnrichingChannel channel = new TraceEnrichingChannel(delegate, ImmutableMap.of());
         channel.execute(TestEndpoint.POST, Request.builder().build());
 
         verify(delegate).execute(any(), requestCaptor.capture());

@@ -37,6 +37,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -212,6 +213,18 @@ final class RetryingChannel implements EndpointChannel {
         return "RetryingChannel{maxRetries=" + maxRetries + ", serverQoS=" + serverQoS + " delegate=" + delegate + '}';
     }
 
+    private enum RetryingCallbackTranslator implements TagTranslator<RetryingCallback> {
+        INSTANCE;
+
+        @Override
+        public <T> void translate(TagAdapter<T> sink, T target, RetryingCallback data) {
+            sink.tag(target, "serviceName", data.endpoint.serviceName());
+            sink.tag(target, "endpointName", data.endpoint.endpointName());
+            sink.tag(target, "failures", Integer.toString(data.failures));
+            sink.tag(target, "channel", data.channelName());
+        }
+    }
+
     private final class RetryingCallback {
         private final Endpoint endpoint;
         private final Request request;
@@ -231,7 +244,7 @@ final class RetryingChannel implements EndpointChannel {
             result.addListener(
                     () -> {
                         if (failures > 0) {
-                            span.complete();
+                            span.complete(RetryingCallbackTranslator.INSTANCE, this);
                         }
                     },
                     DialogueFutures.safeDirectExecutor());
@@ -298,10 +311,10 @@ final class RetryingChannel implements EndpointChannel {
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(request));
             }
-            DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff-" + failures);
+            DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff");
             ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
                     () -> {
-                        backoffSpan.complete();
+                        backoffSpan.complete(RetryingCallbackTranslator.INSTANCE, this);
                         return delegate.execute(request);
                     },
                     backoffNanoseconds,
@@ -371,6 +384,10 @@ final class RetryingChannel implements EndpointChannel {
                         SafeArg.of("endpoint", endpoint.endpointName()),
                         throwable);
             }
+        }
+
+        private String channelName() {
+            return channelName;
         }
     }
 

@@ -68,7 +68,8 @@ class TracedEncodingTest {
         ArgumentCaptor<Span> captor = ArgumentCaptor.forClass(Span.class);
         verify(mockObserver).consume(captor.capture());
         Span span = captor.getValue();
-        assertThat(span.getOperation()).isEqualTo("Dialogue: serialize String to application/stub");
+        assertThat(span.getOperation()).isEqualTo("Dialogue: serialize");
+        assertThat(span.getMetadata()).containsEntry("type", "String").containsEntry("contentType", "application/stub");
     }
 
     @Test
@@ -85,7 +86,8 @@ class TracedEncodingTest {
         ArgumentCaptor<Span> captor = ArgumentCaptor.forClass(Span.class);
         verify(mockObserver).consume(captor.capture());
         Span span = captor.getValue();
-        assertThat(span.getOperation()).isEqualTo("Dialogue: deserialize String from application/stub");
+        assertThat(span.getOperation()).isEqualTo("Dialogue: deserialize");
+        assertThat(span.getMetadata()).containsEntry("type", "String").containsEntry("contentType", "application/stub");
     }
 
     private static final class StubEncoding implements Encoding {

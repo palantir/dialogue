@@ -16,9 +16,10 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.tracing.CloseableTracer;
+import com.palantir.tracing.Tracer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -38,14 +39,18 @@ final class TracedEncoding implements Encoding {
 
     @Override
     public <T> Serializer<T> serializer(TypeMarker<T> type) {
-        String operation = "Dialogue: serialize " + toString(type) + " to " + getContentType();
-        return new TracedSerializer<>(delegate.serializer(type), operation);
+        return new TracedSerializer<>(
+                delegate.serializer(type),
+                "Dialogue: serialize",
+                ImmutableMap.of("type", toString(type), "contentType", getContentType()));
     }
 
     @Override
     public <T> Deserializer<T> deserializer(TypeMarker<T> type) {
-        String operation = "Dialogue: deserialize " + toString(type) + " from " + getContentType();
-        return new TracedDeserializer<>(delegate.deserializer(type), operation);
+        return new TracedDeserializer<>(
+                delegate.deserializer(type),
+                "Dialogue: deserialize",
+                ImmutableMap.of("type", toString(type), "contentType", getContentType()));
     }
 
     @Override
@@ -79,16 +84,21 @@ final class TracedEncoding implements Encoding {
 
         private final Serializer<T> delegate;
         private final String operation;
+        private final ImmutableMap<String, String> tags;
 
-        TracedSerializer(Serializer<T> delegate, String operation) {
+        TracedSerializer(Serializer<T> delegate, String operation, ImmutableMap<String, String> tags) {
             this.delegate = delegate;
             this.operation = operation;
+            this.tags = tags;
         }
 
         @Override
         public void serialize(T value, OutputStream output) throws IOException {
-            try (CloseableTracer ignored = CloseableTracer.startSpan(operation)) {
+            Tracer.fastStartSpan(operation);
+            try {
                 delegate.serialize(value, output);
+            } finally {
+                Tracer.fastCompleteSpan(tags);
             }
         }
 
@@ -102,22 +112,27 @@ final class TracedEncoding implements Encoding {
 
         private final Deserializer<T> delegate;
         private final String operation;
+        private final ImmutableMap<String, String> tags;
 
-        TracedDeserializer(Deserializer<T> delegate, String operation) {
+        TracedDeserializer(Deserializer<T> delegate, String operation, ImmutableMap<String, String> tags) {
             this.delegate = delegate;
             this.operation = operation;
+            this.tags = tags;
         }
 
         @Override
         public T deserialize(InputStream input) throws IOException {
-            try (CloseableTracer ignored = CloseableTracer.startSpan(operation)) {
+            Tracer.fastStartSpan(operation);
+            try {
                 return delegate.deserialize(input);
+            } finally {
+                Tracer.fastCompleteSpan(tags);
             }
         }
 
         @Override
         public String toString() {
-            return "TracedDeserializer{delegate=" + delegate + ", operation='" + operation + "'}";
+            return "TracedDeserializer{delegate=" + delegate + ", operation='" + operation + "', tags=" + tags + "}";
         }
     }
 }

@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -24,31 +26,37 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracer;
 
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
     private final String operationNameInitial;
+    private final TagTranslator<Response> responseTranslator;
+    private final TagTranslator<Throwable> throwableTranslator;
 
-    private TracedChannel(EndpointChannel delegate, String operationName) {
+    private TracedChannel(EndpointChannel delegate, String operationName, ImmutableMap<String, String> tags) {
         this.delegate = delegate;
         this.operationName = operationName;
         this.operationNameInitial = operationName + " initial";
+        this.responseTranslator = DialogueTracing.responseTranslator(tags);
+        this.throwableTranslator = DialogueTracing.failureTranslator(tags);
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
-        String operationName =
-                "Dialogue: request " + endpoint.serviceName() + "#" + endpoint.endpointName() + meshSuffix(cf.mesh());
-        return new TracedChannel(delegate, operationName);
+        return new TracedChannel(delegate, "Dialogue: request", tracingTags(cf, endpoint));
     }
 
-    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate) {
-        return new TracedChannel(delegate, "Dialogue-request-attempt" + meshSuffix(cf.mesh()));
+    private static ImmutableMap<String, String> tracingTags(Config cf, Endpoint endpoint) {
+        return ImmutableMap.<String, String>builder()
+                .putAll(DialogueTracing.tracingTags(endpoint))
+                .putAll(DialogueTracing.tracingTags(cf))
+                .build();
     }
 
-    private static String meshSuffix(MeshMode meshMode) {
-        return meshMode == MeshMode.USE_EXTERNAL_MESH ? " (Mesh)" : "";
+    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        return new TracedChannel(delegate, "Dialogue-request-attempt", tracingTags(cf, endpoint));
     }
 
     @Override
@@ -61,17 +69,22 @@ final class TracedChannel implements EndpointChannel {
 
     private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
-        ListenableFuture<Response> future = null;
         try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
-            future = delegate.execute(request);
-        } finally {
-            if (future != null) {
-                future.addListener(span::complete, DialogueFutures.safeDirectExecutor());
-            } else {
-                span.complete();
-            }
+            return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<Response>() {
+                @Override
+                public void onSuccess(Response response) {
+                    span.complete(responseTranslator, response);
+                }
+
+                @Override
+                public void onFailure(Throwable throwable) {
+                    span.complete(throwableTranslator, throwable);
+                }
+            });
+        } catch (Throwable t) {
+            span.complete(throwableTranslator, t);
+            throw t;
         }
-        return future;
     }
 
     @Override

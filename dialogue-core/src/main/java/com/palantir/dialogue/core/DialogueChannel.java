@@ -131,7 +131,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
                 channel = HostMetricsChannel.create(cf, channel, uri);
-                Channel tracingChannel = new TraceEnrichingChannel(channel);
+                Channel tracingChannel = new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf));
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
                 channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED && cf.mesh() != MeshMode.USE_EXTERNAL_MESH
@@ -150,7 +150,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
-                channel = TracedChannel.requestAttempt(cf, channel);
+                channel = TracedChannel.requestAttempt(cf, channel, endpoint);
                 channel = RetryingChannel.create(cf, channel, endpoint);
                 channel = UserAgentEndpointChannel.create(
                         channel, endpoint, cf.clientConf().userAgent().get());
