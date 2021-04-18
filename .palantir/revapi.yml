@@ -172,6 +172,12 @@ acceptedBreaks:
         \ java.io.OutputStream) throws java.io.IOException"
       justification: "Encodings are implemented internally, RequestBody.writeTo already\
         \ throws IOException"
+  "1.115.0":
+    com.palantir.dialogue:dialogue-annotations:
+    - code: "java.method.visibilityReduced"
+      old: "method void com.palantir.dialogue.annotations.StdDeserializer<T>::<init>(java.lang.String)"
+      new: "method void com.palantir.dialogue.annotations.StdDeserializer<T>::<init>(java.lang.String)"
+      justification: "no functional difference"
   "1.30.0":
     com.palantir.dialogue:dialogue-core:
     - code: "java.method.visibilityReduced"
