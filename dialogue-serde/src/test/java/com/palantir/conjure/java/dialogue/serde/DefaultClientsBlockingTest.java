@@ -88,7 +88,7 @@ public class DefaultClientsBlockingTest {
         ListenableFuture<Object> failedFuture = Futures.immediateFailedFuture(exception);
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
-                .satisfies(value -> value.getClass().getSimpleName().contains("DialogueException"))
+                .isInstanceOf(DialogueException.class)
                 .hasCause(exception);
     }
 
