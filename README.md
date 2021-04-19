@@ -92,6 +92,59 @@ public ListenableFuture<Thing> getThing(
 
 Of the two generated interfaces `FooServiceBlocking` and `FooServiceAync`, the blocking version is usually appropriate for 98% of use-cases, and results in much simpler control flow and error-handling. The async version returns Guava [`ListenableFutures`](https://github.com/google/guava/wiki/ListenableFutureExplained) so is a lot more fiddly to use. `Futures.addCallback` and `FluentFuture` are your friend here.
 
+[dialogue-annotations-processor generated client bindings]: #dialogue-annotations-processor-generated-client-bindings
+
+## dialogue-annotations-processor generated client bindings
+
+``dialogue-annotations-processor`` is a retrofit replacement for use-cases where a service needs to talk to a
+non-conjure server.
+
+To setup the annotation simply add (make sure you are
+using [gradle-processors](https://github.com/palantir/gradle-processors)):
+
+```gradle
+dependencies {
+    annotationProcessor 'com.palantir.dialogue:dialogue-annotations-processor'
+    implementation 'com.palantir.dialogue:dialogue-annotations'
+}
+```
+
+Next create an annotated interface that describes the service you need to talk to, appropriately annotated
+with ``@DialogueService``:
+
+```java
+import com.palantir.dialogue.DialogueService;
+import com.palantir.dialogue.HttpMethod;
+import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.annotations.Request;
+import java.util.OptionalInt;
+import java.util.UUID;
+
+@DialogueService(MyServiceDialogueServiceFactory.class)
+public interface MyService {
+
+    @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}", accept=MyCustomResponseDeserializer.class)
+    ListenableFuture<MyCustomResponse> params(
+            @Request.QueryParam("q") String query,
+            // Path parameter variable name must match the request path component
+            @Request.PathParam UUID myPathParam,
+            @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
+            @Request.Header("Custom-Header") int requestHeaderValue,
+            // Headers can be optional
+            @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
+            // Custom encoding classes may be provided for the request and response.
+            @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+}
+```
+
+Features:
+
+* Async request handling: simply make your method return ```ListenableFuture<Foo>```.
+* Custom parameter types: ```@Request.(Header|PathParam|QueryParam)(encoder=MyCustomParamTypeEncoder.class)```.
+* Custom serialization/deserialization: add ```@Request.Body(MySerializableTypeBodySerializer.class)```
+  or ```@Request(accept=MyCustomResponseDeserializer.class)```.
+* Authentication: builtin ```Authorization``` header handling if an annotated method has an ```AuthHeader``` parameter.
 
 ## Design
 
