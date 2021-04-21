@@ -21,6 +21,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.TagTranslator.TagAdapter;
+import com.palantir.tracing.api.TraceTags;
 import java.util.Map;
 
 /** Internal utility functionality to support tracing dialogue requests. */
@@ -33,6 +34,7 @@ final class DialogueTracing {
         public <T> void translate(TagAdapter<T> adapter, T target, Endpoint endpoint) {
             adapter.tag(target, "endpointService", endpoint.serviceName());
             adapter.tag(target, "endpointName", endpoint.endpointName());
+            adapter.tag(target, TraceTags.HTTP_METHOD, endpoint.httpMethod().toString());
         }
     }
 
@@ -57,7 +59,7 @@ final class DialogueTracing {
                 sink.tag(target, tags);
                 int status = response.code();
                 sink.tag(target, "outcome", status / 100 == 2 ? "success" : "failure");
-                sink.tag(target, "status", Integer.toString(status));
+                sink.tag(target, TraceTags.HTTP_STATUS_CODE, Integer.toString(status));
             }
         };
     }
