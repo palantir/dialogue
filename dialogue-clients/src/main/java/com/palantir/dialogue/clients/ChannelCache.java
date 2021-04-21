@@ -80,14 +80,14 @@ final class ChannelCache {
                     "Created ChannelCache instance #{} ({} alive): {}",
                     SafeArg.of("instanceNumber", newCache.instanceNumber),
                     SafeArg.of("totalAliveNow", numLiveInstances),
-                    SafeArg.of("newCache", newCache),
-                    new SafeRuntimeException("ChannelCache constructed here"));
+                    SafeArg.of("newCache", newCache));
         } else if (numLiveInstances >= 1 && log.isDebugEnabled()) {
             log.debug(
                     "Created ChannelCache instance #{} ({} alive): {}",
                     SafeArg.of("instanceNumber", newCache.instanceNumber),
                     SafeArg.of("totalAliveNow", numLiveInstances),
-                    SafeArg.of("newCache", newCache));
+                    SafeArg.of("newCache", newCache),
+                    new SafeRuntimeException("ChannelCache constructed here"));
         }
 
         return newCache;
