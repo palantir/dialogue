@@ -75,13 +75,19 @@ final class ChannelCache {
         LIVE_INSTANCES.add(newCache);
 
         int numLiveInstances = LIVE_INSTANCES.size();
-        if ((numLiveInstances > 1 && log.isInfoEnabled()) || log.isDebugEnabled()) {
+        if ((numLiveInstances >= 10 && log.isInfoEnabled())) {
             log.info(
                     "Created ChannelCache instance #{} ({} alive): {}",
                     SafeArg.of("instanceNumber", newCache.instanceNumber),
                     SafeArg.of("totalAliveNow", numLiveInstances),
                     SafeArg.of("newCache", newCache),
                     new SafeRuntimeException("ChannelCache constructed here"));
+        } else if (numLiveInstances >= 1 && log.isDebugEnabled()) {
+            log.debug(
+                    "Created ChannelCache instance #{} ({} alive): {}",
+                    SafeArg.of("instanceNumber", newCache.instanceNumber),
+                    SafeArg.of("totalAliveNow", numLiveInstances),
+                    SafeArg.of("newCache", newCache));
         }
 
         return newCache;
