@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Drop exceptional log level in ChannelCache under normal conditions
+  links:
+  - https://github.com/palantir/dialogue/pull/1217
