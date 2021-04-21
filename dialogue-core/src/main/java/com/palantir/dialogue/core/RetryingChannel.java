@@ -47,6 +47,7 @@ import java.io.IOException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
@@ -276,12 +277,12 @@ final class RetryingChannel implements EndpointChannel {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
                     long backoffNanoseconds = getBackoffNanoseconds();
-                    infoLogRetry(backoffNanoseconds, clientSideThrowable);
+                    infoLogRetry(backoffNanoseconds, OptionalInt.empty(), clientSideThrowable);
                     return scheduleRetry(retryReason, backoffNanoseconds);
                 } else if (log.isDebugEnabled()) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     log.debug(
-                            "Not attempting to retry failure",
+                            "Not attempting to retry failure. channel: {}, service: {}, endpoint: {}",
                             SafeArg.of("channelName", channelName),
                             SafeArg.of("serviceName", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
@@ -297,7 +298,7 @@ final class RetryingChannel implements EndpointChannel {
                 response.close();
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
                 long backoffNanos = Responses.isRetryOther(response) ? 0 : getBackoffNanoseconds();
-                infoLogRetry(backoffNanos, throwableToLog);
+                infoLogRetry(backoffNanos, OptionalInt.of(response.code()), throwableToLog);
                 return scheduleRetry(meter, backoffNanos);
             }
             infoLogRetriesExhausted(response);
@@ -362,7 +363,8 @@ final class RetryingChannel implements EndpointChannel {
             if (log.isInfoEnabled()) {
                 SafeRuntimeException stacktrace = callsiteStacktrace.orElse(null);
                 log.info(
-                        "Exhausted {} retries, returning last received response with status {}",
+                        "Exhausted {} retries, returning last received response with "
+                                + "status {}, channel: {}, service: {}, endpoint: {}",
                         SafeArg.of("retries", maxRetries),
                         SafeArg.of("status", response.code()),
                         SafeArg.of("channelName", channelName),
@@ -372,16 +374,18 @@ final class RetryingChannel implements EndpointChannel {
             }
         }
 
-        private void infoLogRetry(long backoffNanoseconds, @Nullable Throwable throwable) {
+        private void infoLogRetry(long backoffNanoseconds, OptionalInt responseStatus, @Nullable Throwable throwable) {
             if (log.isInfoEnabled()) {
                 log.info(
-                        "Retrying call after failure {}/{}",
+                        "Retrying call after failure {}/{} backoff: {}, channel: {}, service: {}, endpoint: {}, "
+                                + "status: {}",
                         SafeArg.of("failures", failures),
                         SafeArg.of("maxRetries", maxRetries),
                         SafeArg.of("backoffMillis", TimeUnit.NANOSECONDS.toMillis(backoffNanoseconds)),
                         SafeArg.of("channelName", channelName),
                         SafeArg.of("serviceName", endpoint.serviceName()),
                         SafeArg.of("endpoint", endpoint.endpointName()),
+                        SafeArg.of("status", responseStatus.isPresent() ? responseStatus.getAsInt() : null),
                         throwable);
             }
         }
