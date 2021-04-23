@@ -27,7 +27,6 @@ import org.slf4j.LoggerFactory;
 /**
  * Adapts {@link HttpEntity} to a {@link RequestBody}.
  */
-// Salt needs MIXED; other places use multipartBuilder.setType(MultipartBody.FORM);
 abstract class HttpEntityBodyRequestBodyAdapter implements RequestBody {
 
     private static final Logger log = LoggerFactory.getLogger(HttpEntityBodyRequestBodyAdapter.class);
