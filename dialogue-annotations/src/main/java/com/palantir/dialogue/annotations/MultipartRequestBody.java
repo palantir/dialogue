@@ -27,7 +27,6 @@ import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
 
-/** An <a href="http://www.ietf.org/rfc/rfc2387.txt">RFC 2387</a>-compliant request body. */
 public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter {
 
     private MultipartRequestBody(HttpEntity entity) {
@@ -64,36 +63,70 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         return new RequestBodyPartBuilder(unsafeRequestBody);
     }
 
+    public static FormBodyPartBuilder formBodyPartBuilder(String name, RequestBody requestBody) {
+        return new FormBodyPartBuilder(name, requestBody);
+    }
+
+    public static final class FormBodyPartBuilder {
+        private final ContentBodyAdapter bodyAdapter;
+        private final org.apache.hc.client5.http.entity.mime.FormBodyPartBuilder builder;
+
+        private FormBodyPartBuilder(String name, RequestBody unsafeRequestBody) {
+            bodyAdapter = new ContentBodyAdapter(unsafeRequestBody);
+            builder = org.apache.hc.client5.http.entity.mime.FormBodyPartBuilder.create(name, bodyAdapter);
+        }
+
+        public FormBodyPartBuilder setFileName(String fileName) {
+            builder.setName(fileName);
+            return this;
+        }
+    }
+
     public static final class RequestBodyPartBuilder {
         private final MultipartPartBuilder builder;
 
         private RequestBodyPartBuilder(RequestBody unsafeRequestBody) {
-            this.builder = MultipartPartBuilder.create(
-                    new AbstractContentBody(ContentType.parse(unsafeRequestBody.contentType())) {
-                        @Override
-                        public long getContentLength() {
-                            return -1;
-                        }
-
-                        @Override
-                        @Nullable
-                        public String getFilename() {
-                            // Allowed
-                            return null;
-                        }
-
-                        @Override
-                        public void writeTo(OutputStream out) throws IOException {
-                            try (RequestBody requestBody = unsafeRequestBody) {
-                                requestBody.writeTo(out);
-                            }
-                        }
-                    });
+            this.builder = MultipartPartBuilder.create(new ContentBodyAdapter(unsafeRequestBody));
         }
 
         public RequestBodyPartBuilder addHeaderValue(String key, String value) {
             builder.addHeader(key, value);
             return this;
+        }
+    }
+
+    private static final class ContentBodyAdapter extends AbstractContentBody {
+
+        private final RequestBody unsafeRequestBody;
+
+        @Nullable
+        private String fileName;
+
+        private ContentBodyAdapter(RequestBody requestBody) {
+            super(ContentType.parse(requestBody.contentType()));
+            this.unsafeRequestBody = requestBody;
+        }
+
+        void setFileName(String fileName) {
+            this.fileName = fileName;
+        }
+
+        @Override
+        public long getContentLength() {
+            return -1;
+        }
+
+        @Override
+        @Nullable
+        public String getFilename() {
+            return fileName;
+        }
+
+        @Override
+        public void writeTo(OutputStream out) throws IOException {
+            try (RequestBody requestBody = unsafeRequestBody) {
+                requestBody.writeTo(out);
+            }
         }
     }
 }

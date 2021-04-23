@@ -47,7 +47,7 @@ public final class MultipartRequestBodyTest {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     @Test
-    public void testCanSupportSalt() throws IOException {
+    public void testCanClient1() throws IOException {
         List<SaltValue> saltValues = ImmutableList.of(
                 ImmutableSaltValue.builder()
                         .key("key1")
@@ -75,6 +75,9 @@ public final class MultipartRequestBodyTest {
         assertThat(byteArrayOutputStream.toString(StandardCharsets.UTF_8.name()))
                 .isEqualTo(buffer.readString(StandardCharsets.UTF_8));
     }
+
+    @Test
+    public void testCanSupportClient2() {}
 
     private MultipartBody createOkhttpMultipartBody(List<SaltValue> saltValues) {
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
