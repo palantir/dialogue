@@ -13,6 +13,9 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
 
+    // MultipartRequestBody
+    implementation 'org.apache.httpcomponents.client5:httpclient5'
+
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
 
@@ -20,4 +23,7 @@ dependencies {
     testImplementation project(':dialogue-test-common')
     testImplementation 'org.apache.commons:commons-lang3'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+
+    // com.dialogue.annotations.MultipartRequestBody == okhttp.MultipartBody
+    testImplementation 'com.squareup.okhttp3:okhttp'
 }
