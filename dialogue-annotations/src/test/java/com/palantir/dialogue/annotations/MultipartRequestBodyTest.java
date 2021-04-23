@@ -22,20 +22,29 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.MediaType;
 import com.palantir.dialogue.annotations.MultipartRequestBody.RequestBodyPartBuilder;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
 import okhttp3.RequestBody;
 import okio.Buffer;
+import okio.BufferedSink;
+import okio.Okio;
+import okio.Source;
 import org.immutables.value.Value;
 import org.junit.jupiter.api.Test;
 
 public final class MultipartRequestBodyTest {
+
+    private static final String BOUNDARY = "xxxxxxxxxxxxxxxxxxxxxxxx";
+    public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     @Test
     public void testCanSupportSalt() throws IOException {
@@ -68,7 +77,7 @@ public final class MultipartRequestBodyTest {
     }
 
     private MultipartBody createOkhttpMultipartBody(List<SaltValue> saltValues) {
-        MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder();
+        MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
         multipartBodyBuilder.setType(MultipartBody.MIXED);
 
         for (SaltValue entry : saltValues) {
@@ -82,7 +91,25 @@ public final class MultipartRequestBodyTest {
                     .putAll(entry.keyValues())
                     .build());
 
-            RequestBody body = RequestBody.create(okhttp3.MediaType.parse(entry.contentType()), value);
+            okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
+            RequestBody body = new RequestBody() {
+                @Nullable
+                public okhttp3.MediaType contentType() {
+                    return contentType;
+                }
+
+                @Override
+                public long contentLength() {
+                    return -1;
+                }
+
+                @Override
+                public void writeTo(BufferedSink sink) throws IOException {
+                    try (Source source = Okio.source(new ByteArrayInputStream(value.getBytes(CHARSET)))) {
+                        sink.writeAll(source);
+                    }
+                }
+            };
 
             multipartBodyBuilder.addPart(MultipartBody.Part.create(headers, body));
         }
@@ -92,6 +119,7 @@ public final class MultipartRequestBodyTest {
 
     private MultipartRequestBody createDialogueMultipartRequestBody(List<SaltValue> saltValues) {
         MultipartRequestBody.Builder builder = MultipartRequestBody.builder();
+        builder.boundary(BOUNDARY);
 
         for (SaltValue entry : saltValues) {
             final String bucket = entry.bucket();

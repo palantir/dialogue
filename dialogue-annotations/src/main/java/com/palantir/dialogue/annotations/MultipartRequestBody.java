@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.palantir.dialogue.RequestBody;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -38,10 +39,9 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
 
         private Builder() {}
 
-        // apache has automatic detection for this, perhaps we shouldn't provide this straight away.
-        // Salt sets it to MIXED even though it only sends form values.
-        public Builder contentType(String contentType) {
-            builder.setContentType(ContentType.create(contentType));
+        @VisibleForTesting
+        Builder boundary(String boundary) {
+            builder.setBoundary(boundary);
             return this;
         }
 
