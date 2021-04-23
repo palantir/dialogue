@@ -50,6 +50,11 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
             return this;
         }
 
+        public Builder addFormBodyPart(FormBodyPartBuilder formBodyPartBuilder) {
+            builder.addPart(formBodyPartBuilder.builder.build());
+            return this;
+        }
+
         public MultipartRequestBody build() {
             return new MultipartRequestBody(builder.build());
         }
@@ -77,7 +82,7 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         }
 
         public FormBodyPartBuilder setFileName(String fileName) {
-            builder.setName(fileName);
+            bodyAdapter.setFileName(fileName);
             return this;
         }
     }

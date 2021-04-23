@@ -28,11 +28,14 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
+import okhttp3.MultipartBody.Builder;
 import okhttp3.RequestBody;
 import okio.Buffer;
 import okio.BufferedSink;
@@ -40,6 +43,7 @@ import okio.Okio;
 import okio.Source;
 import org.immutables.value.Value;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public final class MultipartRequestBodyTest {
 
@@ -47,7 +51,7 @@ public final class MultipartRequestBodyTest {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     @Test
-    public void testCanClient1() throws IOException {
+    public void testCanSupportClient1() throws IOException {
         List<SaltValue> saltValues = ImmutableList.of(
                 ImmutableSaltValue.builder()
                         .key("key1")
@@ -64,20 +68,52 @@ public final class MultipartRequestBodyTest {
                         .build());
 
         MultipartBody okhttp = createOkhttpMultipartBody(saltValues);
-        Buffer buffer = new Buffer();
-        okhttp.writeTo(buffer);
-
         MultipartRequestBody dialogue = createDialogueMultipartRequestBody(saltValues);
 
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        dialogue.writeTo(byteArrayOutputStream);
-
-        assertThat(byteArrayOutputStream.toString(StandardCharsets.UTF_8.name()))
-                .isEqualTo(buffer.readString(StandardCharsets.UTF_8));
+        assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
     @Test
-    public void testCanSupportClient2() {}
+    public void testCanSupportClient2(@TempDir Path tempDir) throws IOException {
+        String name = "jarfile";
+        String fileName = "job.jar";
+        Path filePath = tempDir.resolve("job.jar");
+        Files.write(filePath, "hello".getBytes(CHARSET));
+        String contentType = "application/x-java-archive";
+        MultipartBody okhttp = new Builder(BOUNDARY)
+                .addPart(MultipartBody.Part.createFormData(
+                        name, fileName, RequestBody.create(okhttp3.MediaType.parse(contentType), filePath.toFile())))
+                .build();
+
+        MultipartRequestBody dialogue = MultipartRequestBody.builder()
+                .boundary(BOUNDARY)
+                .addFormBodyPart(
+                        MultipartRequestBody.formBodyPartBuilder(name, new com.palantir.dialogue.RequestBody() {
+                                    @Override
+                                    public void writeTo(OutputStream output) throws IOException {
+                                        Files.copy(filePath, output);
+                                    }
+
+                                    @Override
+                                    public String contentType() {
+                                        return contentType;
+                                    }
+
+                                    @Override
+                                    public boolean repeatable() {
+                                        return true;
+                                    }
+
+                                    @Override
+                                    public void close() {
+                                        // Noop
+                                    }
+                                })
+                                .setFileName(fileName))
+                .build();
+
+        assertOkhttpAndDialogueMatch(okhttp, dialogue);
+    }
 
     private MultipartBody createOkhttpMultipartBody(List<SaltValue> saltValues) {
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
@@ -171,5 +207,19 @@ public final class MultipartRequestBodyTest {
         Map<String, String> keyValues();
 
         String contentType();
+    }
+
+    private void assertOkhttpAndDialogueMatch(MultipartBody okhttp, MultipartRequestBody dialogue) {
+        try {
+            Buffer buffer = new Buffer();
+            okhttp.writeTo(buffer);
+
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            dialogue.writeTo(byteArrayOutputStream);
+
+            assertThat(byteArrayOutputStream.toString(CHARSET.name())).isEqualTo(buffer.readString(CHARSET));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
