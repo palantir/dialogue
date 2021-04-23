@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.dialogue.RequestBody;
 import java.io.IOException;
 import java.io.OutputStream;
+import javax.annotation.Nullable;
 import org.apache.hc.client5.http.entity.mime.AbstractContentBody;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
 import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
@@ -75,6 +76,7 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
                         }
 
                         @Override
+                        @Nullable
                         public String getFilename() {
                             // Allowed
                             return null;

@@ -94,6 +94,7 @@ public final class MultipartRequestBodyTest {
             okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
             RequestBody body = new RequestBody() {
                 @Nullable
+                @Override
                 public okhttp3.MediaType contentType() {
                     return contentType;
                 }
