@@ -20,6 +20,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.OptionalLong;
 import org.apache.hc.core5.http.HttpEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,6 +51,12 @@ abstract class HttpEntityBodyRequestBodyAdapter implements RequestBody {
     @Override
     public final boolean repeatable() {
         return entity.isRepeatable();
+    }
+
+    @Override
+    public OptionalLong contentLength() {
+        long contentLength = entity.getContentLength();
+        return contentLength != -1 ? OptionalLong.of(contentLength) : OptionalLong.empty();
     }
 
     @Override
