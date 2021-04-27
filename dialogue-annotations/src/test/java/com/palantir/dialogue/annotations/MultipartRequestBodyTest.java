@@ -35,7 +35,6 @@ import java.util.Map;
 import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
-import okhttp3.MultipartBody.Builder;
 import okhttp3.RequestBody;
 import okio.Buffer;
 import okio.BufferedSink;
@@ -80,7 +79,7 @@ public final class MultipartRequestBodyTest {
         Path filePath = tempDir.resolve("job.jar");
         Files.write(filePath, "hello".getBytes(CHARSET));
         String contentType = "application/x-java-archive";
-        MultipartBody okhttp = new Builder(BOUNDARY)
+        MultipartBody okhttp = new MultipartBody.Builder(BOUNDARY)
                 .addPart(MultipartBody.Part.createFormData(
                         name, fileName, RequestBody.create(okhttp3.MediaType.parse(contentType), filePath.toFile())))
                 .build();
