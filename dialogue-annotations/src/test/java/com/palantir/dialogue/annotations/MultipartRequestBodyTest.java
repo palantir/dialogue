@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.MediaType;
-import com.palantir.dialogue.annotations.MultipartRequestBody.RequestBodyPartBuilder;
+import com.palantir.dialogue.annotations.MultipartRequestBody.ContentBodyPartBuilder;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -108,12 +108,12 @@ public final class MultipartRequestBodyTest {
             final String key = entry.key();
             final String value = entry.value();
 
-            RequestBodyPartBuilder requestBodyPartBuilder = MultipartRequestBody.requestBodyPartBuilder(
+            ContentBodyPartBuilder contentBodyPartBuilder = MultipartRequestBody.contentBodyPartBuilder(
                     byteArrayUnknownLengthRequestBody(entry.contentType(), value.getBytes(CHARSET)));
-            requestBodyPartBuilder.addHeaderValue("bucket", bucket);
-            requestBodyPartBuilder.addHeaderValue("key", key);
-            entry.keyValues().forEach(requestBodyPartBuilder::addHeaderValue);
-            builder.addRequestBodyPart(requestBodyPartBuilder);
+            contentBodyPartBuilder.addHeaderValue("bucket", bucket);
+            contentBodyPartBuilder.addHeaderValue("key", key);
+            entry.keyValues().forEach(contentBodyPartBuilder::addHeaderValue);
+            builder.addContentBodyPart(contentBodyPartBuilder);
         }
 
         return builder.build();
@@ -202,7 +202,7 @@ public final class MultipartRequestBodyTest {
         MultipartRequestBody.Builder builder = MultipartRequestBody.builder().boundary(BOUNDARY);
 
         for (Map.Entry<String, byte[]> entry : value.entrySet()) {
-            builder.addRequestBodyPart(MultipartRequestBody.requestBodyPartBuilder(
+            builder.addContentBodyPart(MultipartRequestBody.contentBodyPartBuilder(
                             byteArrayUnknownLengthRequestBody(mediaTypeString, entry.getValue()))
                     .addHeaderValue("Content-Disposition", "form-data; name=\"" + entry.getKey() + "\"")
                     .addHeaderValue("Content-Transfer-Encoding", contentTransferEncoding));

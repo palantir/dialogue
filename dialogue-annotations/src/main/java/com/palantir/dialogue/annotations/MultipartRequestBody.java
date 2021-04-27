@@ -44,8 +44,8 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
             return this;
         }
 
-        public Builder addRequestBodyPart(RequestBodyPartBuilder requestBodyPartBuilder) {
-            builder.addPart(requestBodyPartBuilder.builder.build());
+        public Builder addContentBodyPart(ContentBodyPartBuilder contentBodyPartBuilder) {
+            builder.addPart(contentBodyPartBuilder.builder.build());
             return this;
         }
 
@@ -63,8 +63,8 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         return new Builder();
     }
 
-    public static RequestBodyPartBuilder requestBodyPartBuilder(ContentBody contentBody) {
-        return new RequestBodyPartBuilder(contentBody);
+    public static ContentBodyPartBuilder contentBodyPartBuilder(ContentBody contentBody) {
+        return new ContentBodyPartBuilder(contentBody);
     }
 
     public static FormBodyPartBuilder formBodyPartBuilder(String name, ContentBody contentBody) {
@@ -86,14 +86,14 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         }
     }
 
-    public static final class RequestBodyPartBuilder {
+    public static final class ContentBodyPartBuilder {
         private final MultipartPartBuilder builder;
 
-        private RequestBodyPartBuilder(ContentBody unsafeContentBody) {
+        private ContentBodyPartBuilder(ContentBody unsafeContentBody) {
             this.builder = MultipartPartBuilder.create(new ContentBodyAdapter(unsafeContentBody));
         }
 
-        public RequestBodyPartBuilder addHeaderValue(String key, String value) {
+        public ContentBodyPartBuilder addHeaderValue(String key, String value) {
             builder.addHeader(key, value);
             return this;
         }
