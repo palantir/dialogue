@@ -19,6 +19,8 @@ package com.palantir.dialogue.annotations;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.OptionalLong;
 
 public interface ContentBody extends Closeable {
@@ -39,4 +41,23 @@ public interface ContentBody extends Closeable {
      */
     @Override
     void close();
+
+    static ContentBody file(String contentType, Path filePath) {
+        return new com.palantir.dialogue.annotations.ContentBody() {
+            @Override
+            public void writeTo(OutputStream output) throws IOException {
+                Files.copy(filePath, output);
+            }
+
+            @Override
+            public String contentType() {
+                return contentType;
+            }
+
+            @Override
+            public void close() {
+                // Noop
+            }
+        };
+    }
 }

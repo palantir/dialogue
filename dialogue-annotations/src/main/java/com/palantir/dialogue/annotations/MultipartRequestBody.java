@@ -17,6 +17,8 @@
 package com.palantir.dialogue.annotations;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.UnsafeArg;
 import java.io.IOException;
 import java.io.OutputStream;
 import javax.annotation.Nullable;
@@ -107,7 +109,10 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         private String fileName;
 
         private ContentBodyAdapter(ContentBody requestBody) {
-            super(ContentType.parse(requestBody.contentType()));
+            super(Preconditions.checkNotNull(
+                    ContentType.parse(requestBody.contentType()),
+                    "Invalid content type",
+                    UnsafeArg.of("contentType", requestBody.contentType())));
             this.unsafeRequestBody = requestBody;
         }
 

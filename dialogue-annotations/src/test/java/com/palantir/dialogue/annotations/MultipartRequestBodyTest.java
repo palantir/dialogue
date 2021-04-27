@@ -135,23 +135,7 @@ public final class MultipartRequestBodyTest {
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
-                                name, new com.palantir.dialogue.annotations.ContentBody() {
-                                    @Override
-                                    public void writeTo(OutputStream output) throws IOException {
-                                        Files.copy(filePath, output);
-                                    }
-
-                                    @Override
-                                    public String contentType() {
-                                        return contentType;
-                                    }
-
-                                    @Override
-                                    public void close() {
-                                        // Noop
-                                    }
-                                })
+                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(name, ContentBody.file(contentType, filePath))
                         .fileName(fileName))
                 .build();
 
@@ -241,6 +225,34 @@ public final class MultipartRequestBodyTest {
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
+    @Test
+    public void testIsRepeatableIsBasedOnContentLengthBeingKnown() {
+        MultipartRequestBody dialogue = MultipartRequestBody.builder()
+                .boundary(BOUNDARY)
+                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder("hello", new ContentBody() {
+                    @Override
+                    public void writeTo(OutputStream output) {
+                        //
+                    }
+
+                    @Override
+                    public String contentType() {
+                        return "application/json";
+                    }
+
+                    @Override
+                    public void close() {}
+
+                    @Override
+                    public OptionalLong contentLength() {
+                        return OptionalLong.of(1);
+                    }
+                }))
+                .build();
+
+        assertThat(dialogue.repeatable()).isTrue();
+    }
+
     private com.palantir.dialogue.annotations.ContentBody byteArrayUnknownLengthRequestBody(
             String contentType, byte[] value) {
         return new com.palantir.dialogue.annotations.ContentBody() {
@@ -252,28 +264,6 @@ public final class MultipartRequestBodyTest {
             @Override
             public String contentType() {
                 return contentType;
-            }
-
-            @Override
-            public void close() {}
-        };
-    }
-
-    private com.palantir.dialogue.annotations.ContentBody byteArrayLengthRequestBody(String contentType, byte[] value) {
-        return new com.palantir.dialogue.annotations.ContentBody() {
-            @Override
-            public void writeTo(OutputStream output) throws IOException {
-                output.write(value);
-            }
-
-            @Override
-            public String contentType() {
-                return contentType;
-            }
-
-            @Override
-            public OptionalLong contentLength() {
-                return OptionalLong.of(value.length);
             }
 
             @Override
