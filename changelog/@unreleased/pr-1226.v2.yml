@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue ErrorDecoder provides additional response diagnostic info
+  links:
+  - https://github.com/palantir/dialogue/pull/1226
