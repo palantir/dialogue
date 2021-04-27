@@ -118,7 +118,7 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
 
         @Override
         public long getContentLength() {
-            return -1;
+            return unsafeRequestBody.contentLength().orElse(-1);
         }
 
         @Override

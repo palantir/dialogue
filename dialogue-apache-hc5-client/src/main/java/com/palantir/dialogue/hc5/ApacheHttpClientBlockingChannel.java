@@ -44,7 +44,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -177,24 +176,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     }
 
     private static void setBody(ClassicRequestBuilder builder, RequestBody body) {
-        builder.setEntity(new RequestBodyEntity(body, contentLength(builder)));
-    }
-
-    private static OptionalLong contentLength(ClassicRequestBuilder builder) {
-        Header contentLengthHeader = builder.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
-        if (contentLengthHeader != null) {
-            builder.removeHeaders(HttpHeaders.CONTENT_LENGTH);
-            String contentLengthValue = contentLengthHeader.getValue();
-            try {
-                return OptionalLong.of(Long.parseLong(contentLengthValue));
-            } catch (NumberFormatException nfe) {
-                log.warn(
-                        "Failed to parse content-length value '{}'",
-                        SafeArg.of(HttpHeaders.CONTENT_LENGTH, contentLengthValue),
-                        nfe);
-            }
-        }
-        return OptionalLong.empty();
+        builder.setEntity(new RequestBodyEntity(body));
     }
 
     private static final class HttpClientResponse implements Response {
@@ -274,12 +256,10 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         private final RequestBody requestBody;
         private final Header contentType;
-        private final OptionalLong contentLength;
 
-        RequestBodyEntity(RequestBody requestBody, OptionalLong contentLength) {
+        RequestBodyEntity(RequestBody requestBody) {
             this.requestBody = requestBody;
             this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
-            this.contentLength = contentLength;
         }
 
         @Override
@@ -291,7 +271,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isChunked() {
-            return !contentLength.isPresent();
+            return !requestBody.contentLength().isPresent();
         }
 
         @Override
@@ -301,7 +281,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public long getContentLength() {
-            return contentLength.orElse(-1);
+            return requestBody.contentLength().orElse(-1);
         }
 
         @Override

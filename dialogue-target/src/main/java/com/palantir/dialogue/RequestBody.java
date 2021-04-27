@@ -19,6 +19,7 @@ package com.palantir.dialogue;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.OptionalLong;
 
 public interface RequestBody extends Closeable {
 
@@ -30,6 +31,10 @@ public interface RequestBody extends Closeable {
 
     /** Returns <pre>true</pre> if {@link #writeTo(OutputStream)} may be invoked multiple times. */
     boolean repeatable();
+
+    default OptionalLong contentLength() {
+        return OptionalLong.empty();
+    }
 
     /**
      * Closes this {@link RequestBody} and releases all resources. Calling {@link #close()} should never throw,

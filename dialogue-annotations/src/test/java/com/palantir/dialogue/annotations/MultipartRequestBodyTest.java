@@ -81,7 +81,9 @@ public final class MultipartRequestBodyTest {
         String contentType = "application/x-java-archive";
         MultipartBody okhttp = new MultipartBody.Builder(BOUNDARY)
                 .addPart(MultipartBody.Part.createFormData(
-                        name, fileName, RequestBody.create(okhttp3.MediaType.parse(contentType), filePath.toFile())))
+                        name,
+                        fileName,
+                        unknownLengthRequestBody(Files.readAllBytes(filePath), okhttp3.MediaType.parse(contentType))))
                 .build();
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
@@ -130,25 +132,7 @@ public final class MultipartRequestBodyTest {
                     .build());
 
             okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
-            RequestBody body = new RequestBody() {
-                @Nullable
-                @Override
-                public okhttp3.MediaType contentType() {
-                    return contentType;
-                }
-
-                @Override
-                public long contentLength() {
-                    return -1;
-                }
-
-                @Override
-                public void writeTo(BufferedSink sink) throws IOException {
-                    try (Source source = Okio.source(new ByteArrayInputStream(value.getBytes(CHARSET)))) {
-                        sink.writeAll(source);
-                    }
-                }
-            };
+            RequestBody body = unknownLengthRequestBody(value.getBytes(CHARSET), contentType);
 
             multipartBodyBuilder.addPart(MultipartBody.Part.create(headers, body));
         }
@@ -206,6 +190,28 @@ public final class MultipartRequestBodyTest {
         Map<String, String> keyValues();
 
         String contentType();
+    }
+
+    private RequestBody unknownLengthRequestBody(byte[] value, okhttp3.MediaType contentType) {
+        return new RequestBody() {
+            @Nullable
+            @Override
+            public okhttp3.MediaType contentType() {
+                return contentType;
+            }
+
+            @Override
+            public long contentLength() {
+                return -1;
+            }
+
+            @Override
+            public void writeTo(BufferedSink sink) throws IOException {
+                try (Source source = Okio.source(new ByteArrayInputStream(value))) {
+                    sink.writeAll(source);
+                }
+            }
+        };
     }
 
     private void assertOkhttpAndDialogueMatch(MultipartBody okhttp, MultipartRequestBody dialogue) {
