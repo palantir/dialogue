@@ -113,7 +113,7 @@ public final class MultipartRequestBodyTest {
             contentBodyPartBuilder.addHeaderValue("bucket", bucket);
             contentBodyPartBuilder.addHeaderValue("key", key);
             entry.keyValues().forEach(contentBodyPartBuilder::addHeaderValue);
-            builder.addContentBodyPart(contentBodyPartBuilder);
+            builder.addPart(contentBodyPartBuilder.build());
         }
 
         return builder.build();
@@ -135,8 +135,9 @@ public final class MultipartRequestBodyTest {
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(name, ContentBody.file(contentType, filePath))
-                        .fileName(fileName))
+                .addPart(MultipartRequestBody.formBodyPartBuilder(name, ContentBody.file(contentType, filePath))
+                        .fileName(fileName)
+                        .build())
                 .build();
 
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
@@ -186,10 +187,11 @@ public final class MultipartRequestBodyTest {
         MultipartRequestBody.Builder builder = MultipartRequestBody.builder().boundary(BOUNDARY);
 
         for (Map.Entry<String, byte[]> entry : value.entrySet()) {
-            builder.addContentBodyPart(MultipartRequestBody.contentBodyPartBuilder(
+            builder.addPart(MultipartRequestBody.contentBodyPartBuilder(
                             byteArrayUnknownLengthRequestBody(mediaTypeString, entry.getValue()))
                     .addHeaderValue("Content-Disposition", "form-data; name=\"" + entry.getKey() + "\"")
-                    .addHeaderValue("Content-Transfer-Encoding", contentTransferEncoding));
+                    .addHeaderValue("Content-Transfer-Encoding", contentTransferEncoding)
+                    .build());
         }
 
         return builder.build();
@@ -215,11 +217,13 @@ public final class MultipartRequestBodyTest {
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
+                .addPart(MultipartRequestBody.formBodyPartBuilder(
                                 uploadField, byteArrayUnknownLengthRequestBody(httpMediaType, httpMediaContent))
-                        .fileName(httpMediaFileName))
-                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
-                        detailsField, byteArrayUnknownLengthRequestBody(detailsContentType, detailsBytes)))
+                        .fileName(httpMediaFileName)
+                        .build())
+                .addPart(MultipartRequestBody.formBodyPartBuilder(
+                                detailsField, byteArrayUnknownLengthRequestBody(detailsContentType, detailsBytes))
+                        .build())
                 .build();
 
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
@@ -229,23 +233,24 @@ public final class MultipartRequestBodyTest {
     public void testIsRepeatableIsBasedOnContentLengthBeingKnown() {
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder("hello", new ContentBody() {
-                    @Override
-                    public void writeTo(OutputStream _output) {}
+                .addPart(MultipartRequestBody.formBodyPartBuilder("hello", new ContentBody() {
+                            @Override
+                            public void writeTo(OutputStream _output) {}
 
-                    @Override
-                    public String contentType() {
-                        return "application/json";
-                    }
+                            @Override
+                            public String contentType() {
+                                return "application/json";
+                            }
 
-                    @Override
-                    public void close() {}
+                            @Override
+                            public void close() {}
 
-                    @Override
-                    public OptionalLong contentLength() {
-                        return OptionalLong.of(1);
-                    }
-                }))
+                            @Override
+                            public OptionalLong contentLength() {
+                                return OptionalLong.of(1);
+                            }
+                        })
+                        .build())
                 .build();
 
         assertThat(dialogue.repeatable()).isTrue();

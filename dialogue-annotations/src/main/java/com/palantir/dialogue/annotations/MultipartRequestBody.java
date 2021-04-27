@@ -24,6 +24,7 @@ import java.io.OutputStream;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.entity.mime.AbstractContentBody;
 import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.entity.mime.MultipartPart;
 import org.apache.hc.client5.http.entity.mime.MultipartPartBuilder;
 import org.apache.hc.core5.http.ContentType;
 import org.apache.hc.core5.http.HttpEntity;
@@ -46,13 +47,8 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
             return this;
         }
 
-        public Builder addContentBodyPart(ContentBodyPartBuilder contentBodyPartBuilder) {
-            builder.addPart(contentBodyPartBuilder.builder.build());
-            return this;
-        }
-
-        public Builder addFormBodyPart(FormBodyPartBuilder formBodyPartBuilder) {
-            builder.addPart(formBodyPartBuilder.builder.build());
+        public Builder addPart(Part part) {
+            builder.addPart(part.part);
             return this;
         }
 
@@ -86,6 +82,10 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
             bodyAdapter.setFileName(fileName);
             return this;
         }
+
+        public Part build() {
+            return new Part(builder.build());
+        }
     }
 
     public static final class ContentBodyPartBuilder {
@@ -98,6 +98,18 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         public ContentBodyPartBuilder addHeaderValue(String key, String value) {
             builder.addHeader(key, value);
             return this;
+        }
+
+        public Part build() {
+            return new Part(builder.build());
+        }
+    }
+
+    public static final class Part {
+        private final MultipartPart part;
+
+        private Part(MultipartPart part) {
+            this.part = part;
         }
     }
 
