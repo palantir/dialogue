@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.core;
 
+import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.dialogue.Response;
 
 /** Utility functionality for {@link Response} handling. */
@@ -50,6 +51,11 @@ final class Responses {
 
     static boolean isClientError(Response response) {
         return response.code() / 100 == 4;
+    }
+
+    static boolean isClientAuthError(Response response) {
+        int code = response.code();
+        return code == ErrorType.UNAUTHORIZED.httpErrorCode() || code == ErrorType.PERMISSION_DENIED.httpErrorCode();
     }
 
     private Responses() {}

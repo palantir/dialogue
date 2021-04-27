@@ -14,7 +14,7 @@ namespaces:
           * success: 2xx requests, always excludes time spent reading the response body.
           * failure:
             - QoS failures (429, 308, 503)
-            - 500 requests
+            - 5XX responses
             - IOExceptions
       deprecations:
         type: meter
@@ -32,6 +32,11 @@ namespaces:
         type: meter
         tags: [channel-name, reason]
         docs: Rate at which the RetryingChannel retries requests (across all endpoints).
+      request.failure:
+        type: meter
+        tags: [channel-name, reason]
+        docs: Failures across all endpoints by `reason`. This metric is equivalent to `dialogue.client.request.retry`,
+          but is only marked when retries do not occur and the failure is propagated to a user.
       requests.queued:
         type: counter
         tags: [channel-name]

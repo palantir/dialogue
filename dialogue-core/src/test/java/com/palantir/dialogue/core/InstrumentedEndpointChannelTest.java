@@ -46,7 +46,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
-public final class TimingEndpointChannelTest {
+public final class InstrumentedEndpointChannelTest {
 
     @Mock
     private EndpointChannel delegate;
@@ -158,7 +158,7 @@ public final class TimingEndpointChannelTest {
             maybeThrowable.ifPresent(throwable -> {
                 when(delegate.execute(any())).thenReturn(Futures.immediateFailedFuture(throwable));
             });
-            new TimingEndpointChannel(delegate, ticker, registry, "my-channel", endpoint)
+            new InstrumentedEndpointChannel(delegate, ticker, registry, "my-channel", endpoint)
                     .execute(Request.builder().build());
         }
     }

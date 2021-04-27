@@ -157,7 +157,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = new ContentDecodingChannel(channel);
                 channel = TracedChannel.create(cf, channel, endpoint);
-                channel = TimingEndpointChannel.create(cf, channel, endpoint);
+                channel = InstrumentedEndpointChannel.create(cf, channel, endpoint);
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };

@@ -179,17 +179,17 @@ final class RetryingChannel implements EndpointChannel {
         this.retryDueToServerError = dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
-                .reason("serverError")
+                .reason(Reasons.SERVER_ERROR)
                 .build();
         this.retryDueToQosResponse = dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
-                .reason("qosResponse")
+                .reason(Reasons.QOS_RESPONSE)
                 .build();
         this.retryDueToThrowable = throwable -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
-                .reason(throwable.getClass().getSimpleName())
+                .reason(Reasons.getReason(throwable))
                 .build();
     }
 
