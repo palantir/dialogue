@@ -17,7 +17,9 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
 import com.google.common.io.CharStreams;
+import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.palantir.conjure.java.api.errors.QosException;
 import com.palantir.conjure.java.api.errors.RemoteException;
@@ -25,7 +27,11 @@ import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.conjure.java.serialization.ObjectMappers;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeExceptions;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -34,8 +40,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
-import javax.ws.rs.core.HttpHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +62,15 @@ enum ErrorDecoder {
     }
 
     RuntimeException decode(Response response) {
+        if (log.isDebugEnabled()) {
+            log.debug("Received an error response", diagnosticArgs(response).toArray(new Object[0]));
+        }
+        RuntimeException result = decodeInternal(response);
+        result.addSuppressed(diagnostic(response));
+        return result;
+    }
+
+    private RuntimeException decodeInternal(Response response) {
         // TODO(rfink): What about HTTP/101 switching protocols?
         // TODO(rfink): What about HEAD requests?
 
@@ -96,6 +111,7 @@ enum ErrorDecoder {
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
+            exception.addSuppressed(diagnostic(response));
             return exception;
         }
 
@@ -115,6 +131,56 @@ enum ErrorDecoder {
     private static String toString(InputStream body) throws IOException {
         try (Reader reader = new InputStreamReader(body, StandardCharsets.UTF_8)) {
             return CharStreams.toString(reader);
+        }
+    }
+
+    private static ResponseDiagnostic diagnostic(Response response) {
+        return new ResponseDiagnostic(diagnosticArgs(response));
+    }
+
+    private static ImmutableList<Arg<?>> diagnosticArgs(Response response) {
+        ImmutableList.Builder<Arg<?>> args = ImmutableList.<Arg<?>>builder().add(SafeArg.of("status", response.code()));
+        recordHeader(HttpHeaders.SERVER, response, args);
+        recordHeader(HttpHeaders.CONTENT_TYPE, response, args);
+        recordHeader(HttpHeaders.CONTENT_LENGTH, response, args);
+        recordHeader(HttpHeaders.CONNECTION, response, args);
+        recordHeader(HttpHeaders.DATE, response, args);
+        recordHeader("x-envoy-response-flags", response, args);
+        recordHeader("x-envoy-response-code-details", response, args);
+        return args.build();
+    }
+
+    private static void recordHeader(String header, Response response, ImmutableList.Builder<Arg<?>> args) {
+        response.getFirstHeader(header).ifPresent(server -> args.add(SafeArg.of(header, server)));
+    }
+
+    private static final class ResponseDiagnostic extends RuntimeException implements SafeLoggable {
+
+        private static final String SAFE_MESSAGE = "Response Diagnostic Information";
+
+        private final ImmutableList<Arg<?>> args;
+
+        ResponseDiagnostic(ImmutableList<Arg<?>> args) {
+            super(SafeExceptions.renderMessage(SAFE_MESSAGE, args.toArray(new Arg<?>[0])));
+            this.args = args;
+        }
+
+        @Override
+        public String getLogMessage() {
+            return SAFE_MESSAGE;
+        }
+
+        @Override
+        public List<Arg<?>> getArgs() {
+            return args;
+        }
+
+        @Override
+        @SuppressWarnings("UnsynchronizedOverridesSynchronized") // nop
+        public Throwable fillInStackTrace() {
+            // no-op: stack trace generation is expensive, this type exists
+            // to simply associate diagnostic information with a failure.
+            return this;
         }
     }
 }
