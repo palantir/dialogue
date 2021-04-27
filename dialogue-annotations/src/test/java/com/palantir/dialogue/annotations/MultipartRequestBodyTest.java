@@ -33,6 +33,7 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
@@ -49,6 +50,7 @@ public final class MultipartRequestBodyTest {
 
     private static final String BOUNDARY = "xxxxxxxxxxxxxxxxxxxxxxxx";
     public static final Charset CHARSET = StandardCharsets.UTF_8;
+    public static final String I_AM_JSON_INDEED_I_AM = "{\"i-am-json\":\"indeed-i-am\"}";
 
     @Test
     public void testCanSupportClient1BinaryValueWithCustomHeaders() {
@@ -62,7 +64,7 @@ public final class MultipartRequestBodyTest {
                 ImmutableKeyValue.builder()
                         .key("key2")
                         .bucket("bucket")
-                        .value("{\"i-am-json\":\"indeed-i-am\"}")
+                        .value(I_AM_JSON_INDEED_I_AM)
                         .contentType(MediaType.JSON_UTF_8.toString())
                         .putKeyValues("If-Match", "version")
                         .build());
@@ -71,6 +73,50 @@ public final class MultipartRequestBodyTest {
         MultipartRequestBody dialogue = createDialogueMultipartRequestBody(keyValues);
 
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
+    }
+
+    private MultipartBody createOkhttpMultipartBody(List<KeyValue> keyValues) {
+        MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
+        multipartBodyBuilder.setType(MultipartBody.MIXED);
+
+        for (KeyValue entry : keyValues) {
+            final String bucket = entry.bucket();
+            final String key = entry.key();
+            final String value = entry.value();
+
+            Headers headers = Headers.of(ImmutableMap.<String, String>builder()
+                    .put("bucket", bucket)
+                    .put("key", key)
+                    .putAll(entry.keyValues())
+                    .build());
+
+            okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
+            RequestBody body = unknownLengthRequestBody(value.getBytes(CHARSET), contentType);
+
+            multipartBodyBuilder.addPart(MultipartBody.Part.create(headers, body));
+        }
+
+        return multipartBodyBuilder.build();
+    }
+
+    private MultipartRequestBody createDialogueMultipartRequestBody(List<KeyValue> keyValues) {
+        MultipartRequestBody.Builder builder = MultipartRequestBody.builder();
+        builder.boundary(BOUNDARY);
+
+        for (KeyValue entry : keyValues) {
+            final String bucket = entry.bucket();
+            final String key = entry.key();
+            final String value = entry.value();
+
+            RequestBodyPartBuilder requestBodyPartBuilder = MultipartRequestBody.requestBodyPartBuilder(
+                    byteArrayUnknownLengthRequestBody(entry.contentType(), value.getBytes(CHARSET)));
+            requestBodyPartBuilder.addHeaderValue("bucket", bucket);
+            requestBodyPartBuilder.addHeaderValue("key", key);
+            entry.keyValues().forEach(requestBodyPartBuilder::addHeaderValue);
+            builder.addRequestBodyPart(requestBodyPartBuilder);
+        }
+
+        return builder.build();
     }
 
     @Test
@@ -170,48 +216,34 @@ public final class MultipartRequestBodyTest {
         return builder.build();
     }
 
-    private MultipartBody createOkhttpMultipartBody(List<KeyValue> keyValues) {
+    @Test
+    public void testCanSupportClient3FormNullFilename() {
+        byte[] httpMediaContent = "someMedia".getBytes(CHARSET);
+        String httpMediaType = "text/plain";
+        String uploadField = "upload";
+        String httpMediaFileName = "filename";
+        String detailsField = "details";
+        byte[] detailsBytes = I_AM_JSON_INDEED_I_AM.getBytes(CHARSET);
+        String detailsContentType = "application/json";
+
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
-        multipartBodyBuilder.setType(MultipartBody.MIXED);
+        multipartBodyBuilder.setType(okhttp3.MediaType.parse(javax.ws.rs.core.MediaType.MULTIPART_FORM_DATA));
+        RequestBody body = unknownLengthRequestBody(httpMediaContent, okhttp3.MediaType.parse(httpMediaType));
+        multipartBodyBuilder.addPart(MultipartBody.Part.createFormData(uploadField, httpMediaFileName, body));
+        RequestBody detailsBody = unknownLengthRequestBody(detailsBytes, okhttp3.MediaType.parse(detailsContentType));
+        multipartBodyBuilder.addPart(MultipartBody.Part.createFormData(detailsField, null, detailsBody));
+        MultipartBody okhttp = multipartBodyBuilder.build();
 
-        for (KeyValue entry : keyValues) {
-            final String bucket = entry.bucket();
-            final String key = entry.key();
-            final String value = entry.value();
+        MultipartRequestBody dialogue = MultipartRequestBody.builder()
+                .boundary(BOUNDARY)
+                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
+                                uploadField, byteArrayUnknownLengthRequestBody(httpMediaType, httpMediaContent))
+                        .setFileName(httpMediaFileName))
+                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
+                        detailsField, byteArrayUnknownLengthRequestBody(detailsContentType, detailsBytes)))
+                .build();
 
-            Headers headers = Headers.of(ImmutableMap.<String, String>builder()
-                    .put("bucket", bucket)
-                    .put("key", key)
-                    .putAll(entry.keyValues())
-                    .build());
-
-            okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
-            RequestBody body = unknownLengthRequestBody(value.getBytes(CHARSET), contentType);
-
-            multipartBodyBuilder.addPart(MultipartBody.Part.create(headers, body));
-        }
-
-        return multipartBodyBuilder.build();
-    }
-
-    private MultipartRequestBody createDialogueMultipartRequestBody(List<KeyValue> keyValues) {
-        MultipartRequestBody.Builder builder = MultipartRequestBody.builder();
-        builder.boundary(BOUNDARY);
-
-        for (KeyValue entry : keyValues) {
-            final String bucket = entry.bucket();
-            final String key = entry.key();
-            final String value = entry.value();
-
-            RequestBodyPartBuilder requestBodyPartBuilder = MultipartRequestBody.requestBodyPartBuilder(
-                    byteArrayUnknownLengthRequestBody(entry.contentType(), value.getBytes(CHARSET)));
-            requestBodyPartBuilder.addHeaderValue("bucket", bucket);
-            requestBodyPartBuilder.addHeaderValue("key", key);
-            entry.keyValues().forEach(requestBodyPartBuilder::addHeaderValue);
-            builder.addRequestBodyPart(requestBodyPartBuilder);
-        }
-
-        return builder.build();
+        assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
     private com.palantir.dialogue.RequestBody byteArrayUnknownLengthRequestBody(String contentType, byte[] value) {
@@ -228,7 +260,34 @@ public final class MultipartRequestBodyTest {
 
             @Override
             public boolean repeatable() {
-                return false;
+                return true;
+            }
+
+            @Override
+            public void close() {}
+        };
+    }
+
+    private com.palantir.dialogue.RequestBody byteArrayLengthRequestBody(String contentType, byte[] value) {
+        return new com.palantir.dialogue.RequestBody() {
+            @Override
+            public void writeTo(OutputStream output) throws IOException {
+                output.write(value);
+            }
+
+            @Override
+            public String contentType() {
+                return contentType;
+            }
+
+            @Override
+            public boolean repeatable() {
+                return true;
+            }
+
+            @Override
+            public OptionalLong contentLength() {
+                return OptionalLong.of(value.length);
             }
 
             @Override
