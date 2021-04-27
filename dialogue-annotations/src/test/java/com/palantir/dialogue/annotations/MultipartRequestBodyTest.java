@@ -231,9 +231,7 @@ public final class MultipartRequestBodyTest {
                 .boundary(BOUNDARY)
                 .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder("hello", new ContentBody() {
                     @Override
-                    public void writeTo(OutputStream output) {
-                        //
-                    }
+                    public void writeTo(OutputStream _output) {}
 
                     @Override
                     public String contentType() {
