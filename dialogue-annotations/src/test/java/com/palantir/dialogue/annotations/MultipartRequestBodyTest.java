@@ -30,6 +30,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
@@ -50,15 +51,15 @@ public final class MultipartRequestBodyTest {
     public static final Charset CHARSET = StandardCharsets.UTF_8;
 
     @Test
-    public void testCanSupportClient1() throws IOException {
-        List<SaltValue> saltValues = ImmutableList.of(
-                ImmutableSaltValue.builder()
+    public void testCanSupportClient1BinaryValueWithCustomHeaders() {
+        List<KeyValue> keyValues = ImmutableList.of(
+                ImmutableKeyValue.builder()
                         .key("key1")
                         .bucket("bucket")
                         .value("I am String: indeed I am")
                         .contentType(MediaType.PLAIN_TEXT_UTF_8.toString())
                         .build(),
-                ImmutableSaltValue.builder()
+                ImmutableKeyValue.builder()
                         .key("key2")
                         .bucket("bucket")
                         .value("{\"i-am-json\":\"indeed-i-am\"}")
@@ -66,14 +67,14 @@ public final class MultipartRequestBodyTest {
                         .putKeyValues("If-Match", "version")
                         .build());
 
-        MultipartBody okhttp = createOkhttpMultipartBody(saltValues);
-        MultipartRequestBody dialogue = createDialogueMultipartRequestBody(saltValues);
+        MultipartBody okhttp = createOkhttpMultipartBody(keyValues);
+        MultipartRequestBody dialogue = createDialogueMultipartRequestBody(keyValues);
 
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
     @Test
-    public void testCanSupportClient2(@TempDir Path tempDir) throws IOException {
+    public void testCanSupportClient2Form(@TempDir Path tempDir) throws IOException {
         String name = "jarfile";
         String fileName = "job.jar";
         Path filePath = tempDir.resolve("job.jar");
@@ -116,11 +117,48 @@ public final class MultipartRequestBodyTest {
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
-    private MultipartBody createOkhttpMultipartBody(List<SaltValue> saltValues) {
+    @Test
+    public void testCanSupportClient3PartMap() {
+        String fileName = "file.bin";
+        okhttp3.MediaType mediaType = okhttp3.MediaType.get("application/octet-stream");
+        Map<String, RequestBody> partMap = new HashMap<>();
+        byte[] file = "file".getBytes(CHARSET);
+        RequestBody attachment = RequestBody.create(mediaType, file);
+        partMap.put("attachment\"; filename=\"" + fileName, attachment);
+        MultipartBody okhttp = createMultipartBody(partMap, "binary");
+    }
+
+    private MultipartBody createMultipartBody(Map<String, RequestBody> value, String contentTransferEncoding) {
+
+        MultipartBody.Builder builder = new MultipartBody.Builder();
+
+        for (Map.Entry<String, RequestBody> entry : value.entrySet()) {
+            String entryKey = entry.getKey();
+            if (entryKey == null) {
+                throw new IllegalArgumentException("Part map contained null key.");
+            }
+            RequestBody entryValue = entry.getValue();
+            if (entryValue == null) {
+                throw new IllegalArgumentException("Part map contained null value for key '" + entryKey + "'.");
+            }
+
+            Headers headers = Headers.of(
+                    "Content-Disposition",
+                    "form-data; name=\"" + entryKey + "\"",
+                    "Content-Transfer-Encoding",
+                    contentTransferEncoding);
+
+            builder.addPart(headers, entryValue);
+        }
+
+        return builder.build();
+    }
+
+    private MultipartBody createOkhttpMultipartBody(List<KeyValue> keyValues) {
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
         multipartBodyBuilder.setType(MultipartBody.MIXED);
 
-        for (SaltValue entry : saltValues) {
+        for (KeyValue entry : keyValues) {
             final String bucket = entry.bucket();
             final String key = entry.key();
             final String value = entry.value();
@@ -140,11 +178,11 @@ public final class MultipartRequestBodyTest {
         return multipartBodyBuilder.build();
     }
 
-    private MultipartRequestBody createDialogueMultipartRequestBody(List<SaltValue> saltValues) {
+    private MultipartRequestBody createDialogueMultipartRequestBody(List<KeyValue> keyValues) {
         MultipartRequestBody.Builder builder = MultipartRequestBody.builder();
         builder.boundary(BOUNDARY);
 
-        for (SaltValue entry : saltValues) {
+        for (KeyValue entry : keyValues) {
             final String bucket = entry.bucket();
             final String key = entry.key();
             final String value = entry.value();
@@ -180,7 +218,7 @@ public final class MultipartRequestBodyTest {
 
     @Value.Immutable
     @Value.Style(stagedBuilder = true)
-    interface SaltValue {
+    interface KeyValue {
         String key();
 
         String bucket();
