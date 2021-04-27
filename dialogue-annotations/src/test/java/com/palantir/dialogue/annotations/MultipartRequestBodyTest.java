@@ -120,27 +120,28 @@ public final class MultipartRequestBodyTest {
     @Test
     public void testCanSupportClient3PartMap() {
         String fileName = "file.bin";
-        okhttp3.MediaType mediaType = okhttp3.MediaType.get("application/octet-stream");
-        Map<String, RequestBody> partMap = new HashMap<>();
+        String mediaType = "application/octet-stream";
+        String contentTransferEncoding = "binary";
+        Map<String, byte[]> partMap = new HashMap<>();
         byte[] file = "file".getBytes(CHARSET);
-        RequestBody attachment = RequestBody.create(mediaType, file);
-        partMap.put("attachment\"; filename=\"" + fileName, attachment);
-        MultipartBody okhttp = createMultipartBody(partMap, "binary");
+        partMap.put("attachment\"; filename=\"" + fileName, file);
+
+        MultipartBody okhttp = createOkhttpPartMapBody(partMap, mediaType, contentTransferEncoding);
+
+        MultipartRequestBody dialogue = createDialoguePartMapBody(partMap, mediaType, contentTransferEncoding);
+
+        assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
-    private MultipartBody createMultipartBody(Map<String, RequestBody> value, String contentTransferEncoding) {
+    private MultipartBody createOkhttpPartMapBody(
+            Map<String, byte[]> value, String mediaTypeString, String contentTransferEncoding) {
 
-        MultipartBody.Builder builder = new MultipartBody.Builder();
+        MultipartBody.Builder builder = new MultipartBody.Builder(BOUNDARY);
+        okhttp3.MediaType mediaType = okhttp3.MediaType.get(mediaTypeString);
 
-        for (Map.Entry<String, RequestBody> entry : value.entrySet()) {
+        for (Map.Entry<String, byte[]> entry : value.entrySet()) {
             String entryKey = entry.getKey();
-            if (entryKey == null) {
-                throw new IllegalArgumentException("Part map contained null key.");
-            }
-            RequestBody entryValue = entry.getValue();
-            if (entryValue == null) {
-                throw new IllegalArgumentException("Part map contained null value for key '" + entryKey + "'.");
-            }
+            RequestBody entryValue = unknownLengthRequestBody(entry.getValue(), mediaType);
 
             Headers headers = Headers.of(
                     "Content-Disposition",
@@ -149,6 +150,21 @@ public final class MultipartRequestBodyTest {
                     contentTransferEncoding);
 
             builder.addPart(headers, entryValue);
+        }
+
+        return builder.build();
+    }
+
+    private MultipartRequestBody createDialoguePartMapBody(
+            Map<String, byte[]> value, String mediaTypeString, String contentTransferEncoding) {
+
+        MultipartRequestBody.Builder builder = MultipartRequestBody.builder().boundary(BOUNDARY);
+
+        for (Map.Entry<String, byte[]> entry : value.entrySet()) {
+            builder.addRequestBodyPart(MultipartRequestBody.requestBodyPartBuilder(
+                            byteArrayUnknownLengthRequestBody(mediaTypeString, entry.getValue()))
+                    .addHeaderValue("Content-Disposition", "form-data; name=\"" + entry.getKey() + "\"")
+                    .addHeaderValue("Content-Transfer-Encoding", contentTransferEncoding));
         }
 
         return builder.build();
@@ -187,26 +203,8 @@ public final class MultipartRequestBodyTest {
             final String key = entry.key();
             final String value = entry.value();
 
-            RequestBodyPartBuilder requestBodyPartBuilder =
-                    MultipartRequestBody.requestBodyPartBuilder(new com.palantir.dialogue.RequestBody() {
-                        @Override
-                        public void writeTo(OutputStream output) throws IOException {
-                            output.write(value.getBytes(StandardCharsets.UTF_8));
-                        }
-
-                        @Override
-                        public String contentType() {
-                            return entry.contentType();
-                        }
-
-                        @Override
-                        public boolean repeatable() {
-                            return false;
-                        }
-
-                        @Override
-                        public void close() {}
-                    });
+            RequestBodyPartBuilder requestBodyPartBuilder = MultipartRequestBody.requestBodyPartBuilder(
+                    byteArrayUnknownLengthRequestBody(entry.contentType(), value.getBytes(CHARSET)));
             requestBodyPartBuilder.addHeaderValue("bucket", bucket);
             requestBodyPartBuilder.addHeaderValue("key", key);
             entry.keyValues().forEach(requestBodyPartBuilder::addHeaderValue);
@@ -214,6 +212,28 @@ public final class MultipartRequestBodyTest {
         }
 
         return builder.build();
+    }
+
+    private com.palantir.dialogue.RequestBody byteArrayUnknownLengthRequestBody(String contentType, byte[] value) {
+        return new com.palantir.dialogue.RequestBody() {
+            @Override
+            public void writeTo(OutputStream output) throws IOException {
+                output.write(value);
+            }
+
+            @Override
+            public String contentType() {
+                return contentType;
+            }
+
+            @Override
+            public boolean repeatable() {
+                return false;
+            }
+
+            @Override
+            public void close() {}
+        };
     }
 
     @Value.Immutable
