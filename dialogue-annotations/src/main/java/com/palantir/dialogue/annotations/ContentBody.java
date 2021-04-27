@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,25 +14,27 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.annotations;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.util.OptionalLong;
 
-public interface RequestBody extends Closeable {
+public interface ContentBody extends Closeable {
 
     /** The content of this request body, possibly empty. */
     void writeTo(OutputStream output) throws IOException;
 
-    /** A HTTP/Conjure content type (e.g., "application/json") indicating the type of content. */
+    /** A HTTP content type (e.g., "application/json") indicating the type of content. */
     String contentType();
 
-    /** Returns <pre>true</pre> if {@link #writeTo(OutputStream)} may be invoked multiple times. */
-    boolean repeatable();
+    default OptionalLong contentLength() {
+        return OptionalLong.empty();
+    }
 
     /**
-     * Closes this {@link RequestBody} and releases all resources. Calling {@link #close()} should never throw,
+     * Closes this {@link ContentBody} and releases all resources. Calling {@link #close()} should never throw,
      * preferring to catch and log.
      */
     @Override

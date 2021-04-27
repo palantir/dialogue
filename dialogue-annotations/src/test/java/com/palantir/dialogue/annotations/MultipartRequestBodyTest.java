@@ -135,8 +135,8 @@ public final class MultipartRequestBodyTest {
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addFormBodyPart(
-                        MultipartRequestBody.formBodyPartBuilder(name, new com.palantir.dialogue.RequestBody() {
+                .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
+                                name, new com.palantir.dialogue.annotations.ContentBody() {
                                     @Override
                                     public void writeTo(OutputStream output) throws IOException {
                                         Files.copy(filePath, output);
@@ -148,16 +148,11 @@ public final class MultipartRequestBodyTest {
                                     }
 
                                     @Override
-                                    public boolean repeatable() {
-                                        return true;
-                                    }
-
-                                    @Override
                                     public void close() {
                                         // Noop
                                     }
                                 })
-                                .setFileName(fileName))
+                        .fileName(fileName))
                 .build();
 
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
@@ -238,7 +233,7 @@ public final class MultipartRequestBodyTest {
                 .boundary(BOUNDARY)
                 .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
                                 uploadField, byteArrayUnknownLengthRequestBody(httpMediaType, httpMediaContent))
-                        .setFileName(httpMediaFileName))
+                        .fileName(httpMediaFileName))
                 .addFormBodyPart(MultipartRequestBody.formBodyPartBuilder(
                         detailsField, byteArrayUnknownLengthRequestBody(detailsContentType, detailsBytes)))
                 .build();
@@ -246,8 +241,9 @@ public final class MultipartRequestBodyTest {
         assertOkhttpAndDialogueMatch(okhttp, dialogue);
     }
 
-    private com.palantir.dialogue.RequestBody byteArrayUnknownLengthRequestBody(String contentType, byte[] value) {
-        return new com.palantir.dialogue.RequestBody() {
+    private com.palantir.dialogue.annotations.ContentBody byteArrayUnknownLengthRequestBody(
+            String contentType, byte[] value) {
+        return new com.palantir.dialogue.annotations.ContentBody() {
             @Override
             public void writeTo(OutputStream output) throws IOException {
                 output.write(value);
@@ -256,11 +252,6 @@ public final class MultipartRequestBodyTest {
             @Override
             public String contentType() {
                 return contentType;
-            }
-
-            @Override
-            public boolean repeatable() {
-                return true;
             }
 
             @Override
@@ -268,8 +259,8 @@ public final class MultipartRequestBodyTest {
         };
     }
 
-    private com.palantir.dialogue.RequestBody byteArrayLengthRequestBody(String contentType, byte[] value) {
-        return new com.palantir.dialogue.RequestBody() {
+    private com.palantir.dialogue.annotations.ContentBody byteArrayLengthRequestBody(String contentType, byte[] value) {
+        return new com.palantir.dialogue.annotations.ContentBody() {
             @Override
             public void writeTo(OutputStream output) throws IOException {
                 output.write(value);
@@ -278,11 +269,6 @@ public final class MultipartRequestBodyTest {
             @Override
             public String contentType() {
                 return contentType;
-            }
-
-            @Override
-            public boolean repeatable() {
-                return true;
             }
 
             @Override

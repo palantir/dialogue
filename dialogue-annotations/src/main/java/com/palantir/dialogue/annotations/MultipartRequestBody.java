@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.palantir.dialogue.RequestBody;
 import java.io.IOException;
 import java.io.OutputStream;
 import javax.annotation.Nullable;
@@ -64,24 +63,24 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
         return new Builder();
     }
 
-    public static RequestBodyPartBuilder requestBodyPartBuilder(RequestBody unsafeRequestBody) {
-        return new RequestBodyPartBuilder(unsafeRequestBody);
+    public static RequestBodyPartBuilder requestBodyPartBuilder(ContentBody contentBody) {
+        return new RequestBodyPartBuilder(contentBody);
     }
 
-    public static FormBodyPartBuilder formBodyPartBuilder(String name, RequestBody requestBody) {
-        return new FormBodyPartBuilder(name, requestBody);
+    public static FormBodyPartBuilder formBodyPartBuilder(String name, ContentBody contentBody) {
+        return new FormBodyPartBuilder(name, contentBody);
     }
 
     public static final class FormBodyPartBuilder {
         private final ContentBodyAdapter bodyAdapter;
         private final org.apache.hc.client5.http.entity.mime.FormBodyPartBuilder builder;
 
-        private FormBodyPartBuilder(String name, RequestBody unsafeRequestBody) {
-            bodyAdapter = new ContentBodyAdapter(unsafeRequestBody);
+        private FormBodyPartBuilder(String name, ContentBody unsafeContentBody) {
+            bodyAdapter = new ContentBodyAdapter(unsafeContentBody);
             builder = org.apache.hc.client5.http.entity.mime.FormBodyPartBuilder.create(name, bodyAdapter);
         }
 
-        public FormBodyPartBuilder setFileName(String fileName) {
+        public FormBodyPartBuilder fileName(String fileName) {
             bodyAdapter.setFileName(fileName);
             return this;
         }
@@ -90,8 +89,8 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
     public static final class RequestBodyPartBuilder {
         private final MultipartPartBuilder builder;
 
-        private RequestBodyPartBuilder(RequestBody unsafeRequestBody) {
-            this.builder = MultipartPartBuilder.create(new ContentBodyAdapter(unsafeRequestBody));
+        private RequestBodyPartBuilder(ContentBody unsafeContentBody) {
+            this.builder = MultipartPartBuilder.create(new ContentBodyAdapter(unsafeContentBody));
         }
 
         public RequestBodyPartBuilder addHeaderValue(String key, String value) {
@@ -102,12 +101,12 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
 
     private static final class ContentBodyAdapter extends AbstractContentBody {
 
-        private final RequestBody unsafeRequestBody;
+        private final ContentBody unsafeRequestBody;
 
         @Nullable
         private String fileName;
 
-        private ContentBodyAdapter(RequestBody requestBody) {
+        private ContentBodyAdapter(ContentBody requestBody) {
             super(ContentType.parse(requestBody.contentType()));
             this.unsafeRequestBody = requestBody;
         }
@@ -129,7 +128,7 @@ public final class MultipartRequestBody extends HttpEntityBodyRequestBodyAdapter
 
         @Override
         public void writeTo(OutputStream out) throws IOException {
-            try (RequestBody requestBody = unsafeRequestBody) {
+            try (ContentBody requestBody = unsafeRequestBody) {
                 requestBody.writeTo(out);
             }
         }
