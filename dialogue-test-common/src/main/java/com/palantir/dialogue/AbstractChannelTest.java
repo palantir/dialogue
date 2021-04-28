@@ -33,6 +33,7 @@ import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -79,6 +80,11 @@ public abstract class AbstractChannelTest {
         @Override
         public boolean repeatable() {
             return true;
+        }
+
+        @Override
+        public OptionalLong contentLength() {
+            return OptionalLong.of(CONTENT.length);
         }
 
         @Override

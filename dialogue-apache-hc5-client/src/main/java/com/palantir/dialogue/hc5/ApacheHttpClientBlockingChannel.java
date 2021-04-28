@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
@@ -176,7 +177,41 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     }
 
     private static void setBody(ClassicRequestBuilder builder, RequestBody body) {
-        builder.setEntity(new RequestBodyEntity(body));
+        builder.setEntity(new RequestBodyEntity(body, contentLength(body, builder)));
+    }
+
+    private static OptionalLong contentLength(RequestBody requestBody, ClassicRequestBuilder builder) {
+        Header contentLengthHeader = builder.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
+        OptionalLong headerContentLength = OptionalLong.empty();
+        if (contentLengthHeader != null) {
+            builder.removeHeaders(HttpHeaders.CONTENT_LENGTH);
+            String contentLengthValue = contentLengthHeader.getValue();
+            try {
+                headerContentLength = OptionalLong.of(Long.parseLong(contentLengthValue));
+            } catch (NumberFormatException nfe) {
+                log.warn(
+                        "Failed to parse content-length value '{}'",
+                        SafeArg.of(HttpHeaders.CONTENT_LENGTH, contentLengthValue),
+                        nfe);
+            }
+        }
+
+        if (headerContentLength.isPresent() && requestBody.contentLength().isPresent()) {
+            long headerContentLengthValue = headerContentLength.getAsLong();
+            long requestBodyContentLength = requestBody.contentLength().getAsLong();
+            if (headerContentLengthValue != requestBodyContentLength) {
+                log.warn(
+                        "Content lengths do not match",
+                        SafeArg.of(HttpHeaders.CONTENT_LENGTH, headerContentLengthValue),
+                        SafeArg.of("requestBodyContentLength", requestBodyContentLength));
+            }
+        }
+
+        if (headerContentLength.isPresent()) {
+            return headerContentLength;
+        }
+
+        return requestBody.contentLength();
     }
 
     private static final class HttpClientResponse implements Response {
@@ -256,10 +291,12 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         private final RequestBody requestBody;
         private final Header contentType;
+        private final OptionalLong contentLength;
 
-        RequestBodyEntity(RequestBody requestBody) {
+        RequestBodyEntity(RequestBody requestBody, OptionalLong contentLength) {
             this.requestBody = requestBody;
             this.contentType = new BasicHeader(HttpHeaders.CONTENT_TYPE, requestBody.contentType());
+            this.contentLength = contentLength;
         }
 
         @Override
@@ -271,7 +308,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public boolean isChunked() {
-            return !requestBody.contentLength().isPresent();
+            return !contentLength.isPresent();
         }
 
         @Override
@@ -281,7 +318,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public long getContentLength() {
-            return requestBody.contentLength().orElse(-1);
+            return contentLength.orElse(-1);
         }
 
         @Override
