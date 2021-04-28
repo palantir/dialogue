@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: dialogue-annotations provides support for MultipartRequestBody.
+  links:
+  - https://github.com/palantir/dialogue/pull/1222
