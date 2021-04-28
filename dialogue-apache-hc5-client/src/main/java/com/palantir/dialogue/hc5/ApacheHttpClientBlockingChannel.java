@@ -177,16 +177,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     }
 
     private static void setBody(ClassicRequestBuilder builder, RequestBody body) {
-        builder.setEntity(new RequestBodyEntity(body, contentLength(builder)));
+        builder.setEntity(new RequestBodyEntity(body, contentLength(body, builder)));
     }
 
-    private static OptionalLong contentLength(ClassicRequestBuilder builder) {
+    private static OptionalLong contentLength(RequestBody requestBody, ClassicRequestBuilder builder) {
         Header contentLengthHeader = builder.getFirstHeader(HttpHeaders.CONTENT_LENGTH);
+        OptionalLong headerContentLength = OptionalLong.empty();
         if (contentLengthHeader != null) {
             builder.removeHeaders(HttpHeaders.CONTENT_LENGTH);
             String contentLengthValue = contentLengthHeader.getValue();
             try {
-                return OptionalLong.of(Long.parseLong(contentLengthValue));
+                headerContentLength = OptionalLong.of(Long.parseLong(contentLengthValue));
             } catch (NumberFormatException nfe) {
                 log.warn(
                         "Failed to parse content-length value '{}'",
@@ -194,7 +195,23 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                         nfe);
             }
         }
-        return OptionalLong.empty();
+
+        if (headerContentLength.isPresent() && requestBody.contentLength().isPresent()) {
+            long headerContentLengthValue = headerContentLength.getAsLong();
+            long requestBodyContentLength = requestBody.contentLength().getAsLong();
+            if (headerContentLengthValue != requestBodyContentLength) {
+                log.warn(
+                        "Content lengths do not match",
+                        SafeArg.of(HttpHeaders.CONTENT_LENGTH, headerContentLengthValue),
+                        SafeArg.of("requestBodyContentLength", requestBodyContentLength));
+            }
+        }
+
+        if (headerContentLength.isPresent()) {
+            return headerContentLength;
+        }
+
+        return requestBody.contentLength();
     }
 
     private static final class HttpClientResponse implements Response {
