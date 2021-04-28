@@ -18,8 +18,8 @@ package com.palantir.dialogue.annotations;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.OptionalLong;
 
@@ -30,6 +30,9 @@ public interface ContentBody extends Closeable {
 
     /** A HTTP content type (e.g., "application/json") indicating the type of content. */
     String contentType();
+
+    /** Returns <pre>true</pre> if {@link #writeTo(OutputStream)} may be invoked multiple times. */
+    boolean repeatable();
 
     default OptionalLong contentLength() {
         return OptionalLong.empty();
@@ -42,22 +45,11 @@ public interface ContentBody extends Closeable {
     @Override
     void close();
 
-    static ContentBody file(String contentType, Path filePath) {
-        return new com.palantir.dialogue.annotations.ContentBody() {
-            @Override
-            public void writeTo(OutputStream output) throws IOException {
-                Files.copy(filePath, output);
-            }
+    static ContentBody path(String contentType, Path filePath) {
+        return new PathContentBody(contentType, filePath);
+    }
 
-            @Override
-            public String contentType() {
-                return contentType;
-            }
-
-            @Override
-            public void close() {
-                // Noop
-            }
-        };
+    static ContentBody inputStream(String contentType, InputStream inputStream) {
+        return new InputStreamContentBody(contentType, inputStream);
     }
 }

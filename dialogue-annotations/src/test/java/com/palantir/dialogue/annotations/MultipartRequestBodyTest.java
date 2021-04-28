@@ -17,11 +17,18 @@
 package com.palantir.dialogue.annotations;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.MediaType;
 import com.palantir.dialogue.annotations.MultipartRequestBody.ContentBodyPartBuilder;
+import com.palantir.dialogue.annotations.MultipartRequestBody.Part;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -33,7 +40,6 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.OptionalLong;
 import javax.annotation.Nullable;
 import okhttp3.Headers;
 import okhttp3.MultipartBody;
@@ -135,7 +141,7 @@ public final class MultipartRequestBodyTest {
 
         MultipartRequestBody dialogue = MultipartRequestBody.builder()
                 .boundary(BOUNDARY)
-                .addPart(MultipartRequestBody.formBodyPartBuilder(name, ContentBody.file(contentType, filePath))
+                .addPart(MultipartRequestBody.formBodyPartBuilder(name, ContentBody.path(contentType, filePath))
                         .fileName(fileName)
                         .build())
                 .build();
@@ -230,30 +236,55 @@ public final class MultipartRequestBodyTest {
     }
 
     @Test
-    public void testIsRepeatableIsBasedOnContentLengthBeingKnown() {
-        MultipartRequestBody dialogue = MultipartRequestBody.builder()
-                .boundary(BOUNDARY)
-                .addPart(MultipartRequestBody.formBodyPartBuilder("hello", new ContentBody() {
-                            @Override
-                            public void writeTo(OutputStream _output) {}
+    public void testIsRepeatableIfAllPartsAreRepeatable(@TempDir Path tempDir) {
+        Part nonRepeatablePart = MultipartRequestBody.formBodyPartBuilder(
+                        "hello",
+                        ContentBody.inputStream(
+                                "application/json", new ByteArrayInputStream("hello".getBytes(CHARSET))))
+                .build();
+        Part repeatablePart = MultipartRequestBody.formBodyPartBuilder(
+                        "hello", ContentBody.path("application/json", tempDir))
+                .build();
+        assertThat(MultipartRequestBody.builder()
+                        .boundary(BOUNDARY)
+                        .addPart(nonRepeatablePart)
+                        .addPart(repeatablePart)
+                        .build()
+                        .repeatable())
+                .isFalse();
+        assertThat(MultipartRequestBody.builder()
+                        .boundary(BOUNDARY)
+                        .addPart(repeatablePart)
+                        .addPart(repeatablePart)
+                        .build()
+                        .repeatable())
+                .isTrue();
+    }
 
-                            @Override
-                            public String contentType() {
-                                return "application/json";
-                            }
-
-                            @Override
-                            public void close() {}
-
-                            @Override
-                            public OptionalLong contentLength() {
-                                return OptionalLong.of(1);
-                            }
-                        })
-                        .build())
+    @Test
+    public void testCloseClosesAllParts() throws IOException {
+        ContentBody throwingBody = mock(ContentBody.class);
+        when(throwingBody.contentType()).thenReturn("application/json");
+        doThrow(new RuntimeException("I throw when you close"))
+                .when(throwingBody)
+                .close();
+        ContentBody happyBody = mock(ContentBody.class);
+        when(happyBody.contentType()).thenReturn("application/json");
+        Part throwingPart =
+                MultipartRequestBody.contentBodyPartBuilder(throwingBody).build();
+        Part happyPart = MultipartRequestBody.contentBodyPartBuilder(happyBody).build();
+        MultipartRequestBody multipartRequestBody = MultipartRequestBody.builder()
+                .addPart(throwingPart)
+                .addPart(happyPart)
                 .build();
 
-        assertThat(dialogue.repeatable()).isTrue();
+        multipartRequestBody.writeTo(new ByteArrayOutputStream());
+        verify(throwingBody, never()).close();
+        verify(happyBody, never()).close();
+
+        assertThatCode(multipartRequestBody::close).doesNotThrowAnyException();
+        verify(throwingBody).close();
+        verify(happyBody).close();
     }
 
     private com.palantir.dialogue.annotations.ContentBody byteArrayUnknownLengthRequestBody(
@@ -267,6 +298,11 @@ public final class MultipartRequestBodyTest {
             @Override
             public String contentType() {
                 return contentType;
+            }
+
+            @Override
+            public boolean repeatable() {
+                return false;
             }
 
             @Override
