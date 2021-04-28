@@ -111,7 +111,6 @@ enum ErrorDecoder {
         } catch (NullPointerException | IOException e) {
             UnknownRemoteException exception = new UnknownRemoteException(code, "<unparseable>");
             exception.initCause(e);
-            exception.addSuppressed(diagnostic(response));
             return exception;
         }
 
