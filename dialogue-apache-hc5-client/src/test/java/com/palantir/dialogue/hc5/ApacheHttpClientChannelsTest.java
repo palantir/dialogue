@@ -30,14 +30,20 @@ import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Request.Builder;
+import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.net.UnknownHostException;
 import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalLong;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.Test;
 
@@ -119,19 +125,93 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     }
 
     @Test
+    public void supportsContentLengthHeader() {
+        testContentLength(
+                Optional.of(Integer.toString(CONTENT.length)),
+                Optional.of(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream output) throws IOException {
+                        output.write(CONTENT);
+                    }
+
+                    @Override
+                    public String contentType() {
+                        return "application/text";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return true;
+                    }
+
+                    @Override
+                    public OptionalLong contentLength() {
+                        return OptionalLong.empty();
+                    }
+
+                    @Override
+                    public void close() {}
+                }),
+                CONTENT.length);
+    }
+
+    @Test
+    public void supportsContentLengthValueOnBody() {
+        testContentLength(Optional.empty(), Optional.of(body), CONTENT.length);
+    }
+
+    @Test
+    public void contentLengthHeaderPreferredToBody() {
+        int fakeLength = CONTENT.length - 1;
+        testContentLength(
+                Optional.of(Integer.toString(CONTENT.length)),
+                Optional.of(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream output) throws IOException {
+                        output.write(CONTENT);
+                    }
+
+                    @Override
+                    public String contentType() {
+                        return "application/text";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return true;
+                    }
+
+                    @Override
+                    public OptionalLong contentLength() {
+                        return OptionalLong.of(fakeLength);
+                    }
+
+                    @Override
+                    public void close() {}
+                }),
+                CONTENT.length);
+    }
+
+    @Test
+    public void unparseableContentLengthHeaderIsSupported() {
+        testContentLength(Optional.of("you can't parse me!"), Optional.of(body), CONTENT.length);
+    }
+
     @SuppressWarnings("FutureReturnValueIgnored")
-    public void supportsContentLengthHeader() throws InterruptedException {
-        endpoint.method = HttpMethod.POST;
-        request = Request.builder()
-                .from(request)
-                .body(body)
-                .putHeaderParams(HttpHeaders.CONTENT_LENGTH, Integer.toString(CONTENT.length))
-                .build();
-        channel.execute(endpoint, request);
-        RecordedRequest recordedRequest = server.takeRequest();
-        assertThat(recordedRequest.getMethod()).isEqualTo("POST");
-        assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo(Integer.toString(CONTENT.length));
-        assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
+    private void testContentLength(Optional<String> headerValue, Optional<RequestBody> body, long value) {
+        try {
+            endpoint.method = HttpMethod.POST;
+            Builder builder = Request.builder().from(request).body(body);
+            headerValue.ifPresent(header -> builder.putHeaderParams(HttpHeaders.CONTENT_LENGTH, header));
+            request = builder.build();
+            channel.execute(endpoint, request);
+            RecordedRequest recordedRequest = server.takeRequest();
+            assertThat(recordedRequest.getMethod()).isEqualTo("POST");
+            assertThat(recordedRequest.getHeader(HttpHeaders.CONTENT_LENGTH)).isEqualTo(Long.toString(value));
+            assertThat(recordedRequest.getHeader(HttpHeaders.TRANSFER_ENCODING)).isNull();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @SuppressWarnings("JdkObsolete")
