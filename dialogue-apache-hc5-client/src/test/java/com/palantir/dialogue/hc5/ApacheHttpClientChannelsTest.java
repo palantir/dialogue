@@ -30,7 +30,6 @@ import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Request.Builder;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
@@ -201,7 +200,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
     private void testContentLength(Optional<String> headerValue, Optional<RequestBody> body, long value) {
         try {
             endpoint.method = HttpMethod.POST;
-            Builder builder = Request.builder().from(request).body(body);
+            Request.Builder builder = Request.builder().from(request).body(body);
             headerValue.ifPresent(header -> builder.putHeaderParams(HttpHeaders.CONTENT_LENGTH, header));
             request = builder.build();
             channel.execute(endpoint, request);
