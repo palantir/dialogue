@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Support application/x-www-form-urlencoded.
+  links:
+  - https://github.com/palantir/dialogue/pull/1228
