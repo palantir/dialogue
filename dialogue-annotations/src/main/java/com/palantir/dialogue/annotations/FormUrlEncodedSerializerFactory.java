@@ -26,6 +26,7 @@ import java.util.Map;
  */
 public abstract class FormUrlEncodedSerializerFactory<T> extends StdSerializer<T> {
 
+    @Override
     public final RequestBody serialize(T value) {
         return new FormUrlEncodedRequestBody(extractFields(value));
     }
