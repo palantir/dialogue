@@ -18,6 +18,8 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -29,10 +31,13 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestAttachmentKey;
+import com.palantir.dialogue.RequestAttachments;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -139,6 +144,53 @@ public class QueuedChannelTest {
         assertThatThrownBy(queuedFuture::get).hasRootCauseMessage("expected");
         verify(delegate, times(1)).maybeExecute(endpoint, request);
         verify(delegate, times(3)).maybeExecute(endpoint, queuedRequest);
+    }
+
+    @Test
+    public void testQueueExecutesFairly() {
+        UUID txn1 = UUID.randomUUID();
+        UUID txn2 = UUID.randomUUID();
+
+        Request tx1req1 = mockRequest(txn1);
+        Request tx1req2 = mockRequest(txn1);
+        Request tx2req1 = mockRequest(txn2);
+        Request tx2req2 = mockRequest(txn2);
+
+        // txn1: First request starts executing
+        SettableFuture<Response> tx1Req1QueueResponse = SettableFuture.create();
+        ListenableFuture<Response> txn1Req1Response = respond(tx1req1, tx1Req1QueueResponse);
+
+        // txn1: Second request gets queued
+        ListenableFuture<Response> tx1Req2Response = queueRequest(tx1req2);
+
+        // Arggh difficult test to write.
+    }
+
+    private ListenableFuture<Response> respond(Request req, SettableFuture<Response> response) {
+        when(delegate.maybeExecute(endpoint, req)).thenReturn(Optional.of(response));
+        ListenableFuture<Response> tx1req1Response =
+                queuedChannel.maybeExecute(endpoint, req).get();
+        verify(delegate, times(2)).maybeExecute(endpoint, req);
+        assertThat(tx1req1Response).isNotDone();
+        return tx1req1Response;
+    }
+
+    private ListenableFuture<Response> respondImmediately(Request req) {
+        when(delegate.maybeExecute(endpoint, req)).thenReturn(Optional.of(Futures.immediateFuture(mockResponse)));
+        ListenableFuture<Response> tx1req1Response =
+                queuedChannel.maybeExecute(endpoint, req).get();
+        verify(delegate, times(2)).maybeExecute(endpoint, req);
+        assertThat(tx1req1Response).isNotDone();
+        return tx1req1Response;
+    }
+
+    private ListenableFuture<Response> queueRequest(Request req) {
+        when(delegate.maybeExecute(endpoint, req)).thenReturn(Optional.empty());
+        ListenableFuture<Response> response =
+                queuedChannel.maybeExecute(endpoint, req).get();
+        verify(delegate, times(2)).maybeExecute(endpoint, req);
+        assertThat(response).isNotDone();
+        return response;
     }
 
     @Test
@@ -307,5 +359,14 @@ public class QueuedChannelTest {
 
     private OngoingStubbing<Optional<ListenableFuture<Response>>> mockNoCapacity() {
         return when(delegate.maybeExecute(endpoint, request)).thenReturn(Optional.empty());
+    }
+
+    private Request mockRequest(UUID limitingKey) {
+        Request mockRequest = mock(Request.class);
+        RequestAttachments mockAttachments = mock(RequestAttachments.class);
+        when(mockRequest.attachments()).thenReturn(mockAttachments);
+        when(mockAttachments.getOrDefault(any(RequestAttachmentKey.class), any(Object.class)))
+                .thenReturn(limitingKey);
+        return mockRequest;
     }
 }
