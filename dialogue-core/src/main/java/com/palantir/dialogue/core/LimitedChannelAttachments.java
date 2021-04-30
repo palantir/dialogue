@@ -31,6 +31,7 @@ public final class LimitedChannelAttachments {
         request.attachments().put(LIMITER_KEY, value);
     }
 
+    @SuppressWarnings("NullAway")
     static UUID getLimitingKeyOrDefault(Request request) {
         return request.attachments().getOrDefault(LIMITER_KEY, GLOBAL_QUEUE);
     }
