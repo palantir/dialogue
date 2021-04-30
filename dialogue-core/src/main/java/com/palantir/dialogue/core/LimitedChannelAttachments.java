@@ -34,6 +34,6 @@ public final class LimitedChannelAttachments {
 
     @CheckForNull
     static UUID getLimitingKeyOrDefault(Request request) {
-        return request.attachments().getOrDefault(LIMITER_KEY, null);
+        return request.attachments().getOrDefault(LIMITER_KEY, GLOBAL_QUEUE);
     }
 }
