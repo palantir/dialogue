@@ -29,7 +29,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.RequestAttachments;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -57,9 +56,6 @@ public class QueuedChannelTest {
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Request request;
-
-    @Mock
-    private RequestAttachments requestAttachments;
 
     @Mock
     private Response mockResponse;
