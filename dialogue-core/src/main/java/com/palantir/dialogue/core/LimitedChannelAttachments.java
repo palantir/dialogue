@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import java.util.UUID;
-import javax.annotation.CheckForNull;
 
 public final class LimitedChannelAttachments {
 
@@ -32,7 +31,6 @@ public final class LimitedChannelAttachments {
         request.attachments().put(LIMITER_KEY, value);
     }
 
-    @CheckForNull
     static UUID getLimitingKeyOrDefault(Request request) {
         return request.attachments().getOrDefault(LIMITER_KEY, GLOBAL_QUEUE);
     }
