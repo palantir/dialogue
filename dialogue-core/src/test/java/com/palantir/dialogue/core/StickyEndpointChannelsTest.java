@@ -157,6 +157,14 @@ class StickyEndpointChannelsTest {
                 .allSatisfy(string -> assertThat(string).doesNotContain("[three]"));
     }
 
+    @Test
+    public void sticky_channels_are_fair() {
+        StickyEndpointChannels channels = builder()
+                .channels(ImmutableList.of(
+                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate429)))
+                .build();
+    }
+
     private EndpointChannelFactory miniServer(String serverName, Supplier<ListenableFuture<Response>> response) {
         return endpoint -> _request -> {
             requests.add(String.format("[%s] [%s]", serverName, endpoint.endpointName()));

@@ -33,13 +33,18 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import javax.annotation.CheckForNull;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -63,7 +68,7 @@ import org.slf4j.LoggerFactory;
 final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
 
-    private final Deque<DeferredCall> queuedCalls;
+    private final DeferredQueue queuedCalls;
     private final NeverThrowLimitedChannel delegate;
     private final String channelName;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
@@ -79,8 +84,7 @@ final class QueuedChannel implements Channel {
     QueuedChannel(LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
-        // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
-        this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
+        this.queuedCalls = new DeferredQueueImpl();
         this.maxQueueSize = maxQueueSize;
         // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
         // zero interactions because they support both increment and decrement operations.
@@ -334,14 +338,6 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    private static final class ProtectedConcurrentLinkedDeque<T> extends ConcurrentLinkedDeque<T> {
-
-        @Override
-        public int size() {
-            throw new UnsupportedOperationException("size should never be called on a ConcurrentLinkedDeque");
-        }
-    }
-
     interface QueuedChannelInstrumentation {
         Counter requestsQueued();
 
@@ -383,5 +379,67 @@ final class QueuedChannel implements Channel {
                         .build();
             }
         };
+    }
+
+    interface DeferredQueue {
+        boolean offer(DeferredCall call);
+
+        boolean offerFirst(DeferredCall call);
+
+        @CheckForNull
+        DeferredCall poll();
+    }
+
+    // WARNING: Not final implementation, proof of concept, hence using global locking.
+    private static final class DeferredQueueImpl implements DeferredQueue {
+
+        private final Map<UUID, Deque<DeferredCall>> queues = new LinkedHashMap<>();
+
+        @Override
+        public synchronized boolean offer(DeferredCall call) {
+            UUID limitingKey = getLimitingKey(call);
+            return queue(limitingKey).offer(call);
+        }
+
+        @Override
+        public synchronized boolean offerFirst(DeferredCall call) {
+            UUID limitingKey = getLimitingKey(call);
+            Deque<DeferredCall> queue = queue(limitingKey);
+            boolean offerFirst = queue.offerFirst(call);
+            if (offerFirst) {
+                queues.remove(limitingKey);
+                queues.put(limitingKey, queue);
+                return true;
+            }
+
+            return false;
+        }
+
+        @CheckForNull
+        @Override
+        public synchronized DeferredCall poll() {
+            Map.Entry<UUID, Deque<DeferredCall>> workQueue = nextTask();
+            DeferredCall result = workQueue.getValue().remove();
+            if (!workQueue.getValue().isEmpty()) {
+                queues.put(workQueue.getKey(), workQueue.getValue());
+            }
+            return result;
+        }
+
+        private Deque<DeferredCall> queue(UUID id) {
+            return queues.computeIfAbsent(id, _key -> new ArrayDeque<>(2));
+        }
+
+        private UUID getLimitingKey(DeferredCall call) {
+            return LimitedChannelAttachments.getLimitingKeyOrDefault(call.request());
+        }
+
+        private Map.Entry<UUID, Deque<DeferredCall>> nextTask() {
+            Iterator<Map.Entry<UUID, Deque<DeferredCall>>> iterator =
+                    queues.entrySet().iterator();
+            Map.Entry<UUID, Deque<DeferredCall>> result = iterator.next();
+            iterator.remove();
+            return result;
+        }
     }
 }
