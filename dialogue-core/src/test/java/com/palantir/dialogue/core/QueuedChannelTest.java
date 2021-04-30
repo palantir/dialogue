@@ -147,6 +147,7 @@ public class QueuedChannelTest {
     }
 
     @Test
+    @SuppressWarnings("StrictUnusedVariable")
     public void testQueueExecutesFairly() {
         UUID txn1 = UUID.randomUUID();
         UUID txn2 = UUID.randomUUID();
@@ -175,6 +176,7 @@ public class QueuedChannelTest {
         return tx1req1Response;
     }
 
+    @SuppressWarnings("UnusedMethod")
     private ListenableFuture<Response> respondImmediately(Request req) {
         when(delegate.maybeExecute(endpoint, req)).thenReturn(Optional.of(Futures.immediateFuture(mockResponse)));
         ListenableFuture<Response> tx1req1Response =
