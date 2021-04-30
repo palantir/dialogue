@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.AssertionsForClassTypes.assertThatCode;
 import static org.assertj.core.api.AssertionsForInterfaceTypes.assertThat;
 
 import com.google.common.collect.ImmutableList;
@@ -158,11 +159,17 @@ class StickyEndpointChannelsTest {
     }
 
     @Test
-    public void sticky_channels_are_fair() {
-        StickyEndpointChannels channels = builder()
-                .channels(ImmutableList.of(
-                        miniServer("one", serve204), miniServer("two", serve204), miniServer("three", immediate429)))
-                .build();
+    public void sticky_channels_set_limiting_key() {
+        EndpointChannelFactory factory = _endpoint -> curRequest -> {
+            assertThat(LimitedChannelAttachments.getLimitingKeyOrDefault(curRequest, null))
+                    .isNotNull();
+            return serve204.get();
+        };
+        StickyEndpointChannels channels =
+                builder().channels(ImmutableList.of(factory, factory)).build();
+
+        SampleServiceAsync async1 = SampleServiceAsync.of(channels.get(), runtime);
+        assertThatCode(async1::voidToVoid).doesNotThrowAnyException();
     }
 
     private EndpointChannelFactory miniServer(String serverName, Supplier<ListenableFuture<Response>> response) {

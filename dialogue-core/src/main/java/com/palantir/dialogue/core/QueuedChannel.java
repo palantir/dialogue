@@ -393,6 +393,8 @@ final class QueuedChannel implements Channel {
     // WARNING: Not final implementation, proof of concept, hence using global locking.
     private static final class DeferredQueueImpl implements DeferredQueue {
 
+        private static final UUID GLOBAL_QUEUE = UUID.randomUUID();
+
         private final Map<UUID, Deque<DeferredCall>> queues = new LinkedHashMap<>();
 
         @Override
@@ -419,6 +421,9 @@ final class QueuedChannel implements Channel {
         @Override
         public synchronized DeferredCall poll() {
             Map.Entry<UUID, Deque<DeferredCall>> workQueue = nextTask();
+            if (workQueue == null) {
+                return null;
+            }
             DeferredCall result = workQueue.getValue().remove();
             if (!workQueue.getValue().isEmpty()) {
                 queues.put(workQueue.getKey(), workQueue.getValue());
@@ -430,16 +435,22 @@ final class QueuedChannel implements Channel {
             return queues.computeIfAbsent(id, _key -> new ArrayDeque<>(2));
         }
 
+        @SuppressWarnings("NullAway")
         private UUID getLimitingKey(DeferredCall call) {
-            return LimitedChannelAttachments.getLimitingKeyOrDefault(call.request());
+            return LimitedChannelAttachments.getLimitingKeyOrDefault(call.request(), GLOBAL_QUEUE);
         }
 
+        @CheckForNull
         private Map.Entry<UUID, Deque<DeferredCall>> nextTask() {
             Iterator<Map.Entry<UUID, Deque<DeferredCall>>> iterator =
                     queues.entrySet().iterator();
-            Map.Entry<UUID, Deque<DeferredCall>> result = iterator.next();
-            iterator.remove();
-            return result;
+            if (iterator.hasNext()) {
+                Map.Entry<UUID, Deque<DeferredCall>> result = iterator.next();
+                iterator.remove();
+                return result;
+            } else {
+                return null;
+            }
         }
     }
 }

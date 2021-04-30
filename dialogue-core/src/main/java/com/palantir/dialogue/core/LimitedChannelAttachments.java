@@ -19,11 +19,12 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import java.util.UUID;
+import javax.annotation.CheckForNull;
+import javax.annotation.Nullable;
 
 public final class LimitedChannelAttachments {
 
     private static final RequestAttachmentKey<UUID> LIMITER_KEY = RequestAttachmentKey.create(UUID.class);
-    private static final UUID GLOBAL_QUEUE = UUID.randomUUID();
 
     private LimitedChannelAttachments() {}
 
@@ -31,8 +32,8 @@ public final class LimitedChannelAttachments {
         request.attachments().put(LIMITER_KEY, value);
     }
 
-    @SuppressWarnings("NullAway")
-    static UUID getLimitingKeyOrDefault(Request request) {
-        return request.attachments().getOrDefault(LIMITER_KEY, GLOBAL_QUEUE);
+    @CheckForNull
+    static UUID getLimitingKeyOrDefault(Request request, @Nullable UUID defaultValue) {
+        return request.attachments().getOrDefault(LIMITER_KEY, defaultValue);
     }
 }

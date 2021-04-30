@@ -34,6 +34,7 @@ import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.List;
 import java.util.Random;
+import java.util.UUID;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -64,7 +65,12 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
      */
     @Override
     public Channel get() {
-        return new Sticky(channels, tracker);
+        Channel underlyingChannel = new Sticky(channels, tracker);
+        UUID id = UUID.randomUUID();
+        return (endpoint, request) -> {
+            LimitedChannelAttachments.addLimitingKey(request, id);
+            return underlyingChannel.execute(endpoint, request);
+        };
     }
 
     @Override

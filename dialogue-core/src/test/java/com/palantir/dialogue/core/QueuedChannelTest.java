@@ -29,6 +29,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestAttachments;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -37,6 +38,7 @@ import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -53,8 +55,11 @@ public class QueuedChannelTest {
     @Mock
     private Endpoint endpoint;
 
-    @Mock
+    @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Request request;
+
+    @Mock
+    private RequestAttachments requestAttachments;
 
     @Mock
     private Response mockResponse;
@@ -117,7 +122,7 @@ public class QueuedChannelTest {
     @Test
     public void testQueuedRequestExecutedOnNextSubmission_throws() throws ExecutionException, InterruptedException {
         // First request is limited by the channel and queued
-        Request queuedRequest = Mockito.mock(Request.class);
+        Request queuedRequest = Mockito.mock(Request.class, Answers.RETURNS_DEEP_STUBS);
         when(delegate.maybeExecute(endpoint, queuedRequest)).thenReturn(Optional.empty());
         ListenableFuture<Response> queuedFuture =
                 queuedChannel.maybeExecute(endpoint, queuedRequest).get();

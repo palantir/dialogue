@@ -41,7 +41,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.DialogueChannel;
-import com.palantir.dialogue.core.LimitedChannelAttachments;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -54,7 +53,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -210,12 +208,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return new StickyChannelFactory() {
             @Override
             public Channel getStickyChannel() {
-                Channel underlyingChannel = bestSupplier.get().get();
-                UUID id = UUID.randomUUID();
-                return (endpoint, request) -> {
-                    LimitedChannelAttachments.addLimitingKey(request, id);
-                    return underlyingChannel.execute(endpoint, request);
-                };
+                return bestSupplier.get().get();
             }
 
             @Override
