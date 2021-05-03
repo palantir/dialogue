@@ -60,9 +60,12 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
+import net.ltgt.gradle.incap.IncrementalAnnotationProcessor;
+import net.ltgt.gradle.incap.IncrementalAnnotationProcessorType;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
 @AutoService(Processor.class)
+@IncrementalAnnotationProcessor(IncrementalAnnotationProcessorType.ISOLATING)
 public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor {
 
     private Messager messager;
