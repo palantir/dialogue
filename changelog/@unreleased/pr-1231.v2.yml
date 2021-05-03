@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: The Dialogue annotation processor does support incremental compilation.
+  description: The Dialogue annotation processor now supports incremental compilation.
   links:
   - https://github.com/palantir/dialogue/pull/1231
