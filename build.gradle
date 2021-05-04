@@ -53,6 +53,7 @@ allprojects {
     repositories {
         mavenCentral()
         jcenter()
+        maven { url 'https://repository.apache.org/content/repositories/orgapachehttpcomponents-1132' }
     }
 }
 
