@@ -194,6 +194,7 @@ public final class ServiceImplementationGenerator {
 
     private TypeName underlyingCustomType(ArgumentType argumentType) {
         return ArgumentTypes.caseOf(argumentType)
+                .primitive((javaTypeName, _unused) -> javaTypeName)
                 .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
                 .customType(Function.identity())
                 .otherwiseEmpty()
@@ -277,14 +278,16 @@ public final class ServiceImplementationGenerator {
         return type.match(new ArgumentType.Cases<>() {
             @Override
             public Optional<CodeBlock> primitive(TypeName _unused, String parameterSerializerMethodName) {
-                return Optional.of(CodeBlock.of(
-                        "$L.$L($S, $L.$L($L));",
-                        REQUEST,
-                        singleValueMethod,
-                        key,
-                        PARAMETER_SERIALIZER,
-                        parameterSerializerMethodName,
-                        argName));
+                return Optional.of(maybeParameterEncoderType
+                        .map(this::customType)
+                        .orElseGet(() -> CodeBlock.of(
+                                "$L.$L($S, $L.$L($L));",
+                                REQUEST,
+                                singleValueMethod,
+                                key,
+                                PARAMETER_SERIALIZER,
+                                parameterSerializerMethodName,
+                                argName)));
             }
 
             @Override
@@ -310,37 +313,35 @@ public final class ServiceImplementationGenerator {
 
             @Override
             public Optional<CodeBlock> customType(TypeName _typeName) {
-                if (maybeParameterEncoderType.isEmpty()) {
-                    return Optional.empty();
-                }
+                return maybeParameterEncoderType.map(this::customType);
+            }
 
-                return maybeParameterEncoderType.flatMap(parameterEncoderType -> parameterEncoderType
-                        .type()
-                        .match(new EncoderType.Cases<Optional<CodeBlock>>() {
-                            @Override
-                            public Optional<CodeBlock> param() {
-                                return Optional.of(CodeBlock.of(
-                                        "$L.$L($S, $L.$L($L));",
-                                        REQUEST,
-                                        singleValueMethod,
-                                        key,
-                                        parameterEncoderType.encoderFieldName(),
-                                        parameterEncoderType.encoderMethodName(),
-                                        argName));
-                            }
+            private CodeBlock customType(ParameterEncoderType parameterEncoderType) {
+                return parameterEncoderType.type().match(new EncoderType.Cases<>() {
+                    @Override
+                    public CodeBlock param() {
+                        return CodeBlock.of(
+                                "$L.$L($S, $L.$L($L));",
+                                REQUEST,
+                                singleValueMethod,
+                                key,
+                                parameterEncoderType.encoderFieldName(),
+                                parameterEncoderType.encoderMethodName(),
+                                argName);
+                    }
 
-                            @Override
-                            public Optional<CodeBlock> listParam() {
-                                return Optional.of(CodeBlock.of(
-                                        "$L.$L($S, $L.$L($L));",
-                                        REQUEST,
-                                        multiValueMethod,
-                                        key,
-                                        parameterEncoderType.encoderFieldName(),
-                                        parameterEncoderType.encoderMethodName(),
-                                        argName));
-                            }
-                        }));
+                    @Override
+                    public CodeBlock listParam() {
+                        return CodeBlock.of(
+                                "$L.$L($S, $L.$L($L));",
+                                REQUEST,
+                                multiValueMethod,
+                                key,
+                                parameterEncoderType.encoderFieldName(),
+                                parameterEncoderType.encoderMethodName(),
+                                argName);
+                    }
+                });
             }
         });
     }

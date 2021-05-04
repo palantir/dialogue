@@ -27,6 +27,7 @@ import java.util.UUID;
 
 // Annotation processor is not invoked directly here.
 // @DialogueService(MyServiceDialogueServiceFactory.class)
+@SuppressWarnings("TooManyArguments")
 public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/greet")
@@ -64,6 +65,8 @@ public interface MyService {
                     MyCustomParamType query1,
             @Request.QueryParam(value = "q2", encoder = MyCustomParamTypeParameterEncoder.class)
                     Optional<MyCustomParamType> query2,
+            @Request.QueryParam(value = "q3", encoder = MyCustomStringParameterEncoder.class) String query3,
+            @Request.QueryParam(value = "q4", encoder = MyCustomStringParameterEncoder.class) Optional<String> query4,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
             @Request.PathParam(encoder = MyCustomParamTypeParameterEncoder.class) MyCustomParamType myPathParam2,
