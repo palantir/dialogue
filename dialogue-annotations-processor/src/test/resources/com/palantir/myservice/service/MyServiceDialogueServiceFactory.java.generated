@@ -67,6 +67,10 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final ListParamEncoder<MyCustomParamType> paramsQuery2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
+            private final ListParamEncoder<String> paramsQuery3Encoder = new MyCustomStringParameterEncoder();
+
+            private final ListParamEncoder<String> paramsQuery4Encoder = new MyCustomStringParameterEncoder();
+
             private final ParamEncoder<MyCustomParamType> paramsMyPathParam2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
@@ -114,6 +118,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     String query,
                     MyCustomParamType query1,
                     Optional<MyCustomParamType> query2,
+                    String query3,
+                    Optional<String> query4,
                     UUID myPathParam,
                     MyCustomParamType myPathParam2,
                     int requestHeaderValue,
@@ -126,6 +132,10 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 _request.putAllQueryParams("q1", paramsQuery1Encoder.toParamValues(query1));
                 if (query2.isPresent()) {
                     _request.putAllQueryParams("q2", paramsQuery2Encoder.toParamValues(query2.get()));
+                }
+                _request.putAllQueryParams("q3", paramsQuery3Encoder.toParamValues(query3));
+                if (query4.isPresent()) {
+                    _request.putAllQueryParams("q4", paramsQuery4Encoder.toParamValues(query4.get()));
                 }
                 _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
                 _request.putPathParams("myPathParam2", paramsMyPathParam2Encoder.toParamValue(myPathParam2));
