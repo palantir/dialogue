@@ -72,7 +72,7 @@ public final class MyServiceIntegrationTest {
     private MyService myServiceDialogue;
 
     @BeforeEach
-    public void beforeEach() throws IOException {
+    public void beforeEach() {
         undertow = Undertow.builder()
                 .addHttpListener(
                         0,
