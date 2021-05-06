@@ -159,6 +159,13 @@ public final class MyServiceIntegrationTest {
         testParams(OptionalInt.empty());
     }
 
+    @Test
+    public void testMultipart() {
+        server.enqueue(new MockResponse().setResponseCode(200));
+
+        myServiceDialogue.multipart(ImmutablePutFileRequest.builder().build());
+    }
+
     private void testCustomResponse(int code) {
         server.enqueue(new MockResponse()
                 .setResponseCode(code)
