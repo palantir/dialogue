@@ -113,7 +113,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                     }
 
                     try {
-                        Goethe.formatAndEmit(javaFile, filer);
+                        Goethe.formatAndEmit(javaFile, filer, interfaceElement);
                     } catch (FilerException e) {
                         // Happens when same file is written twice. Dunno why this is a problem
                     } catch (IOException e) {
