@@ -18,6 +18,7 @@ package com.palantir.myservice.example;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.collect.Iterables;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
@@ -26,13 +27,20 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.annotations.ContentBody;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
+import io.undertow.util.Headers;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -40,9 +48,15 @@ import okhttp3.HttpUrl;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.apache.commons.fileupload.FileItem;
+import org.apache.commons.fileupload.FileUpload;
+import org.apache.commons.fileupload.FileUploadException;
+import org.apache.commons.fileupload.UploadContext;
+import org.apache.commons.fileupload.disk.DiskFileItemFactory;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 public final class MyServiceIntegrationTest {
 
@@ -160,10 +174,71 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
-    public void testMultipart() {
+    public void testMultipart(@TempDir Path directory) throws IOException {
+
+        String fileContentType = "text/plain; charset=UTF-8";
+        String fileContent = "Hello World!";
+        Path fileTxt = directory.resolve("file.txt");
+        Files.writeString(fileTxt, fileContent, StandardCharsets.UTF_8);
+
         server.enqueue(new MockResponse().setResponseCode(200));
 
-        myServiceDialogue.multipart(ImmutablePutFileRequest.builder().build());
+        myServiceDialogue.multipart(ImmutablePutFileRequest.builder()
+                .contentBody(ContentBody.path(fileContentType, fileTxt))
+                .build());
+
+        assertRequest(request -> {
+            assertThat(request.getMethod()).isEqualTo(HttpMethod.POST.toString());
+            assertThat(request.getRequestUrl()).isEqualTo(url("/multipart"));
+            assertThat(request.getHeader("Accept")).isNull();
+
+            String contentType = request.getHeader("Content-Type");
+            assertThat(contentType).startsWith("multipart/form-data; charset=ISO-8859-1;");
+
+            String boundary = Headers.extractQuotedValueFromHeader(contentType, "boundary");
+            assertThat(boundary).isNotNull();
+
+            String charset = Headers.extractQuotedValueFromHeader(contentType, "charset");
+            assertThat(boundary).isNotNull();
+
+            FileUpload fileUpload = new FileUpload(new DiskFileItemFactory());
+            try {
+                Map<String, List<FileItem>> formParams = fileUpload.parseParameterMap(new UploadContext() {
+                    @Override
+                    public long contentLength() {
+                        return 0;
+                    }
+
+                    @Override
+                    public String getCharacterEncoding() {
+                        return charset;
+                    }
+
+                    @Override
+                    public String getContentType() {
+                        return contentType;
+                    }
+
+                    @Override
+                    public int getContentLength() {
+                        return 0;
+                    }
+
+                    @Override
+                    public InputStream getInputStream() {
+                        return request.getBody().inputStream();
+                    }
+                });
+                assertThat(formParams).hasSize(1);
+                assertThat(formParams).containsOnlyKeys("typedFile");
+                assertThat(Iterables.getOnlyElement(formParams.values())).hasSize(1);
+                FileItem onlyElement = Iterables.getOnlyElement(Iterables.getOnlyElement(formParams.values()));
+                assertThat(onlyElement.getContentType()).isEqualTo(fileContentType);
+                assertThat(onlyElement.getString()).isEqualTo(fileContent);
+            } catch (FileUploadException e) {
+                throw new RuntimeException(e);
+            }
+        });
     }
 
     private void testCustomResponse(int code) {

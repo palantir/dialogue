@@ -36,6 +36,7 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 
+    testImplementation 'commons-fileupload:commons-fileupload'
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
     testImplementation 'com.google.guava:guava'
