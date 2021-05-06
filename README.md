@@ -146,6 +146,8 @@ Features:
   or ```@Request(accept=MyCustomResponseDeserializer.class)```.
 * Authentication: builtin ```Authorization``` header handling if an annotated method has an ```AuthHeader``` parameter.
 
+See more examples [on how to define clients](https://github.com/palantir/dialogue/blob/develop/dialogue-annotations-example/src/main/java/com/palantir/myservice/example/MyService.java) and [use the generated code](https://github.com/palantir/dialogue/blob/develop/dialogue-annotations-example/src/test/java/com/palantir/myservice/example/MyServiceIntegrationTest.java).
+
 ## Design
 
 Dialogue is built around the `Channel` abstraction, with many different internal implementations that often add a little bit of behaviour and then delegate to another inner Channel.
