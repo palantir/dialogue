@@ -36,13 +36,11 @@ dependencies {
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
 
-    testImplementation 'commons-fileupload:commons-fileupload'
     testImplementation project(':dialogue-clients')
     testImplementation project(':dialogue-test-common')
     testImplementation 'com.google.guava:guava'
     testImplementation 'com.google.testing.compile:compile-testing'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
-    testImplementation 'com.squareup.okhttp3:mockwebserver'
     testImplementation 'org.assertj:assertj-core'
     testImplementation 'org.junit.jupiter:junit-jupiter'
 }

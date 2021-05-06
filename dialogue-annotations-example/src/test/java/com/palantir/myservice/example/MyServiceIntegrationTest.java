@@ -21,7 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.google.common.collect.Iterables;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
-import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
@@ -31,28 +31,28 @@ import com.palantir.dialogue.annotations.ContentBody;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.refreshable.Refreshable;
+import io.undertow.Undertow;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.BlockingHandler;
+import io.undertow.server.handlers.form.FormData;
+import io.undertow.server.handlers.form.FormData.FormValue;
+import io.undertow.server.handlers.form.FormDataParser;
+import io.undertow.server.handlers.form.FormParserFactory;
+import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
+import io.undertow.util.HttpString;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Map;
+import java.time.Duration;
+import java.util.Deque;
 import java.util.OptionalInt;
 import java.util.UUID;
-import java.util.function.Consumer;
-import okhttp3.HttpUrl;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.apache.commons.fileupload.FileItem;
-import org.apache.commons.fileupload.FileUpload;
-import org.apache.commons.fileupload.FileUploadException;
-import org.apache.commons.fileupload.UploadContext;
-import org.apache.commons.fileupload.disk.DiskFileItemFactory;
+import org.assertj.core.api.AbstractStringAssert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,69 +60,88 @@ import org.junit.jupiter.api.io.TempDir;
 
 public final class MyServiceIntegrationTest {
 
-    public final MockWebServer server = new MockWebServer();
+    private Undertow undertow;
+
+    @FunctionalInterface
+    interface TestHandler {
+        void handleRequest(TestExchange exchange) throws Exception;
+    }
+
+    private TestHandler undertowHandler;
 
     private MyService myServiceDialogue;
 
     @BeforeEach
     public void beforeEach() throws IOException {
-        server.start();
-        PartialServiceConfiguration partialServiceConfiguration = PartialServiceConfiguration.builder()
-                .addUris(url("").url().toString())
+        undertow = Undertow.builder()
+                .addHttpListener(
+                        0,
+                        "localhost",
+                        new BlockingHandler(exchange -> undertowHandler.handleRequest(new TestExchange(exchange))))
                 .build();
-        ServicesConfigBlock scb = ServicesConfigBlock.builder()
-                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                .putServices("myServiceDialogue", partialServiceConfiguration)
+        undertow.start();
+
+        ServiceConfiguration config = ServiceConfiguration.builder()
+                .addUris(getUri(undertow))
+                .security(TestConfigurations.SSL_CONFIG)
+                .readTimeout(Duration.ofSeconds(1))
+                .writeTimeout(Duration.ofSeconds(1))
+                .connectTimeout(Duration.ofSeconds(1))
                 .build();
-        DialogueClients.ReloadingFactory factory =
-                DialogueClients.create(Refreshable.create(scb)).withUserAgent(TestConfigurations.AGENT);
-        myServiceDialogue = factory.get(MyService.class, "myServiceDialogue");
+
+        DialogueClients.ReloadingFactory factory = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder().build()))
+                .withUserAgent(TestConfigurations.AGENT);
+        myServiceDialogue = factory.getNonReloading(MyService.class, config);
     }
 
     @AfterEach
-    public void afterEach() throws IOException {
-        server.close();
+    public void afterEach() {
+        undertow.stop();
     }
 
     @Test
     public void testGreet() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
-                .addHeader("Content-Type", "application/json")
-                .setBody("\"Hello\""));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.POST);
+            exchange.assertPath("/greet");
+            exchange.assertAccept().isEqualTo("application/json");
+            exchange.assertContentType().isEqualTo("application/json");
 
+            exchange.exchange.setStatusCode(200);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody("\"Hello\"");
+        };
         assertThat(myServiceDialogue.greet("Hello")).isEqualTo("Hello");
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.POST.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/greet"));
-            assertThat(request.getHeader("Accept")).isEqualTo("application/json");
-            assertThat(request.getHeader("Content-Type")).isEqualTo("application/json");
-            assertThat(request.getBody().readUtf8()).isEqualTo("\"Hello\"");
-        });
     }
 
     @Test
     public void testGetGreetingAsync() {
-        server.enqueue(new MockResponse()
-                .setResponseCode(200)
-                .addHeader("Content-Type", "text/csv")
-                .setBody("mystring,\"Hello\""));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/greeting");
+            exchange.assertAccept().isEqualTo("text/csv");
+            exchange.assertContentType().isNull();
+            exchange.assertNoBody();
 
+            exchange.exchange.setStatusCode(200);
+            exchange.setContentType("text/csv");
+            exchange.writeStringBody("mystring,\"Hello\"");
+        };
         assertThat(Futures.getUnchecked(myServiceDialogue.getGreetingAsync())).isEqualTo("\"Hello\"");
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.GET.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/greeting"));
-            assertThat(request.getHeader("Accept")).isEqualTo("text/csv");
-            assertThat(request.getHeader("Content-Type")).isNull();
-            assertThat(request.getBodySize()).isEqualTo(0);
-        });
     }
 
     @Test
     public void testCustomRequest() {
-        server.enqueue(new MockResponse().setResponseCode(200));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.PUT);
+            exchange.assertPath("/custom/request");
+            exchange.assertAccept().isNull();
+            exchange.assertContentType().isEqualTo("text/plain");
+            exchange.assertBodyUtf8().isEqualTo("Hello, World");
+
+            exchange.exchange.setStatusCode(204);
+        };
 
         myServiceDialogue.customRequest(new RequestBody() {
             @Override
@@ -142,14 +161,6 @@ public final class MyServiceIntegrationTest {
 
             @Override
             public void close() {}
-        });
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.PUT.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request"));
-            assertThat(request.getHeader("Accept")).isNull();
-            assertThat(request.getHeader("Content-Type")).isEqualTo("text/plain");
-            assertThat(request.getBody().readUtf8()).isEqualTo("Hello, World");
         });
     }
 
@@ -181,71 +192,46 @@ public final class MyServiceIntegrationTest {
         Path fileTxt = directory.resolve("file.txt");
         Files.writeString(fileTxt, fileContent, StandardCharsets.UTF_8);
 
-        server.enqueue(new MockResponse().setResponseCode(200));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.POST);
+            exchange.assertPath("/multipart");
+            exchange.assertAccept().isNull();
+            exchange.assertContentType().startsWith("multipart/form-data; charset=ISO-8859-1;");
+
+            try (FormDataParser parser = FormParserFactory.builder().build().createParser(exchange.exchange)) {
+                FormData formData = parser.parseBlocking();
+                assertThat(formData).hasSize(1);
+
+                Deque<FormValue> typedFile = formData.get("typedFile");
+                assertThat(typedFile).hasSize(1);
+                FormValue onlyElement = Iterables.getOnlyElement(typedFile);
+                assertThat(onlyElement.getHeaders().get(Headers.CONTENT_TYPE)).containsExactly(fileContentType);
+                assertThat(onlyElement.getValue()).isEqualTo(fileContent);
+            }
+
+            exchange.exchange.setStatusCode(204);
+        };
 
         myServiceDialogue.multipart(ImmutablePutFileRequest.builder()
                 .contentBody(ContentBody.path(fileContentType, fileTxt))
                 .build());
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.POST.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/multipart"));
-            assertThat(request.getHeader("Accept")).isNull();
-
-            String contentType = request.getHeader("Content-Type");
-            assertThat(contentType).startsWith("multipart/form-data; charset=ISO-8859-1;");
-
-            String boundary = Headers.extractQuotedValueFromHeader(contentType, "boundary");
-            assertThat(boundary).isNotNull();
-
-            String charset = Headers.extractQuotedValueFromHeader(contentType, "charset");
-            assertThat(boundary).isNotNull();
-
-            FileUpload fileUpload = new FileUpload(new DiskFileItemFactory());
-            try {
-                Map<String, List<FileItem>> formParams = fileUpload.parseParameterMap(new UploadContext() {
-                    @Override
-                    public long contentLength() {
-                        return 0;
-                    }
-
-                    @Override
-                    public String getCharacterEncoding() {
-                        return charset;
-                    }
-
-                    @Override
-                    public String getContentType() {
-                        return contentType;
-                    }
-
-                    @Override
-                    public int getContentLength() {
-                        return 0;
-                    }
-
-                    @Override
-                    public InputStream getInputStream() {
-                        return request.getBody().inputStream();
-                    }
-                });
-                assertThat(formParams).hasSize(1);
-                assertThat(formParams).containsOnlyKeys("typedFile");
-                assertThat(Iterables.getOnlyElement(formParams.values())).hasSize(1);
-                FileItem onlyElement = Iterables.getOnlyElement(Iterables.getOnlyElement(formParams.values()));
-                assertThat(onlyElement.getContentType()).isEqualTo(fileContentType);
-                assertThat(onlyElement.getString()).isEqualTo(fileContent);
-            } catch (FileUploadException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 
     private void testCustomResponse(int code) {
-        server.enqueue(new MockResponse()
-                .setResponseCode(code)
-                .setHeader("My-Custom-Header", "my-custom-header-value")
-                .setBody("Custom Body"));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.PUT);
+            exchange.assertPath("/custom/request1");
+            exchange.assertAccept().isEqualTo("*/*");
+            exchange.assertContentType().isNull();
+            exchange.assertNoBody();
+
+            exchange.exchange.setStatusCode(code);
+            exchange.exchange
+                    .getResponseHeaders()
+                    .add(HttpString.tryFromString("My-Custom-Header"), "my-custom-header-value");
+            exchange.setContentType("text/csv");
+            exchange.writeStringBody("Custom Body");
+        };
 
         try (Response response = myServiceDialogue.customResponse()) {
             assertThat(response.code()).isEqualTo(code);
@@ -255,18 +241,34 @@ public final class MyServiceIntegrationTest {
         } catch (IOException e) {
             throw new SafeRuntimeException(e);
         }
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.PUT.toString());
-            assertThat(request.getRequestUrl()).isEqualTo(url("/custom/request1"));
-            assertThat(request.getHeader("Accept")).isEqualTo("*/*");
-            assertThat(request.getHeader("Content-Type")).isNull();
-            assertThat(request.getBodySize()).isEqualTo(0);
-        });
     }
 
     private void testParams(OptionalInt customHeaderOptionalValue) {
-        server.enqueue(new MockResponse().setResponseCode(200));
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.POST);
+            exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
+            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q");
+            assertThat(exchange.exchange.getQueryParameters().get("q")).containsOnly("query");
+            exchange.assertAccept().isNull();
+            exchange.assertContentType().isEqualTo("application/json");
+            exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Header"))
+                    .isEqualTo("2");
+            if (customHeaderOptionalValue.isPresent()) {
+                exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Optional-Header"))
+                        .isEqualTo(Integer.toString(customHeaderOptionalValue.getAsInt()));
+            } else {
+                exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Optional-Header"))
+                        .isNull();
+            }
+            exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
+
+            exchange.exchange.setStatusCode(200);
+            exchange.exchange
+                    .getResponseHeaders()
+                    .add(HttpString.tryFromString("My-Custom-Header"), "my-custom-header-value");
+            exchange.setContentType("text/csv");
+            exchange.writeStringBody("Custom Body");
+        };
 
         UUID uuid = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
         myServiceDialogue.params(
@@ -278,35 +280,66 @@ public final class MyServiceIntegrationTest {
                 ImmutableMySerializableType.builder()
                         .value("my-serializable-type-value")
                         .build());
-
-        assertRequest(request -> {
-            assertThat(request.getMethod()).isEqualTo(HttpMethod.POST.toString());
-            assertThat(request.getRequestUrl())
-                    .isEqualTo(url("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value?q=query"));
-            assertThat(request.getHeader("Accept")).isNull();
-            assertThat(request.getHeader("Content-Type")).isEqualTo("application/json");
-            assertThat(request.getHeader("Custom-Header")).isEqualTo("2");
-            if (customHeaderOptionalValue.isPresent()) {
-                assertThat(request.getHeader("Custom-Optional-Header"))
-                        .isEqualTo(Integer.toString(customHeaderOptionalValue.getAsInt()));
-            } else {
-                assertThat(request.getHeader("Custom-Optional-Header")).isNull();
-            }
-
-            assertThat(request.getBody().readUtf8()).isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
-        });
     }
 
-    private void assertRequest(Consumer<RecordedRequest> assertions) {
-        try {
-            assertions.accept(server.takeRequest());
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new SafeRuntimeException(e);
+    private static final class TestExchange {
+        private final HttpServerExchange exchange;
+
+        private TestExchange(HttpServerExchange exchange) {
+            this.exchange = exchange;
+        }
+
+        public void assertMethod(HttpMethod method) {
+            assertThat(exchange.getRequestMethod()).isEqualTo(HttpString.tryFromString(method.toString()));
+        }
+
+        public void assertPath(String path) {
+            assertThat(exchange.getRelativePath()).isEqualTo(path);
+        }
+
+        public AbstractStringAssert<?> assertAccept() {
+            return assertSingleValueHeader(Headers.ACCEPT);
+        }
+
+        public AbstractStringAssert<?> assertContentType() {
+            return assertSingleValueHeader(Headers.CONTENT_TYPE);
+        }
+
+        public AbstractStringAssert<?> assertSingleValueHeader(HttpString header) {
+            HeaderValues headerValues = exchange.getRequestHeaders().get(header);
+            if (headerValues == null) {
+                return assertThat((String) null);
+            }
+            assertThat(headerValues).hasSizeBetween(0, 1);
+            return assertThat(headerValues.isEmpty() ? null : headerValues.getFirst());
+        }
+
+        public AbstractStringAssert<?> assertBodyUtf8() {
+            try {
+                return assertThat(
+                        CharStreams.toString(new InputStreamReader(exchange.getInputStream(), StandardCharsets.UTF_8)));
+            } catch (IOException e) {
+                throw new SafeRuntimeException(e);
+            }
+        }
+
+        public void assertNoBody() {
+            assertThat(exchange.getInputStream()).isEmpty();
+        }
+
+        public void setContentType(String contentType) {
+            exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, contentType);
+        }
+
+        public void writeStringBody(String body) {
+            try (PrintWriter p = new PrintWriter(exchange.getOutputStream(), true, StandardCharsets.UTF_8)) {
+                p.print(body);
+            }
         }
     }
 
-    private HttpUrl url(String subPath) {
-        return server.url("/my-service-dialogue" + subPath);
+    private static String getUri(Undertow undertow) {
+        Undertow.ListenerInfo listenerInfo = Iterables.getOnlyElement(undertow.getListenerInfo());
+        return String.format("%s:/%s", listenerInfo.getProtcol(), listenerInfo.getAddress());
     }
 }
