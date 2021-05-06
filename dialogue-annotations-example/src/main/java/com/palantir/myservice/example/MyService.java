@@ -22,6 +22,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.OptionalInt;
 import java.util.UUID;
 
@@ -69,4 +70,7 @@ public interface MyService {
             // By changing this to MySpecialJson.class you can have
             // it's own object mapper; this is same as BodySerDe in dialogue
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+
+    @Request(method = HttpMethod.POST, path = "/multipart")
+    void multipart(@Request.Body(PutFileRequestSerializer.class) PutFileRequest request);
 }
