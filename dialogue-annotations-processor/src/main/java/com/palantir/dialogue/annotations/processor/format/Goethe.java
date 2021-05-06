@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.io.Writer;
 import java.util.List;
 import javax.annotation.processing.Filer;
+import javax.lang.model.element.Element;
 import javax.tools.JavaFileObject;
 
 public final class Goethe {
@@ -38,12 +39,12 @@ public final class Goethe {
 
     private Goethe() {}
 
-    public static void formatAndEmit(JavaFile file, Filer filer) throws IOException {
+    public static void formatAndEmit(JavaFile file, Filer filer, Element element) throws IOException {
         StringBuilder unformattedSource = new StringBuilder();
         file.writeTo(unformattedSource);
         try {
             String formattedSource = JAVA_FORMATTER.formatSource(unformattedSource.toString());
-            writeTo(getFileName(file), formattedSource, filer);
+            writeTo(getFileName(file), formattedSource, filer, element);
         } catch (FormatterException e) {
             throw new IOException(generateMessage(file, unformattedSource.toString(), e.diagnostics()), e);
         }
@@ -82,8 +83,8 @@ public final class Goethe {
     }
 
     @SuppressWarnings({"EmptyCatch", "EmptyCatchBlock"})
-    private static void writeTo(String fileName, String sourceCode, Filer filer) throws IOException {
-        JavaFileObject filerSourceFile = filer.createSourceFile(fileName);
+    private static void writeTo(String fileName, String sourceCode, Filer filer, Element element) throws IOException {
+        JavaFileObject filerSourceFile = filer.createSourceFile(fileName, element);
         try (Writer writer = filerSourceFile.openWriter()) {
             writer.write(sourceCode);
         } catch (Exception e) {
