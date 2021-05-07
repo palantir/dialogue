@@ -41,6 +41,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.RoutingAttachments;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -49,6 +50,8 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -96,74 +99,74 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public Channel getChannel(String serviceName) {
+        return new LiveReloadingChannel(
+                getRefreshableChannel(serviceName).map(ChannelAndConfig::channel),
+                params.runtime().clients());
+    }
+
+    private Refreshable<ChannelAndConfig> getRefreshableChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
-
-        Refreshable<Channel> mapped = params.scb().map(block -> {
+        return params.scb().map(block -> {
             Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
             if (!block.services().containsKey(serviceName)) {
-                return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)",
-                        SafeArg.of("serviceName", serviceName),
-                        SafeArg.of("available", block.services().keySet())));
+                return new ChannelAndConfig(
+                        new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                                "Service not configured (config block not present)",
+                                SafeArg.of("serviceName", serviceName),
+                                SafeArg.of("available", block.services().keySet()))),
+                        Optional.empty());
             }
 
             if (block.services().get(serviceName).uris().isEmpty()) {
-                return new AlwaysThrowingChannel(() -> {
-                    Map<String, PartialServiceConfiguration> servicesWithUris =
-                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
-                    return new SafeIllegalStateException(
-                            "Service not configured (no URIs)",
-                            SafeArg.of("serviceName", serviceName),
-                            SafeArg.of("available", servicesWithUris.keySet()));
-                });
+                return new ChannelAndConfig(
+                        new AlwaysThrowingChannel(() -> {
+                            Map<String, PartialServiceConfiguration> servicesWithUris = Maps.filterValues(
+                                    block.services(), c -> !c.uris().isEmpty());
+                            return new SafeIllegalStateException(
+                                    "Service not configured (no URIs)",
+                                    SafeArg.of("serviceName", serviceName),
+                                    SafeArg.of("available", servicesWithUris.keySet()));
+                        }),
+                        Optional.empty());
             }
 
             ServiceConfiguration serviceConf =
                     ServiceConfigurationFactory.of(block).get(serviceName);
 
-            return cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+            return new ChannelAndConfig(
+                    cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty()),
+                    Optional.of(serviceConf));
         });
-        // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
-
-        return new LiveReloadingChannel(mapped, params.runtime().clients());
     }
 
     @Override
     public PerHostClientFactory perHost(String serviceName) {
-        Preconditions.checkNotNull(serviceName, "serviceName");
-        String channelName = ChannelNames.reloading(serviceName, params);
-
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
-                .map(block -> {
-                    if (!block.services().containsKey(serviceName)) {
-                        return ImmutableList.of();
-                    }
-
-                    ServiceConfiguration serviceConfiguration =
-                            ServiceConfigurationFactory.of(block).get(serviceName);
-
-                    ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
-                    for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
-                        ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
-                                .from(serviceConfiguration)
-                                .uris(ImmutableList.of(
-                                        serviceConfiguration.uris().get(i)))
-                                .build();
-
-                        // subtle gotcha here is that every single one of these has the same channelName,
-                        // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
-                        list.add(cache.getNonReloadingChannel(
-                                params, singleUriServiceConf, channelName, OptionalInt.of(i)));
-                    }
-                    return list.build();
-                });
-
+        Refreshable<ChannelAndConfig> channelAndConfigRefreshable = getRefreshableChannel(serviceName);
         return new PerHostClientFactory() {
             @Override
             public Refreshable<List<Channel>> getPerHostChannels() {
-                return perHostDialogueChannels.map(ImmutableList::copyOf);
+                return channelAndConfigRefreshable.map(channelAndConfigRefreshable -> {
+                    if (!channelAndConfigRefreshable.serviceConfiguration.isPresent()) {
+                        return ImmutableList.of();
+                    }
+
+                    List<String> uris = channelAndConfigRefreshable
+                            .serviceConfiguration
+                            .get()
+                            .uris();
+                    List<Channel> channels = new ArrayList<>();
+                    for (int i = 0; i < uris.size(); i++) {
+                        Integer integerIndex = i;
+                        channels.add((endpoint, request) -> {
+                            request.attachments().put(RoutingAttachments.HOST_KEY, integerIndex);
+                            return channelAndConfigRefreshable.channel().execute(endpoint, request);
+                        });
+                    }
+
+                    return Collections.unmodifiableList(channels);
+                });
             }
 
             @Override
@@ -175,8 +178,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public String toString() {
-                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostDialogueChannels.get()
-                        + '}';
+                return "PerHostClientFactory{serviceName=" + serviceName + ", channels="
+                        + channelAndConfigRefreshable.get().channel() + '}';
             }
         };
     }
@@ -360,6 +363,20 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public String toString() {
             return "SupplierEndpointChannel{" + supplier.get() + '}';
+        }
+    }
+
+    private static final class ChannelAndConfig {
+        private final Channel channel;
+        private final Optional<ServiceConfiguration> serviceConfiguration;
+
+        private ChannelAndConfig(Channel channel, Optional<ServiceConfiguration> serviceConfiguration) {
+            this.channel = channel;
+            this.serviceConfiguration = serviceConfiguration;
+        }
+
+        private Channel channel() {
+            return channel;
         }
     }
 }

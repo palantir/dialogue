@@ -19,7 +19,7 @@ package com.palantir.dialogue.core;
 import com.palantir.dialogue.RequestAttachmentKey;
 import java.util.UUID;
 
-interface RoutingAttachments {
+public interface RoutingAttachments {
 
     RequestAttachmentKey<UUID> ROUTING_KEY = RequestAttachmentKey.create(UUID.class);
     RequestAttachmentKey<Integer> HOST_KEY = RequestAttachmentKey.create(Integer.class);
