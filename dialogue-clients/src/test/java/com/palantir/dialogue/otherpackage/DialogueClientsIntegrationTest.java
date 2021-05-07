@@ -39,9 +39,10 @@ import io.undertow.server.handlers.BlockingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
@@ -50,12 +51,17 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class DialogueClientsIntegrationTest {
+    private static final String FOO_SERVICE = "foo";
     private ServiceConfiguration serviceConfig;
     private Undertow undertow;
     private HttpHandler undertowHandler;
     private ServicesConfigBlock scb;
     private PartialServiceConfiguration foo1;
     private PartialServiceConfiguration foo2;
+    private PartialServiceConfiguration threeFoos;
+    private final String foo1Path = "/foo1";
+    private final String foo2Path = "/foo2";
+    private final String foo3Path = "/foo3";
 
     @BeforeEach
     public void before() {
@@ -73,10 +79,15 @@ public class DialogueClientsIntegrationTest {
                 .addUris(getUri(undertow))
                 .build();
         foo1 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo1")
+                .addUris(getUri(undertow) + foo1Path)
                 .build();
         foo2 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo2")
+                .addUris(getUri(undertow) + foo2Path)
+                .build();
+        threeFoos = PartialServiceConfiguration.builder()
+                .addUris(getUri(undertow) + foo1Path)
+                .addUris(getUri(undertow) + foo2Path)
+                .addUris(getUri(undertow) + foo3Path)
                 .build();
         scb = ServicesConfigBlock.builder()
                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -98,7 +109,7 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     void reload_uris_works() {
-        List<String> requestPaths = new ArrayList<>();
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(200);
@@ -121,7 +132,7 @@ public class DialogueClientsIntegrationTest {
     @Test
     void building_non_reloading_clients_always_gives_the_same_instance() {
         AtomicInteger statusCode = new AtomicInteger(200);
-        Set<String> requestPaths = new HashSet<>();
+        Set<String> requestPaths = ConcurrentHashMap.newKeySet();
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(statusCode.get());
@@ -201,6 +212,33 @@ public class DialogueClientsIntegrationTest {
         assertThatCode(client::voidToVoid)
                 .as("subsequent requests reusing the connection should not throw")
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void test_per_host_routes_correctly() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(ServicesConfigBlock.builder()
+                .from(scb)
+                .putServices(FOO_SERVICE, threeFoos)
+                .build());
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        Refreshable<List<SampleServiceBlocking>> refreshableClients =
+                factory.perHost(FOO_SERVICE).getPerHost(SampleServiceBlocking.class);
+        List<SampleServiceBlocking> perHostClients = refreshableClients.get();
+        assertThat(perHostClients).hasSize(3);
+
+        for (int i = 0; i < perHostClients.size(); i++) {
+            perHostClients.get(i).stringToVoid(Integer.toString(i));
+        }
+        assertThat(requestPaths)
+                .containsExactly("/foo1/stringToVoid/0", "/foo2/stringToVoid/1", "/foo3/stringToVoid/2");
     }
 
     private static String getUri(Undertow undertow) {
