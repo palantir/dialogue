@@ -22,7 +22,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
-// TODO(1234): probs not want abstract.
+// TODO(1234): probs not want abstract
 public abstract class Response implements Closeable {
 
     private final RequestAttachments attachments = RequestAttachments.create();

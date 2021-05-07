@@ -96,7 +96,6 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
         Integer hostId = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
         if (hostId != null) {
-            // TODO(12345) Return failed if no such id;
             return channels.get(hostId).maybeExecute(endpoint, request);
         }
 
