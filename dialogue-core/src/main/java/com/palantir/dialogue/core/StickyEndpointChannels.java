@@ -26,7 +26,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -90,20 +89,18 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
     private static final class DefaultStickyRouter implements StickyRouter {
 
-        private final AtomicReference<Integer> hostId = new AtomicReference<>(null);
+        private volatile Integer hostId = null;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
-            Integer curHostId = hostId.get();
-            if (curHostId != null) {
-                request.attachments().put(RoutingAttachments.HOST_KEY, curHostId);
+            if (hostId != null) {
+                request.attachments().put(RoutingAttachments.HOST_KEY, hostId);
                 return endpointChannel.execute(request);
             }
 
             synchronized (this) {
-                curHostId = hostId.get();
-                if (curHostId != null) {
-                    request.attachments().put(RoutingAttachments.HOST_KEY, curHostId);
+                if (hostId != null) {
+                    request.attachments().put(RoutingAttachments.HOST_KEY, hostId);
                     return endpointChannel.execute(request);
                 }
 
@@ -114,7 +111,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
                     Response response = future.get();
                     Integer successfulHostId = response.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
                     Preconditions.checkNotNull(successfulHostId, "Not allowed to be null");
-                    hostId.set(successfulHostId);
+                    hostId = successfulHostId;
                     return future;
                 } catch (ExecutionException | InterruptedException | RuntimeException e) {
                     return future;
