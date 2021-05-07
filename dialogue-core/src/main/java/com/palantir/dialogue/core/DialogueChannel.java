@@ -148,6 +148,14 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
             Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
 
+            // Per host queues
+            // Fairness queue is achieved by UUID added to request as an attachment,
+
+            // per host queue in front of per-host LimitedChannel
+            // put it onto that queue.
+
+            // asdfasdfasdf
+
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
                 channel = TracedChannel.requestAttempt(cf, channel, endpoint);

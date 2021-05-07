@@ -214,7 +214,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         return requestBody.contentLength();
     }
 
-    private static final class HttpClientResponse implements Response {
+    private static final class HttpClientResponse extends Response {
 
         private final CloseableHttpResponse response;
         // Client reference is used to prevent premature termination

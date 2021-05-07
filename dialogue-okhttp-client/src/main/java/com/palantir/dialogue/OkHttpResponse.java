@@ -22,7 +22,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import okhttp3.ResponseBody;
 
-public final class OkHttpResponse implements Response {
+public final class OkHttpResponse extends Response {
 
     private final okhttp3.Response delegate;
 

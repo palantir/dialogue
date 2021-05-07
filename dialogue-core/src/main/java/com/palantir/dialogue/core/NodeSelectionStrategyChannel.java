@@ -93,6 +93,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+
+        Integer hostId = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+        if (hostId != null) {
+            // TODO(12345) Return failed if no such id;
+            return channels.get(hostId).maybeExecute(endpoint, request);
+        }
+
         Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
         if (!maybe.isPresent()) {
             return Optional.empty();
