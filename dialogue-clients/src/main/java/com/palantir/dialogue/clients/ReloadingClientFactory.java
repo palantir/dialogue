@@ -40,7 +40,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
-import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.RoutingAttachments;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
@@ -58,7 +57,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
@@ -186,32 +184,21 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public StickyChannelFactory getStickyChannels(String serviceName) {
-        Refreshable<List<Channel>> perHostChannels = perHost(serviceName).getPerHostChannels();
-
-        Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
-            if (singleHostChannels.isEmpty()) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured", SafeArg.of("serviceName", serviceName)));
-                return () -> alwaysThrowing;
-            }
-
-            if (singleHostChannels.size() == 1) {
-                return () -> singleHostChannels.get(0);
-            }
-
-            return StickyEndpointChannels.builder()
-                    .channels(singleHostChannels.stream()
-                            .map(c -> (DialogueChannel) c)
-                            .collect(Collectors.toList()))
-                    .channelName(ChannelNames.reloading(serviceName, params))
-                    .taggedMetricRegistry(params.taggedMetrics())
-                    .build();
-        });
+        // TODO(12345): Defo should not need this extra layer here.
+        Supplier<Supplier<Channel>> stickyChannelSupplier = getRefreshableChannel(serviceName)
+                .map(channelAndConfig -> {
+                    return StickyEndpointChannels.builder()
+                            .endpointChannelFactory(
+                                    endpoint -> params.runtime().clients().bind(channelAndConfig.channel(), endpoint))
+                            .channelName(ChannelNames.reloading(serviceName, params))
+                            .taggedMetricRegistry(params.taggedMetrics())
+                            .build();
+                });
 
         return new StickyChannelFactory() {
             @Override
             public Channel getStickyChannel() {
-                return bestSupplier.get().get();
+                return stickyChannelSupplier.get().get();
             }
 
             @Override
@@ -221,7 +208,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public String toString() {
-                return "StickyChannelFactory{" + bestSupplier.get() + '}';
+                return "StickyChannelFactory{}";
             }
         };
     }

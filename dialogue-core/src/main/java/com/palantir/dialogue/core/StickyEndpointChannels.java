@@ -16,10 +16,6 @@
 
 package com.palantir.dialogue.core;
 
-import com.github.benmanes.caffeine.cache.Ticker;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Suppliers;
-import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -27,68 +23,45 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
-import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.util.List;
-import java.util.Random;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-/**
- * Stateful object which provides a Channel to routes all requests to one host, using the
- * {@link BalancedScoreTracker} heuristic under the hood.
- */
 public final class StickyEndpointChannels implements Supplier<Channel> {
 
-    private final ImmutableList<? extends EndpointChannelFactory> channels;
-    private final BalancedScoreTracker tracker;
+    private final EndpointChannelFactory delegate;
 
     private StickyEndpointChannels(Builder params) {
-        this.channels = params.channels;
-        this.tracker = new BalancedScoreTracker(
-                params.channels.size(),
-                params.random,
-                params.ticker,
-                Preconditions.checkNotNull(params.taggedMetrics, "taggedMetricRegistry"),
-                Preconditions.checkNotNull(params.channelName, "channelName"));
+        this.delegate = Preconditions.checkNotNull(params.endpointChannelFactory, "No nulls pleaze");
     }
 
-    /**
-     * Returns the current 'best' channel based on its Balanced score. If the underlying host is completely offline,
-     * callers are responsible for getting a new sticky channel by calling this method again, relying on the
-     * {@link BalancedScoreTracker} to avoid returning the same broken channel again.
-     */
     @Override
     public Channel get() {
-        return new Sticky(channels, tracker);
+        return new Sticky(delegate);
     }
 
     @Override
     public String toString() {
-        return "StickyEndpointChannels{" + "tracker=" + tracker + ", channels=" + channels + '}';
+        return "StickyEndpointChannels{}";
     }
 
     @ThreadSafe
     private static final class Sticky implements EndpointChannelFactory, Channel {
 
-        private final ImmutableList<? extends EndpointChannelFactory> channels;
-        private final Supplier<ChannelScoreInfo> getSingleBestChannel;
+        private final EndpointChannelFactory channelFactory;
+        private final StickyRouter router = new DefaultStickyRouter();
 
-        private Sticky(ImmutableList<? extends EndpointChannelFactory> channels, BalancedScoreTracker tracker) {
-            this.channels = channels;
-            this.getSingleBestChannel = Suppliers.memoize(tracker::getSingleBestChannelByScore);
+        private Sticky(EndpointChannelFactory channelFactory) {
+            this.channelFactory = channelFactory;
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            ChannelScoreInfo channelScoreInfo = getSingleBestChannel.get();
-            int hostIndex = channelScoreInfo.channelIndex();
-            EndpointChannel delegate = channels.get(hostIndex).endpoint(endpoint);
-            return new ScoreTrackingEndpointChannel(delegate, channelScoreInfo);
+            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
         }
 
         /**
@@ -103,31 +76,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
         @Override
         public String toString() {
-            return "Sticky{" + channels + '}';
-        }
-    }
-
-    private static final class ScoreTrackingEndpointChannel implements EndpointChannel {
-        private final EndpointChannel delegate;
-        private final ChannelScoreInfo tracker;
-
-        ScoreTrackingEndpointChannel(EndpointChannel delegate, ChannelScoreInfo tracker) {
-            this.delegate = delegate;
-            this.tracker = tracker;
-        }
-
-        @Override
-        public ListenableFuture<Response> execute(Request request) {
-            tracker.startRequest();
-            ListenableFuture<Response> future = delegate.execute(request);
-            tracker.observability().markRequestMade();
-            DialogueFutures.addDirectCallback(future, tracker);
-            return future;
-        }
-
-        @Override
-        public String toString() {
-            return "ScoreTrackingEndpointChannel{" + "delegate=" + delegate + ", tracker=" + tracker + '}';
+            return "Sticky{" + channelFactory + '}';
         }
     }
 
@@ -135,22 +84,81 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
         return new Builder();
     }
 
+    interface StickyRouter {
+        ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel);
+    }
+
+    private static final class DefaultStickyRouter implements StickyRouter {
+
+        private final AtomicReference<Integer> hostId = new AtomicReference<>(null);
+
+        @Override
+        public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
+            Integer curHostId = hostId.get();
+            if (curHostId != null) {
+                request.attachments().put(RoutingAttachments.HOST_KEY, curHostId);
+                return endpointChannel.execute(request);
+            }
+
+            synchronized (this) {
+                curHostId = hostId.get();
+                if (curHostId != null) {
+                    request.attachments().put(RoutingAttachments.HOST_KEY, curHostId);
+                    return endpointChannel.execute(request);
+                }
+
+                // Not great, but valid implementation: block until one of the requests is successful to figure out
+                // the hostId; can be made non-blocking here, but it's a more difficult impl.
+                ListenableFuture<Response> future = endpointChannel.execute(request);
+                try {
+                    Response response = future.get();
+                    Integer successfulHostId = response.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+                    Preconditions.checkNotNull(successfulHostId, "Not allowed to be null");
+                    hostId.set(successfulHostId);
+                    return future;
+                } catch (ExecutionException | InterruptedException | RuntimeException e) {
+                    return future;
+                }
+            }
+        }
+    }
+
+    private static final class StickyEndpointChannel implements EndpointChannel {
+        private final StickyRouter stickyRouter;
+        private final EndpointChannel delegate;
+
+        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate) {
+            this.stickyRouter = stickyRouter;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            return stickyRouter.execute(request, delegate);
+        }
+
+        @Override
+        public String toString() {
+            return "ScoreTrackingEndpointChannel{" + "delegate=" + delegate + '}';
+        }
+    }
+
     public static final class Builder {
-        private ImmutableList<? extends EndpointChannelFactory> channels = ImmutableList.of();
+        @Nullable
+        private EndpointChannelFactory endpointChannelFactory;
 
         @Nullable
+        @SuppressWarnings("StrictUnusedVariable")
         private String channelName;
 
         @Nullable
+        @SuppressWarnings("StrictUnusedVariable")
         private TaggedMetricRegistry taggedMetrics;
-
-        private Random random = SafeThreadLocalRandom.get();
-        private Ticker ticker = Ticker.systemTicker();
 
         private Builder() {}
 
-        public Builder channels(List<? extends EndpointChannelFactory> chans) {
-            this.channels = ImmutableList.copyOf(chans);
+        public Builder endpointChannelFactory(EndpointChannelFactory value) {
+            this.endpointChannelFactory = value;
             return this;
         }
 
@@ -161,18 +169,6 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
         public Builder taggedMetricRegistry(TaggedMetricRegistry value) {
             this.taggedMetrics = Preconditions.checkNotNull(value, "taggedMetrics");
-            return this;
-        }
-
-        @VisibleForTesting
-        Builder random(Random value) {
-            this.random = value;
-            return this;
-        }
-
-        @VisibleForTesting
-        Builder ticker(Ticker value) {
-            this.ticker = value;
             return this;
         }
 
