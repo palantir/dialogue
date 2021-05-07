@@ -179,6 +179,11 @@ acceptedBreaks:
       new: "method void com.palantir.dialogue.annotations.StdDeserializer<T>::<init>(java.lang.String)"
       justification: "no functional difference"
   "1.126.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.removed"
+      old: "method com.palantir.dialogue.core.StickyEndpointChannels.Builder com.palantir.dialogue.core.StickyEndpointChannels.Builder::channels(java.util.List<?\
+        \ extends com.palantir.dialogue.EndpointChannelFactory>)"
+      justification: "ok"
     com.palantir.dialogue:dialogue-target:
     - code: "java.class.kindChanged"
       old: "interface com.palantir.dialogue.Response"

@@ -54,7 +54,7 @@ public abstract class Response implements Closeable {
     @Override
     public abstract void close();
 
-    // TODO(jakubk) Should be ResponseAttachments.
+    // TODO(jakubk): Should be ResponseAttachments.
     public final RequestAttachments attachments() {
         return attachments;
     }
