@@ -130,6 +130,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
+                channel = new HostIndexResponseMarkingChannel(uriIndex, channel);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel = new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf));
                 final int uriIndexForInstrumentation =
