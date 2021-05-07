@@ -64,6 +64,11 @@ interface Config {
     }
 
     @Value.Default
+    default QueueExecutor queueExecutor() {
+        return SharedDisruptorQueueExecutor.instance();
+    }
+
+    @Value.Default
     default Ticker ticker() {
         return Ticker.systemTicker();
     }

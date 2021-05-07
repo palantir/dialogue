@@ -19,6 +19,7 @@ dependencies {
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.tracing:tracing-api'
     implementation 'org.slf4j:slf4j-api'
+    implementation 'com.lmax:disruptor'
 
     testImplementation 'com.palantir.tracing:tracing-test-utils'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'

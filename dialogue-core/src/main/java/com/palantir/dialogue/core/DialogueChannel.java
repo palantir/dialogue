@@ -36,6 +36,9 @@ import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
+
+    private static final boolean USE_FAIR_SCHEDULER = true;
+
     private final EndpointChannelFactory delegate;
     private final Config cf;
 
@@ -111,6 +114,12 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         @VisibleForTesting
+        Builder queueExecutor(QueueExecutor queueExecutor) {
+            builder.queueExecutor(queueExecutor);
+            return this;
+        }
+
+        @VisibleForTesting
         Builder maxQueueSize(int value) {
             builder.maxQueueSize(value);
             return this;
@@ -130,6 +139,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 String uri = cf.clientConf().uris().get(uriIndex);
                 Channel channel = cf.channelFactory().create(uri);
+                channel = new HostIndexResponseMarkingChannel(uriIndex, channel);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel = new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf));
                 final int uriIndexForInstrumentation =
@@ -146,7 +156,13 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
-            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+
+            Channel queuedChannel;
+            if (USE_FAIR_SCHEDULER) {
+                queuedChannel = FairQueuedChannel.create(cf, nodeSelectionChannel);
+            } else {
+                queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            }
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);

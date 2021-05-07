@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.codahale.metrics.Timer.Context;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
@@ -23,6 +25,10 @@ import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.tracing.DetachedSpan;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
@@ -85,6 +91,33 @@ public enum Strategy {
                                     .build())
                             .channelFactory(uri -> channelSupplier.get().get(uri))
                             .random(sim.pseudoRandom())
+                            .queueExecutor(new QueueExecutor() {
+                                @Override
+                                public void enqueue(
+                                        EventProcessor processor,
+                                        Request request,
+                                        Endpoint endpoint,
+                                        SettableFuture<Response> responseFuture,
+                                        DetachedSpan span,
+                                        Context queuedTimeTimer) {
+                                    sim.scheduler().execute(() -> {
+                                        processor.enqueueRequest(QueueExecutor.deferredCall(
+                                                endpoint, request, responseFuture, span, queuedTimeTimer));
+                                        processor.dispatchRequests();
+                                    });
+                                }
+
+                                @Override
+                                public void requestComplete(EventProcessor eventProcessor) {
+                                    sim.scheduler().execute(eventProcessor::dispatchRequests);
+                                }
+
+                                @Override
+                                public boolean isEmpty() {
+                                    // Lying is fine.
+                                    return false;
+                                }
+                            })
                             .scheduler(sim.scheduler())
                             .ticker(sim.clock())
                             .buildNonLiveReloading();
