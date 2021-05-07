@@ -25,6 +25,7 @@ import static org.mockito.Mockito.when;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
@@ -81,7 +82,7 @@ class NodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(Futures.immediateFuture(
                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
-        channel.maybeExecute(null, null).get();
+        channel.maybeExecute(null, Request.builder().build()).get();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
