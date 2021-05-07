@@ -89,7 +89,8 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
 
     private static final class DefaultStickyRouter implements StickyRouter {
 
-        private volatile Integer hostId = null;
+        @Nullable
+        private volatile Integer hostId;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
