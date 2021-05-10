@@ -49,10 +49,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.Deque;
+import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 import org.assertj.core.api.AbstractStringAssert;
+import org.assertj.core.api.OptionalAssert;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -247,12 +251,15 @@ public final class MyServiceIntegrationTest {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.POST);
             exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
-            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q");
+            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q", "q1");
             assertThat(exchange.exchange.getQueryParameters().get("q")).containsOnly("query");
+            assertThat(exchange.exchange.getQueryParameters().get("q1")).containsOnly("Query", "Params");
             exchange.assertAccept().isNull();
             exchange.assertContentType().isEqualTo("application/json");
             exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Header"))
                     .isEqualTo("2");
+            exchange.assertMultiValueHeader("Custom-Optional-Header1")
+                    .hasValueSatisfying(values -> assertThat(values).containsExactly("1", "2"));
             if (customHeaderOptionalValue.isPresent()) {
                 exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Optional-Header"))
                         .isEqualTo(Integer.toString(customHeaderOptionalValue.getAsInt()));
@@ -273,10 +280,12 @@ public final class MyServiceIntegrationTest {
         UUID uuid = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
         myServiceDialogue.params(
                 "query",
+                Arrays.asList("Query", "Params"),
                 uuid,
                 new MyCustomParamType("my-custom-param-value"),
                 2,
                 customHeaderOptionalValue,
+                Optional.of(Arrays.asList(1, 2)),
                 ImmutableMySerializableType.builder()
                         .value("my-serializable-type-value")
                         .build());
@@ -312,6 +321,14 @@ public final class MyServiceIntegrationTest {
             }
             assertThat(headerValues).hasSizeBetween(0, 1);
             return assertThat(headerValues.isEmpty() ? null : headerValues.getFirst());
+        }
+
+        public OptionalAssert<List<String>> assertMultiValueHeader(String header) {
+            HeaderValues headerValues = exchange.getRequestHeaders().get(header);
+            if (headerValues == null) {
+                return assertThat(Optional.empty());
+            }
+            return assertThat(Optional.of(headerValues));
         }
 
         public AbstractStringAssert<?> assertBodyUtf8() {

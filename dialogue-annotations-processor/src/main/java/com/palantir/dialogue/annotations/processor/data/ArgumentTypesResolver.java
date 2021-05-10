@@ -29,6 +29,7 @@ import com.palantir.tokens.auth.BearerToken;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -67,7 +68,8 @@ public final class ArgumentTypesResolver {
     public ArgumentTypesResolver(ResolverContext context) {
         this.context = context;
         TypeName integerType = context.getTypeName(Integer.class);
-        this.integerArgumentType = ArgumentTypes.primitive(integerType, planSerDeMethodName(integerType));
+        this.integerArgumentType =
+                ArgumentTypes.primitive(integerType, planSerDeMethodName(integerType), Optional.empty());
     }
 
     public Optional<ArgumentType> getArgumentType(VariableElement param) {
@@ -78,8 +80,14 @@ public final class ArgumentTypesResolver {
     private Optional<ArgumentType> getArgumentTypeImpl(Element paramContext, TypeMirror actualTypeMirror) {
         TypeName typeName = TypeName.get(actualTypeMirror);
         Optional<OptionalType> optionalType = getOptionalType(paramContext, actualTypeMirror);
+        Optional<TypeMirror> listType = getListType(actualTypeMirror);
         if (isPrimitive(typeName)) {
-            return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName)));
+            return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName), Optional.empty()));
+        } else if (listType.map(innerType -> isPrimitive(TypeName.get(innerType)))
+                .orElse(false)) {
+            TypeName innerTypeName = TypeName.get(listType.get());
+            return Optional.of(
+                    ArgumentTypes.primitive(typeName, planSerDeMethodName(innerTypeName), Optional.of(innerTypeName)));
         } else if (isRawRequestBody(actualTypeMirror)) {
             return Optional.of(ArgumentTypes.rawRequestBody(TypeName.get(actualTypeMirror)));
         } else if (optionalType.isPresent()) {
@@ -92,6 +100,10 @@ public final class ArgumentTypesResolver {
 
     private boolean isPrimitive(TypeName in) {
         return PARAMETER_SERIALIZER_TYPES.containsKey(in.box());
+    }
+
+    private Optional<TypeMirror> getListType(TypeMirror in) {
+        return context.getGenericInnerType(List.class, in);
     }
 
     private String planSerDeMethodName(TypeName in) {

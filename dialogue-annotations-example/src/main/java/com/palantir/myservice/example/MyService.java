@@ -23,6 +23,8 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
+import java.util.List;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
 
@@ -59,12 +61,16 @@ public interface MyService {
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
     void params(
             @Request.QueryParam("q") String query,
+            // Lists of primitive types are supported for @QueryParam and @Header
+            @Request.QueryParam("q1") List<String> query1,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
             @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
+            // Optional lists of primitives are supported too!
+            @Request.Header("Custom-Optional-Header1") Optional<List<Integer>> maybeRequestHeaderValue1,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have

@@ -69,9 +69,9 @@ public final class ResolverContext implements ErrorContext {
             }
 
             TypeMirror innerType = Iterables.getOnlyElement(declaredType.getTypeArguments());
-            DeclaredType genericOptional = types.getDeclaredType(getTypeElement(clazz), innerType);
+            DeclaredType erasedType = types.getDeclaredType(getTypeElement(clazz), innerType);
 
-            if (types.isSameType(genericOptional, declaredType)) {
+            if (types.isAssignable(declaredType, erasedType)) {
                 return Optional.of(innerType);
             } else {
                 return Optional.empty();

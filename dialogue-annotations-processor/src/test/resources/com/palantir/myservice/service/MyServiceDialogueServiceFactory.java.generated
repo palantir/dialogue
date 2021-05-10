@@ -23,10 +23,12 @@ import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import javax.annotation.processing.Generated;
 
 @Generated("com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator")
@@ -120,12 +122,16 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     Optional<MyCustomParamType> query2,
                     String query3,
                     Optional<String> query4,
+                    List<String> query5,
+                    Optional<List<String>> query6,
                     UUID myPathParam,
                     MyCustomParamType myPathParam2,
                     int requestHeaderValue,
                     Optional<String> maybeCustomOptionalHeader1Value,
                     OptionalInt maybeCustomOptionalHeader2Value,
                     Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
+                    List<String> customListHeader,
+                    Optional<List<String>> customOptionalListHeader,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q", _parameterSerializer.serializeString(query));
@@ -136,6 +142,18 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 _request.putAllQueryParams("q3", paramsQuery3Encoder.toParamValues(query3));
                 if (query4.isPresent()) {
                     _request.putAllQueryParams("q4", paramsQuery4Encoder.toParamValues(query4.get()));
+                }
+                _request.putAllQueryParams(
+                        "q5",
+                        query5.stream()
+                                .map(_parameterSerializer::serializeString)
+                                .collect(Collectors.toList()));
+                if (query6.isPresent()) {
+                    _request.putAllQueryParams(
+                            "q6",
+                            query6.get().stream()
+                                    .map(_parameterSerializer::serializeString)
+                                    .collect(Collectors.toList()));
                 }
                 _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
                 _request.putPathParams("myPathParam2", paramsMyPathParam2Encoder.toParamValue(myPathParam2));
@@ -155,6 +173,18 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                             "Custom-Optional-Header3",
                             paramsMaybeCustomOptionalHeader3ValueEncoder.toParamValues(
                                     maybeCustomOptionalHeader3Value.get()));
+                }
+                _request.putAllHeaderParams(
+                        "Custom-Header1",
+                        customListHeader.stream()
+                                .map(_parameterSerializer::serializeString)
+                                .collect(Collectors.toList()));
+                if (customOptionalListHeader.isPresent()) {
+                    _request.putAllHeaderParams(
+                            "Custom-Optional-Header3",
+                            customOptionalListHeader.get().stream()
+                                    .map(_parameterSerializer::serializeString)
+                                    .collect(Collectors.toList()));
                 }
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
