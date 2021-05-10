@@ -241,6 +241,33 @@ public class DialogueClientsIntegrationTest {
                 .containsExactly("/foo1/stringToVoid/0", "/foo2/stringToVoid/1", "/foo3/stringToVoid/2");
     }
 
+    @Test
+    public void test_sticky_is_sticky() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(ServicesConfigBlock.builder()
+                .from(scb)
+                .putServices(FOO_SERVICE, threeFoos)
+                .build());
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        Refreshable<List<SampleServiceBlocking>> refreshableClients =
+                factory.perHost(FOO_SERVICE).getPerHost(SampleServiceBlocking.class);
+        List<SampleServiceBlocking> perHostClients = refreshableClients.get();
+        assertThat(perHostClients).hasSize(3);
+
+        for (int i = 0; i < perHostClients.size(); i++) {
+            perHostClients.get(i).stringToVoid(Integer.toString(i));
+        }
+        assertThat(requestPaths)
+                .containsExactly("/foo1/stringToVoid/0", "/foo2/stringToVoid/1", "/foo3/stringToVoid/2");
+    }
+
     private static String getUri(Undertow undertow) {
         Undertow.ListenerInfo listenerInfo = Iterables.getOnlyElement(undertow.getListenerInfo());
         return String.format(
