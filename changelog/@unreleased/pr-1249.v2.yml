@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: Support multi-value primitive params.
+  description: Support list-of-primitives header/query params.
   links:
   - https://github.com/palantir/dialogue/pull/1249
