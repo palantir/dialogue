@@ -21,6 +21,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.tokens.auth.AuthHeader;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -67,6 +68,8 @@ public interface MyService {
                     Optional<MyCustomParamType> query2,
             @Request.QueryParam(value = "q3", encoder = MyCustomStringParameterEncoder.class) String query3,
             @Request.QueryParam(value = "q4", encoder = MyCustomStringParameterEncoder.class) Optional<String> query4,
+            @Request.QueryParam(value = "q5") List<String> query5,
+            @Request.QueryParam(value = "q6") Optional<List<String>> query6,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
             @Request.PathParam(encoder = MyCustomParamTypeParameterEncoder.class) MyCustomParamType myPathParam2,
@@ -76,6 +79,8 @@ public interface MyService {
             @Request.Header("Custom-Optional-Header2") OptionalInt maybeCustomOptionalHeader2Value,
             @Request.Header(value = "Custom-Optional-Header3", encoder = MyCustomParamTypeParameterEncoder.class)
                     Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
+            @Request.Header("Custom-Header1") List<String> customListHeader,
+            @Request.Header("Custom-Optional-Header3") Optional<List<String>> customOptionalListHeader,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have

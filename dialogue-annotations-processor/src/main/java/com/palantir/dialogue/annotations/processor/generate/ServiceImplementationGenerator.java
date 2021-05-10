@@ -94,7 +94,8 @@ public final class ServiceImplementationGenerator {
         List<ParameterSpec> params = def.arguments().stream()
                 .map(arg -> ParameterSpec.builder(
                                 ArgumentTypes.caseOf(arg.argType())
-                                        .primitive((javaTypeName, _unused) -> javaTypeName)
+                                        .primitive(
+                                                (javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .optional((optionalJavaType, _unused) -> optionalJavaType)
                                         .customType(typeName -> typeName),
@@ -143,7 +144,7 @@ public final class ServiceImplementationGenerator {
     private FieldSpec serializer(
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
-                .primitive((javaTypeName, _unused) -> javaTypeName)
+                .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
                 .get();
@@ -194,7 +195,7 @@ public final class ServiceImplementationGenerator {
 
     private TypeName underlyingCustomType(ArgumentType argumentType) {
         return ArgumentTypes.caseOf(argumentType)
-                .primitive((javaTypeName, _unused) -> javaTypeName)
+                .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                 .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
                 .customType(Function.identity())
                 .otherwiseEmpty()
@@ -275,17 +276,31 @@ public final class ServiceImplementationGenerator {
             Optional<ParameterEncoderType> maybeParameterEncoderType) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
-            public CodeBlock primitive(TypeName _unused, String parameterSerializerMethodName) {
-                return maybeParameterEncoderType
-                        .map(this::parameterEncoderType)
-                        .orElseGet(() -> CodeBlock.of(
-                                "$L.$L($S, $L.$L($L));",
-                                REQUEST,
-                                singleValueMethod,
-                                key,
+            public CodeBlock primitive(
+                    TypeName _unused, String parameterSerializerMethodName, Optional<TypeName> innerListType) {
+                return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
+                    if (innerListType.isPresent()) {
+                        CodeBlock asList = CodeBlock.of(
+                                "$L.stream().map($L::$L).collect($T.toList())",
+                                argName,
                                 PARAMETER_SERIALIZER,
                                 parameterSerializerMethodName,
-                                argName));
+                                Collectors.class);
+                        return CodeBlock.builder()
+                                .add("$L.$L($S,", REQUEST, multiValueMethod, key)
+                                .add(asList)
+                                .add(");")
+                                .build();
+                    }
+                    return CodeBlock.of(
+                            "$L.$L($S, $L.$L($L));",
+                            REQUEST,
+                            singleValueMethod,
+                            key,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            argName);
+                });
             }
 
             @Override
