@@ -241,7 +241,7 @@ final class DisruptorScheduler implements Channel {
                 enqueue(event);
             }
 
-            // On completion we'll simply fall through to do the scheduling at end of batch.
+            // On completion event we'll simply fall through to do the scheduling at end of batch.
             // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
             // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
             // poll the shared resource (downstream LimitedChannel);
