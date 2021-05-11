@@ -27,6 +27,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
+import com.lmax.disruptor.EventTranslator;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
@@ -39,17 +40,22 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-final class MultiQueueScheduler implements Channel {
+final class DisruptorScheduler implements Channel {
 
-    private static final Logger log = LoggerFactory.getLogger(MultiQueueScheduler.class);
+    private static final Logger log = LoggerFactory.getLogger(DisruptorScheduler.class);
 
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
@@ -64,9 +70,9 @@ final class MultiQueueScheduler implements Channel {
     // avoid creating unnecessary data.
     private volatile boolean shouldRecordQueueMetrics;
     private final EventHandlerImpl eventHandler;
-    private final RingBuffer<DeferredCall> ringBuffer;
+    private final RingBuffer<QueueEvent> ringBuffer;
 
-    private MultiQueueScheduler(
+    private DisruptorScheduler(
             LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
@@ -80,8 +86,8 @@ final class MultiQueueScheduler implements Channel {
 
         // TODO(12345): Safely shutdown?
         // TODO(12345): Even better: should only have one per JVM.
-        Disruptor<DeferredCall> disruptor = new Disruptor<>(
-                DeferredCall::new,
+        Disruptor<QueueEvent> disruptor = new Disruptor<>(
+                QueueEvent::new,
                 // Probably overkill
                 16_000,
                 createThreadFactory(),
@@ -95,7 +101,7 @@ final class MultiQueueScheduler implements Channel {
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
-        return new MultiQueueScheduler(
+        return new DisruptorScheduler(
                 delegate,
                 cf.channelName(),
                 QueuedChannel.channelInstrumentation(
@@ -117,7 +123,7 @@ final class MultiQueueScheduler implements Channel {
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
-                // While the queue was avoid, this is equivalent to spending zero time on the queue.
+                // While the queue was avoided, this is equivalent to spending zero time on the queue.
                 if (shouldRecordQueueMetrics) {
                     queuedTime.update(0, TimeUnit.NANOSECONDS);
                 }
@@ -139,6 +145,7 @@ final class MultiQueueScheduler implements Channel {
         DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
         Context timer = queuedTime.time();
         ringBuffer.publishEvent((event, sequence) -> {
+            event.eventType = QueueEventType.ENQUEUE;
             event.endpoint = endpoint;
             event.request = request;
             event.response = response;
@@ -158,19 +165,13 @@ final class MultiQueueScheduler implements Channel {
         return Optional.of(response);
     }
 
-    private void onCompletion() {}
+    private void onCompletion() {
+        ringBuffer.publishEvent(CompletionEventTranslator.INSTANCE);
+    }
 
     private int incrementQueueSize() {
         queueSizeCounter.get().inc();
         return queueSizeEstimate.incrementAndGet();
-    }
-
-    private static final class DeferredCall {
-        private Endpoint endpoint;
-        private Request request;
-        private SettableFuture<Response> response;
-        private DetachedSpan span;
-        private Timer.Context timer;
     }
 
     @Override
@@ -181,12 +182,80 @@ final class MultiQueueScheduler implements Channel {
                 + delegate + '}';
     }
 
-    private static final class EventHandlerImpl implements EventHandler<DeferredCall> {
+    private enum CompletionEventTranslator implements EventTranslator<QueueEvent> {
+        INSTANCE;
 
         @Override
-        public void onEvent(DeferredCall event, long sequence, boolean endOfBatch) throws Exception {
-            // TODO(12345): Actually do the routing and polling of downstream channel.
+        public void translateTo(QueueEvent event, long _sequence) {
+            event.eventType = QueueEventType.COMPLETION;
         }
+    }
+
+    private static final class EventHandlerImpl implements EventHandler<QueueEvent> {
+
+        private final Map<QueueKey, Deque<DeferredCall>> queues = new HashMap<>();
+
+        @Override
+        public void onEvent(QueueEvent event, long _sequence, boolean endOfBatch) {
+            try {
+                // TODO(12345): Actually do the routing and polling of downstream channel.
+            } finally {
+                event.clear();
+            }
+        }
+    }
+
+    private static final class QueueEvent {
+        // Events can either be enqueues, in which case all the following fields are set, or completions,
+        // in which all the following fields are null and should be ignored
+        private QueueEventType eventType;
+
+        private Endpoint endpoint;
+        private Request request;
+        private SettableFuture<Response> response;
+        private DetachedSpan span;
+        private Timer.Context timer;
+
+        private void clear() {
+            eventType = null;
+            endpoint = null;
+            request = null;
+            response = null;
+            span = null;
+            timer = null;
+        }
+    }
+
+    private enum QueueEventType {
+        ENQUEUE,
+        COMPLETION
+    }
+
+    @Value.Immutable
+    interface QueueKey {
+        @Value.Parameter
+        Optional<UUID> routingKey();
+
+        @Value.Parameter
+        Optional<Integer> hostKey();
+    }
+
+    @Value.Immutable
+    interface DeferredCall {
+        @Value.Parameter
+        Endpoint endpoint();
+
+        @Value.Parameter
+        Request request();
+
+        @Value.Parameter
+        SettableFuture<Response> response();
+
+        @Value.Parameter
+        DetachedSpan span();
+
+        @Value.Parameter
+        Timer.Context timer();
     }
 
     private static ThreadFactory createThreadFactory() {
