@@ -61,6 +61,7 @@ import org.slf4j.LoggerFactory;
 @Value.Enclosing
 final class DisruptorScheduler implements Channel {
 
+    private static final MultiplexingEventHandler MULTIPLEXING_EVENT_HANDLER = new MultiplexingEventHandler();
     private static final Logger log = LoggerFactory.getLogger(DisruptorScheduler.class);
 
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
@@ -130,7 +131,7 @@ final class DisruptorScheduler implements Channel {
 
         shouldRecordQueueMetrics = true;
 
-        SettableFuture<Response> response = MultiplexingEventHandler.INSTANCE.enqueue(this, request, endpoint);
+        SettableFuture<Response> response = MULTIPLEXING_EVENT_HANDLER.enqueue(this, request, endpoint);
         int newSize = incrementQueueSize();
 
         if (log.isDebugEnabled()) {
@@ -144,7 +145,7 @@ final class DisruptorScheduler implements Channel {
     }
 
     private void onCompletion() {
-        MultiplexingEventHandler.INSTANCE.onCompletion(this);
+        MULTIPLEXING_EVENT_HANDLER.onCompletion(this);
     }
 
     private int incrementQueueSize() {
@@ -170,8 +171,7 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    private enum MultiplexingEventHandler implements EventHandler<QueueEvent> {
-        INSTANCE;
+    private static final class MultiplexingEventHandler implements EventHandler<QueueEvent> {
 
         private final Set<EventHandlerImpl> eventHandlers;
         private final RingBuffer<QueueEvent> ringBuffer;
