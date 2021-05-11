@@ -49,6 +49,7 @@ import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
+import java.util.WeakHashMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -173,17 +174,23 @@ final class DisruptorScheduler implements Channel {
 
     private static final class MultiplexingEventHandler implements EventHandler<QueueEvent> {
 
+        private static final ThreadFactory THREAD_FACTORY = new ThreadFactoryBuilder()
+                .setNameFormat("Dialogue-queue-scheduler-%d")
+                .build();
+
         private final Set<EventHandlerImpl> eventHandlers;
         private final RingBuffer<QueueEvent> ringBuffer;
 
         MultiplexingEventHandler() {
-            // TODO(12345): Use WeakReferences for cleanup.
-            eventHandlers = Collections.newSetFromMap(new IdentityHashMap<>());
+            // We want the set to be keyed by instances of EventHandlerImpl, of which there is 1 per DisruptorScheduler
+            // instance. Additionally, we want to only keep weak references to those, so that we don't leak queues for
+            // GCed DialogueChannels.
+            eventHandlers = Collections.newSetFromMap(new WeakHashMap<>(new IdentityHashMap<>()));
             Disruptor<QueueEvent> disruptor = new Disruptor<>(
                     QueueEvent::new,
-                    // Probably overkill
+                    // Probably overkill, but keeping the same size as Log4j AsyncLogger queue.
                     16_000,
-                    createThreadFactory(),
+                    THREAD_FACTORY,
                     ProducerType.MULTI,
                     // Probably don't need blocking? But easiest to start with
                     new BlockingWaitStrategy());
@@ -200,6 +207,7 @@ final class DisruptorScheduler implements Channel {
             SettableFuture<Response> response = SettableFuture.create();
             DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
             Context timer = scheduler.queuedTime.time();
+
             // Using raw APIs because number of args > 3
             long sequence = ringBuffer.next(); // Grab the next sequence
             try {
@@ -231,7 +239,7 @@ final class DisruptorScheduler implements Channel {
 
     private final class EventHandlerImpl implements EventHandler<QueueEvent> {
 
-        // Always iterate in the same order for fairness.
+        // Always iterate in the same order for fairness and keep weak references only.
         private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
 
         @Override
@@ -377,9 +385,5 @@ final class DisruptorScheduler implements Channel {
 
         @Value.Parameter
         Timer.Context timer();
-    }
-
-    private static ThreadFactory createThreadFactory() {
-        return new ThreadFactoryBuilder().setNameFormat("Dialogue-scheduler-%d").build();
     }
 }

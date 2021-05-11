@@ -37,7 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
-    private static final boolean USE_FAIR_SCHEDULER = false;
+    private static final boolean USE_FAIR_SCHEDULER = true;
 
     private final EndpointChannelFactory delegate;
     private final Config cf;
@@ -153,18 +153,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             Channel queuedChannel;
             if (USE_FAIR_SCHEDULER) {
-                queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+                queuedChannel = DisruptorScheduler.create(cf, nodeSelectionChannel);
             } else {
                 queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
             }
-
-            // Per host queues
-            // Fairness queue is achieved by UUID added to request as an attachment,
-
-            // per host queue in front of per-host LimitedChannel
-            // put it onto that queue.
-
-            // asdfasdfasdf
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
