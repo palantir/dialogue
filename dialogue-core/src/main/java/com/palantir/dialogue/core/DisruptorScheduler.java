@@ -27,7 +27,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
-import com.lmax.disruptor.EventTranslator;
+import com.lmax.disruptor.EventTranslatorOneArg;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
@@ -41,10 +41,13 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
@@ -73,7 +76,6 @@ final class DisruptorScheduler implements Channel {
     // avoid creating unnecessary data.
     private volatile boolean shouldRecordQueueMetrics;
     private final EventHandlerImpl eventHandler;
-    private final RingBuffer<QueueEvent> ringBuffer;
 
     private DisruptorScheduler(
             LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
@@ -86,21 +88,7 @@ final class DisruptorScheduler implements Channel {
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
-
-        // TODO(12345): Safely shutdown?
-        // TODO(12345): Even better: should only have one per JVM.
-        Disruptor<QueueEvent> disruptor = new Disruptor<>(
-                QueueEvent::new,
-                // Probably overkill
-                16_000,
-                createThreadFactory(),
-                ProducerType.MULTI,
-                // Probably don't want blocking? But easiest to start with
-                new BlockingWaitStrategy());
         eventHandler = new EventHandlerImpl();
-        disruptor.handleEventsWith(eventHandler).;
-        disruptor.start();
-        ringBuffer = disruptor.getRingBuffer();
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
@@ -142,20 +130,7 @@ final class DisruptorScheduler implements Channel {
 
         shouldRecordQueueMetrics = true;
 
-        // TODO(12345): I don't think we can do this without allocating, in the 1 disruptor case we need more than 3
-        // args.
-        SettableFuture<Response> response = SettableFuture.create();
-        DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
-        Context timer = queuedTime.time();
-        ringBuffer.publishEvent((event, _sequence) -> {
-            event.eventType = QueueEventType.ENQUEUE;
-            event.endpoint = endpoint;
-            event.request = request;
-            event.response = response;
-            event.span = span;
-            event.timer = timer;
-        });
-
+        SettableFuture<Response> response = MultiplexingEventHandler.INSTANCE.enqueue(this, request, endpoint);
         int newSize = incrementQueueSize();
 
         if (log.isDebugEnabled()) {
@@ -169,7 +144,7 @@ final class DisruptorScheduler implements Channel {
     }
 
     private void onCompletion() {
-        ringBuffer.publishEvent(CompletionEventTranslator.INSTANCE);
+        MultiplexingEventHandler.INSTANCE.onCompletion(this);
     }
 
     private int incrementQueueSize() {
@@ -185,12 +160,67 @@ final class DisruptorScheduler implements Channel {
                 + delegate + '}';
     }
 
-    private enum CompletionEventTranslator implements EventTranslator<QueueEvent> {
+    private enum CompletionEventTranslator implements EventTranslatorOneArg<QueueEvent, DisruptorScheduler> {
         INSTANCE;
 
         @Override
-        public void translateTo(QueueEvent event, long _sequence) {
+        public void translateTo(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
             event.eventType = QueueEventType.COMPLETION;
+            event.eventHandlerImpl = scheduler.eventHandler;
+        }
+    }
+
+    private enum MultiplexingEventHandler implements EventHandler<QueueEvent> {
+        INSTANCE;
+
+        private final Set<EventHandlerImpl> eventHandlers;
+        private final RingBuffer<QueueEvent> ringBuffer;
+
+        MultiplexingEventHandler() {
+            // TODO(12345): Use WeakReferences for cleanup.
+            eventHandlers = Collections.newSetFromMap(new IdentityHashMap<>());
+            Disruptor<QueueEvent> disruptor = new Disruptor<>(
+                    QueueEvent::new,
+                    // Probably overkill
+                    16_000,
+                    createThreadFactory(),
+                    ProducerType.MULTI,
+                    // Probably don't want blocking? But easiest to start with
+                    new BlockingWaitStrategy());
+            disruptor.handleEventsWith(this);
+            disruptor.start();
+            ringBuffer = disruptor.getRingBuffer();
+        }
+
+        private void onCompletion(DisruptorScheduler scheduler) {
+            ringBuffer.publishEvent(CompletionEventTranslator.INSTANCE, scheduler);
+        }
+
+        private SettableFuture<Response> enqueue(DisruptorScheduler scheduler, Request request, Endpoint endpoint) {
+            SettableFuture<Response> response = SettableFuture.create();
+            DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
+            Context timer = scheduler.queuedTime.time();
+            ringBuffer.publishEvent((event, _sequence) -> {
+                event.eventType = QueueEventType.ENQUEUE;
+                event.endpoint = endpoint;
+                event.request = request;
+                event.response = response;
+                event.span = span;
+                event.timer = timer;
+            });
+            return response;
+        }
+
+        @Override
+        @SuppressWarnings("NullAway")
+        public void onEvent(QueueEvent event, long sequence, boolean endOfBatch) {
+            try {
+                EventHandlerImpl currentEventHandler = event.eventHandlerImpl;
+                eventHandlers.add(currentEventHandler);
+                currentEventHandler.onEvent(event, sequence, endOfBatch);
+            } finally {
+                event.clear();
+            }
         }
     }
 
@@ -201,39 +231,36 @@ final class DisruptorScheduler implements Channel {
         @Override
         @SuppressWarnings("NullAway")
         public void onEvent(QueueEvent event, long _sequence, boolean endOfBatch) {
-            try {
-                if (event.eventType.isEnqueue()) {
-                    Request request = event.request;
-                    Optional<UUID> routingKey = Optional.ofNullable(
-                            request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null));
-                    Optional<Integer> hostKey =
-                            Optional.ofNullable(request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null));
-                    QueueKey queueKey;
-                    if (!routingKey.isPresent() && !hostKey.isPresent()) {
-                        queueKey = ImmutableDisruptorScheduler.QueueKey.of();
-                    } else {
-                        queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
-                    }
-
-                    Queue<DeferredCall> deferredCalls = queues.get(queueKey);
-                    if (deferredCalls == null) {
-                        deferredCalls = new ArrayDeque<>();
-                        queues.put(queueKey, deferredCalls);
-                    }
-
-                    deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(event.endpoint, event.request, event.response, event.span, event.timer));
+            if (event.eventType.isEnqueue()) {
+                Request request = event.request;
+                Optional<UUID> routingKey =
+                        Optional.ofNullable(request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null));
+                Optional<Integer> hostKey =
+                        Optional.ofNullable(request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null));
+                QueueKey queueKey;
+                if (!routingKey.isPresent() && !hostKey.isPresent()) {
+                    queueKey = ImmutableDisruptorScheduler.QueueKey.of();
                 } else {
-                    // NOOP; we'll simply fall through to do the scheduling at end of batch.
-                    // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
-                    // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
-                    // poll the shared resource (downstream LimitedChannel);
+                    queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
                 }
 
-                if (endOfBatch) {
-                    // TODO(12345): Actually do the routing and polling of downstream channel.
+                Queue<DeferredCall> deferredCalls = queues.get(queueKey);
+                if (deferredCalls == null) {
+                    deferredCalls = new ArrayDeque<>();
+                    queues.put(queueKey, deferredCalls);
                 }
-            } finally {
-                event.clear();
+
+                deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(
+                        event.endpoint, event.request, event.response, event.span, event.timer));
+            } else {
+                // NOOP; we'll simply fall through to do the scheduling at end of batch.
+                // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
+                // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
+                // poll the shared resource (downstream LimitedChannel);
+            }
+
+            if (endOfBatch) {
+                // TODO(12345): Actually do the routing and polling of downstream channel.
             }
         }
     }
@@ -243,6 +270,9 @@ final class DisruptorScheduler implements Channel {
         // in which all the following fields are null and should be ignored
         @Nullable
         private QueueEventType eventType = null;
+
+        @Nullable
+        private EventHandlerImpl eventHandlerImpl;
 
         @Nullable
         private Endpoint endpoint = null;
