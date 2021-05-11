@@ -200,14 +200,19 @@ final class DisruptorScheduler implements Channel {
             SettableFuture<Response> response = SettableFuture.create();
             DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
             Context timer = scheduler.queuedTime.time();
-            ringBuffer.publishEvent((event, _sequence) -> {
+            // Using raw APIs because number of args > 3
+            long sequence = ringBuffer.next(); // Grab the next sequence
+            try {
+                QueueEvent event = ringBuffer.get(sequence); // Get the entry in the Disruptor
                 event.eventType = QueueEventType.ENQUEUE;
                 event.endpoint = endpoint;
                 event.request = request;
                 event.response = response;
                 event.span = span;
                 event.timer = timer;
-            });
+            } finally {
+                ringBuffer.publish(sequence);
+            }
             return response;
         }
 
