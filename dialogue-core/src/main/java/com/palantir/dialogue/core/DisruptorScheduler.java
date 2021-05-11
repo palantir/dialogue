@@ -42,8 +42,8 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -185,7 +185,7 @@ final class DisruptorScheduler implements Channel {
                     16_000,
                     createThreadFactory(),
                     ProducerType.MULTI,
-                    // Probably don't want blocking? But easiest to start with
+                    // Probably don't need blocking? But easiest to start with
                     new BlockingWaitStrategy());
             disruptor.handleEventsWith(this);
             disruptor.start();
@@ -229,43 +229,80 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    private static final class EventHandlerImpl implements EventHandler<QueueEvent> {
+    private final class EventHandlerImpl implements EventHandler<QueueEvent> {
 
-        private final Map<QueueKey, Queue<DeferredCall>> queues = new HashMap<>();
+        // Always iterate in the same order for fairness.
+        private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
 
         @Override
         @SuppressWarnings("NullAway")
         public void onEvent(QueueEvent event, long _sequence, boolean endOfBatch) {
             if (event.eventType.isEnqueue()) {
-                Request request = event.request;
-                Optional<UUID> routingKey =
-                        Optional.ofNullable(request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null));
-                Optional<Integer> hostKey =
-                        Optional.ofNullable(request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null));
-                QueueKey queueKey;
-                if (!routingKey.isPresent() && !hostKey.isPresent()) {
-                    queueKey = ImmutableDisruptorScheduler.QueueKey.of();
-                } else {
-                    queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
-                }
-
-                Queue<DeferredCall> deferredCalls = queues.get(queueKey);
-                if (deferredCalls == null) {
-                    deferredCalls = new ArrayDeque<>();
-                    queues.put(queueKey, deferredCalls);
-                }
-
-                deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(
-                        event.endpoint, event.request, event.response, event.span, event.timer));
-            } else {
-                // NOOP; we'll simply fall through to do the scheduling at end of batch.
-                // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
-                // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
-                // poll the shared resource (downstream LimitedChannel);
+                enqueue(event);
             }
 
+            // On completion we'll simply fall through to do the scheduling at end of batch.
+            // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
+            // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
+            // poll the shared resource (downstream LimitedChannel);
+
             if (endOfBatch) {
-                // TODO(12345): Actually do the routing and polling of downstream channel.
+                schedule();
+            }
+        }
+
+        @SuppressWarnings("NullAway")
+        private void enqueue(QueueEvent event) {
+            Request request = event.request;
+            UUID routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
+            Integer hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+            QueueKey queueKey;
+            if (routingKey == null && hostKey == null) {
+                queueKey = ImmutableDisruptorScheduler.QueueKey.of();
+            } else {
+                queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
+            }
+
+            Queue<DeferredCall> deferredCalls = queues.get(queueKey);
+            if (deferredCalls == null) {
+                deferredCalls = new ArrayDeque<>();
+                queues.put(queueKey, deferredCalls);
+            }
+
+            deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(
+                    event.endpoint, event.request, event.response, event.span, event.timer));
+        }
+
+        private void schedule() {
+            int numScheduled = 0;
+            boolean didWorkInPass;
+
+            do {
+                didWorkInPass = false;
+
+                // TODO(12345): Figure out how to iterate more stably here.
+
+                for (Queue<DeferredCall> queue : queues.values()) {
+                    DeferredCall peekedCall = queue.peek();
+                    if (peekedCall != null) {
+                        Optional<ListenableFuture<Response>> maybeScheduled =
+                                DisruptorScheduler.this.delegate.maybeExecute(
+                                        peekedCall.endpoint(), peekedCall.request());
+
+                        if (maybeScheduled.isPresent()) {
+                            queue.remove();
+                            didWorkInPass = true;
+                            numScheduled += 1;
+                        }
+                    }
+                }
+            } while (didWorkInPass);
+
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Scheduled {} requests on channel {}",
+                        SafeArg.of("numScheduled", numScheduled),
+                        SafeArg.of("channelName", DisruptorScheduler.this.channelName));
             }
         }
     }
@@ -315,11 +352,13 @@ final class DisruptorScheduler implements Channel {
 
     @Value.Immutable(singleton = true)
     interface QueueKey {
+        @Nullable
         @Value.Parameter
-        Optional<UUID> routingKey();
+        UUID routingKey();
 
+        @Nullable
         @Value.Parameter
-        Optional<Integer> hostKey();
+        Integer hostKey();
     }
 
     @Value.Immutable
