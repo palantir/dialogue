@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
@@ -207,18 +206,13 @@ final class DisruptorScheduler implements Channel {
         private SettableFuture<Response> enqueue(DisruptorScheduler scheduler, Request request, Endpoint endpoint) {
             SettableFuture<Response> response = SettableFuture.create();
             DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
-            Context timer = scheduler.queuedTime.time();
+            Timer.Context timer = scheduler.queuedTime.time();
 
             // Using raw APIs because number of args > 3
             long sequence = ringBuffer.next(); // Grab the next sequence
             try {
                 QueueEvent event = ringBuffer.get(sequence); // Get the entry in the Disruptor
-                event.eventType = QueueEventType.ENQUEUE;
-                event.endpoint = endpoint;
-                event.request = request;
-                event.response = response;
-                event.span = span;
-                event.timer = timer;
+                event.enqueue(scheduler.singleThreadedRequestScheduler, endpoint, request, response, span, timer);
             } finally {
                 ringBuffer.publish(sequence);
             }
@@ -249,8 +243,7 @@ final class DisruptorScheduler implements Channel {
 
         @Override
         public void translateTo(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
-            event.eventType = QueueEventType.COMPLETION;
-            event.requestScheduler = scheduler.singleThreadedRequestScheduler;
+            event.completion(scheduler.singleThreadedRequestScheduler);
         }
     }
 
@@ -260,7 +253,7 @@ final class DisruptorScheduler implements Channel {
         private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
 
         @SuppressWarnings("NullAway")
-        public void onEvent(QueueEvent event) {
+        void onEvent(QueueEvent event) {
             if (event.eventType.isEnqueue()) {
                 enqueue(event);
             }
@@ -293,7 +286,7 @@ final class DisruptorScheduler implements Channel {
                     event.endpoint, event.request, event.response, event.span, event.timer));
         }
 
-        public void schedule() {
+        void schedule() {
             int numScheduled = 0;
             boolean didWorkInPass;
 
@@ -372,13 +365,11 @@ final class DisruptorScheduler implements Channel {
     }
 
     private static final class QueueEvent {
-        // Events can either be enqueues, in which case all the following fields are set, or completions,
-        // in which all the following fields are null and should be ignored
         @Nullable
         private QueueEventType eventType = null;
 
         @Nullable
-        private RequestScheduler requestScheduler;
+        private RequestScheduler requestScheduler = null;
 
         @Nullable
         private Endpoint endpoint = null;
@@ -394,6 +385,27 @@ final class DisruptorScheduler implements Channel {
 
         @Nullable
         private Timer.Context timer = null;
+
+        private void enqueue(
+                RequestScheduler newRequestScheduler,
+                Endpoint newEndpoint,
+                Request newRequest,
+                SettableFuture<Response> newResponse,
+                DetachedSpan newSpan,
+                Timer.Context newTimer) {
+            this.eventType = QueueEventType.ENQUEUE;
+            this.requestScheduler = newRequestScheduler;
+            this.endpoint = newEndpoint;
+            this.request = newRequest;
+            this.response = newResponse;
+            this.span = newSpan;
+            this.timer = newTimer;
+        }
+
+        private void completion(RequestScheduler newRequestScheduler) {
+            this.eventType = QueueEventType.COMPLETION;
+            this.requestScheduler = newRequestScheduler;
+        }
 
         private void clear() {
             eventType = null;
