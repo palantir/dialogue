@@ -227,7 +227,7 @@ final class DisruptorScheduler implements Channel {
 
         @Override
         @SuppressWarnings("NullAway")
-        public void onEvent(QueueEvent event, long end-sequence, boolean endOfBatch) {
+        public void onEvent(QueueEvent event, long _sequence, boolean endOfBatch) {
             try {
                 RequestScheduler currentRequestScheduler = event.requestScheduler;
                 allSchedulers.add(currentRequestScheduler);
