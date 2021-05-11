@@ -80,7 +80,7 @@ final class DisruptorScheduler implements Channel {
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
     // avoid creating unnecessary data.
     private volatile boolean shouldRecordQueueMetrics;
-    private final EventHandlerImpl eventHandler;
+    private final RequestScheduler singleThreadedRequestScheduler;
 
     private DisruptorScheduler(
             LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
@@ -93,7 +93,7 @@ final class DisruptorScheduler implements Channel {
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
-        eventHandler = new EventHandlerImpl();
+        singleThreadedRequestScheduler = new RequestScheduler();
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
@@ -164,20 +164,10 @@ final class DisruptorScheduler implements Channel {
 
     @Override
     public String toString() {
-        return "QueuedChannel{queueSizeEstimate="
+        return "DisruptorScheduler{queueSizeEstimate="
                 + queueSizeEstimate + ", maxQueueSize="
                 + maxQueueSize + ", delegate="
                 + delegate + '}';
-    }
-
-    private enum CompletionEventTranslator implements EventTranslatorOneArg<QueueEvent, DisruptorScheduler> {
-        INSTANCE;
-
-        @Override
-        public void translateTo(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
-            event.eventType = QueueEventType.COMPLETION;
-            event.eventHandlerImpl = scheduler.eventHandler;
-        }
     }
 
     private static final class MultiplexingEventHandler implements EventHandler<QueueEvent> {
@@ -186,7 +176,7 @@ final class DisruptorScheduler implements Channel {
                 .setNameFormat("Dialogue-queue-scheduler-%d")
                 .build();
 
-        private final Set<EventHandlerImpl> eventHandlers;
+        private final Set<RequestScheduler> eventHandlers;
         private final RingBuffer<QueueEvent> ringBuffer;
 
         MultiplexingEventHandler() {
@@ -236,18 +226,28 @@ final class DisruptorScheduler implements Channel {
         @SuppressWarnings("NullAway")
         public void onEvent(QueueEvent event, long sequence, boolean endOfBatch) {
             try {
-                EventHandlerImpl currentEventHandler = event.eventHandlerImpl;
-                eventHandlers.add(currentEventHandler);
-                currentEventHandler.onEvent(event, sequence, endOfBatch);
+                RequestScheduler currentRequestScheduler = event.requestScheduler;
+                eventHandlers.add(currentRequestScheduler);
+                currentRequestScheduler.onEvent(event, sequence, endOfBatch);
             } finally {
                 event.clear();
             }
         }
     }
 
-    private final class EventHandlerImpl implements EventHandler<QueueEvent> {
+    private enum CompletionEventTranslator implements EventTranslatorOneArg<QueueEvent, DisruptorScheduler> {
+        INSTANCE;
 
-        // Always iterate in the same order for fairness and keep weak references only.
+        @Override
+        public void translateTo(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
+            event.eventType = QueueEventType.COMPLETION;
+            event.requestScheduler = scheduler.singleThreadedRequestScheduler;
+        }
+    }
+
+    private final class RequestScheduler implements EventHandler<QueueEvent> {
+
+        // Always iterate in the same order for fairness
         private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
 
         @Override
@@ -349,7 +349,8 @@ final class DisruptorScheduler implements Channel {
                             // Currently cancel(false) will be converted to cancel(true)
                             if (!response.cancel(true) && log.isDebugEnabled()) {
                                 log.debug(
-                                        "Failed to cancel delegate response, it should be reported by ForwardAndSchedule logging",
+                                        "Failed to cancel delegate response, "
+                                                + "it should be reported by ForwardAndSchedule logging",
                                         SafeArg.of("channel", channelName),
                                         SafeArg.of("service", endpoint.serviceName()),
                                         SafeArg.of("endpoint", endpoint.endpointName()));
@@ -371,7 +372,7 @@ final class DisruptorScheduler implements Channel {
         private QueueEventType eventType = null;
 
         @Nullable
-        private EventHandlerImpl eventHandlerImpl;
+        private RequestScheduler requestScheduler;
 
         @Nullable
         private Endpoint endpoint = null;
