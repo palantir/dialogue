@@ -349,8 +349,8 @@ final class DisruptorScheduler implements Channel {
                             // Currently cancel(false) will be converted to cancel(true)
                             if (!response.cancel(true) && log.isDebugEnabled()) {
                                 log.debug(
-                                        "Failed to cancel delegate response, "
-                                                + "it should be reported by ForwardAndSchedule logging",
+                                        "Failed to cancel delegate response, it should be reported by"
+                                                + " ForwardAndSchedule logging",
                                         SafeArg.of("channel", channelName),
                                         SafeArg.of("service", endpoint.serviceName()),
                                         SafeArg.of("endpoint", endpoint.endpointName()));
