@@ -189,7 +189,7 @@ final class DisruptorScheduler implements Channel {
             Disruptor<QueueEvent> disruptor = new Disruptor<>(
                     QueueEvent::new,
                     // Probably overkill, but keeping the same size as Log4j AsyncLogger queue.
-                    16_000,
+                    16_384,
                     THREAD_FACTORY,
                     ProducerType.MULTI,
                     // Probably don't need blocking? But easiest to start with
