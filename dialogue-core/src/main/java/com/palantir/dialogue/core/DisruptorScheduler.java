@@ -21,6 +21,7 @@ import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -39,6 +40,7 @@ import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -50,6 +52,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.WeakHashMap;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -152,6 +155,11 @@ final class DisruptorScheduler implements Channel {
     private int incrementQueueSize() {
         queueSizeCounter.get().inc();
         return queueSizeEstimate.incrementAndGet();
+    }
+
+    private void decrementQueueSize() {
+        queueSizeEstimate.decrementAndGet();
+        queueSizeCounter.get().dec();
     }
 
     @Override
@@ -293,11 +301,8 @@ final class DisruptorScheduler implements Channel {
                 for (Queue<DeferredCall> queue : queues.values()) {
                     DeferredCall peekedCall = queue.peek();
                     if (peekedCall != null) {
-                        Optional<ListenableFuture<Response>> maybeScheduled =
-                                DisruptorScheduler.this.delegate.maybeExecute(
-                                        peekedCall.endpoint(), peekedCall.request());
-
-                        if (maybeScheduled.isPresent()) {
+                        boolean scheduled = trySchedule(peekedCall);
+                        if (scheduled) {
                             queue.remove();
                             didWorkInPass = true;
                             numScheduled += 1;
@@ -312,6 +317,50 @@ final class DisruptorScheduler implements Channel {
                         SafeArg.of("numScheduled", numScheduled),
                         SafeArg.of("channelName", DisruptorScheduler.this.channelName));
             }
+        }
+
+        private boolean trySchedule(DeferredCall queueHead) {
+            SettableFuture<Response> queuedResponse = queueHead.response();
+            // If the future has been completed (most likely via cancel) the call should not be queued.
+            // There's a race where cancel may be invoked between this check and execution, but the scheduled
+            // request will be quickly cancelled in that case.
+            if (queuedResponse.isDone()) {
+                DisruptorScheduler.this.decrementQueueSize();
+                queueHead.span().complete();
+                queueHead.timer().stop();
+                return true;
+            }
+
+            try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
+                Endpoint endpoint = queueHead.endpoint();
+                Optional<ListenableFuture<Response>> maybeResponse =
+                        delegate.maybeExecute(endpoint, queueHead.request());
+
+                if (maybeResponse.isPresent()) {
+                    decrementQueueSize();
+                    ListenableFuture<Response> response = maybeResponse.get();
+                    queueHead.span().complete();
+                    queueHead.timer().stop();
+                    DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
+                    DialogueFutures.addDirectListener(queuedResponse, () -> {
+                        if (queuedResponse.isCancelled()) {
+                            // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                            // here.
+                            // Currently cancel(false) will be converted to cancel(true)
+                            if (!response.cancel(true) && log.isDebugEnabled()) {
+                                log.debug(
+                                        "Failed to cancel delegate response, it should be reported by ForwardAndSchedule logging",
+                                        SafeArg.of("channel", channelName),
+                                        SafeArg.of("service", endpoint.serviceName()),
+                                        SafeArg.of("endpoint", endpoint.endpointName()));
+                            }
+                        }
+                    });
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 
@@ -367,6 +416,38 @@ final class DisruptorScheduler implements Channel {
         @Nullable
         @Value.Parameter
         Integer hostKey();
+    }
+
+    /**
+     * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
+     * Also poke the disruptor to try to schedule more calls.
+     */
+    private final class ForwardAndSchedule implements FutureCallback<Response> {
+        private final SettableFuture<Response> response;
+
+        ForwardAndSchedule(SettableFuture<Response> response) {
+            this.response = response;
+        }
+
+        @Override
+        public void onSuccess(Response result) {
+            if (!response.set(result)) {
+                result.close();
+            }
+            DisruptorScheduler.this.onCompletion();
+        }
+
+        @Override
+        public void onFailure(Throwable throwable) {
+            if (!response.setException(throwable)) {
+                if (throwable instanceof CancellationException) {
+                    log.debug("Call was canceled", throwable);
+                } else {
+                    log.info("Call failed after the future completed", throwable);
+                }
+            }
+            DisruptorScheduler.this.onCompletion();
+        }
     }
 
     @Value.Immutable
