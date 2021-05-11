@@ -176,14 +176,17 @@ final class DisruptorScheduler implements Channel {
                 .setNameFormat("Dialogue-queue-scheduler-%d")
                 .build();
 
-        private final Set<RequestScheduler> eventHandlers;
+        private final Set<RequestScheduler> allSchedulers;
+        private final Set<RequestScheduler> dirtySchedulers;
         private final RingBuffer<QueueEvent> ringBuffer;
 
         MultiplexingEventHandler() {
             // We want the set to be keyed by instances of EventHandlerImpl, of which there is 1 per DisruptorScheduler
             // instance. Additionally, we want to only keep weak references to those, so that we don't leak queues for
             // GCed DialogueChannels.
-            eventHandlers = Collections.newSetFromMap(new WeakHashMap<>(new IdentityHashMap<>()));
+            allSchedulers = Collections.newSetFromMap(new WeakHashMap<>(new IdentityHashMap<>()));
+            // This set is cleared every batch, so can use strong keys.
+            dirtySchedulers = Collections.newSetFromMap(new IdentityHashMap<>());
             Disruptor<QueueEvent> disruptor = new Disruptor<>(
                     QueueEvent::new,
                     // Probably overkill, but keeping the same size as Log4j AsyncLogger queue.
@@ -224,11 +227,17 @@ final class DisruptorScheduler implements Channel {
 
         @Override
         @SuppressWarnings("NullAway")
-        public void onEvent(QueueEvent event, long sequence, boolean endOfBatch) {
+        public void onEvent(QueueEvent event, long end-sequence, boolean endOfBatch) {
             try {
                 RequestScheduler currentRequestScheduler = event.requestScheduler;
-                eventHandlers.add(currentRequestScheduler);
-                currentRequestScheduler.onEvent(event, sequence, endOfBatch);
+                allSchedulers.add(currentRequestScheduler);
+                dirtySchedulers.add(currentRequestScheduler);
+                currentRequestScheduler.onEvent(event);
+
+                if (endOfBatch) {
+                    dirtySchedulers.forEach(RequestScheduler::schedule);
+                    dirtySchedulers.clear();
+                }
             } finally {
                 event.clear();
             }
@@ -245,14 +254,13 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    private final class RequestScheduler implements EventHandler<QueueEvent> {
+    private final class RequestScheduler {
 
         // Always iterate in the same order for fairness
         private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
 
-        @Override
         @SuppressWarnings("NullAway")
-        public void onEvent(QueueEvent event, long _sequence, boolean endOfBatch) {
+        public void onEvent(QueueEvent event) {
             if (event.eventType.isEnqueue()) {
                 enqueue(event);
             }
@@ -261,10 +269,6 @@ final class DisruptorScheduler implements Channel {
             // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
             // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
             // poll the shared resource (downstream LimitedChannel);
-
-            if (endOfBatch) {
-                schedule();
-            }
         }
 
         @SuppressWarnings("NullAway")
@@ -289,15 +293,17 @@ final class DisruptorScheduler implements Channel {
                     event.endpoint, event.request, event.response, event.span, event.timer));
         }
 
-        private void schedule() {
+        public void schedule() {
             int numScheduled = 0;
             boolean didWorkInPass;
 
             do {
                 didWorkInPass = false;
 
-                // TODO(12345): Figure out how to iterate more stably here.
-
+                // TODO(12345): Figure out how to iterate more stably: we always start from the beginning,
+                // so technically queues inserted first get some more priority.
+                // TODO(12345): Figure out how not to allocate here: forEach does not allocate, but how do I thread the
+                // local variables through.
                 for (Queue<DeferredCall> queue : queues.values()) {
                     DeferredCall peekedCall = queue.peek();
                     if (peekedCall != null) {
