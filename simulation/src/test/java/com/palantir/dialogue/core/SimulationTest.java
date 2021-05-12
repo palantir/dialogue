@@ -55,6 +55,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -102,7 +103,10 @@ final class SimulationTest {
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @EnumSource(Strategy.class)
-    @ParameterizedTest
+    @Disabled
+    @ParameterizedTest(
+            name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + " [" + ParameterizedTest.INDEX_PLACEHOLDER + "] "
+                    + ParameterizedTest.ARGUMENTS_WITH_NAMES_PLACEHOLDER)
     @interface SimulationCase {}
 
     private Strategy st;
