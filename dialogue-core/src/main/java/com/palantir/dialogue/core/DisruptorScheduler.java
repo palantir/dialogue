@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.google.errorprone.annotations.MustBeClosed;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.EventTranslatorOneArg;
@@ -69,6 +70,7 @@ final class DisruptorScheduler implements Channel {
 
     private static final MultiplexingEventHandler MULTIPLEXING_EVENT_HANDLER = new MultiplexingEventHandler();
     private static final Logger log = LoggerFactory.getLogger(DisruptorScheduler.class);
+    private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = CopyingFairQueue::new;
 
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
@@ -96,7 +98,7 @@ final class DisruptorScheduler implements Channel {
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
-        singleThreadedRequestScheduler = new RequestScheduler();
+        singleThreadedRequestScheduler = new RequestScheduler(FAIR_QUEUE_SUPPLIER.get());
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
@@ -186,6 +188,7 @@ final class DisruptorScheduler implements Channel {
         private static final int RING_BUFFER_SIZE = 16_384;
 
         private final Set<RequestScheduler> allSchedulers;
+        // Set of schedulers that should run rescheduling.
         private final Set<RequestScheduler> dirtySchedulers;
         private final RingBuffer<QueueEvent> ringBuffer;
 
@@ -236,8 +239,11 @@ final class DisruptorScheduler implements Channel {
             try {
                 RequestScheduler currentRequestScheduler = event.requestScheduler;
                 allSchedulers.add(currentRequestScheduler);
-                dirtySchedulers.add(currentRequestScheduler);
-                currentRequestScheduler.onEvent(event);
+                if (event.eventType.isEnqueue()) {
+                    currentRequestScheduler.enqueue(event);
+                } else {
+                    dirtySchedulers.add(currentRequestScheduler);
+                }
 
                 if (endOfBatch) {
                     dirtySchedulers.forEach(RequestScheduler::schedule);
@@ -264,18 +270,10 @@ final class DisruptorScheduler implements Channel {
 
     private final class RequestScheduler {
 
-        private final FairQueues fairQueues = new FairQueues();
+        private final FairQueue fairQueue;
 
-        @SuppressWarnings("NullAway")
-        void onEvent(QueueEvent event) {
-            if (event.eventType.isEnqueue()) {
-                enqueue(event);
-            }
-
-            // On completion event we'll simply fall through to do the scheduling at end of batch.
-            // TODO(12345): Possibly could route cheaper/better if we know what hosts the requests were executed
-            // on. But for now let's keep this scheduler dumb/oblivious of what it's scheduling on/only able to
-            // poll the shared resource (downstream LimitedChannel);
+        private RequestScheduler(FairQueue fairQueue) {
+            this.fairQueue = fairQueue;
         }
 
         @SuppressWarnings("NullAway")
@@ -284,7 +282,7 @@ final class DisruptorScheduler implements Channel {
             UUID routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
             Integer hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
 
-            fairQueues.addToQueue(
+            fairQueue.addToQueue(
                     routingKey,
                     hostKey,
                     ImmutableDisruptorScheduler.DeferredCall.of(
@@ -296,7 +294,7 @@ final class DisruptorScheduler implements Channel {
             boolean scheduledInRound;
 
             do {
-                try (SchedulingRound round = fairQueues.startSchedulingRound()) {
+                try (CopyingFairQueueRoundIterator round = fairQueue.startSchedulingRound()) {
                     scheduledInRound = false;
                     while (round.hasNext()) {
                         DeferredCall head = round.next();
@@ -334,14 +332,15 @@ final class DisruptorScheduler implements Channel {
             try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
                 Endpoint endpoint = queueHead.endpoint();
                 Optional<ListenableFuture<Response>> maybeResponse =
-                        delegate.maybeExecute(endpoint, queueHead.request());
+                        DisruptorScheduler.this.delegate.maybeExecute(endpoint, queueHead.request());
 
                 if (maybeResponse.isPresent()) {
-                    decrementQueueSize();
+                    DisruptorScheduler.this.decrementQueueSize();
                     ListenableFuture<Response> response = maybeResponse.get();
                     queueHead.span().complete();
                     queueHead.timer().stop();
-                    DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
+                    DialogueFutures.addDirectCallback(
+                            response, new DisruptorScheduler.ForwardAndSchedule(queuedResponse));
                     DialogueFutures.addDirectListener(queuedResponse, () -> {
                         if (queuedResponse.isCancelled()) {
                             // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
@@ -351,7 +350,7 @@ final class DisruptorScheduler implements Channel {
                                 log.debug(
                                         "Failed to cancel delegate response, it should be reported by"
                                                 + " ForwardAndSchedule logging",
-                                        SafeArg.of("channel", channelName),
+                                        SafeArg.of("channel", DisruptorScheduler.this.channelName),
                                         SafeArg.of("service", endpoint.serviceName()),
                                         SafeArg.of("endpoint", endpoint.endpointName()));
                             }
@@ -365,20 +364,42 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
+    interface FairQueue {
+        void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call);
+
+        @MustBeClosed
+        <T extends Iterator<DeferredCall> & AutoCloseable> T startSchedulingRound();
+    }
+
     @VisibleForTesting
-    static final class FairQueues {
+    static final class CopyingFairQueue implements FairQueue {
+
+        // Observations for less expensive scheduling algorithm (better terminating conditions):
+        // 1. If you try to schedule a request without a hostKey, you can stop scheduling: all the capacity in the
+        // system is exhausted.
+        // 2. If you try to schedule a request with a hostKey, do not try to schedule any more requests with the same
+        // hostKey.
+        // With this sort of implementation, you simply keep cycling through queues, until you are no longer able to
+        // schedule anything.
+        //
+        // Some drawbacks of this impl:
+        // 1. If there is a lot of QueueKeys, having to copy fairQueue into SchedulingRound will get expensive.
+        // Therefore it would be useful to be able to not do that.
+        // 2.
 
         private final Map<QueueKey, Queue<DeferredCall>> allQueues = new HashMap<>();
         private final Deque<QueueKey> fairQueue = new ArrayDeque<>();
-        private final SchedulingRound schedulingRound = new SchedulingRound(this);
+        private final CopyingFairQueueRoundIterator copyingFairQueueRoundIterator =
+                new CopyingFairQueueRoundIterator(this);
 
-        SchedulingRound startSchedulingRound() {
-            schedulingRound.startSchedulingRound();
-            return schedulingRound;
+        @Override
+        public CopyingFairQueueRoundIterator startSchedulingRound() {
+            copyingFairQueueRoundIterator.startSchedulingRound();
+            return copyingFairQueueRoundIterator;
         }
 
-        private void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call) {
-            schedulingRound.assertNotOpen();
+        public void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call) {
+            copyingFairQueueRoundIterator.assertNotOpen();
             QueueKey queueKey;
             if (routingKey == null && hostKey == null) {
                 queueKey = ImmutableDisruptorScheduler.QueueKey.of();
@@ -396,9 +417,9 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    static final class SchedulingRound implements Iterator<DeferredCall>, AutoCloseable {
+    static final class CopyingFairQueueRoundIterator implements Iterator<DeferredCall>, AutoCloseable {
 
-        private final FairQueues parent;
+        private final CopyingFairQueue parent;
         private final Deque<QueueKey> round = new ArrayDeque<>();
 
         @Nullable
@@ -409,7 +430,7 @@ final class DisruptorScheduler implements Channel {
 
         private boolean open = false;
 
-        SchedulingRound(FairQueues parent) {
+        CopyingFairQueueRoundIterator(CopyingFairQueue parent) {
             this.parent = parent;
         }
 
