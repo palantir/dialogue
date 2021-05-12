@@ -44,6 +44,7 @@ import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -296,8 +297,10 @@ final class DisruptorScheduler implements Channel {
                 // TODO(12345): Figure out how to iterate more stably: we always start from the beginning,
                 // so technically queues inserted first get some more priority.
                 // TODO(12345): Figure out how not to allocate here: forEach does not allocate, but how do I thread the
-                // local variables through.
-                for (Queue<DeferredCall> queue : queues.values()) {
+                // local variables and remove values?
+                Iterator<Queue<DeferredCall>> iterator = queues.values().iterator();
+                while (iterator.hasNext()) {
+                    Queue<DeferredCall> queue = iterator.next();
                     DeferredCall peekedCall = queue.peek();
                     if (peekedCall != null) {
                         boolean scheduled = trySchedule(peekedCall);
@@ -306,6 +309,8 @@ final class DisruptorScheduler implements Channel {
                             didWorkInPass = true;
                             numScheduled += 1;
                         }
+                    } else {
+                        iterator.remove();
                     }
                 }
             } while (didWorkInPass);
