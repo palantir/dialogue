@@ -18,6 +18,9 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -32,6 +35,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import org.awaitility.Awaitility;
@@ -75,12 +80,11 @@ public final class DisruptorSchedulerTest {
                 100_000);
         futureResponse = SettableFuture.create();
         maybeResponse = Optional.of(futureResponse);
-
-        mockHasCapacity();
     }
 
     @Test
     public void testReceivesSuccessfulResponse() throws ExecutionException, InterruptedException {
+        mockHasCapacity();
         ListenableFuture<Response> response =
                 queuedChannel.maybeExecute(endpoint, request).get();
         assertThat(response.isDone()).isFalse();
@@ -93,6 +97,7 @@ public final class DisruptorSchedulerTest {
 
     @Test
     public void testReceivesExceptionalResponse() {
+        mockHasCapacity();
         ListenableFuture<Response> response =
                 queuedChannel.maybeExecute(endpoint, request).get();
         assertThat(response.isDone()).isFalse();
@@ -317,6 +322,84 @@ public final class DisruptorSchedulerTest {
         verify(delegate, times(1)).maybeExecute(endpoint, request);
         // Should not have been invoked any more.
         verify(delegate, times(2)).maybeExecute(endpoint, queued);
+    }
+
+    @Test
+    public void testSchedulingAcrossQueuesIsFair() {
+        Request queue1Req1 = request(1);
+        Request queue1Req2 = request(1);
+        Request queue2Req1 = request;
+        Request queue2Req2 = request;
+
+        List<ListenableFuture<?>> responses = new ArrayList<>();
+
+        when(delegate.maybeExecute(eq(endpoint), any(Request.class))).thenReturn(Optional.empty());
+        responses.add(queuedChannel.maybeExecute(endpoint, queue1Req1).get());
+        responses.add(queuedChannel.maybeExecute(endpoint, queue1Req2).get());
+        responses.add(queuedChannel.maybeExecute(endpoint, queue2Req1).get());
+        responses.add(queuedChannel.maybeExecute(endpoint, queue2Req2).get());
+
+        awaitAllEventsProcessed();
+
+        assertThat(responses).allSatisfy(response -> assertThat(response).isNotDone());
+
+        // #1
+        reset(delegate);
+        when(delegate.maybeExecute(eq(endpoint), any(Request.class)))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))))
+                .thenReturn(Optional.empty());
+
+        // First queue, first request should get scheduled
+        pokeQueueAndAwait();
+        assertThat(responses.get(0)).isDone();
+        assertThat(responses.get(1)).isNotDone();
+        assertThat(responses.get(2)).isNotDone();
+        assertThat(responses.get(3)).isNotDone();
+
+        // #2
+        reset(delegate);
+        when(delegate.maybeExecute(eq(endpoint), any(Request.class)))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))))
+                .thenReturn(Optional.empty());
+
+        // Second queue, first request should get scheduled
+        pokeQueueAndAwait();
+        assertThat(responses.get(0)).isDone();
+        assertThat(responses.get(1)).isNotDone();
+        assertThat(responses.get(2)).isDone();
+        assertThat(responses.get(3)).isNotDone();
+
+        // #3
+        reset(delegate);
+        when(delegate.maybeExecute(eq(endpoint), any(Request.class)))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))))
+                .thenReturn(Optional.empty());
+
+        // First queue, second request should get scheduled
+        pokeQueueAndAwait();
+        assertThat(responses.get(0)).isDone();
+        assertThat(responses.get(1)).isDone();
+        assertThat(responses.get(2)).isDone();
+        assertThat(responses.get(3)).isNotDone();
+
+        // #4
+        reset(delegate);
+        when(delegate.maybeExecute(eq(endpoint), any(Request.class)))
+                .thenReturn(Optional.of(Futures.immediateFuture(Mockito.mock(Response.class))))
+                .thenReturn(Optional.empty());
+
+        // Second queue, second request should get scheduled
+        pokeQueueAndAwait();
+        assertThat(responses.get(0)).isDone();
+        assertThat(responses.get(1)).isDone();
+        assertThat(responses.get(2)).isDone();
+        assertThat(responses.get(3)).isDone();
+    }
+
+    private Request request(int hostKey) {
+        Request hostRequest = Request.builder().putHeaderParams("key", "val").build();
+        hostRequest.attachments().put(RoutingAttachments.HOST_KEY, hostKey);
+        return hostRequest;
     }
 
     private void pokeQueueAndAwait() {
