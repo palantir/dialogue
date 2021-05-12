@@ -37,15 +37,17 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Deque;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -262,8 +264,7 @@ final class DisruptorScheduler implements Channel {
 
     private final class RequestScheduler {
 
-        // Always iterate in the same order for fairness
-        private final Map<QueueKey, Queue<DeferredCall>> queues = new LinkedHashMap<>();
+        private final FairQueues fairQueues = new FairQueues();
 
         @SuppressWarnings("NullAway")
         void onEvent(QueueEvent event) {
@@ -282,50 +283,33 @@ final class DisruptorScheduler implements Channel {
             Request request = event.request;
             UUID routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
             Integer hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
-            QueueKey queueKey;
-            if (routingKey == null && hostKey == null) {
-                queueKey = ImmutableDisruptorScheduler.QueueKey.of();
-            } else {
-                queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
-            }
 
-            Queue<DeferredCall> deferredCalls = queues.get(queueKey);
-            if (deferredCalls == null) {
-                deferredCalls = new ArrayDeque<>();
-                queues.put(queueKey, deferredCalls);
-            }
-
-            deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(
-                    event.endpoint, event.request, event.response, event.span, event.queuedTimeTimer));
+            fairQueues.addToQueue(
+                    routingKey,
+                    hostKey,
+                    ImmutableDisruptorScheduler.DeferredCall.of(
+                            event.endpoint, event.request, event.response, event.span, event.queuedTimeTimer));
         }
 
         void schedule() {
             int numScheduled = 0;
-            boolean didWorkInPass;
+            boolean scheduledInRound;
 
             do {
-                didWorkInPass = false;
-
-                // TODO(12345): Figure out how to iterate more stably: we always start from the beginning,
-                // so technically queues inserted first get some more priority.
-                // TODO(12345): Figure out how not to allocate here: forEach does not allocate, but how do I thread the
-                // local variables and remove values?
-                Iterator<Queue<DeferredCall>> iterator = queues.values().iterator();
-                while (iterator.hasNext()) {
-                    Queue<DeferredCall> queue = iterator.next();
-                    DeferredCall peekedCall = queue.peek();
-                    if (peekedCall != null) {
-                        boolean scheduled = trySchedule(peekedCall);
+                try (SchedulingRound round = fairQueues.startSchedulingRound()) {
+                    scheduledInRound = false;
+                    while (round.hasNext()) {
+                        DeferredCall head = round.next();
+                        boolean scheduled = trySchedule(head);
                         if (scheduled) {
-                            queue.remove();
-                            didWorkInPass = true;
+                            scheduledInRound = true;
                             numScheduled += 1;
+
+                            round.remove();
                         }
-                    } else {
-                        iterator.remove();
                     }
                 }
-            } while (didWorkInPass);
+            } while (scheduledInRound);
 
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -378,6 +362,108 @@ final class DisruptorScheduler implements Channel {
             }
 
             return false;
+        }
+    }
+
+    @VisibleForTesting
+    static final class FairQueues {
+
+        private final Map<QueueKey, Queue<DeferredCall>> allQueues = new HashMap<>();
+        private final Deque<QueueKey> fairQueue = new ArrayDeque<>();
+        private final SchedulingRound schedulingRound = new SchedulingRound(this);
+
+        SchedulingRound startSchedulingRound() {
+            schedulingRound.startSchedulingRound();
+            return schedulingRound;
+        }
+
+        private void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call) {
+            schedulingRound.assertNotOpen();
+            QueueKey queueKey;
+            if (routingKey == null && hostKey == null) {
+                queueKey = ImmutableDisruptorScheduler.QueueKey.of();
+            } else {
+                queueKey = ImmutableDisruptorScheduler.QueueKey.of(routingKey, hostKey);
+            }
+            Queue<DeferredCall> deferredCalls = allQueues.get(queueKey);
+            if (deferredCalls == null) {
+                deferredCalls = new ArrayDeque<>();
+                allQueues.put(queueKey, deferredCalls);
+                fairQueue.addLast(queueKey);
+            }
+
+            deferredCalls.add(call);
+        }
+    }
+
+    static final class SchedulingRound implements Iterator<DeferredCall>, AutoCloseable {
+
+        private final FairQueues parent;
+        private final Deque<QueueKey> round = new ArrayDeque<>();
+
+        @Nullable
+        private QueueKey curKey;
+
+        @Nullable
+        private Queue<DeferredCall> curQueue;
+
+        private boolean open = false;
+
+        SchedulingRound(FairQueues parent) {
+            this.parent = parent;
+        }
+
+        void assertNotOpen() {
+            Preconditions.checkState(!open, "already open!");
+        }
+
+        void startSchedulingRound() {
+            assertNotOpen();
+            open = true;
+            round.clear();
+            round.addAll(parent.fairQueue);
+        }
+
+        @Override
+        public boolean hasNext() {
+            return !round.isEmpty();
+        }
+
+        @Override
+        public DeferredCall next() {
+            curKey = round.remove();
+            curQueue = Preconditions.checkNotNull(parent.allQueues.get(curKey), "allQueues");
+            return curQueue.peek();
+        }
+
+        @Override
+        public void remove() {
+            curQueue().remove();
+
+            // For fairness we remove the queue key, and add it to the end of the queue of queues if
+            // it still has entries.
+            parent.fairQueue.remove(curKey);
+
+            if (curQueue().isEmpty()) {
+                parent.allQueues.remove(curKey());
+                parent.fairQueue.remove(curKey());
+            } else {
+                parent.fairQueue.add(curKey());
+            }
+        }
+
+        @Override
+        public void close() {
+            open = false;
+            round.clear();
+        }
+
+        private QueueKey curKey() {
+            return Preconditions.checkNotNull(curKey, "curKey");
+        }
+
+        private Queue<DeferredCall> curQueue() {
+            return Preconditions.checkNotNull(curQueue, "curQueue");
         }
     }
 
