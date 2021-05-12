@@ -399,12 +399,17 @@ final class DisruptorScheduler implements Channel {
         // 2. If you try to schedule a request with a hostKey, do not try to schedule any more requests with the same
         // hostKey.
         // With this sort of implementation, you simply keep cycling through queues, until you are no longer able to
-        // schedule anything.
+        // schedule anything. Not quite, because you'd keep going through the queue, as long as you have a single host
+        // that's un-schedulable.
         //
         // Some drawbacks of this impl:
         // 1. If there is a lot of QueueKeys, having to copy fairQueue into SchedulingRound will get expensive.
         // Therefore it would be useful to be able to not do that.
-        // 2.
+        // 2. If you schedule something in a round, you have to go through the queues again.
+        //
+        // Useful data for improving this:
+        // 1. Some way to eliminate queues, as soon as host is fully scheduled.
+        //   * ideally without copying entire queue.
 
         private final Map<QueueKey, Queue<DeferredCall>> allQueues = new HashMap<>();
         private final Deque<QueueKey> fairQueue = new ArrayDeque<>();
