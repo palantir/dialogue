@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -566,11 +567,11 @@ final class SimulationTest {
     }
 
     private Supplier<Optional<SimulationServer>> beginAt(Duration beginTime, SimulationServer server) {
-        boolean[] enabled = {false};
+        AtomicBoolean enabled = new AtomicBoolean();
         return () -> {
             if (simulation.clock().read() >= beginTime.toNanos()) {
-                if (!enabled[0]) {
-                    enabled[0] = true;
+                if (!enabled.get()) {
+                    enabled.set(true);
                     simulation.events().event("new server: " + server);
                 }
                 return Optional.of(server);

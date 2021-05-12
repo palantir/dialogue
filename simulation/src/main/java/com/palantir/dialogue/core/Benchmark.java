@@ -35,11 +35,13 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
@@ -147,7 +149,7 @@ public final class Benchmark {
             }
 
             @Override
-            public void update(Duration _time, long _requestsStarted, long responsesReceived) {
+            public void update(long responsesReceived) {
                 if (responsesReceived >= numReceived) {
                     log.warn("Terminated normally after receiving {} responses", responsesReceived);
                     future.set(null);
@@ -183,25 +185,31 @@ public final class Benchmark {
     @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
     public ListenableFuture<BenchmarkResult> schedule() {
 
-        long[] requestsStarted = {0};
-        long[] responsesReceived = {0};
-        Map<String, Integer> statusCodes = new TreeMap<>();
+        AtomicLong requestsStarted = new AtomicLong(0);
+        AtomicLong responsesReceived = new AtomicLong(0);
+        Map<String, Integer> statusCodes = Collections.synchronizedMap(new TreeMap<>());
 
         Stopwatch scheduling = Stopwatch.createStarted();
 
         benchmarkFinished
                 .getFuture()
                 .addListener(simulation.metricsReporter()::report, DialogueFutures.safeDirectExecutor());
-        FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
+        Runnable requestCompleteCallback = () -> {
+            long currentResponsesReceived = responsesReceived.incrementAndGet();
+            benchmarkFinished.update(currentResponsesReceived);
+        };
+        FutureCallback<Response> onRequestExecuted = new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
                 response.close(); // just being a good citizen
                 statusCodes.compute(Integer.toString(response.code()), (_c, num) -> num == null ? 1 : num + 1);
+                requestCompleteCallback.run();
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 statusCodes.compute(throwable.getMessage(), (_c, num) -> num == null ? 1 : num + 1);
+                requestCompleteCallback.run();
             }
         };
         requestStream.forEach(req -> {
@@ -219,21 +227,10 @@ public final class Benchmark {
                                 EndpointChannel channel = endpointChannels[endpointChannelChooser.getAsInt()];
                                 try {
                                     ListenableFuture<Response> future = channel.execute(req.request());
-                                    requestsStarted[0] += 1;
+                                    requestsStarted.incrementAndGet();
 
                                     Futures.addCallback(
-                                            future, accumulateStatusCodes, DialogueFutures.safeDirectExecutor());
-                                    future.addListener(
-                                            () -> {
-                                                responsesReceived[0] += 1;
-                                                benchmarkFinished.update(
-                                                        Duration.ofNanos(simulation
-                                                                .clock()
-                                                                .read()),
-                                                        requestsStarted[0],
-                                                        responsesReceived[0]);
-                                            },
-                                            DialogueFutures.safeDirectExecutor());
+                                            future, onRequestExecuted, DialogueFutures.safeDirectExecutor());
                                 } catch (RuntimeException e) {
                                     log.error("Channels shouldn't throw", e);
                                 }
@@ -243,7 +240,7 @@ public final class Benchmark {
             simulation.runClockTo(Optional.of(Duration.ofNanos(req.sendTimeNanos())));
         });
         long ms = scheduling.elapsed(TimeUnit.MILLISECONDS);
-        log.warn("Fired off all requests ({} ms, {}req/sec)", ms, (1000 * requestsStarted[0]) / ms);
+        log.warn("Fired off all requests ({} ms, {}req/sec)", ms, (1000 * requestsStarted.get()) / ms);
 
         return Futures.transform(
                 benchmarkFinished.getFuture(),
@@ -259,9 +256,10 @@ public final class Benchmark {
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(
-                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted[0]) / 10d)
-                            .numSent(requestsStarted[0])
-                            .numReceived(responsesReceived[0])
+                                    Math.round(statusCodes.getOrDefault("200", 0) * 1000d / requestsStarted.get())
+                                            / 10d)
+                            .numSent(requestsStarted.get())
+                            .numReceived(responsesReceived.get())
                             .numGlobalResponses(numGlobalResponses)
                             .responsesLeaked(leaked)
                             .build();
@@ -315,7 +313,7 @@ public final class Benchmark {
          * Called after every request to give this predicate the opportunity to terminate the benchmark by
          * resolving the SettableFuture.
          */
-        void update(Duration time, long requestsStarted, long responsesReceived);
+        void update(long responsesReceived);
     }
 
     @Value.Immutable

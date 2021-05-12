@@ -30,7 +30,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.jmock.lib.concurrent.DeterministicExecutor;
 import org.jmock.lib.concurrent.UnsupportedSynchronousOperationException;
-import org.jmock.lib.concurrent.internal.DeltaQueue;
 
 /**
  * Modified from https://github.com/jmock-developers/jmock-library/blob/498d09a015205f1370bf3855d59db033cf541c3c/jmock/src/main/java/org/jmock/lib/concurrent/DeterministicScheduler.java
@@ -108,7 +107,10 @@ public final class NanosecondPrecisionDeterministicScheduler implements Schedule
      * Runs the next command scheduled to be executed immediately.
      */
     public void runNextPendingCommand() {
-        ScheduledTask<?> scheduledTask = deltaQueue.pop();
+        ScheduledTask<?> scheduledTask = deltaQueue.maybePop();
+        if (scheduledTask == null) {
+            return;
+        }
 
         scheduledTask.run();
 
@@ -124,7 +126,7 @@ public final class NanosecondPrecisionDeterministicScheduler implements Schedule
      *         false if there are commands pending immediate execution.
      */
     public boolean isIdle() {
-        return deltaQueue.isEmpty() || deltaQueue.delay() > 0;
+        return deltaQueue.isIdle();
     }
 
     @Override

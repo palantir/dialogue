@@ -1,1 +1,1 @@
-success=100.0%	client_mean=PT2M35.929422047S	server_cpu=PT9H30M58.573332642S	client_received=10000/10000	server_resps=11140	codes={200=10000}
+success=8.1%	client_mean=PT14.510767376S	server_cpu=PT51M1.765991227S	client_received=812/10000	server_resps=1275	codes={200=810, Time rewind - this is likely a bug in the test harness: {prev=PT16.72S, new=PT16.718666666S, difference=1333334}=1, Time rewind - this is likely a bug in the test harness: {prev=PT4.182S, new=PT4.18S, difference=2000000}=1}

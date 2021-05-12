@@ -54,8 +54,8 @@ final class SimulationMetricsReporter {
     private final Simulation simulation;
 
     // each of these is a named column
-    private final LoadingCache<MetricName, List<Double>> measurements =
-            Caffeine.newBuilder().build(_name -> new ArrayList<>(Collections.nCopies(numMeasurements(), 0d)));
+    private final LoadingCache<MetricName, List<Double>> measurements = Caffeine.newBuilder()
+            .build(_name -> Collections.synchronizedList(new ArrayList<>(Collections.nCopies(numMeasurements(), 0d))));
     private Predicate<MetricName> prefilter = _foo -> true;
 
     SimulationMetricsReporter(Simulation simulation) {
@@ -67,7 +67,7 @@ final class SimulationMetricsReporter {
         return (xAxis != null) ? xAxis.size() : 0;
     }
 
-    public void report() {
+    public synchronized void report() {
         simulation.taggedMetrics().forEachMetric((metricName, metric) -> {
             if (!prefilter.test(metricName)) {
                 return;
@@ -97,7 +97,7 @@ final class SimulationMetricsReporter {
         measurements.get(X_AXIS).add(seconds);
     }
 
-    public XYChart chart(Pattern metricNameRegex) {
+    public synchronized XYChart chart(Pattern metricNameRegex) {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)

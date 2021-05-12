@@ -82,7 +82,8 @@ final class DisruptorScheduler implements Channel {
     private volatile boolean shouldRecordQueueMetrics;
     private final RequestScheduler singleThreadedRequestScheduler;
 
-    private DisruptorScheduler(
+    @VisibleForTesting
+    DisruptorScheduler(
             LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
@@ -148,8 +149,13 @@ final class DisruptorScheduler implements Channel {
         return Optional.of(response);
     }
 
-    private void onCompletion() {
+    @VisibleForTesting
+    void onCompletion() {
         MULTIPLEXING_EVENT_HANDLER.onCompletion(this);
+    }
+
+    boolean allEventsProcessed() {
+        return MULTIPLEXING_EVENT_HANDLER.isEmpty();
     }
 
     private int incrementQueueSize() {
@@ -175,6 +181,7 @@ final class DisruptorScheduler implements Channel {
         private static final ThreadFactory THREAD_FACTORY = new ThreadFactoryBuilder()
                 .setNameFormat("Dialogue-queue-scheduler-%d")
                 .build();
+        private static final int RING_BUFFER_SIZE = 16_384;
 
         private final Set<RequestScheduler> allSchedulers;
         private final Set<RequestScheduler> dirtySchedulers;
@@ -190,7 +197,7 @@ final class DisruptorScheduler implements Channel {
             Disruptor<QueueEvent> disruptor = new Disruptor<>(
                     QueueEvent::new,
                     // Probably overkill, but keeping the same size as Log4j AsyncLogger queue.
-                    16_384,
+                    RING_BUFFER_SIZE,
                     THREAD_FACTORY,
                     ProducerType.MULTI,
                     // Probably don't need blocking? But easiest to start with
@@ -207,13 +214,14 @@ final class DisruptorScheduler implements Channel {
         private SettableFuture<Response> enqueue(DisruptorScheduler scheduler, Request request, Endpoint endpoint) {
             SettableFuture<Response> response = SettableFuture.create();
             DetachedSpan span = DetachedSpan.start("Dialogue-request-enqueued");
-            Timer.Context timer = scheduler.queuedTime.time();
+            Timer.Context queuedTimeTimer = scheduler.queuedTime.time();
 
             // Using raw APIs because number of args > 3
             long sequence = ringBuffer.next(); // Grab the next sequence
             try {
                 QueueEvent event = ringBuffer.get(sequence); // Get the entry in the Disruptor
-                event.enqueue(scheduler.singleThreadedRequestScheduler, endpoint, request, response, span, timer);
+                event.enqueue(
+                        scheduler.singleThreadedRequestScheduler, endpoint, request, response, span, queuedTimeTimer);
             } finally {
                 ringBuffer.publish(sequence);
             }
@@ -236,6 +244,10 @@ final class DisruptorScheduler implements Channel {
             } finally {
                 event.clear();
             }
+        }
+
+        private boolean isEmpty() {
+            return ringBuffer.remainingCapacity() == RING_BUFFER_SIZE;
         }
     }
 
@@ -284,7 +296,7 @@ final class DisruptorScheduler implements Channel {
             }
 
             deferredCalls.add(ImmutableDisruptorScheduler.DeferredCall.of(
-                    event.endpoint, event.request, event.response, event.span, event.timer));
+                    event.endpoint, event.request, event.response, event.span, event.queuedTimeTimer));
         }
 
         void schedule() {
@@ -389,7 +401,7 @@ final class DisruptorScheduler implements Channel {
         private DetachedSpan span = null;
 
         @Nullable
-        private Timer.Context timer = null;
+        private Timer.Context queuedTimeTimer = null;
 
         private void enqueue(
                 RequestScheduler newRequestScheduler,
@@ -397,14 +409,14 @@ final class DisruptorScheduler implements Channel {
                 Request newRequest,
                 SettableFuture<Response> newResponse,
                 DetachedSpan newSpan,
-                Timer.Context newTimer) {
+                Timer.Context newQueuedTimeTimer) {
             this.eventType = QueueEventType.ENQUEUE;
             this.requestScheduler = newRequestScheduler;
             this.endpoint = newEndpoint;
             this.request = newRequest;
             this.response = newResponse;
             this.span = newSpan;
-            this.timer = newTimer;
+            this.queuedTimeTimer = newQueuedTimeTimer;
         }
 
         private void completion(RequestScheduler newRequestScheduler) {
@@ -418,7 +430,7 @@ final class DisruptorScheduler implements Channel {
             request = null;
             response = null;
             span = null;
-            timer = null;
+            queuedTimeTimer = null;
         }
     }
 
