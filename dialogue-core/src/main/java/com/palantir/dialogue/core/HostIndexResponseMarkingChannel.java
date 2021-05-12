@@ -21,24 +21,25 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 
 final class HostIndexResponseMarkingChannel implements Channel {
 
-    private final Integer hostIndex;
+    private final HostId hostIndex;
     private final Channel delegate;
 
     HostIndexResponseMarkingChannel(int hostIndex, Channel delegate) {
-        this.hostIndex = hostIndex;
+        this.hostIndex = HostId.of(hostIndex);
         this.delegate = delegate;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.transform(delegate.execute(endpoint, request), this::addHostIndex);
+        return DialogueFutures.transform(delegate.execute(endpoint, request), this::addHostId);
     }
 
-    Response addHostIndex(Response response) {
+    Response addHostId(Response response) {
         response.attachments().put(RoutingAttachments.HOST_KEY, hostIndex);
         return response;
     }

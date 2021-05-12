@@ -33,6 +33,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.ArrayList;
@@ -398,7 +399,7 @@ public final class DisruptorSchedulerTest {
 
     private Request request(int hostKey) {
         Request hostRequest = Request.builder().putHeaderParams("key", "val").build();
-        hostRequest.attachments().put(RoutingAttachments.HOST_KEY, hostKey);
+        hostRequest.attachments().put(RoutingAttachments.HOST_KEY, HostId.of(hostKey));
         return hostRequest;
     }
 

@@ -23,6 +23,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.concurrent.ExecutionException;
@@ -90,7 +91,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
     private static final class DefaultStickyRouter implements StickyRouter {
 
         @Nullable
-        private volatile Integer hostId;
+        private volatile HostId hostId;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
@@ -110,7 +111,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
                 ListenableFuture<Response> future = endpointChannel.execute(request);
                 try {
                     Response response = future.get();
-                    Integer successfulHostId = response.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+                    HostId successfulHostId = response.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
                     Preconditions.checkNotNull(successfulHostId, "Not allowed to be null");
                     hostId = successfulHostId;
                     return future;

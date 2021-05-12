@@ -25,7 +25,6 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.google.errorprone.annotations.MustBeClosed;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
 import com.lmax.disruptor.EventTranslatorOneArg;
@@ -37,6 +36,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -49,6 +49,7 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
@@ -280,7 +281,7 @@ final class DisruptorScheduler implements Channel {
         private void enqueue(QueueEvent event) {
             Request request = event.request;
             UUID routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
-            Integer hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+            HostId hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
 
             fairQueue.addToQueue(
                     routingKey,
@@ -294,7 +295,7 @@ final class DisruptorScheduler implements Channel {
             boolean scheduledInRound;
 
             do {
-                try (CopyingFairQueueRoundIterator round = fairQueue.startSchedulingRound()) {
+                try (Round round = fairQueue.startSchedulingRound()) {
                     scheduledInRound = false;
                     while (round.hasNext()) {
                         DeferredCall head = round.next();
@@ -365,10 +366,28 @@ final class DisruptorScheduler implements Channel {
     }
 
     interface FairQueue {
-        void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call);
+        void addToQueue(@Nullable UUID routingKey, @Nullable HostId hostKey, DeferredCall call);
 
-        @MustBeClosed
-        <T extends Iterator<DeferredCall> & AutoCloseable> T startSchedulingRound();
+        Round startSchedulingRound();
+    }
+
+    interface Round extends Iterator<DeferredCall>, AutoCloseable {
+        @Override
+        void close();
+    }
+
+    static final class HostAwareFairQueue implements FairQueue {
+
+        @SuppressWarnings("StrictUnusedVariable")
+        private final Map<QueueKey, Queue<DeferredCall>> allQueues = new LinkedHashMap<>();
+
+        @Override
+        public void addToQueue(@Nullable UUID _routingKey, @Nullable HostId _hostKey, DeferredCall _call) {}
+
+        @Override
+        public Round startSchedulingRound() {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @VisibleForTesting
@@ -398,7 +417,8 @@ final class DisruptorScheduler implements Channel {
             return copyingFairQueueRoundIterator;
         }
 
-        public void addToQueue(@Nullable UUID routingKey, @Nullable Integer hostKey, DeferredCall call) {
+        @Override
+        public void addToQueue(@Nullable UUID routingKey, @Nullable HostId hostKey, DeferredCall call) {
             copyingFairQueueRoundIterator.assertNotOpen();
             QueueKey queueKey;
             if (routingKey == null && hostKey == null) {
@@ -417,7 +437,7 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    static final class CopyingFairQueueRoundIterator implements Iterator<DeferredCall>, AutoCloseable {
+    static final class CopyingFairQueueRoundIterator implements Round {
 
         private final CopyingFairQueue parent;
         private final Deque<QueueKey> round = new ArrayDeque<>();
@@ -558,7 +578,7 @@ final class DisruptorScheduler implements Channel {
 
         @Nullable
         @Value.Parameter
-        Integer hostKey();
+        HostId hostKey();
     }
 
     /**

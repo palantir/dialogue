@@ -41,6 +41,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.RoutingAttachments;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -156,9 +157,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             .uris();
                     List<Channel> channels = new ArrayList<>();
                     for (int i = 0; i < uris.size(); i++) {
-                        Integer integerIndex = i;
+                        final int hostId = i;
                         channels.add((endpoint, request) -> {
-                            request.attachments().put(RoutingAttachments.HOST_KEY, integerIndex);
+                            request.attachments().put(RoutingAttachments.HOST_KEY, HostId.of(hostId));
                             return channelAndConfigRefreshable.channel().execute(endpoint, request);
                         });
                     }

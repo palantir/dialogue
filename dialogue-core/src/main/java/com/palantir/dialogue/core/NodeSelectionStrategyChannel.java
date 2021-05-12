@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -94,9 +95,9 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
 
-        Integer hostId = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+        HostId hostId = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
         if (hostId != null) {
-            return channels.get(hostId).maybeExecute(endpoint, request);
+            return channels.get(hostId.value()).maybeExecute(endpoint, request);
         }
 
         Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);

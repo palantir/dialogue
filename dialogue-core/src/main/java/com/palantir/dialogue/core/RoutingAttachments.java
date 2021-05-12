@@ -18,9 +18,20 @@ package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.RequestAttachmentKey;
 import java.util.UUID;
+import org.immutables.value.Value;
 
 public interface RoutingAttachments {
 
     RequestAttachmentKey<UUID> ROUTING_KEY = RequestAttachmentKey.create(UUID.class);
-    RequestAttachmentKey<Integer> HOST_KEY = RequestAttachmentKey.create(Integer.class);
+    RequestAttachmentKey<HostId> HOST_KEY = RequestAttachmentKey.create(HostId.class);
+
+    @Value.Immutable(intern = true)
+    interface HostId {
+        @Value.Parameter
+        int value();
+
+        static HostId of(int hostId) {
+            return ImmutableHostId.of(hostId);
+        }
+    }
 }
