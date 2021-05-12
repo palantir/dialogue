@@ -181,7 +181,7 @@ public final class DisruptorSchedulerTest {
 
         awaitAllEventsProcessed();
         verify(delegate, times(6)).maybeExecute(endpoint, request);
-    }0
+    }
 
     @Test
     public void testQueueFullReturnsLimited() {
