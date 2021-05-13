@@ -261,8 +261,7 @@ final class DisruptorScheduler implements Channel {
 
         private QueueSize(QueuedChannelInstrumentation metrics, int maxQueueSize) {
             // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they
-            // have
-            // zero interactions because they support both increment and decrement operations.
+            // have zero interactions because they support both increment and decrement operations.
             this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
             this.maxQueueSize = maxQueueSize;
         }
