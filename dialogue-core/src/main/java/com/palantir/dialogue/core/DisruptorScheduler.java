@@ -27,7 +27,6 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.lmax.disruptor.BlockingWaitStrategy;
 import com.lmax.disruptor.EventHandler;
-import com.lmax.disruptor.EventTranslatorOneArg;
 import com.lmax.disruptor.RingBuffer;
 import com.lmax.disruptor.dsl.Disruptor;
 import com.lmax.disruptor.dsl.ProducerType;
@@ -73,13 +72,9 @@ final class DisruptorScheduler implements Channel {
     private static final Logger log = LoggerFactory.getLogger(DisruptorScheduler.class);
     private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = FairQueue1::new;
 
-    // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
-    private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
-
-    private final int maxQueueSize;
+    private final QueueSize queueSize;
     private final NeverThrowLimitedChannel delegate;
     private final String channelName;
-    private final Supplier<Counter> queueSizeCounter;
     private final Timer queuedTime;
     private final Supplier<ListenableFuture<Response>> limitedResultSupplier;
     // Metrics aren't reported until the queue is first used, allowing per-endpoint queues to
@@ -92,14 +87,13 @@ final class DisruptorScheduler implements Channel {
             LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
-        this.maxQueueSize = maxQueueSize;
-        // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they have
-        // zero interactions because they support both increment and decrement operations.
-        this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
+        this.queueSize = new QueueSize(metrics, maxQueueSize);
+
         this.queuedTime = metrics.requestQueuedTime();
         this.limitedResultSupplier = () -> Futures.immediateFailedFuture(new SafeRuntimeException(
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
-        singleThreadedRequestScheduler = new RequestScheduler(FAIR_QUEUE_SUPPLIER.get());
+        singleThreadedRequestScheduler = new RequestScheduler(
+                this.delegate, channelName, this::onCompletion, queueSize, FAIR_QUEUE_SUPPLIER.get());
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
@@ -120,7 +114,7 @@ final class DisruptorScheduler implements Channel {
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
-        if (queueSizeEstimate.get() <= 0) {
+        if (queueSize.isEmpty()) {
             Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
@@ -135,14 +129,14 @@ final class DisruptorScheduler implements Channel {
 
         // Important to read the queue size here as well as prior to the optimistic maybeExecute because
         // maybeExecute may take sufficiently long that other requests could be queued.
-        if (queueSizeEstimate.get() >= maxQueueSize) {
+        if (queueSize.isFull()) {
             return Optional.empty();
         }
 
         shouldRecordQueueMetrics = true;
 
         SettableFuture<Response> response = MULTIPLEXING_EVENT_HANDLER.enqueue(this, request, endpoint);
-        int newSize = incrementQueueSize();
+        int newSize = queueSize.incrementQueueSize();
 
         if (log.isDebugEnabled()) {
             log.debug(
@@ -163,21 +157,11 @@ final class DisruptorScheduler implements Channel {
         return MULTIPLEXING_EVENT_HANDLER.isEmpty();
     }
 
-    private int incrementQueueSize() {
-        queueSizeCounter.get().inc();
-        return queueSizeEstimate.incrementAndGet();
-    }
-
-    private void decrementQueueSize() {
-        queueSizeEstimate.decrementAndGet();
-        queueSizeCounter.get().dec();
-    }
-
     @Override
     public String toString() {
         return "DisruptorScheduler{queueSizeEstimate="
-                + queueSizeEstimate + ", maxQueueSize="
-                + maxQueueSize + ", delegate="
+                + queueSize.queueSizeEstimate + ", maxQueueSize="
+                + queueSize.maxQueueSize + ", delegate="
                 + delegate + '}';
     }
 
@@ -214,7 +198,7 @@ final class DisruptorScheduler implements Channel {
         }
 
         private void onCompletion(DisruptorScheduler scheduler) {
-            ringBuffer.publishEvent(CompletionEventTranslator.INSTANCE, scheduler);
+            ringBuffer.publishEvent(this::toCompletion, scheduler);
         }
 
         private SettableFuture<Response> enqueue(DisruptorScheduler scheduler, Request request, Endpoint endpoint) {
@@ -240,10 +224,15 @@ final class DisruptorScheduler implements Channel {
             try {
                 RequestScheduler currentRequestScheduler = event.requestScheduler;
                 allSchedulers.add(currentRequestScheduler);
+
+                // A scheduler needs to reschedule even IFF it did not get any completions.
+                // This is because if, when the channel is created, the downstream channel is broken and we have to
+                // queue we will build up a queue and never clear it: since we never managed to submit a request,
+                // nothing is going to poke the scheduler.
+                // There is probably a better way to solve this.
+                dirtySchedulers.add(currentRequestScheduler);
                 if (event.eventType.isEnqueue()) {
                     currentRequestScheduler.enqueue(event);
-                } else {
-                    dirtySchedulers.add(currentRequestScheduler);
                 }
 
                 if (endOfBatch) {
@@ -258,22 +247,64 @@ final class DisruptorScheduler implements Channel {
         private boolean isEmpty() {
             return ringBuffer.remainingCapacity() == RING_BUFFER_SIZE;
         }
-    }
 
-    private enum CompletionEventTranslator implements EventTranslatorOneArg<QueueEvent, DisruptorScheduler> {
-        INSTANCE;
-
-        @Override
-        public void translateTo(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
+        private void toCompletion(QueueEvent event, long _sequence, DisruptorScheduler scheduler) {
             event.completion(scheduler.singleThreadedRequestScheduler);
         }
     }
 
-    private final class RequestScheduler {
+    private static final class QueueSize {
+        // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
+        private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
+        private final Supplier<Counter> queueSizeCounter;
+        private final int maxQueueSize;
 
+        private QueueSize(QueuedChannelInstrumentation metrics, int maxQueueSize) {
+            // Lazily create the counter. Unlike meters, timers, and histograms, counters cannot be ignored when they
+            // have
+            // zero interactions because they support both increment and decrement operations.
+            this.queueSizeCounter = Suppliers.memoize(metrics::requestsQueued);
+            this.maxQueueSize = maxQueueSize;
+        }
+
+        boolean isEmpty() {
+            return queueSizeEstimate.get() <= 0;
+        }
+
+        boolean isFull() {
+            return queueSizeEstimate.get() >= maxQueueSize;
+        }
+
+        private int incrementQueueSize() {
+            queueSizeCounter.get().inc();
+            return queueSizeEstimate.incrementAndGet();
+        }
+
+        private void decrementQueueSize() {
+            queueSizeEstimate.decrementAndGet();
+            queueSizeCounter.get().dec();
+        }
+    }
+
+    @VisibleForTesting
+    static final class RequestScheduler {
+
+        private final NeverThrowLimitedChannel delegate;
+        private final String channelName;
+        private final Runnable onCompletion;
+        private final QueueSize queueSize;
         private final FairQueue fairQueue;
 
-        private RequestScheduler(FairQueue fairQueue) {
+        private RequestScheduler(
+                NeverThrowLimitedChannel delegate,
+                String channelName,
+                Runnable onCompletion,
+                QueueSize queueSize,
+                FairQueue fairQueue) {
+            this.channelName = channelName;
+            this.delegate = delegate;
+            this.onCompletion = onCompletion;
+            this.queueSize = queueSize;
             this.fairQueue = fairQueue;
         }
 
@@ -314,7 +345,7 @@ final class DisruptorScheduler implements Channel {
                 log.debug(
                         "Scheduled {} requests on channel {}",
                         SafeArg.of("numScheduled", numScheduled),
-                        SafeArg.of("channelName", DisruptorScheduler.this.channelName));
+                        SafeArg.of("channelName", channelName));
             }
         }
 
@@ -324,7 +355,7 @@ final class DisruptorScheduler implements Channel {
             // There's a race where cancel may be invoked between this check and execution, but the scheduled
             // request will be quickly cancelled in that case.
             if (queuedResponse.isDone()) {
-                DisruptorScheduler.this.decrementQueueSize();
+                queueSize.decrementQueueSize();
                 queueHead.span().complete();
                 queueHead.timer().stop();
                 return true;
@@ -333,15 +364,14 @@ final class DisruptorScheduler implements Channel {
             try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
                 Endpoint endpoint = queueHead.endpoint();
                 Optional<ListenableFuture<Response>> maybeResponse =
-                        DisruptorScheduler.this.delegate.maybeExecute(endpoint, queueHead.request());
+                        delegate.maybeExecute(endpoint, queueHead.request());
 
                 if (maybeResponse.isPresent()) {
-                    DisruptorScheduler.this.decrementQueueSize();
+                    queueSize.decrementQueueSize();
                     ListenableFuture<Response> response = maybeResponse.get();
                     queueHead.span().complete();
                     queueHead.timer().stop();
-                    DialogueFutures.addDirectCallback(
-                            response, new DisruptorScheduler.ForwardAndSchedule(queuedResponse));
+                    DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(onCompletion, queuedResponse));
                     DialogueFutures.addDirectListener(queuedResponse, () -> {
                         if (queuedResponse.isCancelled()) {
                             // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
@@ -351,7 +381,7 @@ final class DisruptorScheduler implements Channel {
                                 log.debug(
                                         "Failed to cancel delegate response, it should be reported by"
                                                 + " ForwardAndSchedule logging",
-                                        SafeArg.of("channel", DisruptorScheduler.this.channelName),
+                                        SafeArg.of("channel", channelName),
                                         SafeArg.of("service", endpoint.serviceName()),
                                         SafeArg.of("endpoint", endpoint.endpointName()));
                             }
@@ -592,10 +622,12 @@ final class DisruptorScheduler implements Channel {
      * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
      * Also poke the disruptor to try to schedule more calls.
      */
-    private final class ForwardAndSchedule implements FutureCallback<Response> {
+    private static final class ForwardAndSchedule implements FutureCallback<Response> {
+        private final Runnable onCompletion;
         private final SettableFuture<Response> response;
 
-        ForwardAndSchedule(SettableFuture<Response> response) {
+        ForwardAndSchedule(Runnable onCompletion, SettableFuture<Response> response) {
+            this.onCompletion = onCompletion;
             this.response = response;
         }
 
@@ -604,7 +636,7 @@ final class DisruptorScheduler implements Channel {
             if (!response.set(result)) {
                 result.close();
             }
-            DisruptorScheduler.this.onCompletion();
+            onCompletion.run();
         }
 
         @Override
@@ -616,7 +648,7 @@ final class DisruptorScheduler implements Channel {
                     log.info("Call failed after the future completed", throwable);
                 }
             }
-            DisruptorScheduler.this.onCompletion();
+            onCompletion.run();
         }
     }
 
