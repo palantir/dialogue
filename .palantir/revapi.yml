@@ -189,6 +189,14 @@ acceptedBreaks:
       old: "interface com.palantir.dialogue.Response"
       new: "class com.palantir.dialogue.Response"
       justification: "Will figure out how not to break later"
+  "1.129.0-rc1":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.class.removed"
+      old: "class com.palantir.dialogue.core.ImmutableHostId"
+      justification: "facepalm"
+    - code: "java.class.removed"
+      old: "interface com.palantir.dialogue.core.RoutingAttachments"
+      justification: "facepalm"
   "1.30.0":
     com.palantir.dialogue:dialogue-core:
     - code: "java.method.visibilityReduced"
