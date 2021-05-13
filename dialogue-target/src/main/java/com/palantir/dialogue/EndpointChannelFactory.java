@@ -16,6 +16,9 @@
 
 package com.palantir.dialogue;
 
+import java.util.UUID;
+import java.util.function.Supplier;
+
 /**
  * A 'staged' version of {@link Channel}, that allows implementors to precompute necessary objects (e.g. counter
  * lookups) based on the provided {@code endpoint}, saving CPU cycles on each call.
@@ -28,4 +31,14 @@ public interface EndpointChannelFactory {
      * many times.
      */
     EndpointChannel endpoint(Endpoint endpoint);
+
+    default EndpointChannelFactory scoped(Supplier<UUID> sessionKeySupplier) {
+        return endpoint -> {
+            EndpointChannel delegate = EndpointChannelFactory.this.endpoint(endpoint);
+            return request -> {
+                request.attachments().put(RoutingAttachments.ROUTING_KEY, sessionKeySupplier.get());
+                return delegate.execute(request);
+            };
+        };
+    }
 }

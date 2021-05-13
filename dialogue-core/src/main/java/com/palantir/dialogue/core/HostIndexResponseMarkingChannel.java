@@ -21,7 +21,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.RoutingAttachments.HostId;
+import com.palantir.dialogue.RoutingAttachments;
+import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 
 final class HostIndexResponseMarkingChannel implements Channel {

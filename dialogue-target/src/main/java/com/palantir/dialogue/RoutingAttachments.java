@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.core;
+package com.palantir.dialogue;
 
-import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.logsafe.Preconditions;
 import java.util.UUID;
 import org.immutables.value.Value;
