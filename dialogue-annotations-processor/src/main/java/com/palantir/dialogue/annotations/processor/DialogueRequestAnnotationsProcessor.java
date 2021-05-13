@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations.processor;
 
 import com.google.auto.common.MoreElements;
-import com.google.auto.service.AutoService;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
@@ -50,7 +49,6 @@ import javax.annotation.processing.Filer;
 import javax.annotation.processing.FilerException;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
-import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
@@ -60,12 +58,8 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
-import net.ltgt.gradle.incap.IncrementalAnnotationProcessor;
-import net.ltgt.gradle.incap.IncrementalAnnotationProcessorType;
 
 @SupportedSourceVersion(SourceVersion.RELEASE_8)
-@AutoService(Processor.class)
-@IncrementalAnnotationProcessor(IncrementalAnnotationProcessorType.ISOLATING)
 public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor {
 
     private Messager messager;
