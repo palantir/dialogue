@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.RequestAttachmentKey;
+import com.palantir.logsafe.Preconditions;
 import java.util.UUID;
 import org.immutables.value.Value;
 
@@ -32,6 +33,15 @@ public interface RoutingAttachments {
 
         static HostId of(int hostId) {
             return ImmutableHostId.of(hostId);
+        }
+
+        @Value.Check
+        default void check() {
+            Preconditions.checkArgument(value() >= -1, "Host id >= -1");
+        }
+
+        static HostId noHost() {
+            return ImmutableHostId.of(-1);
         }
     }
 }

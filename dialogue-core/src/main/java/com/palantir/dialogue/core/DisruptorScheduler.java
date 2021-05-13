@@ -71,7 +71,7 @@ final class DisruptorScheduler implements Channel {
 
     private static final MultiplexingEventHandler MULTIPLEXING_EVENT_HANDLER = new MultiplexingEventHandler();
     private static final Logger log = LoggerFactory.getLogger(DisruptorScheduler.class);
-    private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = CopyingFairQueue::new;
+    private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = FairQueue1::new;
 
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
@@ -381,6 +381,9 @@ final class DisruptorScheduler implements Channel {
         @SuppressWarnings("StrictUnusedVariable")
         private final Map<QueueKey, Queue<DeferredCall>> allQueues = new LinkedHashMap<>();
 
+        @SuppressWarnings("StrictUnusedVariable")
+        private final Set<HostId> hostIds = Collections.newSetFromMap(new HashMap<>());
+
         @Override
         public void addToQueue(@Nullable UUID _routingKey, @Nullable HostId _hostKey, DeferredCall _call) {}
 
@@ -391,7 +394,7 @@ final class DisruptorScheduler implements Channel {
     }
 
     @VisibleForTesting
-    static final class CopyingFairQueue implements FairQueue {
+    static final class FairQueue1 implements FairQueue {
 
         // Observations for less expensive scheduling algorithm (better terminating conditions):
         // 1. If you try to schedule a request without a hostKey, you can stop scheduling: all the capacity in the
@@ -399,8 +402,8 @@ final class DisruptorScheduler implements Channel {
         // 2. If you try to schedule a request with a hostKey, do not try to schedule any more requests with the same
         // hostKey.
         // With this sort of implementation, you simply keep cycling through queues, until you are no longer able to
-        // schedule anything. Not quite, because you'd keep going through the queue, as long as you have a single host
-        // that's un-schedulable.
+        // schedule anything. Not quite, because you'd keep going cycling through the queue, as long as you have a
+        // single host that's un-schedulable: therefore, you need to eliminate queues.
         //
         // Some drawbacks of this impl:
         // 1. If there is a lot of QueueKeys, having to copy fairQueue into SchedulingRound will get expensive.
@@ -413,18 +416,17 @@ final class DisruptorScheduler implements Channel {
 
         private final Map<QueueKey, Queue<DeferredCall>> allQueues = new HashMap<>();
         private final Deque<QueueKey> fairQueue = new ArrayDeque<>();
-        private final CopyingFairQueueRoundIterator copyingFairQueueRoundIterator =
-                new CopyingFairQueueRoundIterator(this);
+        private final FairQueue1Round round = new FairQueue1Round(this);
 
         @Override
-        public CopyingFairQueueRoundIterator startSchedulingRound() {
-            copyingFairQueueRoundIterator.startSchedulingRound();
-            return copyingFairQueueRoundIterator;
+        public FairQueue1Round startSchedulingRound() {
+            round.startSchedulingRound();
+            return round;
         }
 
         @Override
         public void addToQueue(@Nullable UUID routingKey, @Nullable HostId hostKey, DeferredCall call) {
-            copyingFairQueueRoundIterator.assertNotOpen();
+            round.assertNotOpen();
             QueueKey queueKey;
             if (routingKey == null && hostKey == null) {
                 queueKey = ImmutableDisruptorScheduler.QueueKey.of();
@@ -442,9 +444,9 @@ final class DisruptorScheduler implements Channel {
         }
     }
 
-    static final class CopyingFairQueueRoundIterator implements Round {
+    static final class FairQueue1Round implements Round {
 
-        private final CopyingFairQueue parent;
+        private final FairQueue1 parent;
         private final Deque<QueueKey> round = new ArrayDeque<>();
 
         @Nullable
@@ -455,7 +457,7 @@ final class DisruptorScheduler implements Channel {
 
         private boolean open = false;
 
-        CopyingFairQueueRoundIterator(CopyingFairQueue parent) {
+        FairQueue1Round(FairQueue1 parent) {
             this.parent = parent;
         }
 
