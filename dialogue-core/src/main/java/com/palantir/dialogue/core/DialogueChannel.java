@@ -37,7 +37,13 @@ import java.util.concurrent.ScheduledExecutorService;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
-    private static final boolean USE_FAIR_SCHEDULER = true;
+    private enum Scheduler {
+        QueuedChannel,
+        FairQueuedChannel,
+        DRFQueuedChannel;
+    }
+
+    private static final Scheduler SCHEDULER = Scheduler.FairQueuedChannel;
 
     private final EndpointChannelFactory delegate;
     private final Config cf;
@@ -158,7 +164,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
 
             Channel queuedChannel;
-            if (USE_FAIR_SCHEDULER) {
+            if (SCHEDULER == Scheduler.FairQueuedChannel) {
                 queuedChannel = FairQueuedChannel.create(cf, nodeSelectionChannel);
             } else {
                 queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);

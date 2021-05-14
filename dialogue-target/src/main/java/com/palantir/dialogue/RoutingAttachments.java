@@ -22,8 +22,18 @@ import org.immutables.value.Value;
 
 public interface RoutingAttachments {
 
-    RequestAttachmentKey<UUID> ROUTING_KEY = RequestAttachmentKey.create(UUID.class);
+    RequestAttachmentKey<RoutingKey> ROUTING_KEY = RequestAttachmentKey.create(RoutingKey.class);
     RequestAttachmentKey<HostId> HOST_KEY = RequestAttachmentKey.create(HostId.class);
+
+    @Value.Immutable
+    interface RoutingKey {
+        @Value.Parameter
+        UUID value();
+
+        static RoutingKey create() {
+            return ImmutableRoutingKey.of(UUID.randomUUID());
+        }
+    }
 
     @Value.Immutable(intern = true)
     interface HostId {

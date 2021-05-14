@@ -56,6 +56,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         this.behavior = behavior;
     }
 
+    int currentAvailable() {
+        return Math.max((int) (getLimit() - getInflight()), 0);
+    }
+
     /**
      * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for

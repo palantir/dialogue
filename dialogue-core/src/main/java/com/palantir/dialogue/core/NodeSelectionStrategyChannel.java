@@ -97,7 +97,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
 
         HostId hostId = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
-        if (hostId != null) {
+        if (hostId != null && hostId.value() >= 0) {
             return channels.get(hostId.value()).maybeExecute(endpoint, request);
         }
 

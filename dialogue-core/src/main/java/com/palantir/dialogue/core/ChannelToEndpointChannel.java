@@ -40,7 +40,7 @@ final class ChannelToEndpointChannel implements Channel {
         return channelFor(endpoint).execute(endpoint, request);
     }
 
-    private Channel channelFor(Endpoint endpoint) {
+    Channel channelFor(Endpoint endpoint) {
         return cache.computeIfAbsent(key(endpoint), _key -> adapter.apply(endpoint));
     }
 

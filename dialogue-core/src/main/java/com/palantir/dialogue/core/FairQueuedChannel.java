@@ -31,6 +31,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.HostId;
+import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.dialogue.core.QueueExecutor.EventProcessor;
 import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -42,14 +43,10 @@ import com.palantir.tracing.DetachedSpan;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Queue;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -62,6 +59,7 @@ import org.slf4j.LoggerFactory;
 @Value.Enclosing
 public final class FairQueuedChannel implements Channel {
 
+    private static final RoutingKey DEFAULT_ROUTING_KEY = RoutingKey.create();
     private static final Logger log = LoggerFactory.getLogger(FairQueuedChannel.class);
     private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = FairQueue1::new;
 
@@ -225,17 +223,13 @@ public final class FairQueuedChannel implements Channel {
         @Override
         @SuppressWarnings("NullAway")
         public void enqueueRequest(QueueExecutor.DeferredCall deferredCall) {
-
             Request request = deferredCall.request();
-            UUID routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
+            RoutingKey routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
             HostId hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
 
-            QueueKey queueKey;
-            if (routingKey == null && hostKey == null) {
-                queueKey = ImmutableFairQueuedChannel.QueueKey.of();
-            } else {
-                queueKey = ImmutableFairQueuedChannel.QueueKey.of(routingKey, hostKey);
-            }
+            QueueKey queueKey = ImmutableFairQueuedChannel.QueueKey.of(
+                    MoreObjects.firstNonNull(routingKey, DEFAULT_ROUTING_KEY),
+                    MoreObjects.firstNonNull(hostKey, HostId.anyHost()));
             fairQueue.addToQueue(queueKey, deferredCall);
         }
 
@@ -325,144 +319,6 @@ public final class FairQueuedChannel implements Channel {
     interface Round extends Iterator<QueueExecutor.DeferredCall>, AutoCloseable {
         @Override
         void close();
-    }
-
-    // Observations for less expensive scheduling algorithm (better terminating conditions):
-    // 1. If you try to schedule a request without a hostKey, you can stop scheduling: all the capacity in the
-    // system is exhausted.
-    // 2. If you try to schedule a request with a hostKey, do not try to schedule any more requests with the same
-    // hostKey.
-    // With this sort of implementation, you simply keep cycling through queues, until you are no longer able to
-    // schedule anything. Not quite, because you'd keep going cycling through the queue, as long as you have a
-    // single host that's un-schedulable: therefore, you need to eliminate queues.
-    //
-    // Some drawbacks of this impl:
-    // 1. If there is a lot of QueueKeys, having to copy fairQueue into SchedulingRound will get expensive.
-    // Therefore it would be useful to be able to not do that.
-    // 2. If you schedule something in a round, you have to go through the queues again.
-    //
-    // Useful data for improving this:
-    // 1. Some way to eliminate queues, as soon as host is fully scheduled.
-    //   * ideally without copying entire queue.
-    static final class FairQueue2 implements FairQueue {
-
-        @SuppressWarnings("StrictUnusedVariable")
-        private final Map<QueueKey, Queue<QueueExecutor.DeferredCall>> allQueues = new LinkedHashMap<>();
-
-        @SuppressWarnings("StrictUnusedVariable")
-        private final Map<HostId, Integer> hostIds = new HashMap<>();
-
-        private final Deque<QueueKey> fairQueue = new ArrayDeque<>();
-
-        private final FairQueue2Round round = new FairQueue2Round(this);
-
-        @Override
-        public void addToQueue(QueueKey queueKey, QueueExecutor.DeferredCall call) {
-            round.assertNotOpen();
-            Queue<QueueExecutor.DeferredCall> deferredCalls = allQueues.get(queueKey);
-            if (deferredCalls == null) {
-                deferredCalls = new ArrayDeque<>();
-                int numQueuesPerHost = MoreObjects.firstNonNull(hostIds.get(queueKey.hostKey()), 0) + 1;
-                hostIds.put(queueKey.hostKey(), numQueuesPerHost);
-                allQueues.put(queueKey, deferredCalls);
-                fairQueue.addLast(queueKey);
-            }
-
-            deferredCalls.add(call);
-        }
-
-        @Override
-        public Round startSchedulingRound() {
-            round.startSchedulingRound();
-            return round;
-        }
-    }
-
-    static final class FairQueue2Round implements Round {
-
-        private final FairQueue2 parent;
-        private final Set<HostId> availableHosts = new HashSet<>();
-        private final Deque<QueueKey> round = new ArrayDeque<>();
-
-        @Nullable
-        private QueueKey curKey;
-
-        @Nullable
-        private Queue<QueueExecutor.DeferredCall> curQueue;
-
-        private boolean open = false;
-
-        FairQueue2Round(FairQueue2 parent) {
-            this.parent = parent;
-        }
-
-        void assertNotOpen() {
-            Preconditions.checkState(!open, "already open!");
-        }
-
-        void startSchedulingRound() {
-            assertNotOpen();
-            open = true;
-            round.clear();
-            round.addAll(parent.fairQueue);
-            availableHosts.clear();
-            availableHosts.addAll(parent.hostIds.keySet());
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (curKey != null) {
-                // Item was not removed, so was not executed. Meaning the host has no more capacity;
-                availableHosts.remove(curKey.hostKey());
-            }
-
-            //            boolean hasHosts = !availableHosts.isEmpty();
-            //            boolean hasAnyHost = availableHosts.contains(HostId.anyHost());
-            // Cannot continue if:
-            // 1. No more schedulable hosts.
-            // 2. Observed failure to schedule a request that could schedule on any host.
-            return !round.isEmpty();
-        }
-
-        @Override
-        public QueueExecutor.DeferredCall next() {
-            curKey = round.remove();
-            curQueue = Preconditions.checkNotNull(parent.allQueues.get(curKey), "allQueues");
-            return curQueue.peek();
-        }
-
-        @Override
-        public void remove() {
-            curQueue().remove();
-
-            // For fairness we remove the queue key, and add it to the end of the queue of queues if
-            // it still has entries.
-            parent.fairQueue.remove(curKey);
-
-            if (curQueue().isEmpty()) {
-                parent.allQueues.remove(curKey());
-                parent.fairQueue.remove(curKey());
-            } else {
-                parent.fairQueue.add(curKey());
-            }
-
-            curQueue = null;
-            curKey = null;
-        }
-
-        @Override
-        public void close() {
-            open = false;
-            availableHosts.clear();
-        }
-
-        private QueueKey curKey() {
-            return Preconditions.checkNotNull(curKey, "curKey");
-        }
-
-        private Queue<QueueExecutor.DeferredCall> curQueue() {
-            return Preconditions.checkNotNull(curQueue, "curQueue");
-        }
     }
 
     @VisibleForTesting
@@ -563,13 +419,11 @@ public final class FairQueuedChannel implements Channel {
         }
     }
 
-    @Value.Immutable(singleton = true)
+    @Value.Immutable
     interface QueueKey {
-        @Nullable
         @Value.Parameter
-        UUID routingKey();
+        RoutingKey routingKey();
 
-        @Nullable
         @Value.Parameter
         HostId hostKey();
     }

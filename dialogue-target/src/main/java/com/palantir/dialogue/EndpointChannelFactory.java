@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue;
 
-import java.util.UUID;
+import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import java.util.function.Supplier;
 
 /**
@@ -32,7 +32,7 @@ public interface EndpointChannelFactory {
      */
     EndpointChannel endpoint(Endpoint endpoint);
 
-    default EndpointChannelFactory scoped(Supplier<UUID> sessionKeySupplier) {
+    default EndpointChannelFactory scoped(Supplier<RoutingKey> sessionKeySupplier) {
         return endpoint -> {
             EndpointChannel delegate = EndpointChannelFactory.this.endpoint(endpoint);
             return request -> {
