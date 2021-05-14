@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
@@ -66,6 +67,22 @@ public final class DialogueClients {
         Channel getChannel(String serviceName);
     }
 
+    /**
+     * Deprecated low-level API to support some legacy use-cases.
+     *
+     * @deprecated should not be used, prefer factories that load
+     */
+    @Deprecated
+    public interface ClientConfigurationNonReloadingClientFactory {
+        /**
+         * Construct an instance of the given {@code clientInterface} which can be used to make network calls to the
+         * single conceptual upstream identified by {@code clientConfiguration}.
+         *
+         * Behaviour is undefined if {@code clientConfiguration} contains no URIs.
+         */
+        <T> T getNonReloading(Class<T> clientInterface, ClientConfiguration clientConfiguration);
+    }
+
     /** A stateful object - should only need one of these. Live reloads under the hood. */
     public interface StickyChannelFactory {
         /**
@@ -91,7 +108,8 @@ public final class DialogueClients {
                     WithDialogueOptions<ReloadingFactory>,
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
-                    ReloadingChannelFactory {
+                    ReloadingChannelFactory,
+                    ClientConfigurationNonReloadingClientFactory {
 
         StickyChannelFactory getStickyChannels(String serviceName);
 

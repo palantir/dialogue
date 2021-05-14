@@ -42,6 +42,7 @@ import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
@@ -91,6 +92,22 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Channel channel = cache.getNonReloadingChannel(
                 params, serviceConf, ChannelNames.nonReloading(clazz, params), OptionalInt.empty());
 
+        return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
+    }
+
+    @Override
+    public <T> T getNonReloading(Class<T> clazz, ClientConfiguration clientConf) {
+        String channelName = ChannelNames.nonReloading(clazz, params);
+        ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
+                .clientConfiguration(clientConf)
+                .clientName(channelName);
+        params.blockingExecutor().ifPresent(clientBuilder::executor);
+        ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
+        Channel channel = DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(clientConf)
+                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient))
+                .build();
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
