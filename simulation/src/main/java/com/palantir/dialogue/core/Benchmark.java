@@ -147,7 +147,7 @@ public final class Benchmark {
             }
 
             @Override
-            public void update(Duration _time, long _requestsStarted, long responsesReceived) {
+            public void update(long responsesReceived) {
                 if (responsesReceived >= numReceived) {
                     log.warn("Terminated normally after receiving {} responses", responsesReceived);
                     future.set(null);
@@ -192,16 +192,22 @@ public final class Benchmark {
         benchmarkFinished
                 .getFuture()
                 .addListener(simulation.metricsReporter()::report, DialogueFutures.safeDirectExecutor());
+        Runnable updateCounters = () -> {
+            responsesReceived[0] += 1;
+            benchmarkFinished.update(responsesReceived[0]);
+        };
         FutureCallback<Response> accumulateStatusCodes = new FutureCallback<Response>() {
             @Override
             public void onSuccess(Response response) {
                 response.close(); // just being a good citizen
                 statusCodes.compute(Integer.toString(response.code()), (_c, num) -> num == null ? 1 : num + 1);
+                updateCounters.run();
             }
 
             @Override
             public void onFailure(Throwable throwable) {
                 statusCodes.compute(throwable.getMessage(), (_c, num) -> num == null ? 1 : num + 1);
+                updateCounters.run();
             }
         };
         requestStream.forEach(req -> {
@@ -223,17 +229,6 @@ public final class Benchmark {
 
                                     Futures.addCallback(
                                             future, accumulateStatusCodes, DialogueFutures.safeDirectExecutor());
-                                    future.addListener(
-                                            () -> {
-                                                responsesReceived[0] += 1;
-                                                benchmarkFinished.update(
-                                                        Duration.ofNanos(simulation
-                                                                .clock()
-                                                                .read()),
-                                                        requestsStarted[0],
-                                                        responsesReceived[0]);
-                                            },
-                                            DialogueFutures.safeDirectExecutor());
                                 } catch (RuntimeException e) {
                                     log.error("Channels shouldn't throw", e);
                                 }
@@ -315,7 +310,7 @@ public final class Benchmark {
          * Called after every request to give this predicate the opportunity to terminate the benchmark by
          * resolving the SettableFuture.
          */
-        void update(Duration time, long requestsStarted, long responsesReceived);
+        void update(long responsesReceived);
     }
 
     @Value.Immutable
