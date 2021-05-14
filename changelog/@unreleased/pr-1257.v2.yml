@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Add deprecated factory to create clients from ClientConfiguration.
+  links:
+  - https://github.com/palantir/dialogue/pull/1257
