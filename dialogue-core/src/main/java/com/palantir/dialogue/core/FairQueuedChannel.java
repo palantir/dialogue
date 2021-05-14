@@ -162,7 +162,7 @@ public final class FairQueuedChannel implements Channel {
 
     @Override
     public String toString() {
-        return "DisruptorScheduler{queueSizeEstimate="
+        return "FairQueuedChannel{queueSizeEstimate="
                 + queueSize.queueSizeEstimate + ", maxQueueSize="
                 + queueSize.maxQueueSize + ", delegate="
                 + delegate + '}';
