@@ -227,7 +227,7 @@ public final class RoundRobinQueuedChannel implements Channel {
             RoutingKey routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
             HostId hostKey = request.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
 
-            QueueKey queueKey = ImmutableFairQueuedChannel.QueueKey.of(
+            QueueKey queueKey = ImmutableRoundRobinQueuedChannel.QueueKey.of(
                     MoreObjects.firstNonNull(routingKey, DEFAULT_ROUTING_KEY),
                     MoreObjects.firstNonNull(hostKey, HostId.anyHost()));
             fairQueue.addToQueue(queueKey, deferredCall);
