@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Remove the 'UseCallingThreadExecutor' feature flag, feature is always
+    enabled
+  links:
+  - https://github.com/palantir/dialogue/pull/1260

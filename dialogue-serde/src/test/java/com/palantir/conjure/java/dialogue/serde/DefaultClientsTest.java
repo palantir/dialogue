@@ -40,7 +40,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.blocking.CallingThreadExecutor;
 import com.palantir.dialogue.blocking.CallingThreadExecutorAssert;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -50,7 +49,6 @@ import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
-import org.assertj.core.api.ObjectAssert;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.api.parallel.Execution;
@@ -224,19 +222,7 @@ public final class DefaultClientsTest {
 
     @Test
     @Execution(ExecutionMode.SAME_THREAD)
-    public void testCallBlockingPropagatesCallingThreadExecutor_whenEnabled() {
-        testCallingThreadExecutor(true);
-    }
-
-    @Test
-    @Execution(ExecutionMode.SAME_THREAD)
-    public void testCallBlockingDoesNotPropagateCallingThreadExecutor_whenDisabled() {
-        testCallingThreadExecutor(false);
-    }
-
-    private void testCallingThreadExecutor(boolean enabled) {
-        UseCallingThreadExecutor.setCallingThreadExecutorProbability(enabled ? 1.0f : 0.0f);
-
+    public void testCallBlockingPropagatesCallingThreadExecutor() {
         Request request = Request.builder().build();
         when(stringDeserializer.deserialize(eq(response))).thenReturn(VALUE);
         when(channel.execute(eq(endpoint), requestCaptor.capture())).thenReturn(responseFuture);
@@ -246,13 +232,8 @@ public final class DefaultClientsTest {
 
         assertStringResult(CallType.Blocking, result);
 
-        ObjectAssert<CallingThreadExecutor> callingThreadExecutorObjectAssert =
-                CallingThreadExecutorAssert.assertUsingCallingThreadExecutor(requestCaptor.getValue());
-        if (enabled) {
-            callingThreadExecutorObjectAssert.isNotNull();
-        } else {
-            callingThreadExecutorObjectAssert.isNull();
-        }
+        CallingThreadExecutorAssert.assertUsingCallingThreadExecutor(requestCaptor.getValue())
+                .isNotNull();
     }
 
     private ListenableFuture<String> call(CallType callType, Request request) {
