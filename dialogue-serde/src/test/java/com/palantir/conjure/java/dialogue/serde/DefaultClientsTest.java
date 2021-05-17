@@ -222,7 +222,7 @@ public final class DefaultClientsTest {
 
     @Test
     @Execution(ExecutionMode.SAME_THREAD)
-    public void testCallBlockingPropagatesCallingThreadExecutor_whenEnabled() {
+    public void testCallBlockingPropagatesCallingThreadExecutor() {
         Request request = Request.builder().build();
         when(stringDeserializer.deserialize(eq(response))).thenReturn(VALUE);
         when(channel.execute(eq(endpoint), requestCaptor.capture())).thenReturn(responseFuture);
