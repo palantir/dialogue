@@ -374,6 +374,8 @@ public final class RoundRobinQueuedChannel implements Channel {
             open = true;
             round.clear();
             round.addAll(parent.fairQueue);
+            curKey = null;
+            curQueue = null;
         }
 
         @Override
@@ -408,6 +410,8 @@ public final class RoundRobinQueuedChannel implements Channel {
         public void close() {
             open = false;
             round.clear();
+            curKey = null;
+            curQueue = null;
         }
 
         private QueueKey curKey() {
@@ -443,22 +447,28 @@ public final class RoundRobinQueuedChannel implements Channel {
 
         @Override
         public void onSuccess(Response result) {
-            if (!response.set(result)) {
-                result.close();
+            try {
+                if (!response.set(result)) {
+                    result.close();
+                }
+            } finally {
+                onCompletion.run();
             }
-            onCompletion.run();
         }
 
         @Override
         public void onFailure(Throwable throwable) {
-            if (!response.setException(throwable)) {
-                if (throwable instanceof CancellationException) {
-                    log.debug("Call was canceled", throwable);
-                } else {
-                    log.info("Call failed after the future completed", throwable);
+            try {
+                if (!response.setException(throwable)) {
+                    if (throwable instanceof CancellationException) {
+                        log.debug("Call was canceled", throwable);
+                    } else {
+                        log.info("Call failed after the future completed", throwable);
+                    }
                 }
+            } finally {
+                onCompletion.run();
             }
-            onCompletion.run();
         }
     }
 }

@@ -102,7 +102,9 @@ final class SimulationTest {
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @EnumSource(Strategy.class)
-    @ParameterizedTest
+    @ParameterizedTest(
+            name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + " [" + ParameterizedTest.INDEX_PLACEHOLDER + "] "
+                    + ParameterizedTest.ARGUMENTS_WITH_NAMES_PLACEHOLDER)
     @interface SimulationCase {}
 
     private Strategy st;
