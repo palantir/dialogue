@@ -57,10 +57,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 @Value.Enclosing
-public final class FairQueuedChannel implements Channel {
+public final class RoundRobinQueuedChannel implements Channel {
 
     private static final RoutingKey DEFAULT_ROUTING_KEY = RoutingKey.create();
-    private static final Logger log = LoggerFactory.getLogger(FairQueuedChannel.class);
+    private static final Logger log = LoggerFactory.getLogger(RoundRobinQueuedChannel.class);
     private static final Supplier<FairQueue> FAIR_QUEUE_SUPPLIER = FairQueue1::new;
 
     private final QueueExecutor queueExecutor;
@@ -75,7 +75,7 @@ public final class FairQueuedChannel implements Channel {
     private final EventProcessor eventProcessor;
 
     @VisibleForTesting
-    FairQueuedChannel(
+    RoundRobinQueuedChannel(
             QueueExecutor queueExecutor,
             LimitedChannel delegate,
             String channelName,
@@ -94,7 +94,7 @@ public final class FairQueuedChannel implements Channel {
     }
 
     public static Channel create(Config cf, LimitedChannel delegate) {
-        return new FairQueuedChannel(
+        return new RoundRobinQueuedChannel(
                 cf.queueExecutor(),
                 delegate,
                 cf.channelName(),

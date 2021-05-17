@@ -54,7 +54,7 @@ import org.mockito.stubbing.OngoingStubbing;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("FutureReturnValueIgnored")
-public final class FairQueuedChannelTest {
+public final class RoundRobinQueuedChannelTest {
 
     @Mock
     private LimitedChannel delegate;
@@ -68,13 +68,13 @@ public final class FairQueuedChannelTest {
     @Mock
     private Response mockResponse;
 
-    private FairQueuedChannel queuedChannel;
+    private RoundRobinQueuedChannel queuedChannel;
     private SettableFuture<Response> futureResponse;
     private Optional<ListenableFuture<Response>> maybeResponse;
 
     @BeforeEach
     public void before() {
-        queuedChannel = new FairQueuedChannel(
+        queuedChannel = new RoundRobinQueuedChannel(
                 SharedDisruptorQueueExecutor.instance(),
                 delegate,
                 "my-channel",
@@ -193,7 +193,7 @@ public final class FairQueuedChannelTest {
 
     @Test
     public void testQueueFullReturnsLimited() {
-        queuedChannel = new FairQueuedChannel(
+        queuedChannel = new RoundRobinQueuedChannel(
                 SharedDisruptorQueueExecutor.instance(),
                 delegate,
                 "my-channel",
@@ -212,7 +212,7 @@ public final class FairQueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel = new FairQueuedChannel(
+        queuedChannel = new RoundRobinQueuedChannel(
                 SharedDisruptorQueueExecutor.instance(),
                 delegate,
                 channelName,
@@ -231,7 +231,7 @@ public final class FairQueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel = new FairQueuedChannel(
+        queuedChannel = new RoundRobinQueuedChannel(
                 SharedDisruptorQueueExecutor.instance(),
                 delegate,
                 channelName,
@@ -255,7 +255,7 @@ public final class FairQueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel = new FairQueuedChannel(
+        queuedChannel = new RoundRobinQueuedChannel(
                 SharedDisruptorQueueExecutor.instance(),
                 delegate,
                 channelName,

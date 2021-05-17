@@ -165,7 +165,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             Channel queuedChannel;
             if (SCHEDULER == Scheduler.FairQueuedChannel) {
-                queuedChannel = FairQueuedChannel.create(cf, nodeSelectionChannel);
+                queuedChannel = RoundRobinQueuedChannel.create(cf, nodeSelectionChannel);
             } else {
                 queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
             }

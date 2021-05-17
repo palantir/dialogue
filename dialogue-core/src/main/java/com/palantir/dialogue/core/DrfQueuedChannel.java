@@ -21,10 +21,11 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
-import com.palantir.dialogue.core.FairQueuedChannel.QueueKey;
 import com.palantir.dialogue.core.QueueExecutor.DeferredCall;
+import com.palantir.dialogue.core.RoundRobinQueuedChannel.QueueKey;
 import java.util.ArrayDeque;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Queue;
 import org.immutables.value.Value;
@@ -32,7 +33,7 @@ import org.immutables.value.Value;
 @SuppressWarnings({"StrictUnusedVariable", "UnusedMethod", "FinalClass"})
 final class DrfQueuedChannel {
 
-    private final Map<RoutingKey, RoutingKeyState> allQueues = new HashMap<>();
+    private final Map<RoutingKey, RoutingKeyState> allQueues = new LinkedHashMap<>();
 
     private static class HostState {
 
