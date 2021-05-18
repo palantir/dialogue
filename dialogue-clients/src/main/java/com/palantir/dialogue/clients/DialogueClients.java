@@ -67,12 +67,10 @@ public final class DialogueClients {
         Channel getChannel(String serviceName);
     }
 
-    /**
-     * Deprecated low-level API to support some legacy use-cases.
-     *
-     * @deprecated should not be used, prefer factories that load
-     */
-    @Deprecated
+    public interface NonReloadingChannelFactory {
+        Channel getNonReloadingChannel(String channelName, ClientConfiguration clientConfiguration);
+    }
+
     public interface ClientConfigurationNonReloadingClientFactory {
         /**
          * Construct an instance of the given {@code clientInterface} which can be used to make network calls to the
@@ -109,6 +107,7 @@ public final class DialogueClients {
                     ConjureClients.NonReloadingClientFactory,
                     ConjureClients.ToReloadingFactory<ReloadingFactory>,
                     ReloadingChannelFactory,
+                    NonReloadingChannelFactory,
                     ClientConfigurationNonReloadingClientFactory {
 
         StickyChannelFactory getStickyChannels(String serviceName);

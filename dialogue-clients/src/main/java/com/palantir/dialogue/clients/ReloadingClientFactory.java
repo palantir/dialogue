@@ -68,6 +68,20 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         this.cache = cache;
     }
 
+    @Override
+    public Channel getNonReloadingChannel(String channelName, ClientConfiguration clientConf) {
+        ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
+                .clientConfiguration(clientConf)
+                .clientName(channelName);
+        params.blockingExecutor().ifPresent(clientBuilder::executor);
+        ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
+        return DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(clientConf)
+                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient))
+                .build();
+    }
+
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
         Refreshable<ServicesConfigBlock> scb();
@@ -98,16 +112,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public <T> T getNonReloading(Class<T> clazz, ClientConfiguration clientConf) {
         String channelName = ChannelNames.nonReloading(clazz, params);
-        ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
-                .clientConfiguration(clientConf)
-                .clientName(channelName);
-        params.blockingExecutor().ifPresent(clientBuilder::executor);
-        ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
-        Channel channel = DialogueChannel.builder()
-                .channelName(channelName)
-                .clientConfiguration(clientConf)
-                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient))
-                .build();
+        Channel channel = getNonReloadingChannel(channelName, clientConf);
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
