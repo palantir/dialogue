@@ -68,22 +68,23 @@ public final class DialogueClients {
     }
 
     public interface NonReloadingChannelFactory {
+        /**
+         * @deprecated should not be used going forward, prefer reloadable factories.
+         */
+        @Deprecated
         Channel getNonReloadingChannel(String channelName, ClientConfiguration clientConfiguration);
     }
 
-    /**
-     * Deprecated low-level API to support some legacy use-cases.
-     *
-     * @deprecated should not be used going forward, prefer reloadable factories.
-     */
-    @Deprecated
     public interface ClientConfigurationNonReloadingClientFactory {
         /**
          * Construct an instance of the given {@code clientInterface} which can be used to make network calls to the
          * single conceptual upstream identified by {@code clientConfiguration}.
          *
          * Behaviour is undefined if {@code clientConfiguration} contains no URIs.
+         *
+         * @deprecated should not be used going forward, prefer reloadable factories.
          */
+        @Deprecated
         <T> T getNonReloading(Class<T> clientInterface, ClientConfiguration clientConfiguration);
     }
 
