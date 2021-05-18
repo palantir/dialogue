@@ -71,6 +71,12 @@ public final class DialogueClients {
         Channel getNonReloadingChannel(String channelName, ClientConfiguration clientConfiguration);
     }
 
+    /**
+     * Deprecated low-level API to support some legacy use-cases.
+     *
+     * @deprecated should not be used, prefer factories that load
+     */
+    @Deprecated
     public interface ClientConfigurationNonReloadingClientFactory {
         /**
          * Construct an instance of the given {@code clientInterface} which can be used to make network calls to the
