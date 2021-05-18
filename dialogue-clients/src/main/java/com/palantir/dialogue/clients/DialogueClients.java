@@ -69,6 +69,8 @@ public final class DialogueClients {
 
     public interface NonReloadingChannelFactory {
         /**
+         * Low level API.
+         *
          * @deprecated should not be used going forward, prefer reloadable factories.
          */
         @Deprecated
