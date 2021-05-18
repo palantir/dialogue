@@ -74,7 +74,7 @@ public final class DialogueClients {
     /**
      * Deprecated low-level API to support some legacy use-cases.
      *
-     * @deprecated should not be used, prefer factories that load
+     * @deprecated should not be used going forward, prefer reloadable factories.
      */
     @Deprecated
     public interface ClientConfigurationNonReloadingClientFactory {
