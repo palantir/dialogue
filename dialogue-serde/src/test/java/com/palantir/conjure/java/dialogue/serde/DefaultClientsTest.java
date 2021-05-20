@@ -31,6 +31,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.CloseRecordingInputStream;
@@ -79,7 +80,7 @@ public final class DefaultClientsTest {
 
     private Response response = new TestResponse();
     private BodySerDe bodySerde = new ConjureBodySerDe(
-            DefaultConjureRuntime.DEFAULT_ENCODINGS, ErrorDecoder.INSTANCE, Encodings.emptyContainerDeserializer());
+            DefaultConjureRuntime.DEFAULT_ENCODINGS, new ConjureErrorDecoder(), Encodings.emptyContainerDeserializer());
     private final SettableFuture<Response> responseFuture = SettableFuture.create();
     private final ListeningExecutorService executor =
             MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());

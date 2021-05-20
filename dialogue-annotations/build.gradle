@@ -3,6 +3,7 @@ apply plugin: 'com.palantir.revapi'
 
 dependencies {
     api project(':dialogue-target')
+    api project(':dialogue-serde-core')
     api 'com.palantir.conjure.java:conjure-lib'
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.tokens:auth-tokens'

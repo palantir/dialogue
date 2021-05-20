@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.annotations;
 
+import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
+import com.palantir.conjure.java.dialogue.serde.core.ErrorDecoder;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Serializer;
@@ -52,6 +54,8 @@ public @interface Request {
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
     Class<? extends DeserializerFactory> accept() default Json.class;
+
+    Class<? extends ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)

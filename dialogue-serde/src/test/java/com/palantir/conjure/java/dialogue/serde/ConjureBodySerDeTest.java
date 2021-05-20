@@ -27,6 +27,7 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.TestResponse;
@@ -48,7 +49,7 @@ public class ConjureBodySerDeTest {
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
     private static final TypeMarker<Optional<String>> OPTIONAL_TYPE = new TypeMarker<Optional<String>>() {};
 
-    private ErrorDecoder errorDecoder = ErrorDecoder.INSTANCE;
+    private ConjureErrorDecoder errorDecoder = new ConjureErrorDecoder();
 
     @Test
     public void testRequestContentType() throws IOException {
@@ -110,7 +111,7 @@ public class ConjureBodySerDeTest {
 
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(plain, .5), WeightedEncoding.of(json, 1)),
-                ErrorDecoder.INSTANCE,
+                new ConjureErrorDecoder(),
                 Encodings.emptyContainerDeserializer());
         // first encoding is default
         RequestBody body = serializers.serializer(TYPE).serialize("test");
@@ -138,7 +139,7 @@ public class ConjureBodySerDeTest {
 
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
-        errorDecoder = mock(ErrorDecoder.class);
+        errorDecoder = mock(ConjureErrorDecoder.class);
         when(errorDecoder.isError(response)).thenReturn(true);
         when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
 
@@ -170,7 +171,7 @@ public class ConjureBodySerDeTest {
         TestResponse response = new TestResponse().code(200).contentType("application/json");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)),
-                ErrorDecoder.INSTANCE,
+                new ConjureErrorDecoder(),
                 Encodings.emptyContainerDeserializer());
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
@@ -220,7 +221,7 @@ public class ConjureBodySerDeTest {
 
         ServiceException serviceException = new ServiceException(ErrorType.INVALID_ARGUMENT);
         SerializableError serialized = SerializableError.forException(serviceException);
-        errorDecoder = mock(ErrorDecoder.class);
+        errorDecoder = mock(ConjureErrorDecoder.class);
         when(errorDecoder.isError(response)).thenReturn(true);
         when(errorDecoder.decode(response)).thenReturn(new RemoteException(serialized, 400));
 

@@ -1,0 +1,10 @@
+apply plugin: 'com.palantir.external-publish-jar'
+apply plugin: 'com.palantir.revapi'
+apply plugin: 'com.palantir.metric-schema'
+
+dependencies {
+    api project(':dialogue-target')
+    implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+}
+
+configurations.testCompileClasspath.exclude module: 'junit'

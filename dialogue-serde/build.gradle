@@ -9,6 +9,7 @@ dependencies {
     api 'com.palantir.tokens:auth-tokens'
     implementation project(':dialogue-futures')
     implementation project(':dialogue-blocking-channels')
+    implementation project(':dialogue-serde-core')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
     implementation 'com.palantir.tritium:tritium-metrics'
     implementation 'io.dropwizard.metrics:metrics-core'

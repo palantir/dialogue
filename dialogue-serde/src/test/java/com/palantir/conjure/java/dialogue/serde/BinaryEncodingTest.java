@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.CloseRecordingInputStream;
 import com.palantir.dialogue.TestResponse;
@@ -34,7 +35,7 @@ public class BinaryEncodingTest {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
-                ErrorDecoder.INSTANCE,
+                new ConjureErrorDecoder(),
                 Encodings.emptyContainerDeserializer());
         InputStream deserialized = serializers.inputStreamDeserializer().deserialize(response);
         assertThat(deserialized.available()).isEqualTo(0);
@@ -57,7 +58,7 @@ public class BinaryEncodingTest {
         TestResponse response = new TestResponse().code(200).contentType("application/octet-stream");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(new ConjureBodySerDeTest.StubEncoding("application/json"))),
-                ErrorDecoder.INSTANCE,
+                new ConjureErrorDecoder(),
                 Encodings.emptyContainerDeserializer());
         Optional<InputStream> maybe =
                 serializers.optionalInputStreamDeserializer().deserialize(response);
