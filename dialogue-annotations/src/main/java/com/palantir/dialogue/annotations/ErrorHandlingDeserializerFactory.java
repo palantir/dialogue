@@ -23,12 +23,12 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
 import java.util.Optional;
 
-public final class DefaultDeserializerFactory<T> implements DeserializerFactory<T> {
+public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFactory<T> {
 
     private final DeserializerFactory<T> delegate;
     private final ErrorDecoder errorDecoder;
 
-    public DefaultDeserializerFactory(DeserializerFactory<T> delegate, ErrorDecoder errorDecoder) {
+    public ErrorHandlingDeserializerFactory(DeserializerFactory<T> delegate, ErrorDecoder errorDecoder) {
         this.delegate = Preconditions.checkNotNull(delegate, "delegate");
         this.errorDecoder = Preconditions.checkNotNull(errorDecoder, "errorDecoder");
     }
