@@ -146,6 +146,8 @@ enum ErrorDecoder {
         recordHeader(HttpHeaders.DATE, response, args);
         recordHeader("x-envoy-response-flags", response, args);
         recordHeader("x-envoy-response-code-details", response, args);
+        recordHeader("Response-Flags", response, args);
+        recordHeader("Response-Code-Details", response, args);
         return args.build();
     }
 
