@@ -5,6 +5,12 @@ apply plugin: 'com.palantir.metric-schema'
 dependencies {
     api project(':dialogue-target')
     implementation 'com.palantir.conjure.java.runtime:conjure-java-jackson-serialization'
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.google.guava:guava'
+    implementation 'com.palantir.conjure.java.api:errors'
+    implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'org.slf4j:slf4j-api'
 }
 
 configurations.testCompileClasspath.exclude module: 'junit'
