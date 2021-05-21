@@ -14,7 +14,9 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
+import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
@@ -42,14 +44,16 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final EndpointChannel greetChannel = endpointChannelFactory.endpoint(Endpoints.greet);
 
-            private final Deserializer<String> greetDeserializer =
-                    new Json().deserializerFor(new TypeMarker<String>() {});
+            private final Deserializer<String> greetDeserializer = new ErrorHandlingDeserializerFactory(
+                            new Json(), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel getGreetingAsyncChannel =
                     endpointChannelFactory.endpoint(Endpoints.getGreetingAsync);
 
-            private final Deserializer<String> getGreetingAsyncDeserializer =
-                    new CustomStringDeserializer().deserializerFor(new TypeMarker<String>() {});
+            private final Deserializer<String> getGreetingAsyncDeserializer = new ErrorHandlingDeserializerFactory(
+                            new CustomStringDeserializer(), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<String>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
@@ -60,8 +64,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
 
-            private final Deserializer<Response> customResponseDeserializer =
-                    new MyResponseDeserializer().deserializerFor(new TypeMarker<Response>() {});
+            private final Deserializer<Response> customResponseDeserializer = new ErrorHandlingDeserializerFactory(
+                            new MyResponseDeserializer(), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<Response>() {});
 
             private final ListParamEncoder<MyCustomParamType> paramsQuery1Encoder =
                     new MyCustomParamTypeParameterEncoder();

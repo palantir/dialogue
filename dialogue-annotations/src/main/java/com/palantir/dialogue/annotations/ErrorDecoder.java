@@ -14,28 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.dialogue.annotations;
 
-import com.squareup.javapoet.TypeName;
-import java.util.Optional;
-import org.immutables.value.Value;
+import com.palantir.dialogue.Response;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface ReturnType {
-    TypeName returnType();
+public interface ErrorDecoder {
+    boolean isError(Response response);
 
-    TypeName deserializerFactory();
-
-    TypeName errorDecoder();
-
-    String deserializerFieldName();
-
-    Optional<TypeName> asyncInnerType();
-
-    @Value.Derived
-    default boolean isVoid() {
-        TypeName type = asyncInnerType().orElseGet(this::returnType);
-        return type.box().equals(TypeName.VOID.box());
-    }
+    RuntimeException decode(Response response);
 }

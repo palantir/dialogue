@@ -47,11 +47,19 @@ public @interface Request {
     String path();
 
     /**
-     * Custom response body {@link Deserializer}.
+     * Response body {@link Deserializer}. By default this deserializer is only used for successful
+     * (i.e. {@code 300 <= response.code() <= 599}) responses.
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
     Class<? extends DeserializerFactory> accept() default Json.class;
+
+    /**
+     * Error handling strategy.
+     *
+     * @return class that implements a zero-arg constructor to be used to deserialize an error response
+     */
+    Class<? extends ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)

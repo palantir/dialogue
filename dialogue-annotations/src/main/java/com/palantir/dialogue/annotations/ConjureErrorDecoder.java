@@ -14,28 +14,19 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.dialogue.annotations;
 
-import com.squareup.javapoet.TypeName;
-import java.util.Optional;
-import org.immutables.value.Value;
+import com.palantir.dialogue.Response;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface ReturnType {
-    TypeName returnType();
+public final class ConjureErrorDecoder implements ErrorDecoder {
 
-    TypeName deserializerFactory();
+    @Override
+    public boolean isError(Response response) {
+        return com.palantir.conjure.java.dialogue.serde.ErrorDecoder.INSTANCE.isError(response);
+    }
 
-    TypeName errorDecoder();
-
-    String deserializerFieldName();
-
-    Optional<TypeName> asyncInnerType();
-
-    @Value.Derived
-    default boolean isVoid() {
-        TypeName type = asyncInnerType().orElseGet(this::returnType);
-        return type.box().equals(TypeName.VOID.box());
+    @Override
+    public RuntimeException decode(Response response) {
+        return com.palantir.conjure.java.dialogue.serde.ErrorDecoder.INSTANCE.decode(response);
     }
 }

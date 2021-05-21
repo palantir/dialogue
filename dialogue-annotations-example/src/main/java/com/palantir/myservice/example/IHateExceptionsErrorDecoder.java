@@ -14,28 +14,19 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.myservice.example;
 
-import com.squareup.javapoet.TypeName;
-import java.util.Optional;
-import org.immutables.value.Value;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.annotations.ErrorDecoder;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface ReturnType {
-    TypeName returnType();
+public final class IHateExceptionsErrorDecoder implements ErrorDecoder {
+    @Override
+    public boolean isError(Response _response) {
+        return false;
+    }
 
-    TypeName deserializerFactory();
-
-    TypeName errorDecoder();
-
-    String deserializerFieldName();
-
-    Optional<TypeName> asyncInnerType();
-
-    @Value.Derived
-    default boolean isVoid() {
-        TypeName type = asyncInnerType().orElseGet(this::returnType);
-        return type.box().equals(TypeName.VOID.box());
+    @Override
+    public RuntimeException decode(Response _response) {
+        throw new UnsupportedOperationException("Exceptions were a mistake");
     }
 }

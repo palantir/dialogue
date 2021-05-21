@@ -51,17 +51,17 @@ import org.slf4j.LoggerFactory;
  * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
  * Response} does not adhere to an expected format.
  */
-enum ErrorDecoder {
+public enum ErrorDecoder {
     INSTANCE;
 
     private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
-    boolean isError(Response response) {
+    public boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    RuntimeException decode(Response response) {
+    public RuntimeException decode(Response response) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response).toArray(new Object[0]));
         }

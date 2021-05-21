@@ -55,7 +55,11 @@ public interface MyService {
     // method level annotations? e.g.
     // @Request.Header(name="Accept", value="text/plain")
     // This is the dialogue Response object
-    @Request(method = HttpMethod.PUT, path = "/custom/request1", accept = MyResponseDeserializer.class)
+    @Request(
+            method = HttpMethod.PUT,
+            path = "/custom/request1",
+            accept = MyResponseDeserializer.class,
+            errorDecoder = IHateExceptionsErrorDecoder.class)
     Response customResponse();
 
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
