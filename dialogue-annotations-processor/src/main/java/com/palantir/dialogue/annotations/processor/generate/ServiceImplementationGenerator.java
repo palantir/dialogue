@@ -22,6 +22,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
@@ -158,12 +159,18 @@ public final class ServiceImplementationGenerator {
     private Optional<FieldSpec> deserializer(ReturnType type) {
         TypeName fullReturnType = type.returnType().box();
         TypeName deserializerFactoryType = type.deserializerFactory();
+        TypeName errorDecoderType = type.errorDecoder();
         TypeName innerType = type.asyncInnerType().map(TypeName::box).orElse(fullReturnType);
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
         CodeBlock realDeserializer = CodeBlock.of(
-                "new $T().deserializerFor(new $T<$T>() {})", deserializerFactoryType, TypeMarker.class, innerType);
+                "new $T(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                ErrorHandlingDeserializerFactory.class,
+                deserializerFactoryType,
+                errorDecoderType,
+                TypeMarker.class,
+                innerType);
         CodeBlock voidDeserializer =
                 CodeBlock.of("$L.bodySerDe().emptyBodyDeserializer()", serviceDefinition.conjureRuntimeArgName());
 
