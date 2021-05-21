@@ -47,7 +47,7 @@ public @interface Request {
     String path();
 
     /**
-     * Custom response body {@link Deserializer}. By default this deserializer is only used for successful
+     * Response body {@link Deserializer}. By default this deserializer is only used for successful
      * (i.e. {@code 300 <= response.code() <= 599}) responses.
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
