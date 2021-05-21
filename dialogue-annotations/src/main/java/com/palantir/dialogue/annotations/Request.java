@@ -48,17 +48,18 @@ public @interface Request {
 
     /**
      * Custom response body {@link Deserializer}. By default this deserializer is only used for successful
-     * (i.e. {@code 300 <= response.code() <= 599}).
+     * (i.e. {@code 300 <= response.code() <= 599}) responses.
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
     Class<? extends DeserializerFactory> accept() default Json.class;
 
     /**
-     * Custom error handling strategy.
+     * Error handling strategy.
+     *
      * @return class that implements a zero-arg constructor to be used to deserialize an error response
      */
-    Class<? extends com.palantir.dialogue.annotations.ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
+    Class<? extends ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
