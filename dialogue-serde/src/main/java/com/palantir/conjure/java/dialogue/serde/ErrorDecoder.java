@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2019 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.conjure.java.dialogue.serde.core;
+package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
@@ -42,7 +42,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,17 +51,16 @@ import org.slf4j.LoggerFactory;
  * {@link RemoteException}) if a {@link RemoteException} could not be extracted, e.g., when the given {@link
  * Response} does not adhere to an expected format.
  */
-public final class ConjureErrorDecoder implements ErrorDecoder {
+public enum ErrorDecoder {
+    INSTANCE;
 
-    private static final Logger log = LoggerFactory.getLogger(ConjureErrorDecoder.class);
+    private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
-    @Override
     public boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
 
-    @Override
     public RuntimeException decode(Response response) {
         if (log.isDebugEnabled()) {
             log.debug("Received an error response", diagnosticArgs(response).toArray(new Object[0]));
@@ -117,7 +115,7 @@ public final class ConjureErrorDecoder implements ErrorDecoder {
         }
 
         Optional<String> contentType = response.getFirstHeader(HttpHeaders.CONTENT_TYPE);
-        if (contentType.isPresent() && matchesContentType("application/json", contentType.get())) {
+        if (contentType.isPresent() && Encodings.matchesContentType("application/json", contentType.get())) {
             try {
                 SerializableError serializableError = MAPPER.readValue(body, SerializableError.class);
                 return new RemoteException(serializableError, code);
@@ -185,12 +183,5 @@ public final class ConjureErrorDecoder implements ErrorDecoder {
             // to simply associate diagnostic information with a failure.
             return this;
         }
-    }
-
-    static boolean matchesContentType(String contentType, @Nullable String typeToCheck) {
-        // TODO(ckozak): support wildcards? See javax.ws.rs.core.MediaType.isCompatible
-        return typeToCheck != null
-                // Use startsWith to avoid failures due to charset
-                && typeToCheck.startsWith(contentType);
     }
 }

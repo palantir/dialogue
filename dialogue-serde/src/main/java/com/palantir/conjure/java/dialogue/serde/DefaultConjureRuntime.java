@@ -18,7 +18,6 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
-import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
@@ -31,7 +30,6 @@ import java.util.List;
  */
 public final class DefaultConjureRuntime implements ConjureRuntime {
 
-    private static final ConjureErrorDecoder ERROR_DECODER = new ConjureErrorDecoder();
     static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
             WeightedEncoding.of(Encodings.json(), .9),
             WeightedEncoding.of(Encodings.smile(), 1),
@@ -42,7 +40,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
-                ERROR_DECODER,
+                ErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer());
     }
 

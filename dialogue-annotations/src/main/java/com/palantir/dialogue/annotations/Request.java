@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue.annotations;
 
-import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
-import com.palantir.conjure.java.dialogue.serde.core.ErrorDecoder;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Serializer;
@@ -49,13 +47,18 @@ public @interface Request {
     String path();
 
     /**
-     * Custom response body {@link Deserializer}.
+     * Custom response body {@link Deserializer}. By default this deserializer is only used for successful
+     * (i.e. {@code 300 <= response.code() <= 599}).
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
     Class<? extends DeserializerFactory> accept() default Json.class;
 
-    Class<? extends ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
+    /**
+     * Custom error handling strategy.
+     * @return class that implements a zero-arg constructor to be used to deserialize an error response
+     */
+    Class<? extends com.palantir.dialogue.annotations.ErrorDecoder> errorDecoder() default ConjureErrorDecoder.class;
 
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.palantir.conjure.java.dialogue.serde.core;
+package com.palantir.dialogue.annotations;
 
 import com.palantir.dialogue.Response;
 

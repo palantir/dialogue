@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.annotations;
 
-import com.palantir.conjure.java.dialogue.serde.core.ErrorDecoder;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;

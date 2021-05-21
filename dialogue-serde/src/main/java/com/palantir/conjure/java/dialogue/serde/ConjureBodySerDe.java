@@ -18,7 +18,6 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import com.palantir.conjure.java.dialogue.serde.core.ConjureErrorDecoder;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -48,7 +47,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final Logger log = LoggerFactory.getLogger(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
-    private final ConjureErrorDecoder errorDecoder;
+    private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
     private final EmptyContainerDeserializer emptyContainerDeserializer;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
@@ -62,7 +61,7 @@ final class ConjureBodySerDe implements BodySerDe {
      */
     ConjureBodySerDe(
             List<WeightedEncoding> rawEncodings,
-            ConjureErrorDecoder errorDecoder,
+            ErrorDecoder errorDecoder,
             EmptyContainerDeserializer emptyContainerDeserializer) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
@@ -210,14 +209,14 @@ final class ConjureBodySerDe implements BodySerDe {
 
         private static final Logger log = LoggerFactory.getLogger(EncodingDeserializerRegistry.class);
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
-        private final ConjureErrorDecoder errorDecoder;
+        private final ErrorDecoder errorDecoder;
         private final Optional<String> acceptValue;
         private final Optional<T> emptyInstance;
         private final TypeMarker<T> token;
 
         EncodingDeserializerRegistry(
                 List<Encoding> encodings,
-                ConjureErrorDecoder errorDecoder,
+                ErrorDecoder errorDecoder,
                 EmptyContainerDeserializer empty,
                 TypeMarker<T> token) {
             this.encodings = encodings.stream()
@@ -326,9 +325,9 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     private static final class EmptyBodyDeserializer implements Deserializer<Void> {
-        private final ConjureErrorDecoder errorDecoder;
+        private final ErrorDecoder errorDecoder;
 
-        EmptyBodyDeserializer(ConjureErrorDecoder errorDecoder) {
+        EmptyBodyDeserializer(ErrorDecoder errorDecoder) {
             this.errorDecoder = errorDecoder;
         }
 
