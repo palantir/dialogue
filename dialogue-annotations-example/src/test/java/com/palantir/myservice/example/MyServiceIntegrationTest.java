@@ -24,6 +24,8 @@ import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.api.errors.RemoteException;
+import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
@@ -159,6 +161,37 @@ public final class MyServiceIntegrationTest {
                 .satisfies(executionException -> assertThat(
                                 ((UnknownRemoteException) executionException.getCause()).getBody())
                         .isEqualTo(errorBody));
+    }
+
+    @Test
+    public void testGetGreetingAsyncRemoteException() {
+        String errorBody = "{\"errorCode\":\"FAILED_PRECONDITION\",\"errorName\":\"Default:FailedPrecondition\","
+                + "\"errorInstanceId\":\"839ccac1-3944-479a-bcd2-3196b5fa16ee\",\"parameters\":{\"key\":\"value\"}}";
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/greeting");
+            exchange.assertAccept().isEqualTo("text/csv");
+            exchange.assertContentType().isNull();
+            exchange.assertNoBody();
+
+            exchange.exchange.setStatusCode(500);
+            exchange.setContentType("application/json");
+            exchange.writeStringBody(errorBody);
+        };
+
+        assertThatThrownBy(() -> myServiceDialogue.getGreetingAsync().get())
+                .isExactlyInstanceOf(ExecutionException.class)
+                .hasCauseExactlyInstanceOf(RemoteException.class)
+                .satisfies(executionException -> {
+                    RemoteException remoteException = (RemoteException) executionException.getCause();
+                    assertThat(remoteException.getError())
+                            .isEqualTo(SerializableError.builder()
+                                    .errorCode("FAILED_PRECONDITION")
+                                    .errorName("Default:FailedPrecondition")
+                                    .errorInstanceId("839ccac1-3944-479a-bcd2-3196b5fa16ee")
+                                    .putParameters("key", "value")
+                                    .build());
+                });
     }
 
     @Test
