@@ -16,10 +16,12 @@
 
 package com.palantir.dialogue.annotations;
 
+import com.google.common.reflect.TypeToken;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
+import java.io.Closeable;
 import java.util.Optional;
 
 public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFactory<T> {
@@ -35,6 +37,7 @@ public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFa
     @Override
     public <T1 extends T> Deserializer<T1> deserializerFor(TypeMarker<T1> type) {
         Deserializer<T1> delegateDeserializer = delegate.deserializerFor(type);
+        boolean isCloseable = TypeToken.of(type.getType()).isSubtypeOf(Closeable.class);
         return new Deserializer<T1>() {
             @Override
             public T1 deserialize(Response response) {
@@ -43,9 +46,9 @@ public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFa
                     if (errorDecoder.isError(response)) {
                         throw errorDecoder.decode(response);
                     } else {
-                        // delegate has taken on responsibility for closing the response body
-                        closeResponse = false;
-                        return delegateDeserializer.deserialize(response);
+                        T1 toReturn = delegateDeserializer.deserialize(response);
+                        closeResponse = !isCloseable;
+                        return toReturn;
                     }
                 } finally {
                     if (closeResponse) {
