@@ -27,6 +27,8 @@ public interface ReturnType {
 
     TypeName deserializerFactory();
 
+    TypeName errorDecoder();
+
     String deserializerFieldName();
 
     Optional<TypeName> asyncInnerType();
