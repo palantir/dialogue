@@ -59,7 +59,7 @@ public interface MyService {
             method = HttpMethod.PUT,
             path = "/custom/request1",
             accept = MyResponseDeserializer.class,
-            errorDecoder = IHateExceptionsErrorDecoder.class)
+            errorDecoder = DisabledErrorDecoder.class)
     Response customResponse();
 
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
