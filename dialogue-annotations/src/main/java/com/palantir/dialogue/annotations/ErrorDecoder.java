@@ -22,4 +22,17 @@ public interface ErrorDecoder {
     boolean isError(Response response);
 
     RuntimeException decode(Response response);
+
+    final class None implements ErrorDecoder {
+
+        @Override
+        public boolean isError(Response _response) {
+            return false;
+        }
+
+        @Override
+        public RuntimeException decode(Response _response) {
+            throw new UnsupportedOperationException("This should not happen");
+        }
+    }
 }

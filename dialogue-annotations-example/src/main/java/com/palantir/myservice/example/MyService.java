@@ -21,7 +21,7 @@ import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.annotations.DisabledErrorDecoder;
+import com.palantir.dialogue.annotations.ErrorDecoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;
@@ -60,7 +60,7 @@ public interface MyService {
             method = HttpMethod.PUT,
             path = "/custom/request1",
             accept = MyResponseDeserializer.class,
-            errorDecoder = DisabledErrorDecoder.class)
+            errorDecoder = ErrorDecoder.None.class)
     Response customResponse();
 
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
