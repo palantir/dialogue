@@ -21,6 +21,7 @@ import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.annotations.DisabledErrorDecoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;

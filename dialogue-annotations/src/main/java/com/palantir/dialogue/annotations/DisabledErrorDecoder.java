@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.example;
+package com.palantir.dialogue.annotations;
 
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.annotations.ErrorDecoder;
 
 public final class DisabledErrorDecoder implements ErrorDecoder {
+
     @Override
     public boolean isError(Response _response) {
         return false;
