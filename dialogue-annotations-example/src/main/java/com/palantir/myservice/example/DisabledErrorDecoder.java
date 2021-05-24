@@ -19,7 +19,7 @@ package com.palantir.myservice.example;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.ErrorDecoder;
 
-public final class IHateExceptionsErrorDecoder implements ErrorDecoder {
+public final class DisabledErrorDecoder implements ErrorDecoder {
     @Override
     public boolean isError(Response _response) {
         return false;
@@ -27,6 +27,6 @@ public final class IHateExceptionsErrorDecoder implements ErrorDecoder {
 
     @Override
     public RuntimeException decode(Response _response) {
-        throw new UnsupportedOperationException("Exceptions were a mistake");
+        throw new UnsupportedOperationException("This should not happen");
     }
 }
