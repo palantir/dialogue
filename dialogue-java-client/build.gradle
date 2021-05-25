@@ -1,5 +1,3 @@
-sourceCompatibility = 11
-
 dependencies {
     implementation project(':dialogue-core')
     implementation project(':dialogue-target')

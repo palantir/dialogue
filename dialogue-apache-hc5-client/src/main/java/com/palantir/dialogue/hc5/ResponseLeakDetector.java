@@ -26,6 +26,7 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.ref.Cleaner.Cleanable;
 import java.util.Optional;
 import java.util.Random;
 import java.util.function.DoubleSupplier;
@@ -71,9 +72,6 @@ final class ResponseLeakDetector {
     }
 
     private boolean shouldApplyLeakDetection() {
-        if (!CleanerSupport.enabled()) {
-            return false;
-        }
         double leakDetectionProbability = leakDetectionProbabilitySupplier.getAsDouble();
         if (leakDetectionProbability >= 1) {
             return true;
@@ -183,7 +181,7 @@ final class ResponseLeakDetector {
 
         private final Response delegate;
         private final LeakDetector leakDetector;
-        private final Runnable clean;
+        private final Cleanable clean;
 
         @Nullable
         private InputStream leakDetectingStream;
@@ -228,7 +226,7 @@ final class ResponseLeakDetector {
 
         void disarm() {
             leakDetector.disarm();
-            clean.run();
+            clean.clean();
         }
 
         @Override

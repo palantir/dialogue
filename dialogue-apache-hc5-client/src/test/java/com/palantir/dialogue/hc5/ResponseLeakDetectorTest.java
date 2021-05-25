@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assumptions.assumeThat;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -47,7 +46,6 @@ public class ResponseLeakDetectorTest {
 
     @BeforeEach
     public void before() {
-        assumeThat(CleanerSupport.enabled()).isTrue();
         mockEndpoint = mock(Endpoint.class);
         response = mock(Response.class);
         metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
