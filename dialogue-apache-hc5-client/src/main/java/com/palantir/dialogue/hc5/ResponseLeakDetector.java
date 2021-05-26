@@ -21,15 +21,12 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
-import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.Cleaner.Cleanable;
 import java.util.Optional;
-import java.util.Random;
-import java.util.function.DoubleSupplier;
 import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,55 +37,25 @@ final class ResponseLeakDetector {
 
     private final String clientName;
     private final DialogueClientMetrics metrics;
-    private final Random random;
-    private final DoubleSupplier leakDetectionProbabilitySupplier;
 
     static ResponseLeakDetector of(String clientName, TaggedMetricRegistry metrics) {
-        return new ResponseLeakDetector(
-                clientName,
-                DialogueClientMetrics.of(metrics),
-                SafeThreadLocalRandom.get(),
-                DefaultLeakDetectionProbabilitySupplier.INSTANCE);
+        return new ResponseLeakDetector(clientName, DialogueClientMetrics.of(metrics));
     }
 
-    ResponseLeakDetector(
-            String clientName,
-            DialogueClientMetrics metrics,
-            Random random,
-            DoubleSupplier leakDetectionProbabilitySupplier) {
+    ResponseLeakDetector(String clientName, DialogueClientMetrics metrics) {
         this.clientName = clientName;
         this.metrics = metrics;
-        this.random = random;
-        this.leakDetectionProbabilitySupplier = leakDetectionProbabilitySupplier;
     }
 
     Response wrap(Response input, Endpoint endpoint) {
-        if (shouldApplyLeakDetection()) {
-            LeakDetector detector = new LeakDetector(input, endpoint, clientName, metrics);
-            LeakDetectingResponse response = new LeakDetectingResponse(input, detector);
-            return response;
-        }
-        return input;
-    }
-
-    private boolean shouldApplyLeakDetection() {
-        double leakDetectionProbability = leakDetectionProbabilitySupplier.getAsDouble();
-        if (leakDetectionProbability >= 1) {
-            return true;
-        }
-        if (leakDetectionProbability <= 0) {
-            return false;
-        }
-        return random.nextFloat() <= leakDetectionProbability;
+        LeakDetector detector = new LeakDetector(input, endpoint, clientName, metrics);
+        LeakDetectingResponse response = new LeakDetectingResponse(input, detector);
+        return response;
     }
 
     @Override
     public String toString() {
-        return "ResponseLeakDetector{clientName='"
-                + clientName
-                + "', leakDetectionProbabilitySupplier="
-                + leakDetectionProbabilitySupplier
-                + '}';
+        return "ResponseLeakDetector{clientName='" + clientName + '}';
     }
 
     /**
@@ -232,15 +199,6 @@ final class ResponseLeakDetector {
         @Override
         public String toString() {
             return "LeakDetectingResponse{delegate=" + delegate + ", leakDetector=" + leakDetector + '}';
-        }
-    }
-
-    private enum DefaultLeakDetectionProbabilitySupplier implements DoubleSupplier {
-        INSTANCE;
-
-        @Override
-        public double getAsDouble() {
-            return 1D;
         }
     }
 }

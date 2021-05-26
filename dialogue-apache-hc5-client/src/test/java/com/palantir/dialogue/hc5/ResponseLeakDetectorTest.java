@@ -24,7 +24,6 @@ import static org.mockito.Mockito.verify;
 import com.codahale.metrics.Meter;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
-import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -56,7 +55,7 @@ public class ResponseLeakDetectorTest {
 
     @Test
     public void testLeakMetric() {
-        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), () -> 1);
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics);
         // Result is intentionally ignored to cause a leak
         detector.wrap(response, mockEndpoint);
         Meter leaks = metrics.responseLeak()
@@ -73,7 +72,7 @@ public class ResponseLeakDetectorTest {
 
     @Test
     public void testNotLeaked_streamReferenceHeld() throws Exception {
-        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics, SafeThreadLocalRandom.get(), () -> 1);
+        ResponseLeakDetector detector = new ResponseLeakDetector(CLIENT, metrics);
         Meter leaks = metrics.responseLeak()
                 .clientName(CLIENT)
                 .serviceName(SERVICE)
