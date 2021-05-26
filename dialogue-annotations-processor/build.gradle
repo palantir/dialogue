@@ -1,8 +1,6 @@
 apply plugin: 'com.palantir.external-publish-jar'
 apply plugin: 'org.inferred.processors'
 
-sourceCompatibility = 11
-
 dependencies {
     // All those must be compile because of some IntelliJ classpath issue
     compile project(':dialogue-annotations')
