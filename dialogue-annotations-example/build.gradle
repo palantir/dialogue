@@ -16,8 +16,6 @@
 
 apply plugin: 'org.inferred.processors'
 
-sourceCompatibility = 11
-
 dependencies {
     // IntelliJ does not seem to invoke the processor without this line
     implementation project(':dialogue-annotations-processor')

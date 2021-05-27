@@ -122,10 +122,10 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(String uri, CloseableClient client) {
-        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(client, url(uri), client.leakDetector);
-        return client.executor == null
+        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(client, url(uri), client.leakDetector());
+        return client.executor() == null
                 ? BlockingChannelAdapter.of(blockingChannel)
-                : BlockingChannelAdapter.of(blockingChannel, client.executor);
+                : BlockingChannelAdapter.of(blockingChannel, client.executor());
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {
@@ -157,43 +157,7 @@ public final class ApacheHttpClientChannels {
                 connectionManager);
     }
 
-    /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
-    public static final class CloseableClient implements Closeable {
-
-        private final String clientName;
-        private final CloseableHttpClient apacheClient;
-        private final PoolingHttpClientConnectionManager pool;
-        private final ResponseLeakDetector leakDetector;
-        private final ClientConfiguration clientConfiguration;
-
-        @Nullable
-        private final ExecutorService executor;
-
-        private final Closer closer = Closer.create();
-
-        private CloseableClient(
-                CloseableHttpClient apacheClient,
-                @Safe String clientName,
-                PoolingHttpClientConnectionManager pool,
-                ScheduledFuture<?> connectionEvictorFuture,
-                ResponseLeakDetector leakDetector,
-                @Nullable ExecutorService executor,
-                ClientConfiguration clientConfiguration) {
-            this.clientName = clientName;
-            this.apacheClient = apacheClient;
-            this.pool = pool;
-            this.leakDetector = leakDetector;
-            this.executor = executor;
-            this.clientConfiguration = clientConfiguration;
-            closer.register(() -> connectionEvictorFuture.cancel(true));
-            closer.register(apacheClient);
-            closer.register(pool);
-            closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
-                    .close()
-                    .clientName(clientName)
-                    .clientType(CLIENT_TYPE)
-                    .build()::mark);
-        }
+    public abstract static class CloseableClient implements Closeable {
 
         static CloseableClient wrap(
                 CloseableHttpClient apacheClient,
@@ -204,7 +168,7 @@ public final class ApacheHttpClientChannels {
                 @Nullable ExecutorService executor) {
             ResponseLeakDetector leakDetector =
                     ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry());
-            CloseableClient newInstance = new CloseableClient(
+            CloseableClientImpl newInstance = new CloseableClientImpl(
                     apacheClient,
                     clientName,
                     pool,
@@ -235,19 +199,130 @@ public final class ApacheHttpClientChannels {
                     .clientType(CLIENT_TYPE)
                     .build();
             createMeter.mark();
-            return newInstance;
+            CloseableClient wrapper = new CloseableClientWrapper(newInstance);
+            CleanerSupport.register(wrapper, newInstance::closeApacheClient);
+            return wrapper;
         }
 
+        abstract CloseableHttpClient apacheClient();
+
+        abstract ClientConfiguration clientConfiguration();
+
+        abstract String name();
+
+        @Nullable
+        abstract ExecutorService executor();
+
+        abstract ResponseLeakDetector leakDetector();
+    }
+
+    private static final class CloseableClientWrapper extends CloseableClient {
+
+        private final CloseableClient delegate;
+
+        CloseableClientWrapper(CloseableClient delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public CloseableHttpClient apacheClient() {
+            return delegate.apacheClient();
+        }
+
+        @Override
+        public ClientConfiguration clientConfiguration() {
+            return delegate.clientConfiguration();
+        }
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        @Nullable
+        ExecutorService executor() {
+            return delegate.executor();
+        }
+
+        @Override
+        ResponseLeakDetector leakDetector() {
+            return delegate.leakDetector();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public String toString() {
+            return "CloseableClientWrapper{" + delegate + '}';
+        }
+    }
+
+    /** Intentionally opaque wrapper type - we don't want people using the inner Apache client directly. */
+    private static final class CloseableClientImpl extends CloseableClient {
+
+        private final String clientName;
+        private final CloseableHttpClient apacheClient;
+        private final PoolingHttpClientConnectionManager pool;
+        private final ResponseLeakDetector leakDetector;
+        private final ClientConfiguration clientConfiguration;
+
+        @Nullable
+        private final ExecutorService executor;
+
+        private final Closer closer = Closer.create();
+
+        private CloseableClientImpl(
+                CloseableHttpClient apacheClient,
+                @Safe String clientName,
+                PoolingHttpClientConnectionManager pool,
+                ScheduledFuture<?> connectionEvictorFuture,
+                ResponseLeakDetector leakDetector,
+                @Nullable ExecutorService executor,
+                ClientConfiguration clientConfiguration) {
+            this.clientName = clientName;
+            this.apacheClient = apacheClient;
+            this.pool = pool;
+            this.leakDetector = leakDetector;
+            this.executor = executor;
+            this.clientConfiguration = clientConfiguration;
+            closer.register(() -> connectionEvictorFuture.cancel(true));
+            closer.register(apacheClient);
+            closer.register(pool);
+            closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
+                    .close()
+                    .clientName(clientName)
+                    .clientType(CLIENT_TYPE)
+                    .build()::mark);
+        }
+
+        @Override
         CloseableHttpClient apacheClient() {
             return apacheClient;
         }
 
+        @Override
         ClientConfiguration clientConfiguration() {
             return clientConfiguration;
         }
 
+        @Override
         String name() {
             return clientName;
+        }
+
+        @Override
+        @Nullable
+        ExecutorService executor() {
+            return executor;
+        }
+
+        @Override
+        ResponseLeakDetector leakDetector() {
+            return leakDetector;
         }
 
         @Override
@@ -270,24 +345,7 @@ public final class ApacheHttpClientChannels {
             pool.closeIdle(TimeValue.ZERO_MILLISECONDS);
         }
 
-        /**
-         * {@link Object#finalize()} gets called when this object is GC'd. Overriding finalize is discouraged
-         * because if objects are created faster than finalizer threads can process the GC'd objects, then
-         * the system OOMs. We think it's safe in this scenario because we expect these Apache clients to be very
-         * infrequently constructed. Tritium 0.16.9 also has instrumentation to measure the size of the finalizer queue
-         * (https://github.com/palantir/tritium/pull/712).
-         */
-        @Override
-        @SuppressWarnings({"NoFinalizer", "deprecation"})
-        protected void finalize() throws Throwable {
-            try {
-                finalizeApacheClient();
-            } finally {
-                super.finalize();
-            }
-        }
-
-        private void finalizeApacheClient() throws IOException {
+        private void closeApacheClient() {
             if (log.isInfoEnabled()) {
                 PoolStats poolStats = pool.getTotalStats();
                 log.info(
@@ -302,12 +360,16 @@ public final class ApacheHttpClientChannels {
             // It's important to close the apacheClient object to avoid leaking threads, in
             // particular the idle connection eviction thread from IdleConnectionEvictor, though there may
             // be additional closeable resources.
-            closer.close();
+            try {
+                closer.close();
+            } catch (IOException e) {
+                log.warn("Failed to close client", e);
+            }
         }
 
         @Override
         public String toString() {
-            return "CloseableClient@" + Integer.toHexString(System.identityHashCode(this)) + "{"
+            return "CloseableClientImpl@" + Integer.toHexString(System.identityHashCode(this)) + "{"
                     + "clientName='" + clientName + '\''
                     + ", client=" + apacheClient
                     + ", pool=" + pool

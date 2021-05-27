@@ -1,0 +1,5 @@
+type: break
+break:
+  description: Dialogue requires Java 11
+  links:
+  - https://github.com/palantir/dialogue/pull/1272

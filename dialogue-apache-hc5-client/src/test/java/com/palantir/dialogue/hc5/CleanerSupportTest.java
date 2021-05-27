@@ -24,19 +24,10 @@ import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.EnabledForJreRange;
-import org.junit.jupiter.api.condition.JRE;
 
 class CleanerSupportTest {
 
     @Test
-    void testEnabled() {
-        boolean isJava8 = "1.8".equals(System.getProperty("java.specification.version"));
-        assertThat(CleanerSupport.enabled()).isNotEqualTo(isJava8);
-    }
-
-    @Test
-    @EnabledForJreRange(min = JRE.JAVA_9)
     void testCleaner() {
         AtomicInteger counter = new AtomicInteger();
         CleanerSupport.register(new byte[1024 * 1024], counter::incrementAndGet);
