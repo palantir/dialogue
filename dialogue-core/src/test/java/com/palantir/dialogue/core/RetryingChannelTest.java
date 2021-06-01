@@ -429,6 +429,26 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void doesRetrySafeToRetryForIdempotentEndpointsWhenGet() throws ExecutionException, InterruptedException {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(new SafeToRetryForIdempotentEndpoints("", null)))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.GET,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.PROPAGATE_429_and_503_TO_CALLER,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+        verify(channel, times(2)).execute(REQUEST);
+    }
+
+    @Test
     public void retriesSocketTimeoutWhenRequested() throws ExecutionException, InterruptedException {
         when(channel.execute(any()))
                 .thenReturn(Futures.immediateFailedFuture(new SocketTimeoutException()))
