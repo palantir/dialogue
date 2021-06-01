@@ -26,6 +26,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
+import com.palantir.dialogue.core.SafeToRetryForIdempotentEndpoints;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -39,6 +40,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -53,6 +55,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.slf4j.Logger;
@@ -115,6 +118,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // not retried by default, so ours implements SafeLoggable and retains the simple-name for
             // cleaner metrics.
             throw new SafeConnectTimeoutException(e, failureDiagnosticArgs(endpoint, request, startTime));
+        } catch (NoHttpResponseException e) {
+            // This should not be retried on non-idempotent endpoints since it can happen when the server
+            // already processed the request, however this can also happen if a persistent connection is timed out and
+            // closed by the server or intermediate proxy, in that case it's important that we do retry. Therefore, we
+            // only allow retries if less than 5 seconds have passed.
+            if (Duration.ofNanos(System.nanoTime() - startTime).getSeconds() <= 5) {
+                throw e;
+            }
+            throw new SafeToRetryForIdempotentEndpoints(
+                    "No http response exception occurred after more than 5 seconds have passed", e);
+
         } catch (Throwable t) {
             // We can't wrap all potential exception types, that would cause the failure to lose some amount of type
             // information. Instead, we add a suppressed throwable with no stack trace which acts as a courier
