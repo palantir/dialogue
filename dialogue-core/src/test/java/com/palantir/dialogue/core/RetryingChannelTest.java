@@ -41,6 +41,7 @@ import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -408,6 +409,24 @@ public class RetryingChannelTest {
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(SocketTimeoutException.class);
+    }
+
+    @Test
+    public void doesNotRetryNoHttpResponseWhenPost() {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(new NoHttpResponseException("")))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(NoHttpResponseException.class);
     }
 
     @Test

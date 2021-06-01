@@ -57,6 +57,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -353,6 +354,11 @@ final class RetryingChannel implements EndpointChannel {
                             // String matches CJR RemotingOkHttpCall.shouldRetry
                             && socketTimeout.getMessage().contains("connect timed out");
                 }
+            }
+            if (throwable instanceof NoHttpResponseException) {
+                // this should not be retried on non-idempotent endpoints since it can happen when the server
+                // already processed the request
+                return safeToRetry(endpoint.httpMethod());
             }
             // Only retry IOExceptions. Other failures, particularly RuntimeException and Error are not
             // meant to be recovered from.
