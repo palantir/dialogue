@@ -354,7 +354,7 @@ final class RetryingChannel implements EndpointChannel {
                             && socketTimeout.getMessage().contains("connect timed out");
                 }
             }
-            if (throwable instanceof SafeToRetryForIdempotentEndpoints) {
+            if (throwable instanceof OnlySafeToRetryForIdempotentEndpoints) {
                 return safeToRetry(endpoint.httpMethod());
             }
             // Only retry IOExceptions. Other failures, particularly RuntimeException and Error are not

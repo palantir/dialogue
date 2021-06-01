@@ -413,7 +413,7 @@ public class RetryingChannelTest {
     @Test
     public void doesNotRetrySafeToRetryForIdempotentEndpointsWhenPost() {
         when(channel.execute(any()))
-                .thenReturn(Futures.immediateFailedFuture(new SafeToRetryForIdempotentEndpoints("", null)))
+                .thenReturn(Futures.immediateFailedFuture(new OnlySafeToRetryForIdempotentEndpoints("", null)))
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(
@@ -425,13 +425,13 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(SafeToRetryForIdempotentEndpoints.class);
+        assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(OnlySafeToRetryForIdempotentEndpoints.class);
     }
 
     @Test
     public void doesRetrySafeToRetryForIdempotentEndpointsWhenGet() throws ExecutionException, InterruptedException {
         when(channel.execute(any()))
-                .thenReturn(Futures.immediateFailedFuture(new SafeToRetryForIdempotentEndpoints("", null)))
+                .thenReturn(Futures.immediateFailedFuture(new OnlySafeToRetryForIdempotentEndpoints("", null)))
                 .thenReturn(SUCCESS);
 
         EndpointChannel retryer = new RetryingChannel(

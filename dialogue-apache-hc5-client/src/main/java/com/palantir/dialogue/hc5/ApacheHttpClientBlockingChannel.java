@@ -26,7 +26,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
-import com.palantir.dialogue.core.SafeToRetryForIdempotentEndpoints;
+import com.palantir.dialogue.core.OnlySafeToRetryForIdempotentEndpoints;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -126,7 +126,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             if (Duration.ofNanos(System.nanoTime() - startTime).getSeconds() <= 5) {
                 throw e;
             }
-            throw new SafeToRetryForIdempotentEndpoints(
+            throw new OnlySafeToRetryForIdempotentEndpoints(
                     "No http response exception occurred after more than 5 seconds have passed", e);
 
         } catch (Throwable t) {

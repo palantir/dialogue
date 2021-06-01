@@ -25,17 +25,18 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
-public final class SafeToRetryForIdempotentEndpoints extends IOException implements SafeLoggable {
+public final class OnlySafeToRetryForIdempotentEndpoints extends IOException implements SafeLoggable {
     private final String message;
     private final List<Arg<?>> arguments;
 
-    public SafeToRetryForIdempotentEndpoints(@CompileTimeConstant String message, IOException cause) {
+    public OnlySafeToRetryForIdempotentEndpoints(@CompileTimeConstant String message, IOException cause) {
         super(message, cause);
         this.message = message;
         this.arguments = Collections.emptyList();
     }
 
-    public SafeToRetryForIdempotentEndpoints(@CompileTimeConstant String message, IOException cause, Arg<?>... args) {
+    public OnlySafeToRetryForIdempotentEndpoints(
+            @CompileTimeConstant String message, IOException cause, Arg<?>... args) {
         super(SafeExceptions.renderMessage(message, args), cause);
         this.message = message;
         this.arguments = Collections.unmodifiableList(Arrays.asList(args));
