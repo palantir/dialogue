@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Avoid retrying NoHttpResponseException for long-running requests
+  links:
+  - https://github.com/palantir/dialogue/pull/1276
