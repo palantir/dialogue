@@ -63,6 +63,9 @@ public interface MyService {
             errorDecoder = ErrorDecoder.None.class)
     Response customResponse();
 
+    @Request(method = HttpMethod.PUT, path = "/custom/request2", errorDecoder = AlwaysThrowErrorDecoder.class)
+    void customVoidErrorDecoder();
+
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
     void params(
             @Request.QueryParam("q") String query,
