@@ -171,9 +171,10 @@ public final class ServiceImplementationGenerator {
                 errorDecoderType,
                 TypeMarker.class,
                 innerType);
-        CodeBlock voidDeserializer =
-                CodeBlock.of("$L.bodySerDe().emptyBodyDeserializer()", serviceDefinition.conjureRuntimeArgName());
-
+        CodeBlock voidDeserializer = CodeBlock.of(
+                "new $T($L.bodySerDe().emptyBodyDeserializer())",
+                ErrorHandlingDeserializerFactory.class,
+                serviceDefinition.conjureRuntimeArgName());
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
