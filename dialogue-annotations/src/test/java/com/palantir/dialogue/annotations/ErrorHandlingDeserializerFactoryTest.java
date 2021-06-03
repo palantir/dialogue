@@ -51,7 +51,7 @@ public final class ErrorHandlingDeserializerFactoryTest {
     private Response response;
 
     private ErrorHandlingDeserializerFactory<Object> errorHandlingDeserializerFactory;
-    private final TypeMarker<Integer> integerTypeMarker = new TypeMarker<Integer>() {};
+    private final TypeMarker<Integer> integerTypeMarker = new TypeMarker<>() {};
 
     @BeforeEach
     public void beforeEach() {
@@ -61,7 +61,7 @@ public final class ErrorHandlingDeserializerFactoryTest {
 
     @AfterEach
     public void afterEach() {
-        verifyNoMoreInteractions(integerDelegateDeserializer, errorDecoder, response);
+        verifyNoMoreInteractions(integerDelegateDeserializer, delegateDeserializerFactory, errorDecoder, response);
     }
 
     @Test

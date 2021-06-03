@@ -228,6 +228,23 @@ public final class MyServiceIntegrationTest {
     }
 
     @Test
+    public void testCustomVoidErrorDecoder() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.PUT);
+            exchange.assertPath("/custom/request2");
+            exchange.assertAccept().isNull();
+            exchange.assertContentType().isNull();
+            exchange.assertBodyUtf8().isEmpty();
+
+            exchange.exchange.setStatusCode(204);
+        };
+
+        assertThatThrownBy(myServiceDialogue::customVoidErrorDecoder)
+                .isExactlyInstanceOf(SafeRuntimeException.class)
+                .hasMessage("There are only errors");
+    }
+
+    @Test
     public void testCustomResponse200() {
         testCustomResponse(200);
     }

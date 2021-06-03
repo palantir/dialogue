@@ -97,6 +97,8 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 clazz.getSimpleName() + ".java"));
         try {
             return Compiler.javac()
+                    // This is required because this tool does not know about our gradle setting.
+                    .withOptions("-source", "11")
                     .withProcessors(new DialogueRequestAnnotationsProcessor())
                     .compile(JavaFileObjects.forResource(clazzPath.toUri().toURL()));
         } catch (MalformedURLException e) {

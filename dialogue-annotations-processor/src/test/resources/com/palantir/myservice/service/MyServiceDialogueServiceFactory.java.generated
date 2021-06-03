@@ -17,6 +17,7 @@ import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
+import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
@@ -58,8 +59,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
 
-            private final Deserializer<Void> customRequestDeserializer =
-                    runtime.bodySerDe().emptyBodyDeserializer();
+            private final Deserializer<Void> customRequestDeserializer = new ErrorHandlingVoidDeserializer(
+                    runtime.bodySerDe().emptyBodyDeserializer(), new ConjureErrorDecoder());
 
             private final EndpointChannel customResponseChannel =
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
@@ -89,8 +90,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final EndpointChannel paramsChannel = endpointChannelFactory.endpoint(Endpoints.params);
 
-            private final Deserializer<Void> paramsDeserializer =
-                    runtime.bodySerDe().emptyBodyDeserializer();
+            private final Deserializer<Void> paramsDeserializer = new ErrorHandlingVoidDeserializer(
+                    runtime.bodySerDe().emptyBodyDeserializer(), new ConjureErrorDecoder());
 
             @Override
             public String greet(AuthHeader authHeader, String greeting) {

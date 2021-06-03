@@ -38,7 +38,7 @@ public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFa
     public <T1 extends T> Deserializer<T1> deserializerFor(TypeMarker<T1> type) {
         Deserializer<T1> delegateDeserializer = delegate.deserializerFor(type);
         boolean isCloseable = TypeToken.of(type.getType()).isSubtypeOf(Closeable.class);
-        return new Deserializer<T1>() {
+        return new Deserializer<>() {
             @Override
             public T1 deserialize(Response response) {
                 boolean closeResponse = true;
@@ -60,26 +60,6 @@ public final class ErrorHandlingDeserializerFactory<T> implements DeserializerFa
             @Override
             public Optional<String> accepts() {
                 return delegateDeserializer.accepts();
-            }
-        };
-    }
-
-    public static Deserializer<Void> createVoidDeserializer(Deserializer<Void> delegate, ErrorDecoder errorDecoder) {
-        return new Deserializer<>() {
-            @Override
-            public Void deserialize(Response response) {
-                try (response) {
-                    if (errorDecoder.isError(response)) {
-                        throw errorDecoder.decode(response);
-                    } else {
-                        return delegate.deserialize(response);
-                    }
-                }
-            }
-
-            @Override
-            public Optional<String> accepts() {
-                return delegate.accepts();
             }
         };
     }
