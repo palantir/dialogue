@@ -53,6 +53,7 @@ import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
 import org.slf4j.Logger;
@@ -115,6 +116,23 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             // not retried by default, so ours implements SafeLoggable and retains the simple-name for
             // cleaner metrics.
             throw new SafeConnectTimeoutException(e, failureDiagnosticArgs(endpoint, request, startTime));
+        } catch (NoHttpResponseException e) {
+            // NoHttpResponseException may be thrown immediately when a request is sent if a pooled persistent
+            // connection has been closed by the target server, or an intermediate proxy. In this case it's
+            // important that we retry the request with a fresh connection.
+            // The other possibility is that a remote server or proxy may time out an active request due
+            // to inactivity and close the connection without a response, in this case the request mustn't
+            // be retried.
+            // We attempt to differentiate these two cases based on request duration, we expect most of
+            // the prior case to occur within a couple milliseconds, however we must use a larger value
+            // to account for large garbage collections.
+            long durationNanos = System.nanoTime() - startTime;
+            Arg<?>[] diagnosticArgs = failureDiagnosticArgs(endpoint, request, startTime);
+            if (durationNanos < TimeUnit.SECONDS.toNanos(5)) {
+                e.addSuppressed(new Diagnostic(diagnosticArgs));
+                throw e;
+            }
+            throw new SafeSocketTimeoutException("Received a NoHttpResponseException", e, diagnosticArgs);
         } catch (Throwable t) {
             // We can't wrap all potential exception types, that would cause the failure to lose some amount of type
             // information. Instead, we add a suppressed throwable with no stack trace which acts as a courier
