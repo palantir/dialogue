@@ -175,7 +175,7 @@ public final class ServiceImplementationGenerator {
                 "$T.createVoidDeserializer($L.bodySerDe().emptyBodyDeserializer(), new $T())",
                 ErrorHandlingDeserializerFactory.class,
                 serviceDefinition.conjureRuntimeArgName(),
-                deserializerFactoryType);
+                errorDecoderType);
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
