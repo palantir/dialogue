@@ -101,6 +101,5 @@ public @interface Request {
      */
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
-    @interface QueryMap {
-    }
+    @interface QueryMap {}
 }
