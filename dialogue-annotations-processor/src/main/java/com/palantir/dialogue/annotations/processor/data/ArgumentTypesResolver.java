@@ -18,6 +18,7 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Multimap;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.RequestBody;
@@ -30,6 +31,7 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -81,6 +83,7 @@ public final class ArgumentTypesResolver {
         TypeName typeName = TypeName.get(actualTypeMirror);
         Optional<OptionalType> optionalType = getOptionalType(paramContext, actualTypeMirror);
         Optional<TypeMirror> listType = getListType(actualTypeMirror);
+        Optional<ArgumentType> mapType = getMapType(actualTypeMirror, typeName);
         if (isPrimitive(typeName)) {
             return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName), Optional.empty()));
         } else if (listType.map(innerType -> isPrimitive(TypeName.get(innerType)))
@@ -93,6 +96,8 @@ public final class ArgumentTypesResolver {
         } else if (optionalType.isPresent()) {
             // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
             return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
+        } else if (mapType.isPresent()) {
+            return mapType;
         } else {
             return Optional.of(ArgumentTypes.customType(typeName));
         }
@@ -104,6 +109,17 @@ public final class ArgumentTypesResolver {
 
     private Optional<TypeMirror> getListType(TypeMirror in) {
         return context.getGenericInnerType(List.class, in);
+    }
+
+    private Optional<ArgumentType> getMapType(TypeMirror in, TypeName typeName) {
+        return context.maybeAsDeclaredType(in).flatMap(declaredType -> {
+            if (context.isAssignableWithErasure(declaredType, Multimap.class)) {
+                return Optional.of(ArgumentTypes.mapType(true, typeName));
+            } else if (context.isAssignableWithErasure(declaredType, Map.class)) {
+                return Optional.of(ArgumentTypes.mapType(false, typeName));
+            }
+            return Optional.empty();
+        });
     }
 
     private String planSerDeMethodName(TypeName in) {

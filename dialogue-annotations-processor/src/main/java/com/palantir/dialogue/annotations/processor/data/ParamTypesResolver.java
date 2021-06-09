@@ -41,7 +41,11 @@ import javax.lang.model.type.TypeMirror;
 public final class ParamTypesResolver {
 
     private static final ImmutableSet<Class<?>> PARAM_ANNOTATION_CLASSES = ImmutableSet.of(
-            Request.Body.class, Request.PathParam.class, Request.QueryParam.class, Request.Header.class);
+            Request.Body.class,
+            Request.PathParam.class,
+            Request.QueryParam.class,
+            Request.QueryMap.class,
+            Request.Header.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final String paramEncoderMethod;
@@ -125,6 +129,8 @@ public final class ParamTypesResolver {
                     annotationReflector.getValueStrict(String.class),
                     getParameterEncoder(
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
+        } else if (annotationReflector.isAnnotation(Request.QueryMap.class)) {
+            return Optional.of(ParameterTypes.queryMap());
         }
 
         throw new SafeIllegalStateException("Not possible");

@@ -50,6 +50,10 @@ public final class ResolverContext implements ErrorContext {
         return types.isAssignable(typeMirror, getTypeMirror(clazz));
     }
 
+    public boolean isAssignableWithErasure(TypeMirror typeMirror, Class<?> clazz) {
+        return types.isAssignable(types.erasure(typeMirror), getTypeMirror(clazz));
+    }
+
     public TypeName getTypeName(Class<?> clazz) {
         return TypeName.get(getTypeMirror(clazz));
     }

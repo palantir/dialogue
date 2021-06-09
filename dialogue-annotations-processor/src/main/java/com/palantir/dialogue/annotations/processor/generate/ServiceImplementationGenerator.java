@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
+import com.google.common.collect.ImmutableMultimap;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -100,6 +101,7 @@ public final class ServiceImplementationGenerator {
                                                 (javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .optional((optionalJavaType, _unused) -> optionalJavaType)
+                                        .mapType((_isMultimap, typeName) -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
@@ -242,6 +244,11 @@ public final class ServiceImplementationGenerator {
             public CodeBlock query(String paramName, Optional<ParameterEncoderType> paramEncoderType) {
                 return generateQueryParam(param, paramName, paramEncoderType);
             }
+
+            @Override
+            public CodeBlock queryMap() {
+                return generateQueryMapParam(param);
+            }
         });
     }
 
@@ -275,6 +282,35 @@ public final class ServiceImplementationGenerator {
                 CodeBlock.of(param.argName().get()),
                 param.argType(),
                 paramEncoder);
+    }
+
+    private CodeBlock generateQueryMapParam(ArgumentDefinition param) {
+        return ArgumentTypes.cases()
+                .mapType((isMultimap, _javaTypeName) -> {
+                    if (isMultimap) {
+                        return CodeBlock.of(
+                                "$L.$L($L);",
+                                REQUEST,
+                                "putAllQueryParams",
+                                CodeBlock.of(param.argName().get()));
+                    } else {
+                        return CodeBlock.of(
+                                "$L.$L($T.<$T,$T>builder().putAll($L.entrySet()).build());",
+                                REQUEST,
+                                "putAllQueryParams",
+                                ImmutableMultimap.class,
+                                String.class,
+                                String.class,
+                                CodeBlock.of(param.argName().get()));
+                    }
+                })
+                .customType(typeName -> {
+                    throw new UnsupportedOperationException("This should not happen: " + typeName);
+                })
+                .otherwise(() -> {
+                    throw new UnsupportedOperationException("This should not happen: " + param.argType());
+                })
+                .apply(param.argType());
     }
 
     private CodeBlock generatePlainSerializer(
@@ -332,6 +368,11 @@ public final class ServiceImplementationGenerator {
                         .add(inner)
                         .endControlFlow()
                         .build();
+            }
+
+            @Override
+            public CodeBlock mapType(boolean _isMultimap, TypeName _javaTypeName) {
+                throw new UnsupportedOperationException("This should not happen");
             }
 
             @Override

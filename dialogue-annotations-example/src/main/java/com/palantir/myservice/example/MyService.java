@@ -25,6 +25,7 @@ import com.palantir.dialogue.annotations.ErrorDecoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -79,6 +80,8 @@ public interface MyService {
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
             // Optional lists of primitives are supported too!
             @Request.Header("Custom-Optional-Header1") Optional<List<Integer>> maybeRequestHeaderValue1,
+            // Can supply a map to fill in arbitrary query values
+            @Request.QueryMap Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have
