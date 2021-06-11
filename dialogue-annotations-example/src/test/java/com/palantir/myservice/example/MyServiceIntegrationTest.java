@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
@@ -296,6 +297,23 @@ public final class MyServiceIntegrationTest {
         myServiceDialogue.multipart(ImmutablePutFileRequest.builder()
                 .contentBody(ContentBody.path(fileContentType, fileTxt))
                 .build());
+    }
+
+    @Test
+    void testMultiparams() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+
+            assertThat(exchange.exchange.getQueryParameters().get("q1")).containsExactly("var1", "var2");
+            assertThat(exchange.exchange.getQueryParameters().get("value-from-multimap"))
+                    .containsExactly("var3");
+        };
+
+        myServiceDialogue.multiParams(
+                ImmutableMultimap.<String, String>builder()
+                        .putAll("q1", "var1", "var2")
+                        .build(),
+                new MyCustomParamType("var3"));
     }
 
     private void testCustomResponse(int code) {
