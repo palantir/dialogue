@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
-import com.google.common.collect.ImmutableMultimap;
 import com.palantir.dialogue.Deserializer;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
@@ -26,6 +25,7 @@ import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
@@ -81,6 +81,7 @@ public final class ServiceImplementationGenerator {
                             .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .queryMap(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
                     .forEach(impl::addField);
@@ -101,7 +102,7 @@ public final class ServiceImplementationGenerator {
                                                 (javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .optional((optionalJavaType, _unused) -> optionalJavaType)
-                                        .mapType((_isMultimap, typeName) -> typeName)
+                                        .mapType(typeName -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
@@ -149,6 +150,7 @@ public final class ServiceImplementationGenerator {
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
+                .mapType(javaTypeName -> javaTypeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
                 .get();
@@ -196,6 +198,11 @@ public final class ServiceImplementationGenerator {
             public Class<?> listParam() {
                 return ListParamEncoder.class;
             }
+
+            @Override
+            public Class<?> multimapParam() {
+                return MultimapParamEncoder.class;
+            }
         });
         ParameterizedTypeName encoderType =
                 ParameterizedTypeName.get(ClassName.get(encoderInterface), underlyingCustomType(arg.argType()));
@@ -209,6 +216,7 @@ public final class ServiceImplementationGenerator {
         return ArgumentTypes.caseOf(argumentType)
                 .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                 .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
+                .mapType(typeName -> typeName)
                 .customType(Function.identity())
                 .otherwiseEmpty()
                 .orElseThrow();
@@ -246,8 +254,8 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock queryMap() {
-                return generateQueryMapParam(param);
+            public CodeBlock queryMap(Optional<ParameterEncoderType> parameterEncoderType) {
+                return generateQueryMapParam(param, parameterEncoderType);
             }
         });
     }
@@ -284,33 +292,14 @@ public final class ServiceImplementationGenerator {
                 paramEncoder);
     }
 
-    private CodeBlock generateQueryMapParam(ArgumentDefinition param) {
-        return ArgumentTypes.cases()
-                .mapType((isMultimap, _javaTypeName) -> {
-                    if (isMultimap) {
-                        return CodeBlock.of(
-                                "$L.$L($L);",
-                                REQUEST,
-                                "putAllQueryParams",
-                                CodeBlock.of(param.argName().get()));
-                    } else {
-                        return CodeBlock.of(
-                                "$L.$L($T.<$T,$T>builder().putAll($L.entrySet()).build());",
-                                REQUEST,
-                                "putAllQueryParams",
-                                ImmutableMultimap.class,
-                                String.class,
-                                String.class,
-                                CodeBlock.of(param.argName().get()));
-                    }
-                })
-                .customType(typeName -> {
-                    throw new UnsupportedOperationException("This should not happen: " + typeName);
-                })
-                .otherwise(() -> {
-                    throw new UnsupportedOperationException("This should not happen: " + param.argType());
-                })
-                .apply(param.argType());
+    private CodeBlock generateQueryMapParam(ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {
+        return generatePlainSerializer(
+                "nope",
+                "putAllQueryParams",
+                param.argName().get(),
+                CodeBlock.of("$L", param.argName().get()),
+                param.argType(),
+                paramEncoder);
     }
 
     private CodeBlock generatePlainSerializer(
@@ -371,8 +360,11 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock mapType(boolean _isMultimap, TypeName _javaTypeName) {
-                throw new UnsupportedOperationException("This should not happen");
+            public CodeBlock mapType(TypeName typeName) {
+                ParameterEncoderType parameterEncoderType =
+                        maybeParameterEncoderType.orElseThrow(() -> new IllegalArgumentException(
+                                "Parameter '" + key + "' with custom type '" + typeName + "' must declare an encoder"));
+                return parameterEncoderType(parameterEncoderType);
             }
 
             @Override
@@ -404,6 +396,17 @@ public final class ServiceImplementationGenerator {
                                 REQUEST,
                                 multiValueMethod,
                                 key,
+                                parameterEncoderType.encoderFieldName(),
+                                parameterEncoderType.encoderMethodName(),
+                                argName);
+                    }
+
+                    @Override
+                    public CodeBlock multimapParam() {
+                        return CodeBlock.of(
+                                "$L.$L($L.$L($L));",
+                                REQUEST,
+                                multiValueMethod,
                                 parameterEncoderType.encoderFieldName(),
                                 parameterEncoderType.encoderMethodName(),
                                 argName);

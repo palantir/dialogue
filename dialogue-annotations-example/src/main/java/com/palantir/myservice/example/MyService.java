@@ -22,6 +22,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.ErrorDecoder;
+import com.palantir.dialogue.annotations.MapToMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;
@@ -81,7 +82,7 @@ public interface MyService {
             // Optional lists of primitives are supported too!
             @Request.Header("Custom-Optional-Header1") Optional<List<Integer>> maybeRequestHeaderValue1,
             // Can supply a map to fill in arbitrary query values
-            @Request.QueryMap Map<String, String> queryParams,
+            @Request.QueryMap(encoder = MapToMultimapParamEncoder.class) Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have

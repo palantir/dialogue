@@ -101,5 +101,7 @@ public @interface Request {
      */
     @Retention(RetentionPolicy.SOURCE)
     @Target(ElementType.PARAMETER)
-    @interface QueryMap {}
+    @interface QueryMap {
+        Class<? extends MultimapParamEncoder<?>> encoder() default DefaultMultimapParamEncoder.class;
+    }
 }

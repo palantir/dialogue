@@ -114,11 +114,11 @@ public final class ArgumentTypesResolver {
     private Optional<ArgumentType> getMapType(TypeMirror in, TypeName typeName) {
         return context.maybeAsDeclaredType(in).flatMap(declaredType -> {
             if (context.isAssignableWithErasure(declaredType, Multimap.class)) {
-                return Optional.of(ArgumentTypes.mapType(true, typeName));
+                return Optional.of(ArgumentTypes.mapType(typeName));
             } else if (context.isAssignableWithErasure(declaredType, Map.class)) {
-                return Optional.of(ArgumentTypes.mapType(false, typeName));
+                return Optional.of(ArgumentTypes.mapType(typeName));
             }
-            return Optional.empty();
+            return Optional.of(ArgumentTypes.customType(typeName));
         });
     }
 

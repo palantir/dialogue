@@ -22,6 +22,7 @@ import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
@@ -50,12 +51,16 @@ public final class ParamTypesResolver {
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final String paramEncoderMethod;
     private static final String listParamEncoderMethod;
+    private static final String multimapParamEncoderMethod;
 
     static {
         try {
             paramEncoderMethod =
                     ParamEncoder.class.getMethod("toParamValue", Object.class).getName();
             listParamEncoderMethod = ListParamEncoder.class
+                    .getMethod("toParamValues", Object.class)
+                    .getName();
+            multimapParamEncoderMethod = MultimapParamEncoder.class
                     .getMethod("toParamValues", Object.class)
                     .getName();
         } catch (NoSuchMethodException e) {
@@ -130,7 +135,8 @@ public final class ParamTypesResolver {
                     getParameterEncoder(
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
         } else if (annotationReflector.isAnnotation(Request.QueryMap.class)) {
-            return Optional.of(ParameterTypes.queryMap());
+            return Optional.of(ParameterTypes.queryMap(getParameterEncoder(
+                    endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)));
         }
 
         throw new SafeIllegalStateException("Not possible");
@@ -158,7 +164,8 @@ public final class ParamTypesResolver {
     @SuppressWarnings("ImmutableEnumChecker")
     private enum EncoderTypeAndMethod {
         PARAM(EncoderTypes.param(), paramEncoderMethod),
-        LIST(EncoderTypes.listParam(), listParamEncoderMethod);
+        LIST(EncoderTypes.listParam(), listParamEncoderMethod),
+        MULTIMAP(EncoderTypes.multimapParam(), multimapParamEncoderMethod);
 
         private final ParameterEncoderType.EncoderType encoderType;
         private final String method;

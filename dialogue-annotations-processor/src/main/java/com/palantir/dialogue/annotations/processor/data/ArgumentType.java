@@ -31,7 +31,7 @@ public interface ArgumentType {
 
         R optional(TypeName optionalJavaType, OptionalType optionalType);
 
-        R mapType(boolean isMultimap, TypeName javaTypeName);
+        R mapType(TypeName javaTypeName);
 
         R customType(TypeName customTypeName);
     }
