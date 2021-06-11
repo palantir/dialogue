@@ -34,7 +34,7 @@ public interface ParameterType {
 
         R query(String paramName, Optional<ParameterEncoderType> paramEncoderType);
 
-        R queryMap(Optional<ParameterEncoderType> parameterEncoderType);
+        R queryMap(ParameterEncoderType parameterEncoderType);
     }
 
     <R> R match(Cases<R> cases);

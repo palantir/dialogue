@@ -20,6 +20,7 @@ import com.google.auto.common.MoreElements;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.annotations.DefaultMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.MultimapParamEncoder;
@@ -135,11 +136,26 @@ public final class ParamTypesResolver {
                     getParameterEncoder(
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
         } else if (annotationReflector.isAnnotation(Request.QueryMap.class)) {
-            return Optional.of(ParameterTypes.queryMap(getParameterEncoder(
-                    endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)));
+            // we always want a parameter encoder for map types because it enables us to get compile
+            // time safety with the generated code, since we cannot get the default value from the annotation
+            // in this code, fall back to what the default would be
+            ParameterEncoderType customEncoderType = getParameterEncoder(
+                            endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)
+                    .orElseGet(() -> multimapDefaultEncoder(endpointName, variableElement));
+            return Optional.of(ParameterTypes.queryMap(customEncoderType));
         }
 
         throw new SafeIllegalStateException("Not possible");
+    }
+
+    private ParameterEncoderType multimapDefaultEncoder(EndpointName endpointName, VariableElement variableElement) {
+        return ImmutableParameterEncoderType.builder()
+                .type(EncoderTypeAndMethod.MULTIMAP.encoderType)
+                .encoderJavaType(TypeName.get(DefaultMultimapParamEncoder.class))
+                .encoderFieldName(InstanceVariables.joinCamelCase(
+                        endpointName.get(), variableElement.getSimpleName().toString(), "Encoder"))
+                .encoderMethodName(EncoderTypeAndMethod.MULTIMAP.method)
+                .build();
     }
 
     private Optional<ParameterEncoderType> getParameterEncoder(

@@ -81,7 +81,7 @@ public final class ServiceImplementationGenerator {
                             .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
-                            .queryMap(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .queryMap(encoder -> Optional.of(encoder(arg, encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
                     .forEach(impl::addField);
@@ -254,7 +254,7 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock queryMap(Optional<ParameterEncoderType> parameterEncoderType) {
+            public CodeBlock queryMap(ParameterEncoderType parameterEncoderType) {
                 return generateQueryMapParam(param, parameterEncoderType);
             }
         });
@@ -292,14 +292,14 @@ public final class ServiceImplementationGenerator {
                 paramEncoder);
     }
 
-    private CodeBlock generateQueryMapParam(ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {
+    private CodeBlock generateQueryMapParam(ArgumentDefinition param, ParameterEncoderType paramEncoder) {
         return generatePlainSerializer(
                 "nope",
                 "putAllQueryParams",
                 param.argName().get(),
                 CodeBlock.of("$L", param.argName().get()),
                 param.argType(),
-                paramEncoder);
+                Optional.of(paramEncoder));
     }
 
     private CodeBlock generatePlainSerializer(

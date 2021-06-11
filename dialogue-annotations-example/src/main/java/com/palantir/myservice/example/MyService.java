@@ -16,6 +16,7 @@
 
 package com.palantir.myservice.example;
 
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
@@ -88,6 +89,13 @@ public interface MyService {
             // By changing this to MySpecialJson.class you can have
             // it's own object mapper; this is same as BodySerDe in dialogue
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+
+    @Request(method = HttpMethod.GET, path = "/multiparams")
+    void multiParams(
+            // or you can supply a multimap directly
+            @Request.QueryMap Multimap<String, String> multiQueryParams,
+            // or you can supply a custom converter
+            @Request.QueryMap(encoder = MyCustomMultimapEncoder.class) MyCustomParamType myParamToMultimap);
 
     @Request(method = HttpMethod.POST, path = "/multipart")
     void multipart(@Request.Body(PutFileRequestSerializer.class) PutFileRequest request);
