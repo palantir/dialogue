@@ -130,6 +130,8 @@ public interface MyService {
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
             @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
+            // converts an custom type into a Multimap<String, String>
+            @Request.QueryMap(encoder = MyCustomTypeEncoder.class) MyCustomQueryParamType myCustomQueryParam,
             @Request.Header("Custom-Header") int requestHeaderValue,
             // Headers can be optional
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
@@ -144,6 +146,9 @@ Features:
 * Custom parameter types: ```@Request.(Header|PathParam|QueryParam)(encoder=MyCustomParamTypeEncoder.class)```.
 * Custom serialization/deserialization: add ```@Request.Body(MySerializableTypeBodySerializer.class)```
   or ```@Request(accept=MyCustomResponseDeserializer.class)```.
+* Custom serialization from ```Map```, ```Multimap``` and custom types into query parameters. This functions
+  similarly to the Feign ```QueryMap``` feature, but with added control of customizing the serialization to
+  query parameters.
 * Authentication: builtin ```Authorization``` header handling if an annotated method has an ```AuthHeader``` parameter.
 
 See more examples [on how to define clients](dialogue-annotations-example/src/main/java/com/palantir/myservice/example/MyService.java) and [use the generated code](dialogue-annotations-example/src/test/java/com/palantir/myservice/example/MyServiceIntegrationTest.java).
