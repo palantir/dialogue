@@ -19,6 +19,8 @@ package com.palantir.myservice.example;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.io.CharStreams;
 import com.google.common.util.concurrent.Futures;
@@ -297,6 +299,23 @@ public final class MyServiceIntegrationTest {
                 .build());
     }
 
+    @Test
+    void testMultiparams() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+
+            assertThat(exchange.exchange.getQueryParameters().get("q1")).containsExactly("var1", "var2");
+            assertThat(exchange.exchange.getQueryParameters().get("value-from-multimap"))
+                    .containsExactly("var3");
+        };
+
+        myServiceDialogue.multiParams(
+                ImmutableMultimap.<String, String>builder()
+                        .putAll("q1", "var1", "var2")
+                        .build(),
+                new MyCustomParamType("var3"));
+    }
+
     private void testCustomResponse(int code) {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.PUT);
@@ -327,9 +346,10 @@ public final class MyServiceIntegrationTest {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.POST);
             exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
-            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q", "q1");
+            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q", "q1", "varq1");
             assertThat(exchange.exchange.getQueryParameters().get("q")).containsOnly("query");
             assertThat(exchange.exchange.getQueryParameters().get("q1")).containsOnly("Query", "Params");
+            assertThat(exchange.exchange.getQueryParameters().get("varq1")).containsOnly("varvar1");
             exchange.assertAccept().isNull();
             exchange.assertContentType().isEqualTo("application/json");
             exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Header"))
@@ -362,6 +382,7 @@ public final class MyServiceIntegrationTest {
                 2,
                 customHeaderOptionalValue,
                 Optional.of(Arrays.asList(1, 2)),
+                ImmutableMap.of("varq1", "varvar1"),
                 ImmutableMySerializableType.builder()
                         .value("my-serializable-type-value")
                         .build());

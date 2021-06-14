@@ -20,8 +20,10 @@ import com.google.auto.common.MoreElements;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
+import com.palantir.dialogue.annotations.DefaultMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.ParameterEncoderType.EncoderType;
@@ -41,17 +43,25 @@ import javax.lang.model.type.TypeMirror;
 public final class ParamTypesResolver {
 
     private static final ImmutableSet<Class<?>> PARAM_ANNOTATION_CLASSES = ImmutableSet.of(
-            Request.Body.class, Request.PathParam.class, Request.QueryParam.class, Request.Header.class);
+            Request.Body.class,
+            Request.PathParam.class,
+            Request.QueryParam.class,
+            Request.QueryMap.class,
+            Request.Header.class);
     private static final ImmutableSet<String> PARAM_ANNOTATIONS =
             PARAM_ANNOTATION_CLASSES.stream().map(Class::getCanonicalName).collect(ImmutableSet.toImmutableSet());
     private static final String paramEncoderMethod;
     private static final String listParamEncoderMethod;
+    private static final String multimapParamEncoderMethod;
 
     static {
         try {
             paramEncoderMethod =
                     ParamEncoder.class.getMethod("toParamValue", Object.class).getName();
             listParamEncoderMethod = ListParamEncoder.class
+                    .getMethod("toParamValues", Object.class)
+                    .getName();
+            multimapParamEncoderMethod = MultimapParamEncoder.class
                     .getMethod("toParamValues", Object.class)
                     .getName();
         } catch (NoSuchMethodException e) {
@@ -125,9 +135,27 @@ public final class ParamTypesResolver {
                     annotationReflector.getValueStrict(String.class),
                     getParameterEncoder(
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
+        } else if (annotationReflector.isAnnotation(Request.QueryMap.class)) {
+            // we always want a parameter encoder for map types because it enables us to get compile
+            // time safety with the generated code, since we cannot get the default value from the annotation
+            // in this code, fall back to what the default would be
+            ParameterEncoderType customEncoderType = getParameterEncoder(
+                            endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.MULTIMAP)
+                    .orElseGet(() -> multimapDefaultEncoder(endpointName, variableElement));
+            return Optional.of(ParameterTypes.queryMap(customEncoderType));
         }
 
         throw new SafeIllegalStateException("Not possible");
+    }
+
+    private ParameterEncoderType multimapDefaultEncoder(EndpointName endpointName, VariableElement variableElement) {
+        return ImmutableParameterEncoderType.builder()
+                .type(EncoderTypeAndMethod.MULTIMAP.encoderType)
+                .encoderJavaType(TypeName.get(DefaultMultimapParamEncoder.class))
+                .encoderFieldName(InstanceVariables.joinCamelCase(
+                        endpointName.get(), variableElement.getSimpleName().toString(), "Encoder"))
+                .encoderMethodName(EncoderTypeAndMethod.MULTIMAP.method)
+                .build();
     }
 
     private Optional<ParameterEncoderType> getParameterEncoder(
@@ -152,7 +180,8 @@ public final class ParamTypesResolver {
     @SuppressWarnings("ImmutableEnumChecker")
     private enum EncoderTypeAndMethod {
         PARAM(EncoderTypes.param(), paramEncoderMethod),
-        LIST(EncoderTypes.listParam(), listParamEncoderMethod);
+        LIST(EncoderTypes.listParam(), listParamEncoderMethod),
+        MULTIMAP(EncoderTypes.multimapParam(), multimapParamEncoderMethod);
 
         private final ParameterEncoderType.EncoderType encoderType;
         private final String method;

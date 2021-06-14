@@ -25,6 +25,7 @@ import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.ListParamEncoder;
+import com.palantir.dialogue.annotations.MultimapParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
@@ -80,6 +81,7 @@ public final class ServiceImplementationGenerator {
                             .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
                             .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
+                            .queryMap(encoder -> Optional.of(encoder(arg, encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
                     .forEach(impl::addField);
@@ -100,6 +102,7 @@ public final class ServiceImplementationGenerator {
                                                 (javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .optional((optionalJavaType, _unused) -> optionalJavaType)
+                                        .mapType(typeName -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
@@ -147,6 +150,7 @@ public final class ServiceImplementationGenerator {
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
                 .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
+                .mapType(javaTypeName -> javaTypeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
                 .get();
@@ -194,6 +198,11 @@ public final class ServiceImplementationGenerator {
             public Class<?> listParam() {
                 return ListParamEncoder.class;
             }
+
+            @Override
+            public Class<?> multimapParam() {
+                return MultimapParamEncoder.class;
+            }
         });
         ParameterizedTypeName encoderType =
                 ParameterizedTypeName.get(ClassName.get(encoderInterface), underlyingCustomType(arg.argType()));
@@ -207,6 +216,7 @@ public final class ServiceImplementationGenerator {
         return ArgumentTypes.caseOf(argumentType)
                 .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
                 .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
+                .mapType(typeName -> typeName)
                 .customType(Function.identity())
                 .otherwiseEmpty()
                 .orElseThrow();
@@ -242,6 +252,11 @@ public final class ServiceImplementationGenerator {
             public CodeBlock query(String paramName, Optional<ParameterEncoderType> paramEncoderType) {
                 return generateQueryParam(param, paramName, paramEncoderType);
             }
+
+            @Override
+            public CodeBlock queryMap(ParameterEncoderType parameterEncoderType) {
+                return generateQueryMapParam(param, parameterEncoderType);
+            }
         });
     }
 
@@ -275,6 +290,16 @@ public final class ServiceImplementationGenerator {
                 CodeBlock.of(param.argName().get()),
                 param.argType(),
                 paramEncoder);
+    }
+
+    private CodeBlock generateQueryMapParam(ArgumentDefinition param, ParameterEncoderType paramEncoder) {
+        return generatePlainSerializer(
+                "nope",
+                "putAllQueryParams",
+                param.argName().get(),
+                CodeBlock.of("$L", param.argName().get()),
+                param.argType(),
+                Optional.of(paramEncoder));
     }
 
     private CodeBlock generatePlainSerializer(
@@ -335,6 +360,14 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
+            public CodeBlock mapType(TypeName typeName) {
+                ParameterEncoderType parameterEncoderType =
+                        maybeParameterEncoderType.orElseThrow(() -> new IllegalArgumentException(
+                                "Parameter '" + key + "' with custom type '" + typeName + "' must declare an encoder"));
+                return parameterEncoderType(parameterEncoderType);
+            }
+
+            @Override
             public CodeBlock customType(TypeName typeName) {
                 ParameterEncoderType parameterEncoderType =
                         maybeParameterEncoderType.orElseThrow(() -> new IllegalArgumentException(
@@ -363,6 +396,17 @@ public final class ServiceImplementationGenerator {
                                 REQUEST,
                                 multiValueMethod,
                                 key,
+                                parameterEncoderType.encoderFieldName(),
+                                parameterEncoderType.encoderMethodName(),
+                                argName);
+                    }
+
+                    @Override
+                    public CodeBlock multimapParam() {
+                        return CodeBlock.of(
+                                "$L.$L($L.$L($L));",
+                                REQUEST,
+                                multiValueMethod,
                                 parameterEncoderType.encoderFieldName(),
                                 parameterEncoderType.encoderMethodName(),
                                 argName);

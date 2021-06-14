@@ -14,34 +14,15 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations.processor.data;
+package com.palantir.myservice.example;
 
-import com.squareup.javapoet.TypeName;
-import org.derive4j.Data;
-import org.immutables.value.Value;
+import com.google.common.collect.ImmutableMultimap;
+import com.google.common.collect.Multimap;
+import com.palantir.dialogue.annotations.MultimapParamEncoder;
 
-@Value.Immutable
-@Value.Style(stagedBuilder = true)
-public interface ParameterEncoderType {
-
-    EncoderType type();
-
-    TypeName encoderJavaType();
-
-    String encoderFieldName();
-
-    String encoderMethodName();
-
-    @Data
-    interface EncoderType {
-        interface Cases<R> {
-            R param();
-
-            R listParam();
-
-            R multimapParam();
-        }
-
-        <R> R match(EncoderType.Cases<R> cases);
+public final class MyCustomMultimapEncoder implements MultimapParamEncoder<MyCustomParamType> {
+    @Override
+    public Multimap<String, String> toParamValues(MyCustomParamType value) {
+        return ImmutableMultimap.of("value-from-multimap", value.value());
     }
 }

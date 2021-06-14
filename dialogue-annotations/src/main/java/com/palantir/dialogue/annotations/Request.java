@@ -95,4 +95,13 @@ public @interface Request {
 
         Class<? extends ListParamEncoder<?>> encoder() default DefaultListParamEncoder.class;
     }
+
+    /**
+     * Similar to the Feign QueryMap serialization type. Only supports simple string -> string maps.
+     */
+    @Retention(RetentionPolicy.SOURCE)
+    @Target(ElementType.PARAMETER)
+    @interface QueryMap {
+        Class<? extends MultimapParamEncoder<?>> encoder() default DefaultMultimapParamEncoder.class;
+    }
 }

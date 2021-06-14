@@ -33,6 +33,8 @@ public interface ParameterType {
         R path(Optional<ParameterEncoderType> paramEncoderType);
 
         R query(String paramName, Optional<ParameterEncoderType> paramEncoderType);
+
+        R queryMap(ParameterEncoderType parameterEncoderType);
     }
 
     <R> R match(Cases<R> cases);

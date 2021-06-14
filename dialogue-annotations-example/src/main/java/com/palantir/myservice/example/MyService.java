@@ -16,15 +16,18 @@
 
 package com.palantir.myservice.example;
 
+import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.ErrorDecoder;
+import com.palantir.dialogue.annotations.MapToMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -79,11 +82,20 @@ public interface MyService {
             @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
             // Optional lists of primitives are supported too!
             @Request.Header("Custom-Optional-Header1") Optional<List<Integer>> maybeRequestHeaderValue1,
+            // Can supply a map to fill in arbitrary query values
+            @Request.QueryMap(encoder = MapToMultimapParamEncoder.class) Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have
             // it's own object mapper; this is same as BodySerDe in dialogue
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
+
+    @Request(method = HttpMethod.GET, path = "/multiparams")
+    void multiParams(
+            // or you can supply a multimap directly
+            @Request.QueryMap Multimap<String, String> multiQueryParams,
+            // or you can supply a custom converter
+            @Request.QueryMap(encoder = MyCustomMultimapEncoder.class) MyCustomParamType myParamToMultimap);
 
     @Request(method = HttpMethod.POST, path = "/multipart")
     void multipart(@Request.Body(PutFileRequestSerializer.class) PutFileRequest request);
