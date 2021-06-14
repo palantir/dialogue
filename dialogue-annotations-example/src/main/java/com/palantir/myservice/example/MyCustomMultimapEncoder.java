@@ -20,7 +20,7 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import com.palantir.dialogue.annotations.MultimapParamEncoder;
 
-public class MyCustomMultimapEncoder implements MultimapParamEncoder<MyCustomParamType> {
+public final class MyCustomMultimapEncoder implements MultimapParamEncoder<MyCustomParamType> {
     @Override
     public Multimap<String, String> toParamValues(MyCustomParamType value) {
         return ImmutableMultimap.of("value-from-multimap", value.value());
