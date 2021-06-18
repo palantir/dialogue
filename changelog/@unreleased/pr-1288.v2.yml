@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix DialogueRequestAnnotationsProcessor warnings on JDK15
+  links:
+  - https://github.com/palantir/dialogue/pull/1288
