@@ -50,7 +50,6 @@ import javax.annotation.processing.FilerException;
 import javax.annotation.processing.Messager;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
-import javax.annotation.processing.SupportedSourceVersion;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -59,7 +58,6 @@ import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
-@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor {
 
     private Messager messager;
@@ -83,7 +81,7 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
 
     @Override
     public SourceVersion getSupportedSourceVersion() {
-        return SourceVersion.RELEASE_11;
+        return SourceVersion.latestSupported();
     }
 
     @Override
