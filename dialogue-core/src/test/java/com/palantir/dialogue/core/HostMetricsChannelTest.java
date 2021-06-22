@@ -103,7 +103,7 @@ class HostMetricsChannelTest {
                                 assertThat(hostname).isEqualTo("foo");
                                 assertThat(port).isEqualTo(1001);
                                 assertThat(statusCode).isEqualTo(200);
-                                assertThat(micros).isEqualTo(TimeUnit.MICROSECONDS.convert(3, TimeUnit.SECONDS));
+                                assertThat(micros).isEqualTo(TimeUnit.MICROSECONDS.convert(Duration.ofSeconds(3)));
                                 recorded.set(true);
                             }
 

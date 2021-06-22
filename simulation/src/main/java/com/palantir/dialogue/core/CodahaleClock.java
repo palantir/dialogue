@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Clock;
 import com.github.benmanes.caffeine.cache.Ticker;
+import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 final class CodahaleClock extends Clock {
@@ -34,6 +35,6 @@ final class CodahaleClock extends Clock {
 
     @Override
     public long getTime() {
-        return TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
+        return TimeUnit.MILLISECONDS.convert(Duration.ofNanos(getTick()));
     }
 }
