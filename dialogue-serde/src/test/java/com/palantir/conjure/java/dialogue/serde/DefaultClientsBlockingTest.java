@@ -63,7 +63,7 @@ public class DefaultClientsBlockingTest {
 
         assertThatThrownBy(() -> DefaultClients.INSTANCE.block(failedFuture))
                 .isInstanceOf(UnknownRemoteException.class)
-                .hasMessage("Error 502. (Failed to parse response body as SerializableError.)")
+                .hasMessage("Response status: 502")
                 .satisfies(exception -> {
                     assertThat(((UnknownRemoteException) exception).getBody()).isEqualTo("Nginx broke");
                 });
