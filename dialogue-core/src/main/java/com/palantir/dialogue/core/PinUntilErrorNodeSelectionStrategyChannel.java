@@ -305,8 +305,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         private final Meter reshuffleMeter;
         private final Meter nextNodeBecauseResponseCode;
         private final Meter nextNodeBecauseThrowable;
+        private final String channelName;
+        private final int numChannels;
 
         Instrumentation(int numChannels, DialoguePinuntilerrorMetrics metrics, String channelName) {
+            this.numChannels = numChannels;
+            this.channelName = channelName;
             this.reshuffleMeter = metrics.reshuffle(channelName);
             this.nextNodeBecauseResponseCode = metrics.nextNode()
                     .channelName(channelName)
@@ -334,57 +338,65 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             reshuffleMeter.mark();
             if (log.isDebugEnabled()) {
                 log.debug(
-                        "Reshuffled channels {} {}",
+                        "Reshuffled channels {} {} {} {}",
                         SafeArg.of("nextReshuffle", Duration.ofNanos(intervalWithJitter)),
-                        UnsafeArg.of("newList", newList));
+                        UnsafeArg.of("newList", newList),
+                        SafeArg.of("channelName", channelName),
+                        SafeArg.of("numChannels", numChannels));
             }
         }
 
         private void receivedErrorStatus(int pin, PinChannel channel, Response response, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseResponseCode.mark();
-            }
-            if (log.isDebugEnabled()) {
-                if (next.isPresent()) {
-                    log.debug(
+                if (log.isInfoEnabled()) {
+                    log.info(
                             "Received error status code, switching to next channel",
                             SafeArg.of("status", response.code()),
                             SafeArg.of("stableIndex", channel.stableIndex()),
                             SafeArg.of("pin", pin),
                             UnsafeArg.of("channel", channel),
-                            SafeArg.of("nextIndex", next.getAsInt()));
-                } else {
-                    log.debug(
-                            "Received error status code, but we've already switched",
-                            SafeArg.of("status", response.code()),
-                            SafeArg.of("stableIndex", channel.stableIndex()),
-                            SafeArg.of("pin", pin),
-                            UnsafeArg.of("channel", channel));
+                            SafeArg.of("nextIndex", next.getAsInt()),
+                            SafeArg.of("channelName", channelName),
+                            SafeArg.of("numChannels", numChannels));
                 }
+            } else if (log.isDebugEnabled()) {
+                log.debug(
+                        "Received error status code, but we've already switched",
+                        SafeArg.of("status", response.code()),
+                        SafeArg.of("stableIndex", channel.stableIndex()),
+                        SafeArg.of("pin", pin),
+                        UnsafeArg.of("channel", channel),
+                        SafeArg.of("channelName", channelName),
+                        SafeArg.of("numChannels", numChannels));
             }
         }
 
         private void receivedThrowable(int pin, PinChannel channel, Throwable throwable, OptionalInt next) {
             if (next.isPresent()) {
                 nextNodeBecauseThrowable.mark();
-            }
-            if (log.isDebugEnabled()) {
-                if (next.isPresent()) {
-                    log.debug(
+                if (log.isInfoEnabled()) {
+                    log.info(
                             "Received throwable, switching to next channel",
-                            SafeArg.of("pin", pin),
                             SafeArg.of("stableIndex", channel.stableIndex()),
+                            SafeArg.of("pin", pin),
                             UnsafeArg.of("channel", channel),
                             SafeArg.of("nextIndex", next.getAsInt()),
-                            throwable);
-                } else {
-                    log.debug(
-                            "Received throwable, but already switched",
-                            SafeArg.of("pin", pin),
-                            SafeArg.of("stableIndex", channel.stableIndex()),
-                            UnsafeArg.of("channel", channel),
-                            throwable);
+                            SafeArg.of("channelName", channelName),
+                            SafeArg.of("numChannels", numChannels),
+                            // throwable is not shown unless debug logging is
+                            // enabled to avoid duplicate stack traces.
+                            log.isDebugEnabled() ? throwable : null);
                 }
+            } else if (log.isDebugEnabled()) {
+                log.debug(
+                        "Received throwable, but already switched",
+                        SafeArg.of("pin", pin),
+                        SafeArg.of("stableIndex", channel.stableIndex()),
+                        UnsafeArg.of("channel", channel),
+                        SafeArg.of("channelName", channelName),
+                        SafeArg.of("numChannels", numChannels),
+                        throwable);
             }
         }
 
