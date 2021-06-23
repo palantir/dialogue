@@ -311,7 +311,6 @@ public final class MultipartRequestBodyTest {
     }
 
     @Value.Immutable
-    @Value.Style(stagedBuilder = true)
     interface KeyValue {
         String key();
 

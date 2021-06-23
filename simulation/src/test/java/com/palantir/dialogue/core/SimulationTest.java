@@ -582,7 +582,7 @@ final class SimulationTest {
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
         long clientMeanNanos = (long) result.clientHistogram().getMean();
-        double clientMeanMillis = TimeUnit.MILLISECONDS.convert(Duration.ofNanos(clientMeanNanos));
+        double clientMeanMillis = TimeUnit.NANOSECONDS.toMillis(clientMeanNanos);
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
         String longSummary = String.format(

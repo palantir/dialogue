@@ -169,8 +169,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(future2));
 
         // kick off two requests
-        pinUntilError.maybeExecute(null, null).get();
-        pinUntilError.maybeExecute(null, null).get();
+        assertThat(pinUntilError.maybeExecute(null, null)).isPresent();
+        assertThat(pinUntilError.maybeExecute(null, null)).isPresent();
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
         future2.set(response(500));

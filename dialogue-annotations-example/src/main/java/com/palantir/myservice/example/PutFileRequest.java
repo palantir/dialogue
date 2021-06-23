@@ -23,7 +23,6 @@ import com.palantir.dialogue.annotations.StdSerializer;
 import org.immutables.value.Value;
 
 @Value.Immutable
-@Value.Style(stagedBuilder = true)
 public interface PutFileRequest {
     ContentBody contentBody();
 

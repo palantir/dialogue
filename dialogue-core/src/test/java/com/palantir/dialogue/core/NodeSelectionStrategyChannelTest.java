@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -81,7 +82,7 @@ class NodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(Futures.immediateFuture(
                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
-        channel.maybeExecute(null, null).get();
+        assertThat(channel.maybeExecute(null, null)).isPresent();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));

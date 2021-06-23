@@ -16,15 +16,13 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
 import org.immutables.value.Value;
 
-@Value.Immutable
-@StagedBuilder
-public interface ArgumentDefinition {
-
-    ArgumentName argName();
-
-    ArgumentType argType();
-
-    ParameterType paramType();
-}
+@Target({ElementType.PACKAGE, ElementType.TYPE})
+@Retention(RetentionPolicy.SOURCE)
+@Value.Style(jdkOnly = true, overshadowImplementation = true, stagedBuilder = true)
+@interface StagedBuilder {}

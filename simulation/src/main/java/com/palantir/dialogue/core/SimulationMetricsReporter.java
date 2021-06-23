@@ -25,7 +25,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -94,7 +93,7 @@ final class SimulationMetricsReporter {
         });
 
         long nanos = simulation.clock().read();
-        double seconds = TimeUnit.MILLISECONDS.convert(Duration.ofNanos(nanos)) / 1000d;
+        double seconds = TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d;
         measurements.get(X_AXIS).add(seconds);
     }
 
@@ -141,7 +140,7 @@ final class SimulationMetricsReporter {
 
         if (!simulation.events().getEvents().isEmpty()) {
             double[] eventXs = simulation.events().getEvents().keySet().stream()
-                    .mapToDouble(nanos -> TimeUnit.MILLISECONDS.convert(Duration.ofNanos(nanos)) / 1000d)
+                    .mapToDouble(nanos -> TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d)
                     .toArray();
             double[] eventYs = new double[eventXs.length];
             String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);
