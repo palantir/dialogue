@@ -376,6 +376,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             if (next.isPresent()) {
                 nextNodeBecauseThrowable.mark();
                 if (log.isInfoEnabled()) {
+                    // throwable is not shown unless debug logging is
+                    // enabled to avoid duplicate stack traces.
+                    Throwable throwableToLog = log.isDebugEnabled() ? throwable : null;
                     log.info(
                             "Received throwable, switching to next channel",
                             SafeArg.of("stableIndex", channel.stableIndex()),
@@ -384,9 +387,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                             SafeArg.of("nextIndex", next.getAsInt()),
                             SafeArg.of("channelName", channelName),
                             SafeArg.of("numChannels", numChannels),
-                            // throwable is not shown unless debug logging is
-                            // enabled to avoid duplicate stack traces.
-                            log.isDebugEnabled() ? throwable : null);
+                            throwableToLog);
                 }
             } else if (log.isDebugEnabled()) {
                 log.debug(
