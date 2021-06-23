@@ -181,7 +181,7 @@ public final class ErrorDecoderTest {
         assertThat(decoder.decode(
                         TestResponse.withBody(SERIALIZED_EXCEPTION).code(500).contentType("text/plain")))
                 .isInstanceOf(UnknownRemoteException.class)
-                .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
+                .hasMessage("Response status: 500");
     }
 
     @Test
@@ -190,8 +190,7 @@ public final class ErrorDecoderTest {
                 .isInstanceOfSatisfying(UnknownRemoteException.class, expected -> {
                     assertThat(expected.getStatus()).isEqualTo(500);
                     assertThat(expected.getBody()).isEqualTo("not json");
-                    assertThat(expected.getMessage())
-                            .isEqualTo("Error 500. (Failed to parse response body as SerializableError.)");
+                    assertThat(expected.getMessage()).isEqualTo("Response status: 500");
                 });
     }
 
@@ -200,7 +199,7 @@ public final class ErrorDecoderTest {
     public void doesNotHandleNullBody() {
         assertThat(decoder.decode(TestResponse.withBody(null).code(500).contentType("application/json")))
                 .isInstanceOf(UnknownRemoteException.class)
-                .hasMessage("Error 500. (Failed to parse response body as SerializableError.)");
+                .hasMessage("Response status: 500");
     }
 
     @Test
@@ -211,8 +210,7 @@ public final class ErrorDecoderTest {
                 .isInstanceOfSatisfying(UnknownRemoteException.class, expected -> {
                     assertThat(expected.getStatus()).isEqualTo(502);
                     assertThat(expected.getBody()).isEqualTo("{\"error\":\"some-unknown-json\"}");
-                    assertThat(expected.getMessage())
-                            .isEqualTo("Error 502. (Failed to parse response body as SerializableError.)");
+                    assertThat(expected.getMessage()).isEqualTo("Response status: 502");
                 });
     }
 
