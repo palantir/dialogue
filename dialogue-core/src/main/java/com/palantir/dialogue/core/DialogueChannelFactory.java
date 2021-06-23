@@ -17,13 +17,30 @@
 package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.DialogueImmutablesStyle;
+import java.util.OptionalInt;
+import org.immutables.value.Value;
 
-/**
- * Prefer using {@link DialogueChannelFactory} to support additional debugging metadata.
- * @deprecated in favor of {@link DialogueChannelFactory}.
- */
-@Deprecated
-public interface ChannelFactory {
+public interface DialogueChannelFactory {
 
-    Channel create(String uri);
+    Channel create(ChannelArgs args);
+
+    @Value.Immutable
+    @DialogueImmutablesStyle
+    interface ChannelArgs {
+        String uri();
+
+        OptionalInt uriIndexForInstrumentation();
+
+        static Builder builder() {
+            return new Builder();
+        }
+
+        class Builder extends ImmutableChannelArgs.Builder {}
+    }
+
+    @SuppressWarnings("deprecation")
+    static DialogueChannelFactory from(ChannelFactory legacy) {
+        return args -> legacy.create(args.uri());
+    }
 }

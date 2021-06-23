@@ -27,6 +27,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueChannelFactory;
 import com.palantir.dialogue.core.DialogueInternalWeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
@@ -117,15 +118,21 @@ public final class ApacheHttpClientChannels {
         return DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(conf)
-                .channelFactory(uri -> createSingleUri(uri, client))
+                .factory(args -> createSingleUri(args, client))
                 .build();
     }
 
-    public static Channel createSingleUri(String uri, CloseableClient client) {
-        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(client, url(uri), client.leakDetector());
+    public static Channel createSingleUri(DialogueChannelFactory.ChannelArgs args, CloseableClient client) {
+        BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(
+                client, url(args.uri()), client.leakDetector(), args.uriIndexForInstrumentation());
         return client.executor() == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor());
+    }
+
+    public static Channel createSingleUri(String uri, CloseableClient client) {
+        return createSingleUri(
+                DialogueChannelFactory.ChannelArgs.builder().uri(uri).build(), client);
     }
 
     public static CloseableClient createCloseableHttpClient(ClientConfiguration conf, String clientName) {

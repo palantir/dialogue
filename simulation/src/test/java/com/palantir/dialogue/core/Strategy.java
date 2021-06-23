@@ -83,7 +83,7 @@ public enum Strategy {
                                             .from(STUB_CONFIG)
                                             .taggedMetricRegistry(sim.taggedMetrics()))
                                     .build())
-                            .channelFactory(uri -> channelSupplier.get().get(uri))
+                            .factory(args -> channelSupplier.get().get(args.uri()))
                             .random(sim.pseudoRandom())
                             .scheduler(sim.scheduler())
                             .ticker(sim.clock())

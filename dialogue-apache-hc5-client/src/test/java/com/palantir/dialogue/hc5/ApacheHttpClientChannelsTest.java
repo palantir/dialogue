@@ -82,7 +82,8 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                                                 "serviceName",
                                                 "endpointName",
                                                 "requestTraceId",
-                                                "requestSpanId");
+                                                "requestSpanId",
+                                                "hostIndex");
                             }));
         }
 
