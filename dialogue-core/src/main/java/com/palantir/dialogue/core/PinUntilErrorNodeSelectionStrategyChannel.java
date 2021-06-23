@@ -117,6 +117,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
         } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
             NodeList constant = new ConstantNodeList(initialShuffle);
+            log.info("Created PinUntilErrorNodeSelectionStrategyChannel", SafeArg.of("numHosts", constant.size()));
             return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
         }
 
