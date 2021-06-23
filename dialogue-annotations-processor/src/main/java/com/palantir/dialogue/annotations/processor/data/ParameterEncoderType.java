@@ -21,7 +21,7 @@ import org.derive4j.Data;
 import org.immutables.value.Value;
 
 @Value.Immutable
-@Value.Style(stagedBuilder = true)
+@StagedBuilder
 public interface ParameterEncoderType {
 
     EncoderType type();

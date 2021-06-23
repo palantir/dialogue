@@ -93,7 +93,7 @@ final class SimulationMetricsReporter {
         });
 
         long nanos = simulation.clock().read();
-        double seconds = TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d;
+        double seconds = TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d;
         measurements.get(X_AXIS).add(seconds);
     }
 
@@ -140,7 +140,7 @@ final class SimulationMetricsReporter {
 
         if (!simulation.events().getEvents().isEmpty()) {
             double[] eventXs = simulation.events().getEvents().keySet().stream()
-                    .mapToDouble(nanos -> TimeUnit.MILLISECONDS.convert(nanos, TimeUnit.NANOSECONDS) / 1000d)
+                    .mapToDouble(nanos -> TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d)
                     .toArray();
             double[] eventYs = new double[eventXs.length];
             String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);

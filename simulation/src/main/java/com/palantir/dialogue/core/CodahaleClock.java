@@ -34,6 +34,6 @@ final class CodahaleClock extends Clock {
 
     @Override
     public long getTime() {
-        return TimeUnit.MILLISECONDS.convert(getTick(), TimeUnit.NANOSECONDS);
+        return TimeUnit.NANOSECONDS.toMillis(getTick());
     }
 }

@@ -21,7 +21,7 @@ import java.util.List;
 import org.immutables.value.Value;
 
 @Value.Immutable
-@Value.Style(stagedBuilder = true)
+@StagedBuilder
 public interface EndpointDefinition {
 
     EndpointName endpointName();

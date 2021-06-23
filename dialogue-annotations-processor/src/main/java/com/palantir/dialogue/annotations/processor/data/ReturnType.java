@@ -21,7 +21,7 @@ import java.util.Optional;
 import org.immutables.value.Value;
 
 @Value.Immutable
-@Value.Style(stagedBuilder = true)
+@StagedBuilder
 public interface ReturnType {
     TypeName returnType();
 

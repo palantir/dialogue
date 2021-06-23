@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -274,7 +275,7 @@ public final class NanosecondPrecisionDeterministicScheduler implements Schedule
 
         @Override
         public long getDelay(TimeUnit unit) {
-            return unit.convert(deltaQueue.delay(this), TimeUnit.NANOSECONDS);
+            return unit.convert(Duration.ofNanos(deltaQueue.delay(this)));
         }
 
         @Override

@@ -39,7 +39,7 @@ public interface ArgumentType {
     <R> R match(ArgumentType.Cases<R> cases);
 
     @Value.Immutable
-    @Value.Style(stagedBuilder = true)
+    @StagedBuilder
     interface OptionalType {
         String isPresentMethodName();
 

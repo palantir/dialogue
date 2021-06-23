@@ -112,7 +112,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         for (int i = 0; i < max * .9; ++i) {
-            limiter.acquire().get();
+            assertThat(limiter.acquire()).isPresent();
             assertThat(limiter.getLimit()).isEqualTo(max);
         }
 
