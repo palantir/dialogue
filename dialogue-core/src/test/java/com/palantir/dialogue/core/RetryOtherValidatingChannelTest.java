@@ -21,7 +21,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
@@ -74,10 +74,8 @@ public final class RetryOtherValidatingChannelTest {
     private void execute(@Nullable String retryOtherUri) {
         RetryOtherValidatingChannel channel = new RetryOtherValidatingChannel(
                 delegate,
-                ImmutableList.of(
-                        "https://host3.palantir.dev:9090/service/api",
-                        "https://host3.palantir.dev:9090/service/api",
-                        "https://host1.palantir.dev:9090/service/api"),
+                ImmutableSet.of(
+                        "https://host3.palantir.dev:9090/service/api", "https://host1.palantir.dev:9090/service/api"),
                 failureReporter);
 
         Request request = Request.builder().build();
