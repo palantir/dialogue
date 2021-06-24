@@ -54,7 +54,7 @@ final class RetryOtherValidatingChannel implements Channel {
     RetryOtherValidatingChannel(Channel delegate, List<String> hosts, Consumer<String> failureReporter) {
         this.delegate = delegate;
         this.hosts =
-                hosts.stream().map(RetryOtherValidatingChannel::strictParseHost).collect(Collectors.toList());
+                hosts.stream().map(RetryOtherValidatingChannel::strictParseHost).collect(ImmutableSet.toImmutableSet());
         this.failureReporter = failureReporter;
     }
 
