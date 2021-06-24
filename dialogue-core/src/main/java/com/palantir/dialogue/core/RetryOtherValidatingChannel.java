@@ -17,7 +17,9 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HttpHeaders;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.dialogue.Channel;
@@ -31,8 +33,8 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 import javax.annotation.CheckForNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,7 +45,8 @@ final class RetryOtherValidatingChannel implements Channel {
     private static final RateLimiter VALIDATION_FAILED_LOGGING_LIMITER = RateLimiter.create(1);
 
     private final Channel delegate;
-    private final List<String> hosts;
+    private final Set<String> hosts;
+    private final FutureCallback<Response> callback;
     private final Consumer<String> failureReporter;
 
     RetryOtherValidatingChannel(Channel delegate, List<String> hosts) {
@@ -55,20 +58,21 @@ final class RetryOtherValidatingChannel implements Channel {
         this.delegate = delegate;
         this.hosts =
                 hosts.stream().map(RetryOtherValidatingChannel::strictParseHost).collect(ImmutableSet.toImmutableSet());
+        callback = new FutureCallback<>() {
+            @Override
+            public void onSuccess(Response result) {
+                validateRetryOther(result);
+            }
+
+            @Override
+            public void onFailure(Throwable _t) {}
+        };
         this.failureReporter = failureReporter;
     }
 
     @Override
-    @SuppressWarnings("Finally")
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return DialogueFutures.transform(delegate.execute(endpoint, request), response -> {
-            try {
-                validateRetryOther(response);
-                return response;
-            } finally {
-                return response;
-            }
-        });
+        return DialogueFutures.addDirectCallback(delegate.execute(endpoint, request), callback);
     }
 
     private void validateRetryOther(Response response) {
@@ -86,16 +90,7 @@ final class RetryOtherValidatingChannel implements Channel {
 
     private boolean isValidUri(String uri) {
         String maybeHost = maybeParseHost(uri);
-        return (maybeHost != null) && isKnownHost(maybeHost);
-    }
-
-    private boolean isKnownHost(String host) {
-        for (int i = 0; i < hosts.size(); i++) {
-            if (hosts.get(i).equals(host)) {
-                return true;
-            }
-        }
-        return false;
+        return (maybeHost != null) && hosts.contains(maybeHost);
     }
 
     static RetryOtherValidatingChannel create(Config cf, Channel delegate) {
