@@ -98,7 +98,7 @@ final class RetryOtherValidatingChannel implements Channel {
                     .collect(ImmutableSet.toImmutableSet());
             return new RetryOtherValidatingChannel(delegate, hosts);
         } catch (RuntimeException e) {
-            log.warn("Could not parse urls, falling back to no retry other validation", e);
+            log.warn("Could not parse uris, turning off Location header validation", e);
             return delegate;
         }
     }
