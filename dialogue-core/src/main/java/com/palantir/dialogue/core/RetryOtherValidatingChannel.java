@@ -103,7 +103,8 @@ final class RetryOtherValidatingChannel implements Channel {
         }
     }
 
-    private static String strictParseHost(String uri) {
+    @VisibleForTesting
+    static String strictParseHost(String uri) {
         String maybeHost = maybeParseHost(uri);
         if (maybeHost != null) {
             return maybeHost;

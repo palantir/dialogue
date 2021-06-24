@@ -29,6 +29,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.time.Duration;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 import javax.ws.rs.core.HttpHeaders;
 import org.junit.jupiter.api.Test;
@@ -75,7 +76,11 @@ public final class RetryOtherValidatingChannelTest {
         RetryOtherValidatingChannel channel = new RetryOtherValidatingChannel(
                 delegate,
                 ImmutableSet.of(
-                        "https://host3.palantir.dev:9090/service/api", "https://host1.palantir.dev:9090/service/api"),
+                                "https://host3.palantir.dev:9090/service/api",
+                                "https://host1.palantir.dev:9090/service/api")
+                        .stream()
+                        .map(RetryOtherValidatingChannel::strictParseHost)
+                        .collect(Collectors.toSet()),
                 failureReporter);
 
         Request request = Request.builder().build();
