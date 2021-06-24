@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.dialogue.Channel;
@@ -24,8 +25,14 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import javax.annotation.CheckForNull;
 import javax.ws.rs.core.HttpHeaders;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,36 +40,58 @@ import org.slf4j.LoggerFactory;
 final class RetryOtherValidatingChannel implements Channel {
 
     private static final Logger log = LoggerFactory.getLogger(RetryOtherValidatingChannel.class);
-    private static final RateLimiter UNKNOWN_RETRY_OTHER_URI = RateLimiter.create(1);
+    private static final RateLimiter VALIDATION_FAILED_LOGGING_LIMITER = RateLimiter.create(1);
 
     private final Channel delegate;
-    private final List<String> uris;
-    private final UnsafeArg<List<String>> unsafeArg;
+    private final List<String> hosts;
+    private final Consumer<String> failureReporter;
 
-    private RetryOtherValidatingChannel(Channel delegate, List<String> uris) {
+    RetryOtherValidatingChannel(Channel delegate, List<String> hosts) {
+        this(delegate, hosts, RetryOtherValidatingChannel.failureReporter(hosts));
+    }
+
+    @VisibleForTesting
+    RetryOtherValidatingChannel(Channel delegate, List<String> hosts, Consumer<String> failureReporter) {
         this.delegate = delegate;
-        this.uris = uris;
-        this.unsafeArg = UnsafeArg.of("uris", uris);
+        this.hosts =
+                hosts.stream().map(RetryOtherValidatingChannel::strictParseHost).collect(Collectors.toList());
+        this.failureReporter = failureReporter;
     }
 
     @Override
+    @SuppressWarnings("Finally")
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
         return DialogueFutures.transform(delegate.execute(endpoint, request), response -> {
-            Optional<String> maybeRetryOtherHost = response.getFirstHeader(HttpHeaders.LOCATION);
-            if (maybeRetryOtherHost.isPresent()) {
-                String retryOtherHost = maybeRetryOtherHost.get();
-                if (!isKnown(maybeRetryOtherHost.get()) && UNKNOWN_RETRY_OTHER_URI.tryAcquire()) {
-                    log.info("Unknown Location header", UnsafeArg.of("location", retryOtherHost), unsafeArg);
-                }
+            try {
+                validateRetryOther(response);
+                return response;
+            } finally {
+                return response;
             }
-
-            return response;
         });
     }
 
-    private boolean isKnown(String retryOtherUri) {
-        for (int i = 0; i < uris.size(); i++) {
-            if (uris.get(i).equals(retryOtherUri)) {
+    private void validateRetryOther(Response response) {
+        if (!Responses.isRetryOther(response)) {
+            return;
+        }
+        Optional<String> maybeRetryOtherUri = response.getFirstHeader(HttpHeaders.LOCATION);
+        if (maybeRetryOtherUri.isPresent()) {
+            String retryOtherUri = maybeRetryOtherUri.get();
+            if (!isValidUri(retryOtherUri)) {
+                failureReporter.accept(retryOtherUri);
+            }
+        }
+    }
+
+    private boolean isValidUri(String uri) {
+        String maybeHost = maybeParseHost(uri);
+        return (maybeHost != null) && isKnownHost(maybeHost);
+    }
+
+    private boolean isKnownHost(String host) {
+        for (int i = 0; i < hosts.size(); i++) {
+            if (hosts.get(i).equals(host)) {
                 return true;
             }
         }
@@ -71,5 +100,32 @@ final class RetryOtherValidatingChannel implements Channel {
 
     static RetryOtherValidatingChannel create(Config cf, Channel delegate) {
         return new RetryOtherValidatingChannel(delegate, cf.clientConf().uris());
+    }
+
+    private static String strictParseHost(String uri) {
+        String maybeHost = maybeParseHost(uri);
+        if (maybeHost != null) {
+            return maybeHost;
+        }
+        throw new SafeIllegalArgumentException("Failed to parse URI", UnsafeArg.of("uri", uri));
+    }
+
+    @CheckForNull
+    private static String maybeParseHost(String uri) {
+        try {
+            URL parsed = new URL(uri);
+            return parsed.getHost();
+        } catch (MalformedURLException e) {
+            return null;
+        }
+    }
+
+    private static Consumer<String> failureReporter(List<String> hosts) {
+        UnsafeArg<List<String>> unsafeUris = UnsafeArg.of("uris", hosts);
+        return retryOtherUri -> {
+            if (VALIDATION_FAILED_LOGGING_LIMITER.tryAcquire()) {
+                log.info("Invalid Location header value {} {}", UnsafeArg.of("location", retryOtherUri), unsafeUris);
+            }
+        };
     }
 }
