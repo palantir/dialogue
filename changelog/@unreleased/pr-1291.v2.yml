@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Validate RetryOther responses that have Location header.
+  links:
+  - https://github.com/palantir/dialogue/pull/1291
