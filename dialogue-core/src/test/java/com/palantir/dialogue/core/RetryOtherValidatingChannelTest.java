@@ -75,7 +75,9 @@ public final class RetryOtherValidatingChannelTest {
         RetryOtherValidatingChannel channel = new RetryOtherValidatingChannel(
                 delegate,
                 ImmutableList.of(
-                        "https://host3.palantir.dev:9090/service/api", "https://host1.palantir.dev:9090/service/api"),
+                        "https://host3.palantir.dev:9090/service/api",
+                        "https://host3.palantir.dev:9090/service/api",
+                        "https://host1.palantir.dev:9090/service/api"),
                 failureReporter);
 
         Request request = Request.builder().build();
