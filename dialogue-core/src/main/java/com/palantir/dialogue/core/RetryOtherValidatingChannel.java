@@ -31,7 +31,6 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -49,15 +48,14 @@ final class RetryOtherValidatingChannel implements Channel {
     private final FutureCallback<Response> callback;
     private final Consumer<String> failureReporter;
 
-    RetryOtherValidatingChannel(Channel delegate, List<String> hosts) {
+    RetryOtherValidatingChannel(Channel delegate, Set<String> hosts) {
         this(delegate, hosts, RetryOtherValidatingChannel.failureReporter(hosts));
     }
 
     @VisibleForTesting
-    RetryOtherValidatingChannel(Channel delegate, List<String> hosts, Consumer<String> failureReporter) {
+    RetryOtherValidatingChannel(Channel delegate, Set<String> hosts, Consumer<String> failureReporter) {
         this.delegate = delegate;
-        this.hosts =
-                hosts.stream().map(RetryOtherValidatingChannel::strictParseHost).collect(ImmutableSet.toImmutableSet());
+        this.hosts = hosts;
         callback = new FutureCallback<>() {
             @Override
             public void onSuccess(Response result) {
@@ -93,8 +91,16 @@ final class RetryOtherValidatingChannel implements Channel {
         return (maybeHost != null) && hosts.contains(maybeHost);
     }
 
-    static RetryOtherValidatingChannel create(Config cf, Channel delegate) {
-        return new RetryOtherValidatingChannel(delegate, cf.clientConf().uris());
+    static Channel create(Config cf, Channel delegate) {
+        try {
+            Set<String> hosts = cf.clientConf().uris().stream()
+                    .map(RetryOtherValidatingChannel::strictParseHost)
+                    .collect(ImmutableSet.toImmutableSet());
+            return new RetryOtherValidatingChannel(delegate, hosts);
+        } catch (RuntimeException e) {
+            log.warn("Could not parse urls, falling back to no retry other validation", e);
+            return delegate;
+        }
     }
 
     private static String strictParseHost(String uri) {
@@ -115,8 +121,8 @@ final class RetryOtherValidatingChannel implements Channel {
         }
     }
 
-    private static Consumer<String> failureReporter(List<String> hosts) {
-        UnsafeArg<List<String>> unsafeUris = UnsafeArg.of("uris", hosts);
+    private static Consumer<String> failureReporter(Set<String> hosts) {
+        UnsafeArg<Set<String>> unsafeUris = UnsafeArg.of("uris", hosts);
         return retryOtherUri -> {
             if (VALIDATION_FAILED_LOGGING_LIMITER.tryAcquire()) {
                 log.info("Invalid Location header value {} {}", UnsafeArg.of("location", retryOtherUri), unsafeUris);
