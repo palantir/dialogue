@@ -65,7 +65,7 @@ final class RetryOtherValidatingChannel implements Channel {
             }
 
             @Override
-            public void onFailure(Throwable _t) {}
+            public void onFailure(Throwable _throwable) {}
         };
         this.failureReporter = failureReporter;
     }
