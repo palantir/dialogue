@@ -18,6 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Snapshot;
 import com.google.common.base.Stopwatch;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Streams;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -35,6 +37,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -43,9 +46,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
+import java.util.function.Supplier;
+import java.util.stream.BaseStream;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.assertj.core.util.VisibleForTesting;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -57,7 +64,7 @@ import org.slf4j.LoggerFactory;
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
     private static final Request REQUEST = Request.builder().build();
-    private static final Endpoint DEFAULT_ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
+    static final Endpoint DEFAULT_ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
     private Simulation simulation;
@@ -83,8 +90,15 @@ public final class Benchmark {
 
     public Benchmark numRequests(long numRequests) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        requestStream = infiniteRequests(delayBetweenRequests).limit(numRequests);
+        requestStream = infiniteRequests(
+                        delayBetweenRequests, () -> endpointChannels[endpointChannelChooser.getAsInt()])
+                .limit(numRequests);
         stopWhenNumReceived(numRequests);
+        return this;
+    }
+
+    public Benchmark requestStream(Stream<ScheduledRequest> newRequestStream) {
+        this.requestStream = newRequestStream;
         return this;
     }
 
@@ -98,22 +112,9 @@ public final class Benchmark {
         Preconditions.checkNotNull(clients, "Must call client or clients first");
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
         Preconditions.checkNotNull(simulation, "Must call .simulation() first");
-        Clients utils = DefaultConjureRuntime.builder().build().clients();
 
         endpointChannels = Arrays.stream(clients)
-                .flatMap(channel -> {
-                    return Arrays.stream(endpoints).map(endpoint -> {
-                        Preconditions.checkArgument(
-                                endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
-                                "Must have a consistent service name for our graphs to work",
-                                SafeArg.of("endpoint", endpoint));
-
-                        EndpointChannel endpointChannel = utils.bind(channel, endpoint);
-                        endpointChannel = new BenchmarkTimingEndpointChannel(
-                                endpointChannel, simulation.clock(), simulation.taggedMetrics());
-                        return endpointChannel;
-                    });
-                })
+                .flatMap(channel -> Arrays.stream(endpoints).map(endpoint -> endpointChannel(endpoint, channel)))
                 .toArray(EndpointChannel[]::new);
 
         Random pseudoRandom = new Random(21876781263L);
@@ -121,6 +122,19 @@ public final class Benchmark {
         endpointChannelChooser = () -> pseudoRandom.nextInt(count);
 
         return this;
+    }
+
+    public EndpointChannel endpointChannel(Endpoint endpoint, Channel channel) {
+        Preconditions.checkArgument(
+                endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
+                "Must have a consistent service name for our graphs to work",
+                SafeArg.of("endpoint", endpoint));
+
+        Clients utils = DefaultConjureRuntime.builder().build().clients();
+        EndpointChannel endpointChannel = utils.bind(channel, endpoint);
+        endpointChannel =
+                new BenchmarkTimingEndpointChannel(endpointChannel, simulation.clock(), simulation.taggedMetrics());
+        return endpointChannel;
     }
 
     public Benchmark simulation(Simulation sim) {
@@ -138,7 +152,7 @@ public final class Benchmark {
         return endpoints(DEFAULT_ENDPOINT);
     }
 
-    private Benchmark stopWhenNumReceived(long numReceived) {
+    Benchmark stopWhenNumReceived(long numReceived) {
         SettableFuture<Void> future = SettableFuture.create();
         benchmarkFinished = new ShouldStopPredicate() {
             @Override
@@ -216,9 +230,9 @@ public final class Benchmark {
                                         simulation.clock().read(),
                                         req.number(),
                                         req);
-                                EndpointChannel channel = endpointChannels[endpointChannelChooser.getAsInt()];
                                 try {
-                                    ListenableFuture<Response> future = channel.execute(req.request());
+                                    ListenableFuture<Response> future =
+                                            req.endpointChannel().execute(req.request());
                                     requestsStarted[0] += 1;
 
                                     Futures.addCallback(
@@ -269,15 +283,25 @@ public final class Benchmark {
                 DialogueFutures.safeDirectExecutor());
     }
 
-    private Stream<ScheduledRequest> infiniteRequests(Duration interval) {
+    @VisibleForTesting
+    Stream<ScheduledRequest> infiniteRequests(Duration interval, Supplier<EndpointChannel> endpointChannelSupplier) {
         long intervalNanos = interval.toNanos();
         return LongStream.iterate(0, current -> current + 1).mapToObj(number -> {
+            EndpointChannel channel = endpointChannelSupplier.get();
             return ImmutableScheduledRequest.builder()
                     .number(number)
                     .request(requestSupplier.apply(number))
                     .sendTimeNanos(intervalNanos * number)
+                    .endpointChannel(channel)
                     .build();
         });
+    }
+
+    @VisibleForTesting
+    Stream<ScheduledRequest> merge(Stream<ScheduledRequest>... streams) {
+        return Streams.stream(Iterators.mergeSorted(
+                Arrays.stream(streams).map(BaseStream::iterator).collect(Collectors.toList()),
+                Comparator.comparing(ScheduledRequest::sendTimeNanos)));
     }
 
     @Value.Immutable
@@ -325,6 +349,8 @@ public final class Benchmark {
         long sendTimeNanos();
 
         Request request();
+
+        EndpointChannel endpointChannel();
     }
 
     private static Request constructRequest(long number) {

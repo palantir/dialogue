@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -62,7 +61,7 @@ final class BalancedScoreTracker {
 
     BalancedScoreTracker(
             int channelCount, Random random, Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName) {
-        Preconditions.checkState(channelCount >= 2, "At least two channels required");
+        //        Preconditions.checkState(channelCount >= 2, "At least two channels required");
         this.random = random;
         this.clock = ticker;
         this.channelStats = IntStream.range(0, channelCount)

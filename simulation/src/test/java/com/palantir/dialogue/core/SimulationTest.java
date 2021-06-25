@@ -16,15 +16,20 @@
 
 package com.palantir.dialogue.core;
 
+import static com.palantir.dialogue.core.Benchmark.DEFAULT_ENDPOINT;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Meter;
 import com.google.common.base.Stopwatch;
 import com.google.common.base.Suppliers;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.Benchmark.ScheduledRequest;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
@@ -40,6 +45,7 @@ import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +61,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
@@ -536,6 +543,74 @@ final class SimulationTest {
                 .run();
     }
 
+    @Test
+    void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client() {
+
+        // 1 server
+        // 2 types of clients sharing a DialogueChannel
+        //   - client that sends a request once a second
+        //   - client that burst sends 10k requests instantly
+        // Assuming:
+        //   * server concurrency limit of 1
+        //   * 5ms to serve a request
+        //
+        // Serving the bursty client by itself is going to take 50s. That is fine for that client, because it
+        // is trying to do a lot. However, we should not make the slow-and-steady client wait 50s to send it's request.
+        int numServers = 1;
+        int concurrencyLimit = 1;
+        Duration responseTime = Duration.ofMillis(5);
+
+        Duration benchmarkDuration = Duration.ofMinutes(1);
+
+        Duration timeBetweenSlowAndSteadyRequests = Duration.ofSeconds(1);
+        long numSlowAndSteady = benchmarkDuration.toNanos() / timeBetweenSlowAndSteadyRequests.toNanos();
+        assertThat(numSlowAndSteady).isEqualTo(60);
+
+        Duration timeBetweenBurstRequests = Duration.ofNanos(50);
+        long numBurst = 10_000;
+
+        long totalNumRequests = numSlowAndSteady + numBurst;
+        assertThat(totalNumRequests).isEqualTo(10060);
+
+        servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> SimulationServer.builder()
+                        .serverName("node" + i)
+                        .simulation(simulation)
+                        .handler(h ->
+                                h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
+                        .build())
+                .toArray(SimulationServer[]::new));
+        st = Strategy.STICKY;
+
+        Channel concurrencyLimitedChannel = Strategy.concurrencyLimiter(simulation, servers);
+
+        List<EndpointChannelFactory> endpointChannelFactories =
+                Collections.singletonList(endpoint -> request -> concurrencyLimitedChannel.execute(endpoint, request));
+
+        Supplier<Channel> stickyChannel = StickyEndpointChannels.builder()
+                .channels(endpointChannelFactories)
+                .channelName(SimulationUtils.CHANNEL_NAME)
+                .taggedMetricRegistry(simulation.taggedMetrics())
+                .build();
+
+        Benchmark builder = Benchmark.builder().simulation(simulation);
+        EndpointChannel slowAndSteadyChannel = builder.endpointChannel(DEFAULT_ENDPOINT, stickyChannel.get());
+        EndpointChannel oneShotBurstChannel = builder.endpointChannel(DEFAULT_ENDPOINT, stickyChannel.get());
+
+        Stream<ScheduledRequest> slowAndSteadyChannelRequests = builder.infiniteRequests(
+                        timeBetweenSlowAndSteadyRequests, () -> slowAndSteadyChannel)
+                .limit(numSlowAndSteady);
+
+        Stream<ScheduledRequest> oneShotBurstChannelRequests = builder.infiniteRequests(
+                        timeBetweenBurstRequests, () -> oneShotBurstChannel)
+                .limit(numBurst);
+
+        result = builder.requestStream(builder.merge(slowAndSteadyChannelRequests, oneShotBurstChannelRequests))
+                .stopWhenNumReceived(totalNumRequests)
+                .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
+                .run();
+    }
+
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
         Random random = new Random(4 /* Chosen by fair dice roll. Guaranteed to be random. */);
         return _server -> {
@@ -578,6 +653,10 @@ final class SimulationTest {
 
     @AfterEach
     public void after(TestInfo testInfo) throws IOException {
+        if (result == null) {
+            return;
+        }
+
         Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
