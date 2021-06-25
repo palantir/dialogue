@@ -696,8 +696,9 @@ final class SimulationTest {
                     StandardOpenOption.CREATE,
                     StandardOpenOption.TRUNCATE_EXISTING);
 
-            XYChart activeRequests = simulation.metricsReporter().chart(Pattern.compile("activeRequests$"));
-            activeRequests.setTitle(String.format(
+            XYChart activeRequestsPerServerNode =
+                    simulation.metricsReporter().chart(Pattern.compile("activeRequests$"));
+            activeRequestsPerServerNode.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     st, result.successPercentage(), clientMeanMillis, serverCpu));
 
@@ -709,8 +710,10 @@ final class SimulationTest {
                 Files.move(Paths.get(pngPath), previousPng);
             }
 
+            XYChart activeRequestsPerEndpointPerServer =
+                    simulation.metricsReporter().chart(Pattern.compile("request$"));
             SimulationMetricsReporter.png(
-                    pngPath, activeRequests, simulation.metricsReporter().chart(Pattern.compile("request$"))
+                    pngPath, activeRequestsPerServerNode, activeRequestsPerEndpointPerServer
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
