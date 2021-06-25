@@ -274,9 +274,8 @@ public final class Benchmark {
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(
-                                    BenchmarkTimingEndpointChannel.globalResponseTimer(simulation.taggedMetrics())
-                                            .getSnapshot())
+                            .clientHistogram(MetricNames.clientGlobalResponseTimer(simulation.taggedMetrics())
+                                    .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(

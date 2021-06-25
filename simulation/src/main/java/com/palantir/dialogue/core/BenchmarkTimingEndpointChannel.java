@@ -24,7 +24,6 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.concurrent.TimeUnit;
 
@@ -44,21 +43,8 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
             TaggedMetricRegistry taggedMetrics) {
         this.delegate = delegate;
         this.ticker = ticker;
-        this.globalResponseTimer = globalResponseTimer(taggedMetrics);
-        this.perEndpointChannelTimer = taggedMetrics.timer(MetricName.builder()
-                .safeName("benchmark.endpoint.responses")
-                .putSafeTags("client", clientName)
-                .putSafeTags(
-                        "endpoint",
-                        String.format(
-                                "%s %s (%s) [%s]",
-                                endpoint.httpMethod(), endpoint.endpointName(), endpoint.version(), endpoint.tags()))
-                .build());
-    }
-
-    static Timer globalResponseTimer(TaggedMetricRegistry taggedMetrics) {
-        return taggedMetrics.timer(
-                MetricName.builder().safeName("benchmark.responses").build());
+        this.globalResponseTimer = MetricNames.clientGlobalResponseTimer(taggedMetrics);
+        this.perEndpointChannelTimer = MetricNames.perClientEndpointResponseTimer(taggedMetrics, clientName, endpoint);
     }
 
     @Override

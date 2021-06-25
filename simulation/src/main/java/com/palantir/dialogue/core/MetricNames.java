@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.Meter;
+import com.codahale.metrics.Timer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -30,6 +31,9 @@ final class MetricNames {
             MetricName.builder().safeName("globalResponses").build();
     private static final MetricName GLOBAL_SERVER_TIME =
             MetricName.builder().safeName("globalServerTime").build();
+
+    private static final MetricName CLIENT_RESPONSES =
+            MetricName.builder().safeName("benchmark.client.globalResponses").build();
 
     /** Counter incremented every time a {@code Response} is closed. */
     static Counter responseClose(TaggedMetricRegistry reg) {
@@ -58,6 +62,19 @@ final class MetricNames {
         return reg.meter(MetricName.builder()
                 .safeName("request")
                 .putSafeTags("server", serverName)
+                .putSafeTags("endpoint", endpoint.endpointName())
+                .build());
+    }
+
+    static Timer clientGlobalResponseTimer(TaggedMetricRegistry taggedMetrics) {
+        return taggedMetrics.timer(CLIENT_RESPONSES);
+    }
+
+    static Timer perClientEndpointResponseTimer(
+            TaggedMetricRegistry taggedMetrics, String clientName, Endpoint endpoint) {
+        return taggedMetrics.timer(MetricName.builder()
+                .safeName("benchmark.client.endpoint.responses")
+                .putSafeTags("client", clientName)
                 .putSafeTags("endpoint", endpoint.endpointName())
                 .build());
     }
