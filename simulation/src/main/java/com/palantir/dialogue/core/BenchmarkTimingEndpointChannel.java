@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -30,16 +31,32 @@ import java.util.concurrent.TimeUnit;
 final class BenchmarkTimingEndpointChannel implements EndpointChannel {
 
     private final EndpointChannel delegate;
-    private final Timer responseTimer;
+
+    private final Timer globalResponseTimer;
+    private final Timer perEndpointChannelTimer;
     private final Ticker ticker;
 
-    BenchmarkTimingEndpointChannel(EndpointChannel delegate, Ticker ticker, TaggedMetricRegistry taggedMetrics) {
+    BenchmarkTimingEndpointChannel(
+            String clientName,
+            Endpoint endpoint,
+            EndpointChannel delegate,
+            Ticker ticker,
+            TaggedMetricRegistry taggedMetrics) {
         this.delegate = delegate;
         this.ticker = ticker;
-        this.responseTimer = requestTimer(taggedMetrics);
+        this.globalResponseTimer = globalResponseTimer(taggedMetrics);
+        this.perEndpointChannelTimer = taggedMetrics.timer(MetricName.builder()
+                .safeName("benchmark.endpoint.responses")
+                .putSafeTags("client", clientName)
+                .putSafeTags(
+                        "endpoint",
+                        String.format(
+                                "%s %s (%s) [%s]",
+                                endpoint.httpMethod(), endpoint.endpointName(), endpoint.version(), endpoint.tags()))
+                .build());
     }
 
-    static Timer requestTimer(TaggedMetricRegistry taggedMetrics) {
+    static Timer globalResponseTimer(TaggedMetricRegistry taggedMetrics) {
         return taggedMetrics.timer(
                 MetricName.builder().safeName("benchmark.responses").build());
     }
@@ -47,9 +64,11 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
     @Override
     public ListenableFuture<Response> execute(Request request) {
         long beforeNanos = ticker.read();
-        return DialogueFutures.addDirectListener(
-                delegate.execute(request),
-                () -> responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS));
+        return DialogueFutures.addDirectListener(delegate.execute(request), () -> {
+            long duration = ticker.read() - beforeNanos;
+            globalResponseTimer.update(duration, TimeUnit.NANOSECONDS);
+            perEndpointChannelTimer.update(duration, TimeUnit.NANOSECONDS);
+        });
     }
 
     @Override

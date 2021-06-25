@@ -69,7 +69,7 @@ public final class Benchmark {
 
     private Simulation simulation;
     private Duration delayBetweenRequests;
-    private Channel[] clients;
+    private NamedClientChannel[] clients;
     private EndpointChannel[] endpointChannels;
     private IntSupplier endpointChannelChooser;
     private Stream<ScheduledRequest> requestStream;
@@ -114,7 +114,8 @@ public final class Benchmark {
         Preconditions.checkNotNull(simulation, "Must call .simulation() first");
 
         endpointChannels = Arrays.stream(clients)
-                .flatMap(channel -> Arrays.stream(endpoints).map(endpoint -> endpointChannel(endpoint, channel)))
+                .flatMap(client -> Arrays.stream(endpoints)
+                        .map(endpoint -> endpointChannel(client.name(), endpoint, client.channel())))
                 .toArray(EndpointChannel[]::new);
 
         Random pseudoRandom = new Random(21876781263L);
@@ -124,7 +125,7 @@ public final class Benchmark {
         return this;
     }
 
-    public EndpointChannel endpointChannel(Endpoint endpoint, Channel channel) {
+    public EndpointChannel endpointChannel(String client, Endpoint endpoint, Channel channel) {
         Preconditions.checkArgument(
                 endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
                 "Must have a consistent service name for our graphs to work",
@@ -132,8 +133,8 @@ public final class Benchmark {
 
         Clients utils = DefaultConjureRuntime.builder().build().clients();
         EndpointChannel endpointChannel = utils.bind(channel, endpoint);
-        endpointChannel =
-                new BenchmarkTimingEndpointChannel(endpointChannel, simulation.clock(), simulation.taggedMetrics());
+        endpointChannel = new BenchmarkTimingEndpointChannel(
+                client, endpoint, endpointChannel, simulation.clock(), simulation.taggedMetrics());
         return endpointChannel;
     }
 
@@ -148,7 +149,12 @@ public final class Benchmark {
 
     /** Use this if you want to simulate a bunch of clients. */
     public Benchmark clients(int numClients, IntFunction<Channel> clientFunction) {
-        this.clients = IntStream.range(0, numClients).mapToObj(clientFunction).toArray(Channel[]::new);
+        this.clients = IntStream.range(0, numClients)
+                .mapToObj(clientNum -> ImmutableNamedClientChannel.builder()
+                        .name(Integer.toString(clientNum))
+                        .channel(clientFunction.apply(clientNum))
+                        .build())
+                .toArray(NamedClientChannel[]::new);
         return endpoints(DEFAULT_ENDPOINT);
     }
 
@@ -268,8 +274,9 @@ public final class Benchmark {
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
                     return ImmutableBenchmarkResult.builder()
-                            .clientHistogram(BenchmarkTimingEndpointChannel.requestTimer(simulation.taggedMetrics())
-                                    .getSnapshot())
+                            .clientHistogram(
+                                    BenchmarkTimingEndpointChannel.globalResponseTimer(simulation.taggedMetrics())
+                                            .getSnapshot())
                             .endTime(Duration.ofNanos(simulation.clock().read()))
                             .statusCodes(statusCodes)
                             .successPercentage(
@@ -326,6 +333,13 @@ public final class Benchmark {
 
         /** How many responses were never closed. */
         long responsesLeaked();
+    }
+
+    @Value.Immutable
+    interface NamedClientChannel {
+        String name();
+
+        Channel channel();
     }
 
     /**

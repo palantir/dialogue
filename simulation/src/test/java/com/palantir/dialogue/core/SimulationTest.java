@@ -594,8 +594,10 @@ final class SimulationTest {
                 .build();
 
         Benchmark builder = Benchmark.builder().simulation(simulation);
-        EndpointChannel slowAndSteadyChannel = builder.endpointChannel(DEFAULT_ENDPOINT, stickyChannel.get());
-        EndpointChannel oneShotBurstChannel = builder.endpointChannel(DEFAULT_ENDPOINT, stickyChannel.get());
+        EndpointChannel slowAndSteadyChannel =
+                builder.endpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannel.get());
+        EndpointChannel oneShotBurstChannel =
+                builder.endpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannel.get());
 
         Stream<ScheduledRequest> slowAndSteadyChannelRequests = builder.infiniteRequests(
                         timeBetweenSlowAndSteadyRequests, () -> slowAndSteadyChannel)
