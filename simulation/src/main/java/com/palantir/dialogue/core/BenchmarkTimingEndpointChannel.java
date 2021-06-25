@@ -41,7 +41,7 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
 
     static Timer requestTimer(TaggedMetricRegistry taggedMetrics) {
         return taggedMetrics.timer(
-                MetricName.builder().safeName("benchmark.reponses").build());
+                MetricName.builder().safeName("benchmark.responses").build());
     }
 
     @Override
