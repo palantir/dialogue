@@ -54,7 +54,6 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -699,7 +698,7 @@ final class SimulationTest {
                     StandardOpenOption.TRUNCATE_EXISTING);
 
             XYChart activeRequestsPerServerNode =
-                    simulation.metricsReporter().chart(Pattern.compile("activeRequests$"));
+                    simulation.metricsReporter().chart(MetricNames.serverActiveRequestsPattern());
             activeRequestsPerServerNode.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     st, result.successPercentage(), clientMeanMillis, serverCpu));
@@ -712,10 +711,16 @@ final class SimulationTest {
                 Files.move(Paths.get(pngPath), previousPng);
             }
 
-            XYChart activeRequestsPerEndpointPerServer =
-                    simulation.metricsReporter().chart(Pattern.compile("request$"));
+            XYChart totalRequestsPerServerPerNode =
+                    simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern());
+
+            XYChart totalRequestsPerClientPerEndpoint =
+                    simulation.metricsReporter().chart(MetricNames.perClientEndpointResponseTimerPattern());
             SimulationMetricsReporter.png(
-                    pngPath, activeRequestsPerServerNode, activeRequestsPerEndpointPerServer
+                    pngPath,
+                    activeRequestsPerServerNode,
+                    totalRequestsPerServerPerNode,
+                    totalRequestsPerClientPerEndpoint
                     // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
                     );
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
@@ -730,10 +735,7 @@ final class SimulationTest {
     @BeforeEach
     public void before() {
         // purely a perf-optimization
-        simulation
-                .metricsReporter()
-                .onlyRecordMetricsFor(m ->
-                        m.safeName().endsWith("activeRequests") || m.safeName().endsWith("request"));
+        simulation.metricsReporter().onlyRecordMetricsFor(MetricNames::reportedMetricsPredicate);
 
         Tracer.setSampler(() -> false);
         Tracer.initTrace(Observability.DO_NOT_SAMPLE, Tracers.randomId());

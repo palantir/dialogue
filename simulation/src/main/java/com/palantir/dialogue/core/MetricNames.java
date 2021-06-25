@@ -22,6 +22,7 @@ import com.codahale.metrics.Timer;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.util.regex.Pattern;
 
 final class MetricNames {
 
@@ -57,6 +58,10 @@ final class MetricNames {
                 .build());
     }
 
+    static Pattern serverActiveRequestsPattern() {
+        return Pattern.compile("activeRequests$");
+    }
+
     /** Marked every time a server received a request. */
     static Meter requestMeter(TaggedMetricRegistry reg, String serverName, Endpoint endpoint) {
         return reg.meter(MetricName.builder()
@@ -64,6 +69,10 @@ final class MetricNames {
                 .putSafeTags("server", serverName)
                 .putSafeTags("endpoint", endpoint.endpointName())
                 .build());
+    }
+
+    static Pattern serverRequestMeterPattern() {
+        return Pattern.compile("request$");
     }
 
     static Timer clientGlobalResponseTimer(TaggedMetricRegistry taggedMetrics) {
@@ -77,6 +86,16 @@ final class MetricNames {
                 .putSafeTags("client", clientName)
                 .putSafeTags("endpoint", endpoint.endpointName())
                 .build());
+    }
+
+    static Pattern perClientEndpointResponseTimerPattern() {
+        return Pattern.compile("benchmark.client.endpoint.responses$");
+    }
+
+    static boolean reportedMetricsPredicate(MetricName m) {
+        return m.safeName().endsWith("activeRequests")
+                || m.safeName().endsWith("request")
+                || m.safeName().equals("benchmark.client.endpoint.responses");
     }
 
     private MetricNames() {}

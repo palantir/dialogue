@@ -133,8 +133,7 @@ public final class Benchmark {
 
         Clients utils = DefaultConjureRuntime.builder().build().clients();
         EndpointChannel endpointChannel = utils.bind(channel, endpoint);
-        endpointChannel = new BenchmarkTimingEndpointChannel(
-                client, endpoint, endpointChannel, simulation.clock(), simulation.taggedMetrics());
+        endpointChannel = new BenchmarkTimingEndpointChannel(simulation, client, endpoint, endpointChannel);
         return endpointChannel;
     }
 

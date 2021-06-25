@@ -24,11 +24,12 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.TimeUnit;
 
 final class BenchmarkTimingEndpointChannel implements EndpointChannel {
 
+    private final Simulation simulation;
     private final EndpointChannel delegate;
 
     private final Timer globalResponseTimer;
@@ -36,15 +37,13 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
     private final Ticker ticker;
 
     BenchmarkTimingEndpointChannel(
-            String clientName,
-            Endpoint endpoint,
-            EndpointChannel delegate,
-            Ticker ticker,
-            TaggedMetricRegistry taggedMetrics) {
+            Simulation simulation, String clientName, Endpoint endpoint, EndpointChannel delegate) {
+        this.simulation = Preconditions.checkNotNull(simulation, "simulation");
         this.delegate = delegate;
-        this.ticker = ticker;
-        this.globalResponseTimer = MetricNames.clientGlobalResponseTimer(taggedMetrics);
-        this.perEndpointChannelTimer = MetricNames.perClientEndpointResponseTimer(taggedMetrics, clientName, endpoint);
+        this.ticker = simulation.clock();
+        this.globalResponseTimer = MetricNames.clientGlobalResponseTimer(simulation.taggedMetrics());
+        this.perEndpointChannelTimer =
+                MetricNames.perClientEndpointResponseTimer(simulation.taggedMetrics(), clientName, endpoint);
     }
 
     @Override
@@ -54,6 +53,7 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
             long duration = ticker.read() - beforeNanos;
             globalResponseTimer.update(duration, TimeUnit.NANOSECONDS);
             perEndpointChannelTimer.update(duration, TimeUnit.NANOSECONDS);
+            simulation.metricsReporter().report();
         });
     }
 
