@@ -30,17 +30,12 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import org.junit.jupiter.api.Assumptions;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
     CONCURRENCY_LIMITER_ROUND_ROBIN(Strategy::concurrencyLimiter),
     CONCURRENCY_LIMITER_PIN_UNTIL_ERROR(Strategy::pinUntilError),
-    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin),
-    STICKY((_sim, _servers) -> {
-        Assumptions.assumeTrue(false);
-        return null;
-    });
+    UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
     private static final ClientConfiguration STUB_CONFIG = stubConfig();
     private final BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel;

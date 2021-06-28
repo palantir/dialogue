@@ -108,10 +108,9 @@ final class SimulationTest {
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @EnumSource(Strategy.class)
-    @ParameterizedTest
+    @ParameterizedTest(
+            name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + "[" + ParameterizedTest.ARGUMENTS_PLACEHOLDER + "]")
     @interface SimulationCase {}
-
-    private Strategy st;
 
     private final Simulation simulation = new Simulation();
     private Supplier<Map<String, SimulationServer>> servers;
@@ -137,7 +136,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(1000)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(11)
@@ -172,7 +170,6 @@ final class SimulationTest {
                                 .linearResponseTime(Duration.ofMillis(1000), slowdownThreshold))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(500)
@@ -202,7 +199,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(200)
@@ -230,7 +226,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(500)
@@ -258,7 +253,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(120)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(100)
@@ -286,7 +280,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofSeconds(2)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(20)
@@ -315,7 +308,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(60), capacity))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(200)
@@ -343,7 +335,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(100)
@@ -369,7 +360,6 @@ final class SimulationTest {
                         .handler(h -> h.response(200).responseTime(Duration.ofDays(1)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(200)
@@ -404,7 +394,6 @@ final class SimulationTest {
                         .handler(endpoint2, h -> h.response(500).responseTime(Duration.ofMillis(600)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(250)
@@ -442,7 +431,6 @@ final class SimulationTest {
                                 .handler(h -> h.response(200).linearResponseTime(Duration.ofMillis(600), capacity))
                                 .build()));
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(250)
@@ -466,7 +454,6 @@ final class SimulationTest {
                         .handler(h -> h.response(respond500AtRate(.01D)).responseTime(Duration.ofNanos(1000)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(1000)
@@ -496,7 +483,6 @@ final class SimulationTest {
                         .handler(h -> h.respond200UntilCapacity(429, capacity).responseTime(Duration.ofMillis(150)))
                         .build());
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(30_000) // fire off a ton of requests very quickly
@@ -532,7 +518,6 @@ final class SimulationTest {
                 })
                 .toArray(SimulationServer[]::new));
 
-        st = strategy;
         result = Benchmark.builder()
                 .simulation(simulation)
                 .requestsPerSecond(totalRateLimit)
@@ -579,7 +564,6 @@ final class SimulationTest {
                                 h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
                         .build())
                 .toArray(SimulationServer[]::new));
-        st = Strategy.STICKY;
 
         Channel concurrencyLimitedChannel = Strategy.concurrencyLimiter(simulation, servers);
 
@@ -675,7 +659,7 @@ final class SimulationTest {
                 result.numGlobalResponses(),
                 result.statusCodes());
 
-        String methodName = testInfo.getTestMethod().get().getName() + "[" + st + "]";
+        String methodName = testInfo.getDisplayName();
 
         Path txt = Paths.get("src/test/resources/txt/" + methodName + ".txt");
         String pngPath = "src/test/resources/" + methodName + ".png";
@@ -701,7 +685,7 @@ final class SimulationTest {
                     simulation.metricsReporter().chart(MetricNames.serverActiveRequestsPattern());
             activeRequestsPerServerNode.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
-                    st, result.successPercentage(), clientMeanMillis, serverCpu));
+                    methodName, result.successPercentage(), clientMeanMillis, serverCpu));
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
             // on disk to aid local iteration.

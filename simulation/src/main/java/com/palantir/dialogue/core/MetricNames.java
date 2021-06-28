@@ -92,10 +92,10 @@ final class MetricNames {
         return Pattern.compile("benchmark.client.endpoint.responses$");
     }
 
-    static boolean reportedMetricsPredicate(MetricName m) {
-        return m.safeName().endsWith("activeRequests")
-                || m.safeName().endsWith("request")
-                || m.safeName().equals("benchmark.client.endpoint.responses");
+    static boolean reportedMetricsPredicate(MetricName metricName) {
+        return metricName.safeName().endsWith("activeRequests")
+                || metricName.safeName().endsWith("request")
+                || metricName.safeName().equals("benchmark.client.endpoint.responses");
     }
 
     private MetricNames() {}
