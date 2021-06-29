@@ -18,6 +18,8 @@ package com.palantir.dialogue;
 
 import com.google.common.annotations.Beta;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 
 @Beta
 public final class RequestAttachmentKey<V> {
@@ -29,7 +31,12 @@ public final class RequestAttachmentKey<V> {
     }
 
     void checkIsInstance(V value) {
-        assert valueClazz.isInstance(value) : "Value not instance of class " + valueClazz;
+        if (!valueClazz.isInstance(value)) {
+            throw new SafeIllegalArgumentException(
+                    "Unexpected type",
+                    SafeArg.of("expected", valueClazz),
+                    SafeArg.of("actualType", value == null ? null : value.getClass()));
+        }
     }
 
     @SuppressWarnings({"unchecked", "RawTypes"})
