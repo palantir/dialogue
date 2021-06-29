@@ -538,7 +538,7 @@ final class SimulationTest {
         //   * server concurrency limit of 1
         //   * 5ms to serve a request
         //
-        // Serving the bursty client by itself is going to take 50s. That is fine for that client, because it
+        // Serving the bursty client by itself would take 50s. That is fine for that client, because it
         // is trying to do a lot. However, we should not make the slow-and-steady client wait 50s to send it's request.
         int numServers = 1;
         int concurrencyLimit = 1;
@@ -590,7 +590,7 @@ final class SimulationTest {
                         timeBetweenBurstRequests, () -> oneShotBurstChannel)
                 .limit(numBurst);
 
-        result = builder.requestStream(builder.merge(slowAndSteadyChannelRequests, oneShotBurstChannelRequests))
+        result = builder.mergeRequestStreams(slowAndSteadyChannelRequests, oneShotBurstChannelRequests)
                 .stopWhenNumReceived(totalNumRequests)
                 .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
                 .run();

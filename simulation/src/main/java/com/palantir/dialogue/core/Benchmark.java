@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Snapshot;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Stopwatch;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Streams;
@@ -55,7 +56,6 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.assertj.core.util.VisibleForTesting;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -101,8 +101,10 @@ public final class Benchmark {
         return this;
     }
 
-    public Benchmark requestStream(Stream<ScheduledRequest> newRequestStream) {
-        this.requestStream = newRequestStream;
+    public Benchmark mergeRequestStreams(Stream<ScheduledRequest>... newRequestStreams) {
+        this.requestStream = Streams.stream(Iterators.mergeSorted(
+                Arrays.stream(newRequestStreams).map(BaseStream::iterator).collect(Collectors.toList()),
+                Comparator.comparing(ScheduledRequest::sendTimeNanos)));
         return this;
     }
 
@@ -321,13 +323,6 @@ public final class Benchmark {
         });
     }
 
-    @VisibleForTesting
-    Stream<ScheduledRequest> merge(Stream<ScheduledRequest>... streams) {
-        return Streams.stream(Iterators.mergeSorted(
-                Arrays.stream(streams).map(BaseStream::iterator).collect(Collectors.toList()),
-                Comparator.comparing(ScheduledRequest::sendTimeNanos)));
-    }
-
     @Value.Immutable
     interface BenchmarkResult {
         Snapshot clientHistogram();
@@ -366,6 +361,13 @@ public final class Benchmark {
         String name();
 
         BenchmarkTimingEndpointChannel channel();
+    }
+
+    @Value.Immutable
+    interface LimitedStream {
+        long limit();
+
+        Stream<ScheduledRequest> stream();
     }
 
     /**
