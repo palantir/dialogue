@@ -1,1 +1,2 @@
 success=100.0%	client_mean=PT1.579726259S 	server_cpu=PT2M30S        	client_received=1000/1000	server_resps=1000	codes={200=1000}
+client=0 endpoint	client_mean=PT1.579726259S 

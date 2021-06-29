@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.common.streams.KeyedStream;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
@@ -36,8 +37,10 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
@@ -70,7 +73,7 @@ public final class Benchmark {
     private Simulation simulation;
     private Duration delayBetweenRequests;
     private NamedClientChannel[] clients;
-    private EndpointChannel[] endpointChannels;
+    private List<NamedEndpointChannel> endpointChannels = new ArrayList<>();
     private IntSupplier endpointChannelChooser;
     private Stream<ScheduledRequest> requestStream;
     private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
@@ -90,8 +93,9 @@ public final class Benchmark {
 
     public Benchmark numRequests(long numRequests) {
         Preconditions.checkState(requestStream == null, "Already set up requests");
-        requestStream = infiniteRequests(
-                        delayBetweenRequests, () -> endpointChannels[endpointChannelChooser.getAsInt()])
+        requestStream = infiniteRequests(delayBetweenRequests, () -> endpointChannels
+                        .get(endpointChannelChooser.getAsInt())
+                        .channel())
                 .limit(numRequests);
         stopWhenNumReceived(numRequests);
         return this;
@@ -113,19 +117,18 @@ public final class Benchmark {
         Preconditions.checkNotNull(requestStream, "Must call sendUntil or numRequests first");
         Preconditions.checkNotNull(simulation, "Must call .simulation() first");
 
-        endpointChannels = Arrays.stream(clients)
-                .flatMap(client -> Arrays.stream(endpoints)
-                        .map(endpoint -> endpointChannel(client.name(), endpoint, client.channel())))
-                .toArray(EndpointChannel[]::new);
+        endpointChannels = new ArrayList<>();
+        Arrays.stream(clients).forEach(client -> Arrays.stream(endpoints)
+                .forEach(endpoint -> addEndpointChannel(client.name(), endpoint, client.channel())));
 
         Random pseudoRandom = new Random(21876781263L);
-        int count = endpointChannels.length;
+        int count = endpointChannels.size();
         endpointChannelChooser = () -> pseudoRandom.nextInt(count);
 
         return this;
     }
 
-    public EndpointChannel endpointChannel(String client, Endpoint endpoint, Channel channel) {
+    public BenchmarkTimingEndpointChannel addEndpointChannel(String client, Endpoint endpoint, Channel channel) {
         Preconditions.checkArgument(
                 endpoint.serviceName().equals(SimulationUtils.SERVICE_NAME),
                 "Must have a consistent service name for our graphs to work",
@@ -133,8 +136,14 @@ public final class Benchmark {
 
         Clients utils = DefaultConjureRuntime.builder().build().clients();
         EndpointChannel endpointChannel = utils.bind(channel, endpoint);
-        endpointChannel = new BenchmarkTimingEndpointChannel(simulation, client, endpoint, endpointChannel);
-        return endpointChannel;
+        BenchmarkTimingEndpointChannel toReturn =
+                new BenchmarkTimingEndpointChannel(simulation, client, endpoint, endpointChannel);
+
+        endpointChannels.add(ImmutableNamedEndpointChannel.builder()
+                .name(String.format("%s %s", client, endpoint.endpointName()))
+                .channel(toReturn)
+                .build());
+        return toReturn;
     }
 
     public Benchmark simulation(Simulation sim) {
@@ -272,6 +281,15 @@ public final class Benchmark {
                     long leaked = numGlobalResponses
                             - MetricNames.responseClose(simulation.taggedMetrics())
                                     .getCount();
+
+                    Map<String, Snapshot> perEndpointHistograms = KeyedStream.of(endpointChannels)
+                            .mapKeys(NamedEndpointChannel::name)
+                            .map(namedEndpointChannel -> namedEndpointChannel
+                                    .channel()
+                                    .perEndpointChannelTimer()
+                                    .getSnapshot())
+                            .collectToMap();
+
                     return ImmutableBenchmarkResult.builder()
                             .clientHistogram(MetricNames.clientGlobalResponseTimer(simulation.taggedMetrics())
                                     .getSnapshot())
@@ -283,6 +301,7 @@ public final class Benchmark {
                             .numReceived(responsesReceived[0])
                             .numGlobalResponses(numGlobalResponses)
                             .responsesLeaked(leaked)
+                            .perEndpointHistograms(perEndpointHistograms)
                             .build();
                 },
                 DialogueFutures.safeDirectExecutor());
@@ -331,6 +350,8 @@ public final class Benchmark {
 
         /** How many responses were never closed. */
         long responsesLeaked();
+
+        Map<String, Snapshot> perEndpointHistograms();
     }
 
     @Value.Immutable
@@ -338,6 +359,13 @@ public final class Benchmark {
         String name();
 
         Channel channel();
+    }
+
+    @Value.Immutable
+    interface NamedEndpointChannel {
+        String name();
+
+        BenchmarkTimingEndpointChannel channel();
     }
 
     /**

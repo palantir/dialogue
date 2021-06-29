@@ -578,9 +578,9 @@ final class SimulationTest {
 
         Benchmark builder = Benchmark.builder().simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
-                builder.endpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannel.get());
         EndpointChannel oneShotBurstChannel =
-                builder.endpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannel.get());
 
         Stream<ScheduledRequest> slowAndSteadyChannelRequests = builder.infiniteRequests(
                         timeBetweenSlowAndSteadyRequests, () -> slowAndSteadyChannel)
@@ -638,10 +638,6 @@ final class SimulationTest {
 
     @AfterEach
     public void after(TestInfo testInfo) throws IOException {
-        if (result == null) {
-            return;
-        }
-
         Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());
@@ -649,15 +645,22 @@ final class SimulationTest {
         double clientMeanMillis = TimeUnit.NANOSECONDS.toMillis(clientMeanNanos);
 
         // intentionally using tabs so that opening report.txt with 'cat' aligns columns nicely
-        String longSummary = String.format(
-                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s",
+        StringBuilder longSummaryBuilder = new StringBuilder();
+        longSummaryBuilder.append(String.format(
+                "success=%s%%\tclient_mean=%-15s\tserver_cpu=%-15s\tclient_received=%s/%s\tserver_resps=%s\tcodes=%s\n",
                 result.successPercentage(),
                 Duration.of(clientMeanNanos, ChronoUnit.NANOS),
                 serverCpu,
                 result.numReceived(),
                 result.numSent(),
                 result.numGlobalResponses(),
-                result.statusCodes());
+                result.statusCodes()));
+        result.perEndpointHistograms()
+                .forEach((name, snapshot) -> longSummaryBuilder.append(String.format(
+                        "client=%s\tclient_mean=%-15s\n",
+                        name, Duration.of((long) snapshot.getMean(), ChronoUnit.NANOS))));
+
+        String longSummary = longSummaryBuilder.toString();
 
         String methodName = testInfo.getDisplayName();
 

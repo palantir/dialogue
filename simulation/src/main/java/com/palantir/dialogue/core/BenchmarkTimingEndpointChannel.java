@@ -46,6 +46,10 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
                 MetricNames.perClientEndpointResponseTimer(simulation.taggedMetrics(), clientName, endpoint);
     }
 
+    Timer perEndpointChannelTimer() {
+        return perEndpointChannelTimer;
+    }
+
     @Override
     public ListenableFuture<Response> execute(Request request) {
         long beforeNanos = ticker.read();

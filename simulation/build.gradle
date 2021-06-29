@@ -11,6 +11,7 @@ dependencies {
     implementation 'org.jmock:jmock'
     implementation 'org.knowm.xchart:xchart'
     implementation 'com.github.ben-manes.caffeine:caffeine'
+    implementation 'com.palantir.common:streams'
 
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.junit.jupiter:junit-jupiter'

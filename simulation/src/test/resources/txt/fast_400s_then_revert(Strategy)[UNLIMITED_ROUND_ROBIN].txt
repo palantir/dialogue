@@ -1,1 +1,11 @@
 success=93.6%	client_mean=PT0.113583333S 	server_cpu=PT11M21.5S     	client_received=6000/6000	server_resps=6000	codes={200=5615, 400=385}
+client=0 endpoint	client_mean=PT0.113238434S 
+client=1 endpoint	client_mean=PT0.113287435S 
+client=2 endpoint	client_mean=PT0.113668831S 
+client=3 endpoint	client_mean=PT0.113760262S 
+client=4 endpoint	client_mean=PT0.113877551S 
+client=5 endpoint	client_mean=PT0.113617021S 
+client=6 endpoint	client_mean=PT0.113019197S 
+client=7 endpoint	client_mean=PT0.113613445S 
+client=8 endpoint	client_mean=PT0.113800978S 
+client=9 endpoint	client_mean=PT0.11386503S  
