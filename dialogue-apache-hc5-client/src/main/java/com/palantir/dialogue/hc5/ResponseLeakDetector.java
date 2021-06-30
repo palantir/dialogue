@@ -144,7 +144,7 @@ final class ResponseLeakDetector {
         }
     }
 
-    private static final class LeakDetectingResponse implements Response {
+    private static final class LeakDetectingResponse extends Response {
 
         private final Response delegate;
         private final LeakDetector leakDetector;

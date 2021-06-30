@@ -178,6 +178,12 @@ acceptedBreaks:
       old: "method void com.palantir.dialogue.annotations.StdDeserializer<T>::<init>(java.lang.String)"
       new: "method void com.palantir.dialogue.annotations.StdDeserializer<T>::<init>(java.lang.String)"
       justification: "no functional difference"
+  "1.128.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.class.kindChanged"
+      old: "interface com.palantir.dialogue.Response"
+      new: "class com.palantir.dialogue.Response"
+      justification: "Unbreak my heart"
   "1.30.0":
     com.palantir.dialogue:dialogue-core:
     - code: "java.method.visibilityReduced"
