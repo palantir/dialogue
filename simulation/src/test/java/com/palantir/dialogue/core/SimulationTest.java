@@ -107,7 +107,8 @@ final class SimulationTest {
     @Inherited
     @Retention(RetentionPolicy.RUNTIME)
     @EnumSource(Strategy.class)
-    @ParameterizedTest
+    @ParameterizedTest(
+            name = ParameterizedTest.DISPLAY_NAME_PLACEHOLDER + "[" + ParameterizedTest.ARGUMENTS_PLACEHOLDER + "]")
     @interface SimulationCase {}
 
     private Strategy st;
@@ -604,6 +605,7 @@ final class SimulationTest {
                         timeBetweenBurstRequests, () -> oneShotBurstChannel)
                 .limit(numBurst);
 
+        st = strategy;
         result = builder.mergeRequestStreams(slowAndSteadyChannelRequests, oneShotBurstChannelRequests)
                 .stopWhenNumReceived(totalNumRequests)
                 .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
