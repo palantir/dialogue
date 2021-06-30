@@ -32,7 +32,7 @@ public final class HttpUrlConnectionChannels {
         return DialogueChannel.builder()
                 .channelName("http-url-channel")
                 .clientConfiguration(conf)
-                .channelFactory(uri -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(uri))))
+                .factory(args -> BlockingChannelAdapter.of(new HttpUrlConnectionBlockingChannel(conf, url(args.uri()))))
                 .build();
     }
 

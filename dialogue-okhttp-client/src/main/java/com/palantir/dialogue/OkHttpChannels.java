@@ -133,7 +133,7 @@ public final class OkHttpChannels {
         return DialogueChannel.builder()
                 .channelName("okhtpp-channel")
                 .clientConfiguration(config)
-                .channelFactory(uri -> OkHttpChannel.of(client, url(uri)))
+                .factory(args -> OkHttpChannel.of(client, url(args.uri())))
                 .build();
     }
 

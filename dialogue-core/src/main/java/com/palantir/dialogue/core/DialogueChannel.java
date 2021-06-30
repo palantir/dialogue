@@ -84,7 +84,16 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        /**
+         * Please use {@link #factory(DialogueChannelFactory)}.
+         * @deprecated prefer {@link #factory(DialogueChannelFactory)}
+         */
+        @Deprecated
         public Builder channelFactory(ChannelFactory value) {
+            return factory(DialogueChannelFactory.from(value));
+        }
+
+        public Builder factory(DialogueChannelFactory value) {
             builder.channelFactory(value);
             return this;
         }
@@ -128,13 +137,18 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
-                String uri = cf.clientConf().uris().get(uriIndex);
-                Channel channel = cf.channelFactory().create(uri);
-                channel = RetryOtherValidatingChannel.create(cf, channel);
-                channel = HostMetricsChannel.create(cf, channel, uri);
-                Channel tracingChannel = new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf));
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
+                String uri = cf.clientConf().uris().get(uriIndex);
+                Channel channel = cf.channelFactory()
+                        .create(DialogueChannelFactory.ChannelArgs.builder()
+                                .uri(uri)
+                                .uriIndexForInstrumentation(uriIndexForInstrumentation)
+                                .build());
+                channel = RetryOtherValidatingChannel.create(cf, channel);
+                channel = HostMetricsChannel.create(cf, channel, uri);
+                Channel tracingChannel =
+                        new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED && cf.mesh() != MeshMode.USE_EXTERNAL_MESH
                         ? new ChannelToEndpointChannel(endpoint -> {
                             LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(

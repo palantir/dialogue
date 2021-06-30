@@ -78,7 +78,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(clientConf)
-                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient))
+                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .build();
     }
 

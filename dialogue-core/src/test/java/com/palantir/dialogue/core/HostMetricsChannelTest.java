@@ -47,7 +47,7 @@ class HostMetricsChannelTest {
     Channel mockChannel;
 
     @Mock
-    ChannelFactory factory;
+    DialogueChannelFactory factory;
 
     @Mock
     Ticker ticker;

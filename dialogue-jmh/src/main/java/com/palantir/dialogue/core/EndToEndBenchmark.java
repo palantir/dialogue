@@ -131,7 +131,7 @@ public class EndToEndBenchmark {
         Channel zeroNetworkChannel = DialogueChannel.builder()
                 .channelName("goFast")
                 .clientConfiguration(clientConf)
-                .channelFactory(_uri -> InstantChannel.INSTANCE)
+                .factory(_uri -> InstantChannel.INSTANCE)
                 .buildNonLiveReloading();
         zeroNetworkDialogue = SampleServiceBlocking.of(
                 zeroNetworkChannel, DefaultConjureRuntime.builder().build());

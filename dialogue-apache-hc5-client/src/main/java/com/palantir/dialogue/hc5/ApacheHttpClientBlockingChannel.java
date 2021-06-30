@@ -44,6 +44,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -65,12 +66,17 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
     private final ResponseLeakDetector responseLeakDetector;
+    private final OptionalInt uriIndexForInstrumentation;
 
     ApacheHttpClientBlockingChannel(
-            ApacheHttpClientChannels.CloseableClient client, URL baseUrl, ResponseLeakDetector responseLeakDetector) {
+            ApacheHttpClientChannels.CloseableClient client,
+            URL baseUrl,
+            ResponseLeakDetector responseLeakDetector,
+            OptionalInt uriIndexForInstrumentation) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
         this.responseLeakDetector = responseLeakDetector;
+        this.uriIndexForInstrumentation = uriIndexForInstrumentation;
     }
 
     @Override
@@ -154,6 +160,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             SafeArg.of("requestTraceId", request.headerParams().get(TraceHttpHeaders.TRACE_ID)),
             // Request span ID can be used to associate a failed request with a request log line on the server.
             SafeArg.of("requestSpanId", request.headerParams().get(TraceHttpHeaders.SPAN_ID)),
+            SafeArg.of("hostIndex", uriIndexForInstrumentation)
         };
     }
 
