@@ -129,7 +129,7 @@ final class ChannelCache {
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
-                .channelFactory(uri -> ApacheHttpClientChannels.createSingleUri(uri, apacheClient.client()))
+                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex())
                 .build();
     }

@@ -20,6 +20,7 @@ import static com.palantir.logsafe.testing.Assertions.assertThatLoggableExceptio
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import org.assertj.core.api.AbstractLongAssert;
 import org.junit.jupiter.api.Test;
@@ -76,10 +77,10 @@ public final class RequestAttachmentsTest {
 
     @Test
     @SuppressWarnings("RawTypes")
-    public void testCannotYolo() {
+    public void testCannotAttachIncorrectType() {
         assertThatThrownBy(() -> attachments.put((RequestAttachmentKey) KEY1, ""))
-                .isExactlyInstanceOf(AssertionError.class)
-                .hasMessage("Value not instance of class " + Long.class);
+                .isExactlyInstanceOf(SafeIllegalArgumentException.class)
+                .hasMessageContaining("Unexpected type");
     }
 
     private AbstractLongAssert<?> assertThatKey(RequestAttachmentKey<Long> key) {

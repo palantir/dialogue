@@ -34,7 +34,7 @@ interface Config {
 
     String channelName();
 
-    ChannelFactory channelFactory();
+    DialogueChannelFactory channelFactory();
 
     ClientConfiguration rawConfig();
 

@@ -55,7 +55,7 @@ public final class JavaChannels {
         return DialogueChannel.builder()
                 .channelName("java-channel")
                 .clientConfiguration(conf)
-                .channelFactory(uri -> HttpChannel.of(client, url(uri)))
+                .factory(args -> HttpChannel.of(client, url(args.uri())))
                 .build();
     }
 

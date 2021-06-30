@@ -97,7 +97,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> mockChannel)
+                .factory(_args -> mockChannel)
                 .build();
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
@@ -121,7 +121,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> badUserImplementation)
+                .factory(_args -> badUserImplementation)
                 .build();
 
         // this should never throw
@@ -143,7 +143,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> badUserImplementation)
+                .factory(_args -> badUserImplementation)
                 .build();
 
         // this should never throw
@@ -160,7 +160,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> delegate)
+                .factory(_args -> delegate)
                 .build();
 
         Thread.currentThread().interrupt();
@@ -177,7 +177,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> mockChannel)
+                .factory(_args -> mockChannel)
                 .random(new Random(123456L))
                 .maxQueueSize(1)
                 .build();
@@ -221,7 +221,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(_uri -> (_endpoint, currentRequest) -> {
+                .factory(_args -> (_endpoint, currentRequest) -> {
                     int interactions = channelInteractions.incrementAndGet();
                     if (interactions > 1) {
                         return Futures.immediateFuture(new TestResponse()
@@ -276,7 +276,7 @@ public final class DialogueChannelTest {
                         .from(stubConfig)
                         .uris(Collections.emptyList())
                         .build())
-                .channelFactory(_uri -> mockChannel)
+                .factory(_args -> mockChannel)
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
@@ -284,16 +284,16 @@ public final class DialogueChannelTest {
 
     @Test
     void nice_tostring() {
-        ChannelFactory factory = _uri -> mockChannel;
+        DialogueChannelFactory factory = _args -> mockChannel;
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(factory)
+                .factory(factory)
                 .build();
         DialogueChannel channel2 = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .channelFactory(factory)
+                .factory(factory)
                 .build();
         System.out.println(channel);
         assertThat(channel.toString())
