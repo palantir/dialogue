@@ -26,6 +26,10 @@ import static org.mockito.Mockito.when;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RoutingAttachments;
+import com.palantir.dialogue.RoutingAttachments.HostId;
+import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
@@ -82,7 +86,31 @@ class NodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(Futures.immediateFuture(
                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
-        assertThat(channel.maybeExecute(null, null)).isPresent();
+        assertThat(channel.maybeExecute(null, Request.builder().build())).isPresent();
+        verify(strategySelector, times(1))
+                .updateAndGet(eq(ImmutableList.of(
+                        DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
+    }
+
+    @Test
+    void updates_strategy_on_response_on_request_with_routing_key() {
+        ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        channel = new NodeSelectionStrategyChannel(
+                strategySelector,
+                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
+                channelName,
+                pseudo,
+                clock,
+                new DefaultTaggedMetricRegistry(),
+                channels);
+
+        when(channel1.maybeExecute(any(), any()))
+                .thenReturn(Optional.of(Futures.immediateFuture(
+                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
+
+        Request request = Request.builder().build();
+        request.attachments().put(RoutingAttachments.ROUTING_KEY, RoutingKey.create(HostId.of(0)));
+        assertThat(channel.maybeExecute(null, request)).isPresent();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));
