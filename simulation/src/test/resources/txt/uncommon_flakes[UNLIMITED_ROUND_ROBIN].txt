@@ -1,1 +1,11 @@
 success=99.0%	client_mean=PT0.000001S    	server_cpu=PT0.01S        	client_received=10000/10000	server_resps=10000	codes={200=9900, 500=100}
+client=0 endpoint	client_mean=PT0.000001S    
+client=1 endpoint	client_mean=PT0.000001S    
+client=2 endpoint	client_mean=PT0.000001S    
+client=3 endpoint	client_mean=PT0.000001S    
+client=4 endpoint	client_mean=PT0.000001S    
+client=5 endpoint	client_mean=PT0.000001S    
+client=6 endpoint	client_mean=PT0.000001S    
+client=7 endpoint	client_mean=PT0.000001S    
+client=8 endpoint	client_mean=PT0.000001S    
+client=9 endpoint	client_mean=PT0.000001S    

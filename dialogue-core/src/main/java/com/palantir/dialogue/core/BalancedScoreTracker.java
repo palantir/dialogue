@@ -62,7 +62,7 @@ final class BalancedScoreTracker {
 
     BalancedScoreTracker(
             int channelCount, Random random, Ticker ticker, TaggedMetricRegistry taggedMetrics, String channelName) {
-        Preconditions.checkState(channelCount >= 2, "At least two channels required");
+        Preconditions.checkState(channelCount >= 1, "At least one channel required");
         this.random = random;
         this.clock = ticker;
         this.channelStats = IntStream.range(0, channelCount)

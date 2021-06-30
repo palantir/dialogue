@@ -1,1 +1,2 @@
 success=99.9%	client_mean=PT1.220762244S 	server_cpu=PT8M28.2S      	client_received=1000/1000	server_resps=3388	codes={200=999, 429=1}
+client=0 endpoint	client_mean=PT1.220762244S 

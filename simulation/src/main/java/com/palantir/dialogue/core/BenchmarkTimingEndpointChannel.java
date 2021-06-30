@@ -19,37 +19,46 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.tritium.metrics.registry.MetricName;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import com.palantir.logsafe.Preconditions;
 import java.util.concurrent.TimeUnit;
 
 final class BenchmarkTimingEndpointChannel implements EndpointChannel {
 
+    private final Simulation simulation;
     private final EndpointChannel delegate;
-    private final Timer responseTimer;
+
+    private final Timer globalResponseTimer;
+    private final Timer perEndpointChannelTimer;
     private final Ticker ticker;
 
-    BenchmarkTimingEndpointChannel(EndpointChannel delegate, Ticker ticker, TaggedMetricRegistry taggedMetrics) {
+    BenchmarkTimingEndpointChannel(
+            Simulation simulation, String clientName, Endpoint endpoint, EndpointChannel delegate) {
+        this.simulation = Preconditions.checkNotNull(simulation, "simulation");
         this.delegate = delegate;
-        this.ticker = ticker;
-        this.responseTimer = requestTimer(taggedMetrics);
+        this.ticker = simulation.clock();
+        this.globalResponseTimer = MetricNames.clientGlobalResponseTimer(simulation.taggedMetrics());
+        this.perEndpointChannelTimer =
+                MetricNames.perClientEndpointResponseTimer(simulation.taggedMetrics(), clientName, endpoint);
     }
 
-    static Timer requestTimer(TaggedMetricRegistry taggedMetrics) {
-        return taggedMetrics.timer(
-                MetricName.builder().safeName("benchmark.reponses").build());
+    Timer perEndpointChannelTimer() {
+        return perEndpointChannelTimer;
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
         long beforeNanos = ticker.read();
-        return DialogueFutures.addDirectListener(
-                delegate.execute(request),
-                () -> responseTimer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS));
+        return DialogueFutures.addDirectListener(delegate.execute(request), () -> {
+            long duration = ticker.read() - beforeNanos;
+            globalResponseTimer.update(duration, TimeUnit.NANOSECONDS);
+            perEndpointChannelTimer.update(duration, TimeUnit.NANOSECONDS);
+            simulation.metricsReporter().report();
+        });
     }
 
     @Override

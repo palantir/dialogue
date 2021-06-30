@@ -48,7 +48,7 @@ public enum Strategy {
         return getChannel.apply(simulation, servers);
     }
 
-    private static Channel concurrencyLimiter(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
+    static Channel concurrencyLimiter(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
         return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
                 .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
                 .failedUrlCooldown(Duration.ofMillis(200)));
