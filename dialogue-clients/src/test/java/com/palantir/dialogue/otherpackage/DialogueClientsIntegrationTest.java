@@ -20,7 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -29,6 +33,9 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
@@ -40,10 +47,13 @@ import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
 import org.junit.jupiter.api.AfterEach;
@@ -243,6 +253,17 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     public void test_sticky_is_sticky() {
+        testSticky(ReloadingFactory::getStickyChannels, StickyChannelFactory::getCurrentBest);
+    }
+
+    @Test
+    public void test_sticky2_is_sticky() {
+        testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::create);
+    }
+
+    private <F> void testSticky(
+            BiFunction<ReloadingFactory, String, F> factoryFactory,
+            BiFunction<F, Class<SampleServiceAsync>, SampleServiceAsync> clientFactory) {
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
@@ -256,16 +277,36 @@ public class DialogueClientsIntegrationTest {
         DialogueClients.ReloadingFactory factory =
                 DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
 
-        Refreshable<List<SampleServiceBlocking>> refreshableClients =
-                factory.perHost(FOO_SERVICE).getPerHost(SampleServiceBlocking.class);
-        List<SampleServiceBlocking> perHostClients = refreshableClients.get();
-        assertThat(perHostClients).hasSize(3);
+        F stickyChannels = factoryFactory.apply(factory, FOO_SERVICE);
 
-        for (int i = 0; i < perHostClients.size(); i++) {
-            perHostClients.get(i).stringToVoid(Integer.toString(i));
+        int numClients = 3;
+        int numRequestPerClient = 100;
+
+        List<ListenableFuture<?>> requests = new ArrayList<>();
+        for (int i = 0; i < numClients; i++) {
+            SampleServiceAsync client = clientFactory.apply(stickyChannels, SampleServiceAsync.class);
+            String clientId = Integer.toString(i);
+            IntStream.range(0, numRequestPerClient).forEach(_ignore -> requests.add(client.stringToVoid(clientId)));
         }
-        assertThat(requestPaths)
-                .containsExactly("/foo1/stringToVoid/0", "/foo2/stringToVoid/1", "/foo3/stringToVoid/2");
+
+        assertThat(Futures.whenAllSucceed(requests).run(() -> {}, MoreExecutors.directExecutor()))
+                .succeedsWithin(Duration.ofMinutes(1));
+
+        assertThat(requestPaths).hasSize(numClients * numRequestPerClient);
+        Set<String> uniquePaths = new HashSet<>(requestPaths);
+        assertThat(uniquePaths).hasSize(numClients);
+
+        List<String> clientIds = uniquePaths.stream()
+                .map(path -> {
+                    List<String> segments = Splitter.on("/").splitToList(path);
+                    assertThat(segments.get(0)).isEmpty();
+                    assertThat(Collections.singleton(segments.get(1))).containsAnyOf("foo1", "foo2", "foo3");
+                    assertThat(segments.get(2)).isEqualTo("stringToVoid");
+                    return segments.get(3);
+                })
+                .collect(Collectors.toList());
+
+        assertThat(clientIds).containsExactlyInAnyOrder("0", "1", "2");
     }
 
     private static String getUri(Undertow undertow) {

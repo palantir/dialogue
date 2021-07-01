@@ -25,7 +25,9 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.HostId;
+import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.logsafe.Preconditions;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -91,18 +93,18 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
     private static final class DefaultStickyRouter implements StickyRouter {
 
         @Nullable
-        private volatile HostId hostId;
+        private volatile RoutingKey routingKey;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
-            if (hostId != null) {
-                request.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_KEY, hostId);
+            if (routingKey != null) {
+                request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
                 return endpointChannel.execute(request);
             }
 
             synchronized (this) {
-                if (hostId != null) {
-                    request.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_KEY, hostId);
+                if (routingKey != null) {
+                    request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
                     return endpointChannel.execute(request);
                 }
 
@@ -114,8 +116,8 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
                     Response response = future.get();
                     HostId successfulHostId =
                             response.attachments().getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_KEY, null);
-                    Preconditions.checkNotNull(successfulHostId, "Not allowed to be null");
-                    hostId = successfulHostId;
+                    Preconditions.checkNotNull(successfulHostId, "successfulHostId");
+                    routingKey = RoutingKey.create(Optional.ofNullable(successfulHostId));
                     return future;
                 } catch (ExecutionException | InterruptedException | RuntimeException e) {
                     return future;
