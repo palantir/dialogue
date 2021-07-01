@@ -37,30 +37,25 @@ final class Reflection {
     private Reflection() {}
 
     static <T> T callStaticFactoryMethod(Class<T> dialogueInterface, Channel channel, ConjureRuntime conjureRuntime) {
-        return callStaticFactoryMethod(dialogueInterface, endpointChannelFactory(channel), conjureRuntime);
-    }
-
-    static <T> T callStaticFactoryMethod(
-            Class<T> dialogueInterface, EndpointChannelFactory endpointChannelFactory, ConjureRuntime conjureRuntime) {
         Preconditions.checkNotNull(dialogueInterface, "dialogueInterface");
-        Preconditions.checkNotNull(endpointChannelFactory, "endpointChannelFactory");
+        Preconditions.checkNotNull(channel, "channel");
 
         DialogueService annotation = dialogueInterface.getAnnotation(DialogueService.class);
         if (annotation != null) {
-            return createFromAnnotation(dialogueInterface, annotation, endpointChannelFactory, conjureRuntime);
+            return createFromAnnotation(dialogueInterface, annotation, channel, conjureRuntime);
         }
 
         try {
             Optional<Method> legacyMethod = getLegacyStaticOfMethod(dialogueInterface);
             if (legacyMethod.isPresent()) {
-                return dialogueInterface.cast(legacyMethod.get().invoke(null, endpointChannelFactory, conjureRuntime));
+                return dialogueInterface.cast(legacyMethod.get().invoke(null, channel, conjureRuntime));
             }
             Method method = getStaticOfMethod(dialogueInterface)
                     .orElseThrow(() -> new SafeIllegalStateException(
                             "A static 'of(Channel, ConjureRuntime)' method is required",
                             SafeArg.of("dialogueInterface", dialogueInterface)));
 
-            return dialogueInterface.cast(method.invoke(null, endpointChannelFactory, conjureRuntime));
+            return dialogueInterface.cast(method.invoke(null, endpointChannelFactory(channel), conjureRuntime));
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new SafeIllegalArgumentException(
                     "Failed to reflectively construct dialogue client. Please check the "
@@ -91,9 +86,10 @@ final class Reflection {
     private static <T> T createFromAnnotation(
             Class<T> dialogueInterface,
             DialogueService dialogueService,
-            EndpointChannelFactory factory,
+            Channel channel,
             ConjureRuntime conjureRuntime) {
         Class<? extends DialogueServiceFactory<?>> serviceFactoryClass = dialogueService.value();
+        EndpointChannelFactory factory = endpointChannelFactory(channel);
         Object client;
         try {
             client = serviceFactoryClass.getConstructor().newInstance().create(factory, conjureRuntime);

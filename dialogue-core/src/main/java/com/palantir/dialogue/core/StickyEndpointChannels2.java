@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
@@ -30,7 +31,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-public final class StickyEndpointChannels2 implements Supplier<EndpointChannelFactory> {
+public final class StickyEndpointChannels2 implements Supplier<Channel> {
 
     private final EndpointChannelFactory delegate;
 
@@ -39,7 +40,7 @@ public final class StickyEndpointChannels2 implements Supplier<EndpointChannelFa
     }
 
     @Override
-    public EndpointChannelFactory get() {
+    public Channel get() {
         return new Sticky(delegate);
     }
 
@@ -49,7 +50,7 @@ public final class StickyEndpointChannels2 implements Supplier<EndpointChannelFa
     }
 
     @ThreadSafe
-    private static final class Sticky implements EndpointChannelFactory {
+    private static final class Sticky implements EndpointChannelFactory, Channel {
 
         private final EndpointChannelFactory channelFactory;
         private final StickyRouter router = new DefaultStickyRouter();
@@ -63,13 +64,23 @@ public final class StickyEndpointChannels2 implements Supplier<EndpointChannelFa
             return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
         }
 
+        /**
+         * .
+         * @deprecated prefer {@link #endpoint}, as it allows binding work upfront
+         */
+        @Deprecated
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return endpoint(endpoint).execute(request);
+        }
+
         @Override
         public String toString() {
             return "Sticky{" + channelFactory + '}';
         }
     }
 
-    public static Supplier<EndpointChannelFactory> create(EndpointChannelFactory endpointChannelFactory) {
+    public static Supplier<Channel> create(EndpointChannelFactory endpointChannelFactory) {
         return new StickyEndpointChannels2(endpointChannelFactory);
     }
 

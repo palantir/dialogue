@@ -250,7 +250,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public StickyChannelFactory2 getStickyChannels2(String serviceName) {
         Channel channel = getChannel(serviceName);
-        Supplier<EndpointChannelFactory> endpointChannelFactorySupplier = StickyEndpointChannels2.create(
+        Supplier<Channel> endpointChannelFactorySupplier = StickyEndpointChannels2.create(
                 endpoint -> params.runtime().clients().bind(channel, endpoint));
 
         return new StickyChannelFactory2() {
