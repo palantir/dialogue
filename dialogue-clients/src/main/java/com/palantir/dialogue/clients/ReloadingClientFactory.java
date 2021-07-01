@@ -120,9 +120,38 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public Channel getChannel(String serviceName) {
-        return new LiveReloadingChannel(
-                getRefreshableChannel(serviceName).map(ChannelAndConfig::channel),
-                params.runtime().clients());
+        Preconditions.checkNotNull(serviceName, "serviceName");
+        String channelName = ChannelNames.reloading(serviceName, params);
+
+        Refreshable<Channel> mapped = params.scb().map(block -> {
+            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
+
+            if (!block.services().containsKey(serviceName)) {
+                return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)",
+                        SafeArg.of("serviceName", serviceName),
+                        SafeArg.of("available", block.services().keySet())));
+            }
+
+            if (block.services().get(serviceName).uris().isEmpty()) {
+                return new AlwaysThrowingChannel(() -> {
+                    Map<String, PartialServiceConfiguration> servicesWithUris =
+                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
+                    return new SafeIllegalStateException(
+                            "Service not configured (no URIs)",
+                            SafeArg.of("serviceName", serviceName),
+                            SafeArg.of("available", servicesWithUris.keySet()));
+                });
+            }
+
+            ServiceConfiguration serviceConf =
+                    ServiceConfigurationFactory.of(block).get(serviceName);
+
+            return cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+        });
+        // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
+
+        return new LiveReloadingChannel(mapped, params.runtime().clients());
     }
 
     @Override
@@ -220,18 +249,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public StickyChannelFactory2 getStickyChannels2(String serviceName) {
-        // TODO(12345): Defo should not need this extra layer here.
-        Supplier<Supplier<EndpointChannelFactory>> stickyChannelSupplier = getRefreshableChannel(serviceName)
-                .map(channelAndConfig -> {
-                    return StickyEndpointChannels2.create(
-                            endpoint -> params.runtime().clients().bind(channelAndConfig.channel(), endpoint));
-                });
+        Channel channel = getChannel(serviceName);
+        Supplier<EndpointChannelFactory> endpointChannelFactorySupplier = StickyEndpointChannels2.create(
+                endpoint -> params.runtime().clients().bind(channel, endpoint));
 
         return new StickyChannelFactory2() {
             @Override
             public <T> T create(Class<T> clientInterface) {
                 return Reflection.callStaticFactoryMethod(
-                        clientInterface, stickyChannelSupplier.get().get(), params.runtime());
+                        clientInterface, endpointChannelFactorySupplier.get(), params.runtime());
             }
 
             @Override
@@ -312,43 +338,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
     }
 
-    private Refreshable<ChannelAndConfig> getRefreshableChannel(String serviceName) {
-        Preconditions.checkNotNull(serviceName, "serviceName");
-        String channelName = ChannelNames.reloading(serviceName, params);
-        return params.scb().map(block -> {
-            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
-
-            if (!block.services().containsKey(serviceName)) {
-                return new ChannelAndConfig(
-                        new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (config block not present)",
-                                SafeArg.of("serviceName", serviceName),
-                                SafeArg.of("available", block.services().keySet()))),
-                        Optional.empty());
-            }
-
-            if (block.services().get(serviceName).uris().isEmpty()) {
-                return new ChannelAndConfig(
-                        new AlwaysThrowingChannel(() -> {
-                            Map<String, PartialServiceConfiguration> servicesWithUris = Maps.filterValues(
-                                    block.services(), c -> !c.uris().isEmpty());
-                            return new SafeIllegalStateException(
-                                    "Service not configured (no URIs)",
-                                    SafeArg.of("serviceName", serviceName),
-                                    SafeArg.of("available", servicesWithUris.keySet()));
-                        }),
-                        Optional.empty());
-            }
-
-            ServiceConfiguration serviceConf =
-                    ServiceConfigurationFactory.of(block).get(serviceName);
-
-            return new ChannelAndConfig(
-                    cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty()),
-                    Optional.of(serviceConf));
-        });
-    }
-
     private static final class AlwaysThrowingChannel implements Channel {
         private final Supplier<? extends Throwable> exceptionSupplier;
 
@@ -415,20 +404,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public String toString() {
             return "SupplierEndpointChannel{" + supplier.get() + '}';
-        }
-    }
-
-    private static final class ChannelAndConfig {
-        private final Channel channel;
-        private final Optional<ServiceConfiguration> serviceConfiguration;
-
-        private ChannelAndConfig(Channel channel, Optional<ServiceConfiguration> serviceConfiguration) {
-            this.channel = channel;
-            this.serviceConfiguration = serviceConfiguration;
-        }
-
-        private Channel channel() {
-            return channel;
         }
     }
 }
