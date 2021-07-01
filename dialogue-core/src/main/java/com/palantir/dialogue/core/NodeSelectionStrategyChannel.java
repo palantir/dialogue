@@ -98,8 +98,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         RoutingKey routingKey = request.attachments().getOrDefault(RoutingAttachments.ROUTING_KEY, null);
 
         final Optional<ListenableFuture<Response>> maybe;
-        if (routingKey != null) {
-            maybe = channels.get(routingKey.hostId().value()).maybeExecute(endpoint, request);
+        if (routingKey != null && routingKey.hostId().isPresent()) {
+            maybe = channels.get(routingKey.hostId().get().value()).maybeExecute(endpoint, request);
         } else {
             maybe = delegate.maybeExecute(endpoint, request);
         }

@@ -85,22 +85,24 @@ public final class StickyEndpointChannels2 implements Supplier<EndpointChannelFa
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
             if (hostId != null) {
-                request.attachments().put(RoutingAttachments.HOST_KEY, hostId);
+                request.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_KEY, hostId);
                 return endpointChannel.execute(request);
             }
 
             synchronized (this) {
                 if (hostId != null) {
-                    request.attachments().put(RoutingAttachments.HOST_KEY, hostId);
+                    request.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_KEY, hostId);
                     return endpointChannel.execute(request);
                 }
 
                 // Not great, but valid implementation: block until one of the requests is successful to figure out
                 // the hostId; can be made non-blocking here, but it's a more difficult impl.
+                request.attachments().put(RoutingAttachments.ATTACH_HOST_ID, Boolean.TRUE);
                 ListenableFuture<Response> future = endpointChannel.execute(request);
                 try {
                     Response response = future.get();
-                    HostId successfulHostId = response.attachments().getOrDefault(RoutingAttachments.HOST_KEY, null);
+                    HostId successfulHostId =
+                            response.attachments().getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_KEY, null);
                     Preconditions.checkNotNull(successfulHostId, "Not allowed to be null");
                     hostId = successfulHostId;
                     return future;

@@ -109,7 +109,7 @@ class NodeSelectionStrategyChannelTest {
                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
         Request request = Request.builder().build();
-        request.attachments().put(RoutingAttachments.ROUTING_KEY, RoutingKey.create(HostId.of(0)));
+        request.attachments().put(RoutingAttachments.ROUTING_KEY, RoutingKey.create(Optional.of(HostId.of(0))));
         assertThat(channel.maybeExecute(null, request)).isPresent();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(

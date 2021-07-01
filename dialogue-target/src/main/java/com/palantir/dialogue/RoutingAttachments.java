@@ -17,14 +17,24 @@
 package com.palantir.dialogue;
 
 import com.palantir.logsafe.Preconditions;
+import java.util.Optional;
 import java.util.UUID;
 import org.immutables.value.Value;
 
 public interface RoutingAttachments {
 
+    /** Requests that have the same {@link RoutingKey#ROUTING_KEY} will be fairly dispatched. Additionally, routing
+     * to a particular {@link HostId} can be requested. */
     RequestAttachmentKey<RoutingKey> ROUTING_KEY = RequestAttachmentKey.create(RoutingKey.class);
+
+    /** When present, {@link #EXECUTED_ON_HOST_KEY} will be set. */
     RequestAttachmentKey<Boolean> ATTACH_HOST_ID = RequestAttachmentKey.create(Boolean.class);
-    RequestAttachmentKey<HostId> HOST_KEY = RequestAttachmentKey.create(HostId.class);
+
+    /**
+     * If {@link #ATTACH_HOST_ID} is requested, this attachment will be present on the response to indicate the host
+     * that executed the request.
+     */
+    RequestAttachmentKey<HostId> EXECUTED_ON_HOST_KEY = RequestAttachmentKey.create(HostId.class);
 
     @Value.Immutable
     interface RoutingKey {
@@ -32,9 +42,9 @@ public interface RoutingAttachments {
         UUID value();
 
         @Value.Parameter
-        HostId hostId();
+        Optional<HostId> hostId();
 
-        static RoutingKey create(HostId hostId) {
+        static RoutingKey create(Optional<HostId> hostId) {
             return ImmutableRoutingKey.of(UUID.randomUUID(), hostId);
         }
     }
