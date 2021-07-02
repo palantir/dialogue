@@ -122,6 +122,9 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
     // working.
     private static final class DefaultStickyRouter implements StickyRouter {
 
+        private static final ThreadLocal<Integer> stackDepth = ThreadLocal.withInitial(() -> 0);
+        private static final ThreadLocal<Integer> numDeferred = ThreadLocal.withInitial(() -> 0);
+
         @Nullable
         private volatile HostId hostId;
 
@@ -135,8 +138,6 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
                 return executeWithHostId(hostId, request, endpointChannel);
             }
 
-            // TODO(12345): Fixup to make sure this doesn't fail if it's reentrant: technically futures can complete
-            // whilst we're blocking on delegate execute.
             synchronized (this) {
                 if (hostId != null) {
                     request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
@@ -167,6 +168,22 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         }
 
         private synchronized void trySchedule() {
+            int curStackDepth = stackDepth.get();
+            try {
+                stackDepth.set(stackDepth.get() + 1);
+                numDeferred.set(numDeferred.get() + 1);
+                if (curStackDepth == 0) {
+                    while (numDeferred.get() > 0) {
+                        numDeferred.set(numDeferred.get() - 1);
+                        notReentrantTrySchedule();
+                    }
+                }
+            } finally {
+                stackDepth.set(stackDepth.get() - 1);
+            }
+        }
+
+        private synchronized void notReentrantTrySchedule() {
             if (hostId != null) {
                 // Drain the queue
                 StickyEndpointChannels2.DeferredCall queueHead;

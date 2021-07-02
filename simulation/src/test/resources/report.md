@@ -312,9 +312,9 @@ server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENC
 client=slowAndSteady endpoint	client_mean=PT13.984114238S
 client=oneShotBurst endpoint	client_mean=PT24.996676966S
 
-server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN].txt:	success=0.0%	client_mean=PT1.912725808S 	server_cpu=PT43.38S       	client_received=489/10060	server_resps=8676	codes={200=1, 429=488}
-client=slowAndSteady endpoint	client_mean=PT2.010986027S 
-client=oneShotBurst endpoint	client_mean=PT1.89898312S  
+server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN].txt:	success=0.0%	client_mean=PT1.893531484S 	server_cpu=PT50.85S       	client_received=429/10060	server_resps=10170	codes={200=1, 429=428}
+client=slowAndSteady endpoint	client_mean=PT2.100252192S 
+client=oneShotBurst endpoint	client_mean=PT1.859918361S 
 
 server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=97.0%	client_mean=PT24.931845968S	server_cpu=PT1M37.525S    	client_received=10060/10060	server_resps=19505	codes={200=9755, 429=305}
 client=slowAndSteady endpoint	client_mean=PT14.795458286S
