@@ -86,6 +86,11 @@ public final class Benchmark {
         return new Benchmark();
     }
 
+    public Benchmark mutableRequests() {
+        requestSupplier = Benchmark::constructNewRequest;
+        return this;
+    }
+
     public Benchmark requestsPerSecond(double rps) {
         delayBetweenRequests = Duration.ofNanos((long) (1_000_000_000D / rps));
         return this;
@@ -397,10 +402,14 @@ public final class Benchmark {
 
     private static Request constructRequest(long number) {
         if (log.isDebugEnabled()) {
-            return Request.builder()
-                    .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
-                    .build();
+            return constructNewRequest(number);
         }
         return REQUEST;
+    }
+
+    private static Request constructNewRequest(long number) {
+        return Request.builder()
+                .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
+                .build();
     }
 }

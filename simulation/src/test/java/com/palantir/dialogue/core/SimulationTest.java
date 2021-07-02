@@ -555,7 +555,8 @@ final class SimulationTest {
                     .taggedMetricRegistry(simulation.taggedMetrics())
                     .build();
         };
-        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(strategy, factory);
+        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
+                Benchmark.builder(), strategy, factory);
     }
 
     @SimulationCase
@@ -565,11 +566,12 @@ final class SimulationTest {
         StickyChannelFactory factory =
                 channel -> StickyEndpointChannels2.create(endpoint -> request -> channel.execute(endpoint, request))
                         .get();
-        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(strategy, factory);
+        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
+                Benchmark.builder().mutableRequests(), strategy, factory);
     }
 
     private void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
-            Strategy strategy, StickyChannelFactory stickyChannelFactory) {
+            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
 
         // 1 server
         // 2 types of clients sharing a DialogueChannel
@@ -611,7 +613,7 @@ final class SimulationTest {
 
         stickyChannelFactory.create(channel);
 
-        Benchmark builder = Benchmark.builder().simulation(simulation);
+        builder.simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
                 builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
         EndpointChannel oneShotBurstChannel =
