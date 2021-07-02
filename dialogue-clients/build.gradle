@@ -34,4 +34,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-junit-jupiter'
     testImplementation 'org.awaitility:awaitility'
     testImplementation 'io.undertow:undertow-core'
+
+    testAnnotationProcessor 'org.immutables:value'
+    testCompileOnly 'org.immutables:value::annotations'
 }
