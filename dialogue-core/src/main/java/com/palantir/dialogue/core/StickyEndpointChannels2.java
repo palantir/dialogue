@@ -27,13 +27,11 @@ import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.logsafe.Preconditions;
-import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.ThreadSafe;
 
-public final class StickyEndpointChannels2 implements Supplier<Channel> {
+public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>> {
 
     private final EndpointChannelFactory delegate;
 
@@ -42,8 +40,8 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
     }
 
     @Override
-    public Channel get() {
-        return new Sticky(delegate);
+    public Supplier<Channel> get() {
+        return new StickySessionSupplier(delegate);
     }
 
     @Override
@@ -51,19 +49,36 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
         return "StickyEndpointChannels2{}";
     }
 
-    @ThreadSafe
-    private static final class Sticky implements EndpointChannelFactory, Channel {
+    private static final class StickySessionSupplier implements Supplier<Channel> {
 
         private final EndpointChannelFactory channelFactory;
         private final StickyRouter router = new DefaultStickyRouter();
 
-        private Sticky(EndpointChannelFactory channelFactory) {
+        private StickySessionSupplier(EndpointChannelFactory channelFactory) {
             this.channelFactory = channelFactory;
         }
 
         @Override
+        public Channel get() {
+            return new Sticky(channelFactory, router);
+        }
+    }
+
+    private static final class Sticky implements EndpointChannelFactory, Channel {
+
+        private final EndpointChannelFactory channelFactory;
+        private final StickyRouter router;
+        private final RoutingKey routingKey;
+
+        private Sticky(EndpointChannelFactory channelFactory, StickyRouter router) {
+            this.router = router;
+            this.channelFactory = channelFactory;
+            this.routingKey = RoutingKey.create();
+        }
+
+        @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
+            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint), routingKey);
         }
 
         /**
@@ -82,7 +97,7 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
         }
     }
 
-    public static Supplier<Channel> create(EndpointChannelFactory endpointChannelFactory) {
+    public static StickyEndpointChannels2 create(EndpointChannelFactory endpointChannelFactory) {
         return new StickyEndpointChannels2(endpointChannelFactory);
     }
 
@@ -93,18 +108,18 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
     private static final class DefaultStickyRouter implements StickyRouter {
 
         @Nullable
-        private volatile RoutingKey routingKey;
+        private volatile HostId hostId;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
-            if (routingKey != null) {
-                request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
+            if (hostId != null) {
+                request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
                 return endpointChannel.execute(request);
             }
 
             synchronized (this) {
-                if (routingKey != null) {
-                    request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
+                if (hostId != null) {
+                    request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
                     return endpointChannel.execute(request);
                 }
 
@@ -114,10 +129,11 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
                 ListenableFuture<Response> future = endpointChannel.execute(request);
                 try {
                     Response response = future.get();
-                    HostId successfulHostId =
-                            response.attachments().getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_KEY, null);
-                    Preconditions.checkNotNull(successfulHostId, "successfulHostId");
-                    routingKey = RoutingKey.create(Optional.ofNullable(successfulHostId));
+                    HostId successfulHostId = response.attachments()
+                            .getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY, null);
+                    if (successfulHostId != null) {
+                        hostId = successfulHostId;
+                    }
                     return future;
                 } catch (ExecutionException | InterruptedException | RuntimeException e) {
                     return future;
@@ -129,14 +145,17 @@ public final class StickyEndpointChannels2 implements Supplier<Channel> {
     private static final class StickyEndpointChannel implements EndpointChannel {
         private final StickyRouter stickyRouter;
         private final EndpointChannel delegate;
+        private final RoutingKey routingKey;
 
-        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate) {
+        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate, RoutingKey routingKey) {
             this.stickyRouter = stickyRouter;
             this.delegate = delegate;
+            this.routingKey = routingKey;
         }
 
         @Override
         public ListenableFuture<Response> execute(Request request) {
+            request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
             return stickyRouter.execute(request, delegate);
         }
 

@@ -35,7 +35,6 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
-import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
@@ -258,7 +257,9 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     public void test_sticky2_is_sticky() {
-        testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::create);
+        testSticky(
+                ReloadingFactory::getStickyChannels2,
+                (stickyChannels, clazz) -> stickyChannels.create().create(clazz));
     }
 
     private <F> void testSticky(

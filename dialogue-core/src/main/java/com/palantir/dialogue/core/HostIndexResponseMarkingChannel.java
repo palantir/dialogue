@@ -50,7 +50,7 @@ final class HostIndexResponseMarkingChannel implements Channel {
     }
 
     private Response addHostId(Response response) {
-        response.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_KEY, hostIndex);
+        response.attachments().put(RoutingAttachments.EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY, hostIndex);
         return response;
     }
 }

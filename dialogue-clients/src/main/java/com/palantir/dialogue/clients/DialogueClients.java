@@ -102,11 +102,26 @@ public final class DialogueClients {
         <T> T getCurrentBest(Class<T> clientInterface);
     }
 
+    // Unclear if this should be decomped this way: we may want just generally the async clients to be able to override
+    // their UUID for fairness. But this is the easiest way to provide this for now (in terms of API).
+
     /** A stateful object - should only need one of these. Live reloads under the hood. */
+    public interface StickyChannels {
+        /**
+         * Returns a factory for clients which will all route to a single host, even if that host returns
+         * some 429s.
+         */
+        StickyChannelFactory2 create();
+    }
+
+    /**
+     * All clients created from this factory will route to the same host. Some care should be taked with longevity of
+     * these factories: if the host to which this factory is pinned gets decomissioned, all the requests for all the
+     * clients created through this factory will start always failing.
+     */
     public interface StickyChannelFactory2 {
         /**
-         * Returns a client which will route all requests to a single host, even if that host returns some 429s.
-         * Each successive call to this method may get a different channel (or it may return the same one).
+         * Each successive call to this method will get a fair share of the available bandwidth.
          */
         <T> T create(Class<T> clientInterface);
     }
@@ -132,7 +147,7 @@ public final class DialogueClients {
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta
-        StickyChannelFactory2 getStickyChannels2(String serviceName);
+        StickyChannels getStickyChannels2(String serviceName);
 
         PerHostClientFactory perHost(String serviceName);
     }

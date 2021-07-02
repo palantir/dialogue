@@ -544,6 +544,29 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client(Strategy strategy) {
+        StickyChannelFactory factory = channel -> {
+            List<EndpointChannelFactory> endpointChannelFactories =
+                    Collections.singletonList(endpoint -> request -> channel.execute(endpoint, request));
+
+            return StickyEndpointChannels.builder()
+                    .channels(endpointChannelFactories)
+                    .channelName(SimulationUtils.CHANNEL_NAME)
+                    .taggedMetricRegistry(simulation.taggedMetrics())
+                    .build();
+        };
+        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(strategy, factory);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client(Strategy strategy) {
+        StickyChannelFactory factory =
+                channel -> StickyEndpointChannels2.create(endpoint -> request -> channel.execute(endpoint, request))
+                        .get();
+        server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(strategy, factory);
+    }
+
+    private void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
+            Strategy strategy, StickyChannelFactory stickyChannelFactory) {
 
         // 1 server
         // 2 types of clients sharing a DialogueChannel
@@ -580,22 +603,16 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Channel concurrencyLimitedChannel = strategy.getChannel(simulation, servers);
+        Channel channel = strategy.getChannel(simulation, servers);
+        Supplier<Channel> stickyChannelSupplier = stickyChannelFactory.create(channel);
 
-        List<EndpointChannelFactory> endpointChannelFactories =
-                Collections.singletonList(endpoint -> request -> concurrencyLimitedChannel.execute(endpoint, request));
-
-        Supplier<Channel> stickyChannel = StickyEndpointChannels.builder()
-                .channels(endpointChannelFactories)
-                .channelName(SimulationUtils.CHANNEL_NAME)
-                .taggedMetricRegistry(simulation.taggedMetrics())
-                .build();
+        stickyChannelFactory.create(channel);
 
         Benchmark builder = Benchmark.builder().simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
-                builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
         EndpointChannel oneShotBurstChannel =
-                builder.addEndpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
 
         Stream<ScheduledRequest> slowAndSteadyChannelRequests = builder.infiniteRequests(
                         timeBetweenSlowAndSteadyRequests, () -> slowAndSteadyChannel)
@@ -610,6 +627,10 @@ final class SimulationTest {
                 .stopWhenNumReceived(totalNumRequests)
                 .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
                 .run();
+    }
+
+    interface StickyChannelFactory {
+        Supplier<Channel> create(Channel concurrencyLimitedChannel);
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {

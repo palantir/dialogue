@@ -17,35 +17,36 @@
 package com.palantir.dialogue;
 
 import com.palantir.logsafe.Preconditions;
-import java.util.Optional;
 import java.util.UUID;
 import org.immutables.value.Value;
 
 public interface RoutingAttachments {
 
-    /** Requests that have the same {@link RoutingKey#ROUTING_KEY} will be fairly dispatched. Additionally, routing
-     * to a particular {@link HostId} can be requested. */
+    /** Requests that have the same {@link RoutingKey#ROUTING_KEY} will be fairly dispatched. */
     RequestAttachmentKey<RoutingKey> ROUTING_KEY = RequestAttachmentKey.create(RoutingKey.class);
 
-    /** When present, {@link #EXECUTED_ON_HOST_KEY} will be set. */
+    /** When present, {@link #EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY} will be set. */
     RequestAttachmentKey<Boolean> ATTACH_HOST_ID = RequestAttachmentKey.create(Boolean.class);
+
+    /**
+     * This request attachment specifies that a request should be executed on a specific host.
+     */
+    RequestAttachmentKey<HostId> EXECUTE_ON_HOST_ID_KEY = RequestAttachmentKey.create(HostId.class);
 
     /**
      * If {@link #ATTACH_HOST_ID} is requested, this attachment will be present on the response to indicate the host
      * that executed the request.
      */
-    RequestAttachmentKey<HostId> EXECUTED_ON_HOST_KEY = RequestAttachmentKey.create(HostId.class);
+    RequestAttachmentKey<HostId> EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY =
+            RequestAttachmentKey.create(HostId.class);
 
     @Value.Immutable
     interface RoutingKey {
         @Value.Parameter
         UUID value();
 
-        @Value.Parameter
-        Optional<HostId> hostId();
-
-        static RoutingKey create(Optional<HostId> hostId) {
-            return ImmutableRoutingKey.of(UUID.randomUUID(), hostId);
+        static RoutingKey create() {
+            return ImmutableRoutingKey.of(UUID.randomUUID());
         }
     }
 

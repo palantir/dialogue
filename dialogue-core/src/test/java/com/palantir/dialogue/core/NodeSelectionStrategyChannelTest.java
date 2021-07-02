@@ -29,7 +29,6 @@ import com.google.common.util.concurrent.Futures;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.HostId;
-import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.List;
@@ -109,7 +108,7 @@ class NodeSelectionStrategyChannelTest {
                         new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
 
         Request request = Request.builder().build();
-        request.attachments().put(RoutingAttachments.ROUTING_KEY, RoutingKey.create(Optional.of(HostId.of(0))));
+        request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, HostId.of(0));
         assertThat(channel.maybeExecute(null, request)).isPresent();
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
