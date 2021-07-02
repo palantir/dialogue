@@ -97,14 +97,15 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         HostId hostId = request.attachments().getOrDefault(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, null);
 
+        // TODO(12345): This is broken for stats gathering, make sure to propagate this to strategies.
         final Optional<ListenableFuture<Response>> maybe;
         if (hostId != null) {
-            maybe = delegate.maybeExecuteOnHost(hostId, endpoint, request);
+            maybe = channels.get(hostId.value()).maybeExecute(endpoint, request);
         } else {
             maybe = delegate.maybeExecute(endpoint, request);
         }
 
-        if (!maybe.isPresent()) {
+        if (maybe.isEmpty()) {
             return Optional.empty();
         }
 
