@@ -145,7 +145,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                                 .uri(uri)
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .build());
-                channel = HostIndexResponseMarkingChannel.create(uriIndex, channel);
+                // channel = HostIndexResponseMarkingChannel.create(uriIndex, channel);
                 channel = RetryOtherValidatingChannel.create(cf, channel);
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel =

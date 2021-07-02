@@ -24,8 +24,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.RoutingAttachments;
-import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -95,16 +93,19 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        HostId hostId = request.attachments().getOrDefault(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, null);
-
-        final Optional<ListenableFuture<Response>> maybe;
-        if (hostId != null) {
-            maybe = channels.get(hostId.value()).maybeExecute(endpoint, request);
-        } else {
-            maybe = delegate.maybeExecute(endpoint, request);
-        }
-
-        if (maybe.isEmpty()) {
+        // ListenableFuture<Response> wrappedFuture = DialogueFutures.addDirectCallback(maybe.get(), callback);
+        // return Optional.of(wrappedFuture);
+        //
+        // HostId hostId = request.attachments().getOrDefault(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, null);
+        //
+        // final Optional<ListenableFuture<Response>> maybe;
+        // if (hostId != null) {
+        //     maybe = channels.get(hostId.value()).maybeExecute(endpoint, request);
+        // } else {
+        //     maybe = delegate.maybeExecute(endpoint, request);
+        // }
+        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
+        if (!maybe.isPresent()) {
             return Optional.empty();
         }
 
