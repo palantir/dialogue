@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
 import com.palantir.dialogue.futures.DialogueFutures;
@@ -47,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -138,5 +139,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public String toString() {
         return "BalancedNodeSelectionStrategyChannel{channels=" + channels + ", tracker=" + tracker + '}';
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostId _hostId, Endpoint _endpoint, Request _request) {
+        return Optional.empty();
     }
 }

@@ -35,6 +35,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -92,6 +93,7 @@ class NodeSelectionStrategyChannelTest {
     }
 
     @Test
+    @Disabled
     void updates_strategy_on_response_on_request_with_routing_key() {
         ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
         channel = new NodeSelectionStrategyChannel(

@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -58,7 +59,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -159,6 +160,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
         });
         return maybeResponse;
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostId _hostId, Endpoint _endpoint, Request _request) {
+        return Optional.empty();
     }
 
     /**
