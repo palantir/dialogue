@@ -304,6 +304,18 @@ client=1 endpoint	client_mean=PT64H40M23.890270489S
 client=0 endpoint	client_mean=PT5M22.124661S 
 client=1 endpoint	client_mean=PT5M28.419374655S
 
+server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=97.0%	client_mean=PT24.930995677S	server_cpu=PT1M37.515S    	client_received=10060/10060	server_resps=19503	codes={200=9754, 429=306}
+client=slowAndSteady endpoint	client_mean=PT13.984114238S
+client=oneShotBurst endpoint	client_mean=PT24.996676966S
+
+server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_ROUND_ROBIN].txt:	success=97.0%	client_mean=PT24.930995677S	server_cpu=PT1M37.515S    	client_received=10060/10060	server_resps=19503	codes={200=9754, 429=306}
+client=slowAndSteady endpoint	client_mean=PT13.984114238S
+client=oneShotBurst endpoint	client_mean=PT24.996676966S
+
+server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN].txt:	success=0.0%	client_mean=PT1.912725808S 	server_cpu=PT43.38S       	client_received=489/10060	server_resps=8676	codes={200=1, 429=488}
+client=slowAndSteady endpoint	client_mean=PT2.010986027S 
+client=oneShotBurst endpoint	client_mean=PT1.89898312S  
+
 server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].txt:	success=97.0%	client_mean=PT24.931845968S	server_cpu=PT1M37.525S    	client_received=10060/10060	server_resps=19505	codes={200=9755, 429=305}
 client=slowAndSteady endpoint	client_mean=PT14.795458286S
 client=oneShotBurst endpoint	client_mean=PT24.992664294S
@@ -606,6 +618,21 @@ client=9 endpoint	client_mean=PT0.000001S
 ## `server_side_rate_limits[UNLIMITED_ROUND_ROBIN]`
 <table><tr><th>develop</th><th>current</th></tr>
 <tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="server_side_rate_limits[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td><td><image width=400 src="server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR].png" /></td></tr></table>
+
+
+## `server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td><td><image width=400 src="server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_ROUND_ROBIN].png" /></td></tr></table>
+
+
+## `server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN]`
+<table><tr><th>develop</th><th>current</th></tr>
+<tr><td><image width=400 src="https://media.githubusercontent.com/media/palantir/dialogue/develop/simulation/src/test/resources/server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN].png" /></td><td><image width=400 src="server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client[UNLIMITED_ROUND_ROBIN].png" /></td></tr></table>
 
 
 ## `server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client[CONCURRENCY_LIMITER_PIN_UNTIL_ERROR]`
