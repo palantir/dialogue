@@ -41,8 +41,10 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
 - `dialogue.client.request.retry` tagged `channel-name`, `reason` (meter): Rate at which the RetryingChannel retries requests (across all endpoints).
 - `dialogue.client.requests.queued` tagged `channel-name` (counter): Number of queued requests waiting to execute.
 - `dialogue.client.requests.endpoint.queued` tagged `channel-name`, `service-name`, `endpoint` (counter): Number of queued requests waiting to execute for a specific endpoint due to server QoS.
+- `dialogue.client.requests.sticky.queued` tagged `channel-name`, `service-name` (counter): Number of sticky queued requests waiting to try to be executed.
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
 - `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `service-name`, `endpoint` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
+- `dialogue.client.request.sticky.queued.time` tagged `channel-name`, `service-name` (timer): Time spent waiting in the sticky queue before execution attempt.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 
 ### dialogue.concurrencylimiter
