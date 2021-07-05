@@ -90,6 +90,16 @@ final class QueuedChannel implements Channel {
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
+    // TODO(12345): The metrics will be global, even though maxSize is per-queue.
+    static QueuedChannel createForSticky(Config cf, LimitedChannel delegate) {
+        return new QueuedChannel(
+                delegate,
+                cf.channelName(),
+                stickyInstrumentation(
+                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
+                cf.maxQueueSize());
+    }
+
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
         return new QueuedChannel(
                 delegate,
@@ -190,6 +200,10 @@ final class QueuedChannel implements Channel {
                     SafeArg.of("numScheduled", numScheduled),
                     SafeArg.of("channelName", channelName));
         }
+    }
+
+    boolean isEmpty() {
+        return queueSizeEstimate.get() <= 0;
     }
 
     private int incrementQueueSize() {
@@ -358,6 +372,20 @@ final class QueuedChannel implements Channel {
             @Override
             public Timer requestQueuedTime() {
                 return metrics.requestQueuedTime(channelName);
+            }
+        };
+    }
+
+    static QueuedChannelInstrumentation stickyInstrumentation(DialogueClientMetrics metrics, String channelName) {
+        return new QueuedChannelInstrumentation() {
+            @Override
+            public Counter requestsQueued() {
+                return metrics.requestsStickyQueued(channelName);
+            }
+
+            @Override
+            public Timer requestQueuedTime() {
+                return metrics.requestStickyQueuedTime(channelName);
             }
         };
     }

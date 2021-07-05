@@ -121,6 +121,21 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
+        },
+        STICKY() {
+            @Override
+            void onSuccess(Response _result, PermitControl control) {
+                control.success();
+            }
+
+            @Override
+            void onFailure(Throwable throwable, PermitControl control) {
+                if (StickyChannelRejectedException.INSTANCE.isException(throwable)) {
+                    control.dropped();
+                } else {
+                    control.ignore();
+                }
+            }
         };
 
         abstract void onSuccess(Response result, PermitControl control);
