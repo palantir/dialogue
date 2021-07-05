@@ -27,6 +27,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import java.time.Duration;
+import javax.annotation.CheckForNull;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -66,6 +67,7 @@ final class StickyRoutingChannel implements Channel {
                         }
 
                         @Override
+                        @CheckForNull
                         public ExpiringQueue reload(QueueKey _key, ExpiringQueue oldValue) {
                             if (oldValue.refresh()) {
                                 return oldValue;
