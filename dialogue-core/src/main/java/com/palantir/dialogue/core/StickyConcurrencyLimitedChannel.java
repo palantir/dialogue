@@ -36,18 +36,20 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
     private final String channelNameForLogging;
 
     StickyConcurrencyLimitedChannel(LimitedChannel delegate, String channelNameForLogging) {
-        this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.delegate = delegate;
         this.limiter = new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.STICKY);
         this.channelNameForLogging = channelNameForLogging;
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire(force);
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
-            Optional<ListenableFuture<Response>> result = delegate.maybeExecute(endpoint, request);
+
+            Optional<ListenableFuture<Response>> result =
+                    delegate.maybeExecute(endpoint, request, permit.isOnlyInFlight());
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), permit);
                 return result;

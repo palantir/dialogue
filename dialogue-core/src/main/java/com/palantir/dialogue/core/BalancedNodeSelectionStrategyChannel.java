@@ -72,7 +72,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
         int giveUpThreshold = Integer.MAX_VALUE;
@@ -117,7 +117,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request);
+                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request, force);
 
             if (maybe.isPresent()) {
                 channelInfo.observability().markRequestMade();

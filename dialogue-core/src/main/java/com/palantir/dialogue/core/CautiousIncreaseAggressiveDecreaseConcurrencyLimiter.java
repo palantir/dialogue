@@ -56,6 +56,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         this.behavior = behavior;
     }
 
+    Optional<Permit> acquire() {
+        return acquire(false);
+    }
+
     /**
      * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
@@ -68,18 +72,25 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Permit> acquire() {
-        int currentInFlight = getInflight();
+    Optional<Permit> acquire(boolean force) {
+        while (true) {
+            int currentInFlight = getInflight();
 
-        // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately send
-        // our inflight number to 5, which is clearly above the limit.  Instead, we wait until there is capacity for
-        // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit of
-        // 1, we'll still hand out a permit
-        if (currentInFlight <= getLimit() - 1) {
-            int inFlightSnapshot = inFlight.incrementAndGet();
-            return Optional.of(new Permit(inFlightSnapshot));
+            // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
+            // send
+            // our inflight number to 5, which is clearly above the limit.  Instead, we wait until there is capacity for
+            // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit
+            // of
+            // 1, we'll still hand out a permit
+            if (force || currentInFlight <= getLimit() - 1) {
+                int inFlightSnapshot = currentInFlight + 1;
+                if (inFlight.compareAndSet(currentInFlight, inFlightSnapshot)) {
+                    return Optional.of(new Permit(inFlightSnapshot));
+                }
+            }
+
+            return Optional.empty();
         }
-        return Optional.empty();
     }
 
     enum Behavior {
@@ -157,6 +168,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
+        }
+
+        boolean isOnlyInFlight() {
+            return inFlightSnapshot == 1;
         }
 
         @Override

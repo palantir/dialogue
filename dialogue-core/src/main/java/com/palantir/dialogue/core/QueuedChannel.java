@@ -134,7 +134,7 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request, false);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
@@ -238,7 +238,8 @@ final class QueuedChannel implements Channel {
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
             Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            Optional<ListenableFuture<Response>> maybeResponse =
+                    delegate.maybeExecute(endpoint, queueHead.request(), false);
 
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();

@@ -129,11 +129,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, force);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
@@ -193,8 +193,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         int stableIndex();
 
         @Override
-        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            return delegate().maybeExecute(endpoint, request);
+        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
+            return delegate().maybeExecute(endpoint, request, force);
         }
     }
 

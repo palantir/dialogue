@@ -32,9 +32,9 @@ final class SupplierChannel implements NodeSelectionStrategyLimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         LimitedChannel delegate = channelSupplier.get();
-        return delegate.maybeExecute(endpoint, request);
+        return delegate.maybeExecute(endpoint, request, force);
     }
 
     @Override
