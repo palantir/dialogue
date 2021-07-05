@@ -27,8 +27,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.RoutingAttachments;
 import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import java.time.Duration;
-import org.checkerframework.checker.nullness.qual.NonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -61,14 +59,14 @@ final class StickyRoutingChannel implements Channel {
                     .refreshAfterWrite(Duration.ofSeconds(10))
                     .build(new CacheLoader<>() {
                         @Override
-                        public @Nullable ExpiringQueue load(QueueKey key) {
+                        public ExpiringQueue load(QueueKey key) {
                             LimitedChannel forQueueKey =
                                     StickyConcurrencyLimitedChannel.createForQueueKey(delegate, cf.channelName(), key);
                             return new ExpiringQueue(QueuedChannel.createForSticky(cf, forQueueKey));
                         }
 
                         @Override
-                        public @Nullable ExpiringQueue reload(@NonNull QueueKey _key, @NonNull ExpiringQueue oldValue) {
+                        public ExpiringQueue reload(QueueKey _key, ExpiringQueue oldValue) {
                             if (oldValue.refresh()) {
                                 return oldValue;
                             } else {
