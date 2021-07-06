@@ -461,15 +461,16 @@ public final class ApacheHttpClientChannels {
         }
 
         public CloseableClient build() {
-            Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
+            ClientConfiguration conf =
+                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
 
             String tagName = "dialogue";
             String tagValue = "true";
-            TaggedMetricRegistry parentTaggedMetricRegistry = clientConfiguration.taggedMetricRegistry();
+            TaggedMetricRegistry parentTaggedMetricRegistry = conf.taggedMetricRegistry();
             TaggedMetricRegistry scopedTaggedMetricRegistry = new DefaultTaggedMetricRegistry();
             parentTaggedMetricRegistry.addMetrics(tagName, tagValue, parentTaggedMetricRegistry);
-            ClientConfiguration conf = ClientConfiguration.builder()
-                    .from(clientConfiguration)
+            conf = ClientConfiguration.builder()
+                    .from(conf)
                     .taggedMetricRegistry(scopedTaggedMetricRegistry)
                     .build();
             String name = Preconditions.checkNotNull(clientName, "Client name is required");
