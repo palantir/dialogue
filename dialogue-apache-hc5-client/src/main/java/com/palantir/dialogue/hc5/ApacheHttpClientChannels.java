@@ -36,6 +36,7 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.MetricRegistries;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
@@ -172,7 +173,8 @@ public final class ApacheHttpClientChannels {
                 PoolingHttpClientConnectionManager pool,
                 ScheduledFuture<?> connectionEvictorFuture,
                 ClientConfiguration clientConfiguration,
-                @Nullable ExecutorService executor) {
+                @Nullable ExecutorService executor,
+                Runnable onClose) {
             ResponseLeakDetector leakDetector =
                     ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry());
             CloseableClientImpl newInstance = new CloseableClientImpl(
@@ -182,7 +184,8 @@ public final class ApacheHttpClientChannels {
                     connectionEvictorFuture,
                     leakDetector,
                     executor,
-                    clientConfiguration);
+                    clientConfiguration,
+                    onClose);
             if (log.isDebugEnabled()) {
                 // If debug is enabled, log the stack trace.
                 log.debug(
@@ -289,7 +292,8 @@ public final class ApacheHttpClientChannels {
                 ScheduledFuture<?> connectionEvictorFuture,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor,
-                ClientConfiguration clientConfiguration) {
+                ClientConfiguration clientConfiguration,
+                Runnable onClose) {
             this.clientName = clientName;
             this.apacheClient = apacheClient;
             this.pool = pool;
@@ -304,6 +308,7 @@ public final class ApacheHttpClientChannels {
                     .clientName(clientName)
                     .clientType(CLIENT_TYPE)
                     .build()::mark);
+            closer.register(onClose::run);
         }
 
         @Override
@@ -456,8 +461,17 @@ public final class ApacheHttpClientChannels {
         }
 
         public CloseableClient build() {
-            ClientConfiguration conf =
-                    Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
+            Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
+
+            String tagName = "dialogue";
+            String tagValue = "true";
+            TaggedMetricRegistry parentTaggedMetricRegistry = clientConfiguration.taggedMetricRegistry();
+            TaggedMetricRegistry scopedTaggedMetricRegistry = new DefaultTaggedMetricRegistry();
+            parentTaggedMetricRegistry.addMetrics(tagName, tagValue, parentTaggedMetricRegistry);
+            ClientConfiguration conf = ClientConfiguration.builder()
+                    .from(clientConfiguration)
+                    .taggedMetricRegistry(scopedTaggedMetricRegistry)
+                    .build();
             String name = Preconditions.checkNotNull(clientName, "Client name is required");
             Preconditions.checkArgument(
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
@@ -549,7 +563,14 @@ public final class ApacheHttpClientChannels {
             CloseableHttpClient apacheClient = builder.build();
             ScheduledFuture<?> connectionEvictorFuture =
                     ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
-            return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
+            return CloseableClient.wrap(
+                    apacheClient,
+                    name,
+                    connectionManager,
+                    connectionEvictorFuture,
+                    conf,
+                    executor,
+                    () -> parentTaggedMetricRegistry.removeMetrics(tagName, tagValue, scopedTaggedMetricRegistry));
         }
     }
 
