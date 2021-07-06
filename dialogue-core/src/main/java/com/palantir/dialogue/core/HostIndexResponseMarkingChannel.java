@@ -37,8 +37,8 @@ final class HostIndexResponseMarkingChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Boolean attachHostId = request.attachments().getOrDefault(RoutingAttachments.ATTACH_HOST_ID, false);
-        if (attachHostId != null && attachHostId) {
+        Boolean attachHostId = request.attachments().getOrDefault(RoutingAttachments.ATTACH_HOST_ID, Boolean.FALSE);
+        if (Boolean.TRUE.equals(attachHostId)) {
             return DialogueFutures.transform(delegate.execute(endpoint, request), this::addHostId);
         } else {
             return delegate.execute(endpoint, request);

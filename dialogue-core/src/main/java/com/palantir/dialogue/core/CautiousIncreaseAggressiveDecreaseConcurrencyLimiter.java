@@ -82,7 +82,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit
             // of
             // 1, we'll still hand out a permit
-            if (force || currentInFlight <= getLimit() - 1) {
+            if (force || currentInFlight < getLimit()) {
                 int inFlightSnapshot = currentInFlight + 1;
                 if (inFlight.compareAndSet(currentInFlight, inFlightSnapshot)) {
                     return Optional.of(new Permit(inFlightSnapshot));
