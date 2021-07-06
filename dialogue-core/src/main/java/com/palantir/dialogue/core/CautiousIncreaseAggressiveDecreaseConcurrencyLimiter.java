@@ -141,11 +141,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
             @Override
             void onFailure(Throwable throwable, PermitControl control) {
-                if (StickyChannelRejectedException.INSTANCE.isException(throwable)) {
-                    control.dropped();
-                } else {
-                    control.ignore();
-                }
+                control.ignore();
             }
         };
 

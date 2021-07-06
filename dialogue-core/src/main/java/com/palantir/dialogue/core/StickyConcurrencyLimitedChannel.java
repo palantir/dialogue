@@ -54,7 +54,7 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
                 DialogueFutures.addDirectCallback(result.get(), permit);
                 return result;
             } else {
-                maybePermit.get().onFailure(StickyChannelRejectedException.INSTANCE.exception());
+                maybePermit.get().dropped();
                 return Optional.empty();
             }
         } else {
