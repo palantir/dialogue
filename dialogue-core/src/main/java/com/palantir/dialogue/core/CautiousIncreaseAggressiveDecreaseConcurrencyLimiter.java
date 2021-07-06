@@ -140,7 +140,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             }
 
             @Override
-            void onFailure(Throwable throwable, PermitControl control) {
+            void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
         };
