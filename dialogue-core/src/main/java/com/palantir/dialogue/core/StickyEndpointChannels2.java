@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -30,9 +29,6 @@ import com.palantir.dialogue.RoutingAttachments.HostId;
 import com.palantir.dialogue.RoutingAttachments.RoutingKey;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
-import java.util.ArrayDeque;
-import java.util.Queue;
-import java.util.concurrent.CancellationException;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.immutables.value.Value;
@@ -116,21 +112,15 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel);
     }
 
-    // This single-in-flight-call has been implemented a few times, this impl is likely a bit buggy,
-    // but shows the approach here.
-    // Initial implementation just blocked all calls until we have hostId, but that means simulations were not
-    // working.
     private static final class DefaultStickyRouter implements StickyRouter {
 
-        private static final ThreadLocal<Integer> stackDepth = ThreadLocal.withInitial(() -> 0);
-        private static final ThreadLocal<Integer> numDeferred = ThreadLocal.withInitial(() -> 0);
+        private final InFlightCallCallback callback = new InFlightCallCallback();
 
         @Nullable
         private volatile HostId hostId;
 
-        private boolean callInFlight;
-
-        private final Queue<DeferredCall> deferredCalls = new ArrayDeque<>();
+        @Nullable
+        private volatile ListenableFuture<Response> callInFlight;
 
         @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
@@ -144,15 +134,29 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
                     return endpointChannel.execute(request);
                 }
 
-                DeferredCall call = ImmutableStickyEndpointChannels2.DeferredCall.builder()
-                        .endpointChannel(endpointChannel)
-                        .request(request)
-                        .build();
-                deferredCalls.add(call);
+                if (callInFlight == null) {
+                    callInFlight = DialogueFutures.addDirectCallback(
+                            executeWithAttachHostId(request, endpointChannel), callback);
+                    return callInFlight;
+                } else {
+                    ListenableFuture<Response> result = callInFlight;
+                    result = DialogueFutures.transformAsync(result, _input -> execute(request, endpointChannel));
+                    result = DialogueFutures.catchingAllAsync(result, _throwable -> execute(request, endpointChannel));
+                    return result;
+                }
+            }
+        }
 
-                trySchedule();
+        private final class InFlightCallCallback implements FutureCallback<Response> {
 
-                return call.responseFuture();
+            @Override
+            public void onSuccess(Response result) {
+                successfulCall(result);
+            }
+
+            @Override
+            public void onFailure(Throwable _throwable) {
+                failed();
             }
         }
 
@@ -167,59 +171,8 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
             return endpointChannel.execute(request);
         }
 
-        private synchronized void trySchedule() {
-            int curStackDepth = stackDepth.get();
-            try {
-                stackDepth.set(stackDepth.get() + 1);
-                numDeferred.set(numDeferred.get() + 1);
-                if (curStackDepth == 0) {
-                    while (numDeferred.get() > 0) {
-                        numDeferred.set(numDeferred.get() - 1);
-                        notReentrantTrySchedule();
-                    }
-                }
-            } finally {
-                stackDepth.set(stackDepth.get() - 1);
-            }
-        }
-
-        private synchronized void notReentrantTrySchedule() {
-            if (hostId != null) {
-                // Drain the queue
-                StickyEndpointChannels2.DeferredCall queueHead;
-                while ((queueHead = deferredCalls.poll()) != null) {
-                    executeWithHostAndForward(hostId, queueHead);
-                }
-                return;
-            }
-
-            while (!callInFlight) {
-                StickyEndpointChannels2.DeferredCall queueHead = deferredCalls.poll();
-                if (queueHead == null) {
-                    return;
-                }
-                // If the future has been completed (most likely via cancel) the call should not be queued.
-                // There's a race where cancel may be invoked between this check and execution, but the scheduled
-                // request will be quickly cancelled in that case.
-                SettableFuture<Response> queuedResponse = queueHead.responseFuture();
-                if (queuedResponse.isDone()) {
-                    return;
-                }
-
-                callInFlight = true;
-                DialogueFutures.addDirectCallback(
-                        executeWithAttachHostId(queueHead.request(), queueHead.endpointChannel()),
-                        new ForwardAndSchedule(queueHead.responseFuture()));
-            }
-        }
-
-        private void executeWithHostAndForward(HostId curHostId, StickyEndpointChannels2.DeferredCall deferredCall) {
-            DialogueFutures.addDirectCallback(
-                    executeWithHostId(curHostId, deferredCall.request(), deferredCall.endpointChannel()),
-                    new ForwardAndSchedule(deferredCall.responseFuture()));
-        }
-
-        private synchronized void updateHostId(Response response) {
+        private synchronized void successfulCall(Response response) {
+            callInFlight = null;
             if (hostId == null) {
                 HostId successfulHostId = response.attachments()
                         .getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY, null);
@@ -229,52 +182,9 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
             }
         }
 
-        /**
-         * Forward the success or failure of the call to the SettableFuture that was previously returned to the caller.
-         * This also schedules the next set of requests to be run.
-         */
-        private class ForwardAndSchedule implements FutureCallback<Response> {
-            private final SettableFuture<Response> response;
-
-            ForwardAndSchedule(SettableFuture<Response> response) {
-                this.response = response;
-            }
-
-            @Override
-            public synchronized void onSuccess(Response result) {
-                if (!response.set(result)) {
-                    result.close();
-                }
-                callInFlight = false;
-                updateHostId(result);
-                trySchedule();
-            }
-
-            @Override
-            public synchronized void onFailure(Throwable throwable) {
-                if (!response.setException(throwable)) {
-                    if (throwable instanceof CancellationException) {
-                        log.debug("Call was canceled", throwable);
-                    } else {
-                        log.info("Call failed after the future completed", throwable);
-                    }
-                }
-                callInFlight = false;
-                trySchedule();
-            }
+        private synchronized void failed() {
+            callInFlight = null;
         }
-    }
-
-    @Value.Immutable
-    interface DeferredCall {
-        Request request();
-
-        @Value.Derived
-        default SettableFuture<Response> responseFuture() {
-            return SettableFuture.create();
-        }
-
-        EndpointChannel endpointChannel();
     }
 
     private static final class StickyEndpointChannel implements EndpointChannel {
