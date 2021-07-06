@@ -152,6 +152,70 @@ final class SimulationMetricsReporter {
         return chart;
     }
 
+    public List<XYChart> charts(Pattern metricNameRegex) {
+        List<XYChart> charts = new ArrayList<>();
+
+        // First add the combined chart in case that's a better visualisation.
+        charts.add(chart(metricNameRegex));
+
+        List<MetricName> columns = measurements.asMap().keySet().stream()
+                .filter(metric -> !metric.equals(X_AXIS))
+                .filter(metric -> metricNameRegex.asPredicate().test(asString(metric)))
+                .sorted(Comparator.comparing(SimulationMetricsReporter::asString))
+                .collect(Collectors.toList());
+
+        for (MetricName column : columns) {
+            XYChart chart = new XYChartBuilder()
+                    .width(800)
+                    .height(600)
+                    .xAxisTitle(X_AXIS.safeName())
+                    .build();
+
+            // if we render too many samples, it just ends up looking like a wall of colour
+            int granularity = chart.getWidth() / 3;
+
+            chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
+            chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
+            chart.getStyler().setMarkerSize(3);
+            chart.getStyler().setYAxisLabelAlignment(Styler.TextAlignment.Right);
+            chart.getStyler().setPlotMargin(0);
+            chart.getStyler().setPlotContentSize(.95);
+            chart.getStyler().setToolTipsEnabled(true);
+            chart.getStyler().setToolTipsAlwaysVisible(true);
+
+            Map<MetricName, List<Double>> map = measurements.asMap();
+            double[] xAxis = reduceGranularity(
+                    granularity, map.get(X_AXIS).stream().mapToDouble(d -> d).toArray());
+            String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
+
+            double[] series = reduceGranularity(
+                    granularity, map.get(column).stream().mapToDouble(d -> d).toArray());
+            Preconditions.checkState(
+                    series.length == xAxis.length,
+                    "Series must all be same length",
+                    SafeArg.of("column", column),
+                    SafeArg.of("xaxis", xAxis.length),
+                    SafeArg.of("length", series.length));
+            chart.addSeries(asString(column) + ".count", xAxis, series).setToolTips(nullToolTips);
+
+            if (!simulation.events().getEvents().isEmpty()) {
+                double[] eventXs = simulation.events().getEvents().keySet().stream()
+                        .mapToDouble(nanos -> TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d)
+                        .toArray();
+                double[] eventYs = new double[eventXs.length];
+                String[] strings =
+                        simulation.events().getEvents().values().stream().toArray(String[]::new);
+                XYSeries what = chart.addSeries(" ", eventXs, eventYs);
+                what.setToolTips(strings);
+                what.setXYSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Scatter);
+            }
+
+            charts.add(chart);
+        }
+
+        return charts;
+    }
+
     /**
      * If we render too many dots on the graph, it ends up looking like a wall of colour. Doing one dot per pixel of
      * width is also crap.
@@ -175,8 +239,8 @@ final class SimulationMetricsReporter {
                 + metricName.safeName();
     }
 
-    public static void png(String file, XYChart... charts) throws IOException {
-        int rows = charts.length;
+    public static void png(String file, List<XYChart> charts) throws IOException {
+        int rows = charts.size();
         int cols = 1;
         BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
     }

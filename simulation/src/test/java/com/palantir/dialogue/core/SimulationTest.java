@@ -44,6 +44,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -723,6 +724,7 @@ final class SimulationTest {
             assertThat(Paths.get(pngPath)).exists();
         } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
+            List<XYChart> charts = new ArrayList<>();
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(
                     txt,
@@ -735,6 +737,7 @@ final class SimulationTest {
             activeRequestsPerServerNode.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     st, result.successPercentage(), clientMeanMillis, serverCpu));
+            charts.add(activeRequestsPerServerNode);
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
             // on disk to aid local iteration.
@@ -744,18 +747,13 @@ final class SimulationTest {
                 Files.move(Paths.get(pngPath), previousPng);
             }
 
-            XYChart totalRequestsPerServerPerNode =
-                    simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern());
+            charts.add(simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern()));
 
-            XYChart totalRequestsPerClientPerEndpoint =
-                    simulation.metricsReporter().chart(MetricNames.perClientEndpointResponseTimerPattern());
-            SimulationMetricsReporter.png(
-                    pngPath,
-                    activeRequestsPerServerNode,
-                    totalRequestsPerServerPerNode,
-                    totalRequestsPerClientPerEndpoint
-                    // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
-                    );
+            charts.addAll(simulation.metricsReporter().charts(MetricNames.perClientEndpointResponseTimerPattern()));
+
+            // charts.add(simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)")));
+
+            SimulationMetricsReporter.png(pngPath, charts);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
 
