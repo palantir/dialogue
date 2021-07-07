@@ -23,7 +23,7 @@ import java.util.List;
 
 /** Internal marker type for Dialogue network layer failures where no response is returned. */
 public final class DialogueException extends RuntimeException implements SafeLoggable {
-    private static final String MESSAGE = "Dialogue transport failure";
+    private static final String MESSAGE = "Network transport failure";
 
     public DialogueException(Throwable cause) {
         super(MESSAGE, cause);
