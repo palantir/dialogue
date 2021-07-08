@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue;
+package com.palantir.dialogue.core;
 
+import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.logsafe.Preconditions;
-import java.util.UUID;
 import org.immutables.value.Value;
 
 public interface RoutingAttachments {
 
-    /** Requests that have the same {@link RoutingKey#ROUTING_KEY} will be fairly dispatched. */
-    RequestAttachmentKey<RoutingKey> ROUTING_KEY = RequestAttachmentKey.create(RoutingKey.class);
+    /** Allows for overriding the {@link QueueStrategy}. */
+    RequestAttachmentKey<QueueStrategy> QUEUE_STRATEGY_KEY = RequestAttachmentKey.create(QueueStrategy.class);
 
     /** When present, {@link #EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY} will be set. */
     RequestAttachmentKey<Boolean> ATTACH_HOST_ID = RequestAttachmentKey.create(Boolean.class);
@@ -39,16 +39,6 @@ public interface RoutingAttachments {
      */
     RequestAttachmentKey<HostId> EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY =
             RequestAttachmentKey.create(HostId.class);
-
-    @Value.Immutable
-    interface RoutingKey {
-        @Value.Parameter
-        UUID value();
-
-        static RoutingKey create() {
-            return ImmutableRoutingKey.of(UUID.randomUUID());
-        }
-    }
 
     @Value.Immutable(intern = true)
     interface HostId {

@@ -68,9 +68,8 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
         }
     }
 
-    static LimitedChannel createForQueueKey(
-            LimitedChannel channel, String channelName, StickyRoutingChannel.QueueKey queueKey) {
-        return new StickyConcurrencyLimitedChannel(channel, channelName + "{queueKey=" + queueKey.toString() + "}");
+    static LimitedChannel createForQueueKey(LimitedChannel channel, String channelName) {
+        return new StickyConcurrencyLimitedChannel(channel, channelName);
     }
 
     private void logPermitAcquired() {

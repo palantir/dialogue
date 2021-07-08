@@ -168,7 +168,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             Channel globalQueue = QueuedChannel.create(cf, nodeSelectionChannel);
             final Channel queuedChannel;
             if (cf.isConcurrencyLimitingEnabled()) {
-                queuedChannel = new StickyRoutingChannel(cf, globalQueue, nodeSelectionChannel);
+                queuedChannel = new QueueStrategyChannel(cf, globalQueue, nodeSelectionChannel);
             } else {
                 queuedChannel = globalQueue;
             }

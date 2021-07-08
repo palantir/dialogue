@@ -25,9 +25,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.RoutingAttachments;
-import com.palantir.dialogue.RoutingAttachments.HostId;
-import com.palantir.dialogue.RoutingAttachments.RoutingKey;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import java.util.function.Supplier;
@@ -73,17 +71,17 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
         private final EndpointChannelFactory channelFactory;
         private final StickyRouter router;
-        private final RoutingKey routingKey;
+        private final QueueStrategy queueStrategy;
 
         private Sticky(EndpointChannelFactory channelFactory, StickyRouter router) {
             this.router = router;
             this.channelFactory = channelFactory;
-            this.routingKey = RoutingKey.create();
+            this.queueStrategy = create();
         }
 
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint), routingKey);
+            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint), queueStrategy);
         }
 
         /**
@@ -186,17 +184,17 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
     private static final class StickyEndpointChannel implements EndpointChannel {
         private final StickyRouter stickyRouter;
         private final EndpointChannel delegate;
-        private final RoutingKey routingKey;
+        private final QueueStrategy queueStrategy;
 
-        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate, RoutingKey routingKey) {
+        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate, QueueStrategy queueStrategy) {
             this.stickyRouter = stickyRouter;
             this.delegate = delegate;
-            this.routingKey = routingKey;
+            this.queueStrategy = queueStrategy;
         }
 
         @Override
         public ListenableFuture<Response> execute(Request request) {
-            request.attachments().put(RoutingAttachments.ROUTING_KEY, routingKey);
+            request.attachments().put(RoutingAttachments.QUEUE_STRATEGY_KEY, queueStrategy);
             return stickyRouter.execute(request, delegate);
         }
 
@@ -204,5 +202,13 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         public String toString() {
             return "StickyEndpointChannel{delegate=" + delegate + '}';
         }
+    }
+
+    private static QueueStrategy create() {
+        return QueueStrategy.of(channelKey -> {
+            LimitedChannel forQueueKey = StickyConcurrencyLimitedChannel.createForQueueKey(
+                    channelKey.limitedChannel(), channelKey.config().channelName());
+            return QueuedChannel.createForSticky(channelKey.config(), forQueueKey);
+        });
     }
 }

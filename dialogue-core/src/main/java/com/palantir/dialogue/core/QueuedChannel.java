@@ -202,10 +202,6 @@ final class QueuedChannel implements Channel {
         }
     }
 
-    boolean isEmpty() {
-        return queueSizeEstimate.get() <= 0;
-    }
-
     private int incrementQueueSize() {
         queueSizeCounter.get().inc();
         return queueSizeEstimate.incrementAndGet();
