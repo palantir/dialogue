@@ -33,6 +33,7 @@ import com.palantir.dialogue.core.Benchmark.ScheduledRequest;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -53,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -546,29 +548,28 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client(Strategy strategy) {
-        StickyChannelFactory factory = channel -> {
-            List<EndpointChannelFactory> endpointChannelFactories =
-                    Collections.singletonList(endpoint -> request -> channel.execute(endpoint, request));
-
-            return StickyEndpointChannels.builder()
-                    .channels(endpointChannelFactories)
-                    .channelName(SimulationUtils.CHANNEL_NAME)
-                    .taggedMetricRegistry(simulation.taggedMetrics())
-                    .build();
-        };
         server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
-                Benchmark.builder(), strategy, factory);
+                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
+        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
     }
 
     @SimulationCase
     void server_side_rate_limits_with_sticky2_clients_stready_vs_bursty_client(Strategy strategy) {
         // Ignore that one, because it's currently failing.
         Assumptions.assumeTrue(strategy != Strategy.UNLIMITED_ROUND_ROBIN);
-        StickyChannelFactory factory =
-                channel -> StickyEndpointChannels2.create(endpoint -> request -> channel.execute(endpoint, request))
-                        .get();
         server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
-                Benchmark.builder().mutableRequests(), strategy, factory);
+                Benchmark.builder().mutableRequests(), strategy, StickyChannelFactory.STICKY2);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky2_clients_fairness_across_multiple_clients(Strategy strategy) {
+        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+                Benchmark.builder().mutableRequests(), strategy, StickyChannelFactory.STICKY2);
     }
 
     private void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client_impl(
@@ -610,9 +611,8 @@ final class SimulationTest {
                 .toArray(SimulationServer[]::new));
 
         Channel channel = strategy.getChannel(simulation, servers);
-        Supplier<Channel> stickyChannelSupplier = stickyChannelFactory.create(channel);
-
-        stickyChannelFactory.create(channel);
+        Supplier<Channel> stickyChannelSupplier =
+                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
 
         builder.simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
@@ -635,8 +635,62 @@ final class SimulationTest {
                 .run();
     }
 
-    interface StickyChannelFactory {
-        Supplier<Channel> create(Channel concurrencyLimitedChannel);
+    private void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
+
+        int numServers = 1;
+        int numClients = 10;
+        Duration responseTime = Duration.ofMillis(150);
+        int concurrencyLimit = 2;
+
+        servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> SimulationServer.builder()
+                        .serverName("node" + i)
+                        .simulation(simulation)
+                        .handler(h ->
+                                h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
+                        .build())
+                .toArray(SimulationServer[]::new));
+
+        Channel channel = strategy.getChannel(simulation, servers);
+        Supplier<Channel> stickyChannelSupplier =
+                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
+
+        st = strategy;
+        result = builder.simulation(simulation)
+                .requestsPerSecond(100)
+                .sendUntil(Duration.ofMinutes(1))
+                .clients(numClients, _i -> stickyChannelSupplier.get())
+                .abortAfter(Duration.ofMinutes(2))
+                .run();
+    }
+
+    @SuppressWarnings("ImmutableEnumChecker")
+    private enum StickyChannelFactory {
+        STICKY(StickyChannelFactory::sticky),
+        STICKY2(StickyChannelFactory::sticky2);
+
+        private final BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction;
+
+        StickyChannelFactory(BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction) {
+            this.factoryFunction = factoryFunction;
+        }
+
+        static Supplier<Channel> sticky(TaggedMetricRegistry taggedMetricRegistry, Channel channel) {
+            List<EndpointChannelFactory> endpointChannelFactories =
+                    Collections.singletonList(endpoint -> request -> channel.execute(endpoint, request));
+
+            return StickyEndpointChannels.builder()
+                    .channels(endpointChannelFactories)
+                    .channelName(SimulationUtils.CHANNEL_NAME)
+                    .taggedMetricRegistry(taggedMetricRegistry)
+                    .build();
+        }
+
+        static Supplier<Channel> sticky2(TaggedMetricRegistry taggedMetricRegistry, Channel channel) {
+            return StickyEndpointChannels2.create(endpoint -> request -> channel.execute(endpoint, request))
+                    .get();
+        }
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {

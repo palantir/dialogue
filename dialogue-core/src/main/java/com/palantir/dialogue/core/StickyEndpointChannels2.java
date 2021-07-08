@@ -131,7 +131,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
                 if (callInFlightSnapshot == null) {
                     ListenableFuture<Response> result = DialogueFutures.addDirectCallback(
                             executeWithAttachHostId(request, endpointChannel), callback);
-                    callInFlight = Futures.nonCancellationPropagating(callInFlightSnapshot);
+                    callInFlight = Futures.nonCancellationPropagating(result);
                     return result;
                 } else {
                     ListenableFuture<Response> result = callInFlightSnapshot;
