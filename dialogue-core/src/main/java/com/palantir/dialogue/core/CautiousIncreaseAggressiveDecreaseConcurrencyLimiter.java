@@ -74,15 +74,15 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         // reliably optimize out references to final fields due to the potential for reflective
         // modification.
         AtomicInteger localInFlight = inFlight;
-        AtomicDouble localLimit = limit;
-        while (true) {
 
-            // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
-            // send our inflight number to 5, which is clearly above the limit.
-            // Instead, we wait until there is capacity for one whole request before handing out a permit.
-            // In the worst-case scenario with zero inflight and a limit of 1, we'll still hand out a permit.
+        // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
+        // send our inflight number to 5, which is clearly above the limit.
+        // Instead, we wait until there is capacity for one whole request before handing out a permit.
+        // In the worst-case scenario with zero inflight and a limit of 1, we'll still hand out a permit.
+        int currentLimit = (int) (getLimit() - 1);
+        while (true) {
             int currentInFlight = localInFlight.get();
-            if (currentInFlight >= localLimit.get()) {
+            if (currentInFlight > currentLimit) {
                 return Optional.empty();
             }
 
