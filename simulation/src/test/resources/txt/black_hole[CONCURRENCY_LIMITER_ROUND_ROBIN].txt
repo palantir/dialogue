@@ -1,4 +1,4 @@
-success=91.5%	client_mean=PT0.600005464S 	server_cpu=PT18M18S       	client_received=1830/2000	server_resps=1830	codes={200=1830}
+success=91.5%	client_mean=PT0.6S         	server_cpu=PT18M17.4S     	client_received=1829/2000	server_resps=1829	codes={200=1829}
 client=0 endpoint	client_mean=PT0.6S         
 client=1 endpoint	client_mean=PT0.6S         
 client=2 endpoint	client_mean=PT0.6S         
@@ -7,5 +7,5 @@ client=4 endpoint	client_mean=PT0.6S
 client=5 endpoint	client_mean=PT0.6S         
 client=6 endpoint	client_mean=PT0.6S         
 client=7 endpoint	client_mean=PT0.6S         
-client=8 endpoint	client_mean=PT0.60005102S  
+client=8 endpoint	client_mean=PT0.6S         
 client=9 endpoint	client_mean=PT0.6S         
