@@ -130,8 +130,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
             synchronized (this) {
                 if (hostId != null) {
-                    request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
-                    return endpointChannel.execute(request);
+                    return executeWithHostId(hostId, request, endpointChannel);
                 }
 
                 if (callInFlight == null) {
