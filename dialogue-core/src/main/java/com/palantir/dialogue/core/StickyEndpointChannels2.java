@@ -34,13 +34,9 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Value.Enclosing
 public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>> {
-
-    private static final Logger log = LoggerFactory.getLogger(StickyEndpointChannels2.class);
 
     private final EndpointChannelFactory delegate;
 
@@ -61,7 +57,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
     private static final class StickySessionSupplier implements Supplier<Channel> {
 
         private final EndpointChannelFactory channelFactory;
-        private final StickyRouter router = new DefaultStickyRouter();
+        private final StickyRouter router = new StickyRouter();
 
         private StickySessionSupplier(EndpointChannelFactory channelFactory) {
             this.channelFactory = channelFactory;
@@ -110,11 +106,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         return new StickyEndpointChannels2(endpointChannelFactory);
     }
 
-    interface StickyRouter {
-        ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel);
-    }
-
-    private static final class DefaultStickyRouter implements StickyRouter {
+    private static final class StickyRouter {
 
         private final InFlightCallCallback callback = new InFlightCallCallback();
 
@@ -125,7 +117,6 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         @GuardedBy("this")
         private volatile ListenableFuture<Response> callInFlight;
 
-        @Override
         public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
             if (hostId != null) {
                 return executeWithHostId(hostId, request, endpointChannel);
@@ -164,17 +155,6 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
             }
         }
 
-        private ListenableFuture<Response> executeWithAttachHostId(Request request, EndpointChannel endpointChannel) {
-            request.attachments().put(RoutingAttachments.ATTACH_HOST_ID, Boolean.TRUE);
-            return endpointChannel.execute(request);
-        }
-
-        private static ListenableFuture<Response> executeWithHostId(
-                HostId hostId, Request request, EndpointChannel endpointChannel) {
-            request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
-            return endpointChannel.execute(request);
-        }
-
         private synchronized void successfulCall(Response response) {
             callInFlight = null;
             if (hostId == null) {
@@ -188,6 +168,18 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
         private synchronized void failed() {
             callInFlight = null;
+        }
+
+        private static ListenableFuture<Response> executeWithAttachHostId(
+                Request request, EndpointChannel endpointChannel) {
+            request.attachments().put(RoutingAttachments.ATTACH_HOST_ID, Boolean.TRUE);
+            return endpointChannel.execute(request);
+        }
+
+        private static ListenableFuture<Response> executeWithHostId(
+                HostId hostId, Request request, EndpointChannel endpointChannel) {
+            request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
+            return endpointChannel.execute(request);
         }
     }
 
