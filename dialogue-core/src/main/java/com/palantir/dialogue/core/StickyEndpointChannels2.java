@@ -53,7 +53,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
     @Override
     public String toString() {
-        return "StickyEndpointChannels2{}";
+        return "StickyEndpointChannels2{" + delegate + "}";
     }
 
     private static final class StickySessionSupplier implements Supplier<Channel> {
@@ -120,6 +120,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
         private volatile HostId hostId;
 
         @Nullable
+        @GuardedBy("this")
         private volatile ListenableFuture<Response> callInFlight;
 
         @Override
@@ -133,7 +134,8 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
                     return executeWithHostId(hostId, request, endpointChannel);
                 }
 
-                if (callInFlight == null) {
+                ListenableFuture<Response> callInFlightSnapshot = callInFlight;
+                if (callInFlightSnapshot == null) {
                     callInFlight = DialogueFutures.addDirectCallback(
                             executeWithAttachHostId(request, endpointChannel), callback);
                     return callInFlight;
