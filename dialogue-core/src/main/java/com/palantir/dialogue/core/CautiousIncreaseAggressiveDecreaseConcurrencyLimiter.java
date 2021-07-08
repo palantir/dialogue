@@ -69,17 +69,28 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
     Optional<Permit> acquire() {
-        int currentInFlight = getInflight();
 
-        // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately send
-        // our inflight number to 5, which is clearly above the limit.  Instead, we wait until there is capacity for
-        // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit of
-        // 1, we'll still hand out a permit
-        if (currentInFlight <= getLimit() - 1) {
-            int inFlightSnapshot = inFlight.incrementAndGet();
-            return Optional.of(new Permit(inFlightSnapshot));
+        // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
+        // reliably optimize out references to final fields due to the potential for reflective
+        // modification.
+        AtomicInteger localInFlight = inFlight;
+        AtomicDouble localLimit = limit;
+        while (true) {
+
+            // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
+            // send our inflight number to 5, which is clearly above the limit.
+            // Instead, we wait until there is capacity for one whole request before handing out a permit.
+            // In the worst-case scenario with zero inflight and a limit of 1, we'll still hand out a permit.
+            int currentInFlight = localInFlight.get();
+            if (currentInFlight >= localLimit.get()) {
+                return Optional.empty();
+            }
+
+            int newInFlight = currentInFlight + 1;
+            if (inFlight.compareAndSet(currentInFlight, newInFlight)) {
+                return Optional.of(new Permit(newInFlight));
+            }
         }
-        return Optional.empty();
     }
 
     enum Behavior {
