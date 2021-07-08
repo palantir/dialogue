@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -31,6 +32,7 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import org.immutables.value.Value;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -136,11 +138,12 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
                 if (callInFlightSnapshot == null) {
-                    callInFlight = DialogueFutures.addDirectCallback(
+                    ListenableFuture<Response> result = DialogueFutures.addDirectCallback(
                             executeWithAttachHostId(request, endpointChannel), callback);
-                    return callInFlight;
+                    callInFlight = Futures.nonCancellationPropagating(callInFlightSnapshot);
+                    return result;
                 } else {
-                    ListenableFuture<Response> result = callInFlight;
+                    ListenableFuture<Response> result = callInFlightSnapshot;
                     result = DialogueFutures.transformAsync(result, _input -> execute(request, endpointChannel));
                     result = DialogueFutures.catchingAllAsync(result, _throwable -> execute(request, endpointChannel));
                     return result;
@@ -207,7 +210,7 @@ public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>
 
         @Override
         public String toString() {
-            return "ScoreTrackingEndpointChannel{" + "delegate=" + delegate + '}';
+            return "StickyEndpointChannel{delegate=" + delegate + '}';
         }
     }
 }
