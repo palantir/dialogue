@@ -48,6 +48,11 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();
 
+            // This is a trade-off to solve an edge case where the first request on this channel could get
+            // concurrency limited: we would then have to rely on another request coming in to try scheduling the
+            // first request again. If that request never came, we would lock up.
+            // To combat that we have a way to instruct downstream channel to ignore its capacity limits,
+            // and let the request through.
             Optional<ListenableFuture<Response>> result =
                     delegate.maybeExecute(endpoint, request, force || permit.isOnlyInFlight());
             if (result.isPresent()) {
