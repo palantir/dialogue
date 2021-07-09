@@ -80,10 +80,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         // send our inflight number to 5, which is clearly above the limit.
         // Instead, we wait until there is capacity for one whole request before handing out a permit.
         // In the worst-case scenario with zero inflight and a limit of 1, we'll still hand out a permit.
-        int currentLimit = (int) (getLimit() - 1);
+        int currentLimit = (int) getLimit();
         while (true) {
             int currentInFlight = localInFlight.get();
-            if (currentInFlight > currentLimit) {
+            if (currentInFlight >= currentLimit) {
                 return Optional.empty();
             }
 
