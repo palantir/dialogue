@@ -65,7 +65,7 @@ final class Attachments {
     }
 
     @SuppressWarnings({"unchecked", "RawTypes"})
-    public static <T> AttachmentKey<T> createAttachmentKey(Class<? super T> valueClazz) {
+    static <T> AttachmentKey<T> createAttachmentKey(Class<? super T> valueClazz) {
         Preconditions.checkNotNull(valueClazz, "valueClazz");
         return new AttachmentKey(valueClazz);
     }
