@@ -107,7 +107,7 @@ final class SimulationMetricsReporter {
     public List<XYChart> charts(Pattern metricNameRegex) {
         List<XYChart> charts = new ArrayList<>();
 
-        // First add the combined chart in case that's a better visualisation.
+        // First add the combined chart, sometimes that's a better visualization
         charts.add(chart(metricNameRegex));
 
         addSeries(metricNameRegex, () -> {
