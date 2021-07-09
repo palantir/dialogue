@@ -33,6 +33,7 @@ import com.palantir.dialogue.core.Benchmark.ScheduledRequest;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -44,6 +45,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.time.Duration;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,6 +54,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -543,7 +546,19 @@ final class SimulationTest {
     }
 
     @SimulationCase
-    void server_side_rate_limits_with_sticky_clients_stready_vs_bursty_client(Strategy strategy) {
+    void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client(Strategy strategy) {
+        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
+                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
+        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
+    }
+
+    private void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
+            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
 
         // 1 server
         // 2 types of clients sharing a DialogueChannel
@@ -580,22 +595,15 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Channel concurrencyLimitedChannel = strategy.getChannel(simulation, servers);
+        Channel channel = strategy.getChannel(simulation, servers);
+        Supplier<Channel> stickyChannelSupplier =
+                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
 
-        List<EndpointChannelFactory> endpointChannelFactories =
-                Collections.singletonList(endpoint -> request -> concurrencyLimitedChannel.execute(endpoint, request));
-
-        Supplier<Channel> stickyChannel = StickyEndpointChannels.builder()
-                .channels(endpointChannelFactories)
-                .channelName(SimulationUtils.CHANNEL_NAME)
-                .taggedMetricRegistry(simulation.taggedMetrics())
-                .build();
-
-        Benchmark builder = Benchmark.builder().simulation(simulation);
+        builder.simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
-                builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
         EndpointChannel oneShotBurstChannel =
-                builder.addEndpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannel.get());
+                builder.addEndpointChannel("oneShotBurst", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
 
         Stream<ScheduledRequest> slowAndSteadyChannelRequests = builder.infiniteRequests(
                         timeBetweenSlowAndSteadyRequests, () -> slowAndSteadyChannel)
@@ -610,6 +618,58 @@ final class SimulationTest {
                 .stopWhenNumReceived(totalNumRequests)
                 .abortAfter(benchmarkDuration.plus(Duration.ofMinutes(1)))
                 .run();
+    }
+
+    private void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
+
+        int numServers = 1;
+        int numClients = 10;
+        Duration responseTime = Duration.ofMillis(150);
+        int concurrencyLimit = 2;
+
+        servers = servers(IntStream.range(0, numServers)
+                .mapToObj(i -> SimulationServer.builder()
+                        .serverName("node" + i)
+                        .simulation(simulation)
+                        .handler(h ->
+                                h.respond200UntilCapacity(429, concurrencyLimit).responseTime(responseTime))
+                        .build())
+                .toArray(SimulationServer[]::new));
+
+        Channel channel = strategy.getChannel(simulation, servers);
+        Supplier<Channel> stickyChannelSupplier =
+                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
+
+        st = strategy;
+        result = builder.simulation(simulation)
+                .requestsPerSecond(30)
+                .sendUntil(Duration.ofMinutes(1))
+                .clients(numClients, _i -> stickyChannelSupplier.get())
+                .abortAfter(Duration.ofMinutes(2))
+                .run();
+    }
+
+    @SuppressWarnings("ImmutableEnumChecker")
+    private enum StickyChannelFactory {
+        STICKY(StickyChannelFactory::sticky);
+
+        private final BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction;
+
+        StickyChannelFactory(BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction) {
+            this.factoryFunction = factoryFunction;
+        }
+
+        static Supplier<Channel> sticky(TaggedMetricRegistry taggedMetricRegistry, Channel channel) {
+            List<EndpointChannelFactory> endpointChannelFactories =
+                    Collections.singletonList(endpoint -> request -> channel.execute(endpoint, request));
+
+            return StickyEndpointChannels.builder()
+                    .channels(endpointChannelFactories)
+                    .channelName(SimulationUtils.CHANNEL_NAME)
+                    .taggedMetricRegistry(taggedMetricRegistry)
+                    .build();
+        }
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
@@ -693,6 +753,7 @@ final class SimulationTest {
             assertThat(Paths.get(pngPath)).exists();
         } else if (txtChanged || !Files.exists(Paths.get(pngPath))) {
             // only re-generate PNGs if the txt file changed (as they're slow af)
+            List<XYChart> charts = new ArrayList<>();
             Stopwatch sw = Stopwatch.createStarted();
             Files.write(
                     txt,
@@ -705,6 +766,7 @@ final class SimulationTest {
             activeRequestsPerServerNode.setTitle(String.format(
                     "%s success=%s%% client_mean=%.1f ms server_cpu=%s",
                     st, result.successPercentage(), clientMeanMillis, serverCpu));
+            charts.add(activeRequestsPerServerNode);
 
             // Github UIs don't let you easily diff pngs that are stored in git lfs. We just keep around the .prev.png
             // on disk to aid local iteration.
@@ -714,18 +776,13 @@ final class SimulationTest {
                 Files.move(Paths.get(pngPath), previousPng);
             }
 
-            XYChart totalRequestsPerServerPerNode =
-                    simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern());
+            charts.add(simulation.metricsReporter().chart(MetricNames.serverRequestMeterPattern()));
 
-            XYChart totalRequestsPerClientPerEndpoint =
-                    simulation.metricsReporter().chart(MetricNames.perClientEndpointResponseTimerPattern());
-            SimulationMetricsReporter.png(
-                    pngPath,
-                    activeRequestsPerServerNode,
-                    totalRequestsPerServerPerNode,
-                    totalRequestsPerClientPerEndpoint
-                    // simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)"))
-                    );
+            charts.addAll(simulation.metricsReporter().charts(MetricNames.perClientEndpointResponseTimerPattern()));
+
+            // charts.add(simulation.metrics().chart(Pattern.compile("(responseClose|globalResponses)")));
+
+            SimulationMetricsReporter.png(pngPath, charts);
             log.info("Generated {} ({} ms)", pngPath, sw.elapsed(TimeUnit.MILLISECONDS));
         }
 

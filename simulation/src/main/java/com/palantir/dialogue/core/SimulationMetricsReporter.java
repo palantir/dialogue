@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.knowm.xchart.BitmapEncoder;
@@ -98,14 +99,32 @@ final class SimulationMetricsReporter {
     }
 
     public XYChart chart(Pattern metricNameRegex) {
+        XYChart chart = createBasicChart();
+        addSeries(metricNameRegex, () -> chart);
+        return chart;
+    }
+
+    public List<XYChart> charts(Pattern metricNameRegex) {
+        List<XYChart> charts = new ArrayList<>();
+
+        // First add the combined chart, sometimes that's a better visualization
+        charts.add(chart(metricNameRegex));
+
+        addSeries(metricNameRegex, () -> {
+            XYChart chart = createBasicChart();
+            charts.add(chart);
+            return chart;
+        });
+
+        return charts;
+    }
+
+    private XYChart createBasicChart() {
         XYChart chart = new XYChartBuilder()
                 .width(800)
                 .height(600)
                 .xAxisTitle(X_AXIS.safeName())
                 .build();
-
-        // if we render too many samples, it just ends up looking like a wall of colour
-        int granularity = chart.getWidth() / 3;
 
         chart.getStyler().setLegendPosition(Styler.LegendPosition.InsideNW);
         chart.getStyler().setDefaultSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Line);
@@ -116,17 +135,39 @@ final class SimulationMetricsReporter {
         chart.getStyler().setToolTipsEnabled(true);
         chart.getStyler().setToolTipsAlwaysVisible(true);
 
+        if (!simulation.events().getEvents().isEmpty()) {
+            double[] eventXs = simulation.events().getEvents().keySet().stream()
+                    .mapToDouble(SimulationMetricsReporter::nanosToFractionalSeconds)
+                    .toArray();
+            double[] eventYs = new double[eventXs.length];
+            String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);
+            XYSeries what = chart.addSeries(" ", eventXs, eventYs);
+            what.setToolTips(strings);
+            what.setXYSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Scatter);
+        }
+
+        return chart;
+    }
+
+    private void addSeries(Pattern metricNameRegex, Supplier<XYChart> chartSupplier) {
         Map<MetricName, List<Double>> map = measurements.asMap();
-        double[] xAxis = reduceGranularity(
-                granularity, map.get(X_AXIS).stream().mapToDouble(d -> d).toArray());
         List<MetricName> columns = map.keySet().stream()
                 .filter(metric -> !metric.equals(X_AXIS))
                 .filter(metric -> metricNameRegex.asPredicate().test(asString(metric)))
                 .sorted(Comparator.comparing(SimulationMetricsReporter::asString))
                 .collect(Collectors.toList());
-        String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
 
         for (MetricName column : columns) {
+
+            XYChart chart = chartSupplier.get();
+
+            // if we render too many samples, it just ends up looking like a wall of colour
+            int granularity = chart.getWidth() / 3;
+
+            double[] xAxis = reduceGranularity(
+                    granularity, map.get(X_AXIS).stream().mapToDouble(d -> d).toArray());
+            String[] nullToolTips = Collections.nCopies(xAxis.length, null).toArray(new String[] {});
+
             double[] series = reduceGranularity(
                     granularity, map.get(column).stream().mapToDouble(d -> d).toArray());
             Preconditions.checkState(
@@ -137,19 +178,10 @@ final class SimulationMetricsReporter {
                     SafeArg.of("length", series.length));
             chart.addSeries(asString(column) + ".count", xAxis, series).setToolTips(nullToolTips);
         }
+    }
 
-        if (!simulation.events().getEvents().isEmpty()) {
-            double[] eventXs = simulation.events().getEvents().keySet().stream()
-                    .mapToDouble(nanos -> TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d)
-                    .toArray();
-            double[] eventYs = new double[eventXs.length];
-            String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);
-            XYSeries what = chart.addSeries(" ", eventXs, eventYs);
-            what.setToolTips(strings);
-            what.setXYSeriesRenderStyle(XYSeries.XYSeriesRenderStyle.Scatter);
-        }
-
-        return chart;
+    private static double nanosToFractionalSeconds(long nanos) {
+        return nanos / 1_000_000_000D;
     }
 
     /**
@@ -175,8 +207,8 @@ final class SimulationMetricsReporter {
                 + metricName.safeName();
     }
 
-    public static void png(String file, XYChart... charts) throws IOException {
-        int rows = charts.length;
+    public static void png(String file, List<XYChart> charts) throws IOException {
+        int rows = charts.size();
         int cols = 1;
         BitmapEncoder.saveBitmap(ImmutableList.copyOf(charts), rows, cols, file, BitmapEncoder.BitmapFormat.PNG);
     }

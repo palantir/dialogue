@@ -66,7 +66,6 @@ import org.slf4j.LoggerFactory;
  */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
-    private static final Request REQUEST = Request.builder().build();
     static final Endpoint DEFAULT_ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
@@ -396,11 +395,8 @@ public final class Benchmark {
     }
 
     private static Request constructRequest(long number) {
-        if (log.isDebugEnabled()) {
-            return Request.builder()
-                    .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
-                    .build();
-        }
-        return REQUEST;
+        return Request.builder()
+                .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
+                .build();
     }
 }
