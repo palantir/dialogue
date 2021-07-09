@@ -137,7 +137,7 @@ final class SimulationMetricsReporter {
 
         if (!simulation.events().getEvents().isEmpty()) {
             double[] eventXs = simulation.events().getEvents().keySet().stream()
-                    .mapToDouble(nanos -> TimeUnit.NANOSECONDS.toMillis(nanos) / 1000d)
+                    .mapToDouble(SimulationMetricsReporter::nanosToFractionalSeconds)
                     .toArray();
             double[] eventYs = new double[eventXs.length];
             String[] strings = simulation.events().getEvents().values().stream().toArray(String[]::new);
@@ -178,6 +178,10 @@ final class SimulationMetricsReporter {
                     SafeArg.of("length", series.length));
             chart.addSeries(asString(column) + ".count", xAxis, series).setToolTips(nullToolTips);
         }
+    }
+
+    private static double nanosToFractionalSeconds(long nanos) {
+        return nanos / 1_000_000_000D;
     }
 
     /**
