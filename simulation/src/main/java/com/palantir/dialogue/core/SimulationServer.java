@@ -282,7 +282,6 @@ final class SimulationServer implements Channel {
 
     private static Response wrapWithCloseInstrumentation(Response delegate, SimulationServer sim) {
         return new Response() {
-
             @Override
             public InputStream body() {
                 return delegate.body();
