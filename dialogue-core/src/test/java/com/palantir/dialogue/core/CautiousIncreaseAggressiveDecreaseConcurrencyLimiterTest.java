@@ -20,10 +20,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
+import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
 import java.io.IOException;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 import org.assertj.core.data.Percentage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,7 +50,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
     @ParameterizedTest
     @EnumSource(Behavior.class)
-    void acquire_returnsPermitssWhileInflightPermitLimitNotReached(Behavior behavior) {
+    void acquire_returnsPermitsWhileInflightPermitLimitNotReached(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
@@ -53,6 +66,26 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         // Release one permit, can acquire new permit.
         latestPermit.get().ignore();
         assertThat(limiter.acquire()).isPresent();
+    }
+
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    void acquire_doesNotAcquirePartialPermits(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
+
+        double max = limiter.getLimit();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
+        for (int i = 0; i < max; ++i) {
+            latestPermit = limiter.acquire();
+            assertThat(latestPermit).isPresent();
+        }
+
+        latestPermit.get().success();
+        assertThat(limiter.getLimit()).isEqualTo(20.05);
+
+        // Now we can only acquire one extra permit, not 2
+        assertThat(limiter.acquire()).isPresent();
+        assertThat(limiter.acquire()).isEmpty();
     }
 
     @ParameterizedTest
@@ -210,5 +243,52 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         double max = limiter.getLimit();
         limiter.acquire().get().onFailure(exception);
         assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
+    public void acquire_doesNotReleaseMorePermitsThanLimit() throws ExecutionException, InterruptedException {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+
+        int max = (int) limiter.getLimit();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit;
+        for (int i = 0; i < max - 1; ++i) {
+            latestPermit = limiter.acquire();
+            assertThat(latestPermit).isPresent();
+        }
+
+        latestPermit = limiter.acquire();
+        assertThat(latestPermit).isPresent();
+        assertThat(limiter.acquire()).isEmpty();
+        latestPermit.get().ignore();
+
+        // Now let's have some threads fight for that last remaining permit.
+        int numTasks = 8;
+        int numIterations = 10_000;
+        CountDownLatch latch = new CountDownLatch(numTasks);
+        ListeningExecutorService executor = MoreExecutors.listeningDecorator(Executors.newFixedThreadPool(numTasks));
+        List<ListenableFuture<?>> futures = new ArrayList<>();
+        try {
+            IntStream.range(0, numTasks).forEach(_ignore -> {
+                futures.add(executor.submit(() -> {
+                    latch.countDown();
+                    Uninterruptibles.awaitUninterruptibly(latch);
+
+                    for (int i = 0; i < numIterations; i++) {
+                        Optional<Permit> acquire = limiter.acquire();
+                        if (acquire.isPresent()) {
+                            assertThat(acquire.get().inFlightSnapshot()).isLessThanOrEqualTo(max);
+                            acquire.get().ignore();
+                        }
+                    }
+                }));
+            });
+
+            Futures.whenAllSucceed(futures)
+                    .run(() -> {}, MoreExecutors.directExecutor())
+                    .get();
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
     }
 }

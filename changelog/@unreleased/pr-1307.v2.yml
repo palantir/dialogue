@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: 'Use #compareAndSet when checking limits.'
+  links:
+  - https://github.com/palantir/dialogue/pull/1307
