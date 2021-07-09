@@ -95,7 +95,6 @@ final class ContentDecodingChannel implements EndpointChannel {
         private final Response delegate;
         private final ListMultimap<String, String> headers;
         private final InputStream body;
-        private final ResponseAttachments attachments = ResponseAttachments.create();
 
         ContentDecodingResponse(Response delegate) {
             this.delegate = delegate;
@@ -141,7 +140,7 @@ final class ContentDecodingChannel implements EndpointChannel {
 
         @Override
         public ResponseAttachments attachments() {
-            return attachments;
+            return delegate.attachments();
         }
 
         @Override
