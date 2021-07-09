@@ -97,6 +97,9 @@ public final class HttpChannel implements Channel {
 
     private Response toResponse(HttpResponse<InputStream> response) {
         return new Response() {
+
+            private final ResponseAttachments attachments = ResponseAttachments.create();
+
             @Override
             public InputStream body() {
                 return response.body();
@@ -114,6 +117,11 @@ public final class HttpChannel implements Channel {
                         .build();
                 response.headers().map().forEach(headers::putAll);
                 return headers;
+            }
+
+            @Override
+            public ResponseAttachments attachments() {
+                return attachments;
             }
 
             @Override

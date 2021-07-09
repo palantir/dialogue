@@ -25,6 +25,7 @@ import okhttp3.ResponseBody;
 public final class OkHttpResponse implements Response {
 
     private final okhttp3.Response delegate;
+    private final ResponseAttachments attachments = ResponseAttachments.create();
 
     private OkHttpResponse(okhttp3.Response delegate) {
         this.delegate = delegate;
@@ -56,6 +57,11 @@ public final class OkHttpResponse implements Response {
                 .build();
         delegate.headers().toMultimap().forEach(headers::putAll);
         return headers;
+    }
+
+    @Override
+    public ResponseAttachments attachments() {
+        return attachments;
     }
 
     @Override

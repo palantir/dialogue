@@ -40,6 +40,11 @@ public interface Response extends Closeable {
     }
 
     /**
+     * The mutable response attachments.
+     */
+    ResponseAttachments attachments();
+
+    /**
      * Releases all resources associated with this response. If the {@link #body()} is still open, {@link #close()}
      * should {@link InputStream#close() close the stream}.
      * Implementations must not throw, preferring to catch and log internally.

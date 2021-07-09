@@ -22,6 +22,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -94,6 +95,7 @@ final class ContentDecodingChannel implements EndpointChannel {
         private final Response delegate;
         private final ListMultimap<String, String> headers;
         private final InputStream body;
+        private final ResponseAttachments attachments = ResponseAttachments.create();
 
         ContentDecodingResponse(Response delegate) {
             this.delegate = delegate;
@@ -135,6 +137,11 @@ final class ContentDecodingChannel implements EndpointChannel {
         @Override
         public String toString() {
             return "ContentDecodingResponse{delegate=" + delegate + '}';
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return attachments;
         }
 
         @Override
