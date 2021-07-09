@@ -249,3 +249,8 @@ acceptedBreaks:
       new: "method <T> T com.palantir.dialogue.Clients::callBlocking(com.palantir.dialogue.EndpointChannel,\
         \ com.palantir.dialogue.Request, com.palantir.dialogue.Deserializer<T>)"
       justification: "New API for blocking calls."
+  "2.10.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.ResponseAttachments com.palantir.dialogue.Response::attachments()"
+      justification: "New state in Response."
