@@ -75,7 +75,7 @@ public final class Benchmark {
     private List<NamedEndpointChannel> endpointChannels = new ArrayList<>();
     private IntSupplier endpointChannelChooser;
     private Stream<ScheduledRequest> requestStream;
-    private Function<Long, Request> requestSupplier = Benchmark::constructNewRequest;
+    private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
     private ShouldStopPredicate benchmarkFinished;
     private Duration abortAfter;
 
@@ -394,7 +394,7 @@ public final class Benchmark {
         EndpointChannel endpointChannel();
     }
 
-    private static Request constructNewRequest(long number) {
+    private static Request constructRequest(long number) {
         return Request.builder()
                 .putHeaderParams(REQUEST_ID_HEADER, Long.toString(number))
                 .build();
