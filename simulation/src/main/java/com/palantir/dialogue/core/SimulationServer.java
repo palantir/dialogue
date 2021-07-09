@@ -283,8 +283,6 @@ final class SimulationServer implements Channel {
     private static Response wrapWithCloseInstrumentation(Response delegate, SimulationServer sim) {
         return new Response() {
 
-            private final ResponseAttachments attachments = ResponseAttachments.create();
-
             @Override
             public InputStream body() {
                 return delegate.body();
@@ -307,7 +305,7 @@ final class SimulationServer implements Channel {
 
             @Override
             public ResponseAttachments attachments() {
-                return attachments;
+                return delegate.attachments();
             }
 
             @Override
