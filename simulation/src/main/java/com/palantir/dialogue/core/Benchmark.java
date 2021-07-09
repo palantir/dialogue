@@ -66,7 +66,6 @@ import org.slf4j.LoggerFactory;
  */
 public final class Benchmark {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);
-    private static final Request REQUEST = Request.builder().build();
     static final Endpoint DEFAULT_ENDPOINT = SimulationUtils.endpoint("endpoint", HttpMethod.POST);
     static final String REQUEST_ID_HEADER = "simulation-req-id";
 
@@ -76,7 +75,7 @@ public final class Benchmark {
     private List<NamedEndpointChannel> endpointChannels = new ArrayList<>();
     private IntSupplier endpointChannelChooser;
     private Stream<ScheduledRequest> requestStream;
-    private Function<Long, Request> requestSupplier = Benchmark::constructRequest;
+    private Function<Long, Request> requestSupplier = Benchmark::constructNewRequest;
     private ShouldStopPredicate benchmarkFinished;
     private Duration abortAfter;
 
@@ -84,11 +83,6 @@ public final class Benchmark {
 
     static Benchmark builder() {
         return new Benchmark();
-    }
-
-    public Benchmark mutableRequests() {
-        requestSupplier = Benchmark::constructNewRequest;
-        return this;
     }
 
     public Benchmark requestsPerSecond(double rps) {
@@ -398,13 +392,6 @@ public final class Benchmark {
         Request request();
 
         EndpointChannel endpointChannel();
-    }
-
-    private static Request constructRequest(long number) {
-        if (log.isDebugEnabled()) {
-            return constructNewRequest(number);
-        }
-        return REQUEST;
     }
 
     private static Request constructNewRequest(long number) {
