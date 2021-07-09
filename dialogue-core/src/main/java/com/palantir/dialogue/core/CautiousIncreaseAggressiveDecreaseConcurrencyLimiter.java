@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
@@ -153,6 +154,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
+        }
+
+        @VisibleForTesting
+        int inFlightSnapshot() {
+            return inFlightSnapshot;
         }
 
         @Override
