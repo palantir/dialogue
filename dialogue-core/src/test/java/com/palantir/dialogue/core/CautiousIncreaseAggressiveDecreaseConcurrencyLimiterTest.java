@@ -37,7 +37,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
 
     @ParameterizedTest
     @EnumSource(Behavior.class)
-    void acquire_returnsPermitssWhileInflightPermitLimitNotReached(Behavior behavior) {
+    void acquire_returnsPermitsWhileInflightPermitLimitNotReached(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
@@ -53,6 +53,26 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         // Release one permit, can acquire new permit.
         latestPermit.get().ignore();
         assertThat(limiter.acquire()).isPresent();
+    }
+
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    void acquire_doesNotAcquirePartialPermits(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
+
+        double max = limiter.getLimit();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
+        for (int i = 0; i < max; ++i) {
+            latestPermit = limiter.acquire();
+            assertThat(latestPermit).isPresent();
+        }
+
+        latestPermit.get().success();
+        assertThat(limiter.getLimit()).isEqualTo(20.05);
+
+        // Now we can only acquire one extra permit, not 2
+        assertThat(limiter.acquire()).isPresent();
+        assertThat(limiter.acquire()).isEmpty();
     }
 
     @ParameterizedTest
