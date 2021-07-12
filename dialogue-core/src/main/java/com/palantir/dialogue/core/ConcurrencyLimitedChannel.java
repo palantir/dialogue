@@ -17,7 +17,6 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -26,7 +25,6 @@ import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyL
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.stream.LongStream;
@@ -36,7 +34,7 @@ import org.slf4j.LoggerFactory;
 /**
  * A channel that monitors the successes and failures of requests in order to determine the number of concurrent
  * requests allowed to a particular channel. If the channel's concurrency limit has been reached, the
- * {@link #maybeExecute} method returns empty.
+ * {@link LimitedChannel#maybeExecute} method returns empty.
  */
 final class ConcurrencyLimitedChannel implements LimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(ConcurrencyLimitedChannel.class);
@@ -46,23 +44,11 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     private final String channelNameForLogging;
 
     static LimitedChannel createForHost(Config cf, Channel channel, int uriIndex) {
-        if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
-            return new ChannelToLimitedChannelAdapter(channel);
-        }
-
-        ClientConfiguration.ClientQoS clientQoS = cf.clientConf().clientQoS();
-        switch (clientQoS) {
-            case ENABLED:
-                TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
-                CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = createLimiter(Behavior.HOST_LEVEL);
-                ConcurrencyLimitedChannelInstrumentation instrumentation =
-                        new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
-                return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
-            case DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS:
-                return new ChannelToLimitedChannelAdapter(channel);
-        }
-        throw new SafeIllegalStateException(
-                "Encountered unknown client QoS configuration", SafeArg.of("ClientQoS", clientQoS));
+        TaggedMetricRegistry metrics = cf.clientConf().taggedMetricRegistry();
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = createLimiter(Behavior.HOST_LEVEL);
+        ConcurrencyLimitedChannelInstrumentation instrumentation =
+                new HostConcurrencyLimitedChannelInstrumentation(cf.channelName(), uriIndex, limiter, metrics);
+        return new ConcurrencyLimitedChannel(channel, limiter, instrumentation);
     }
 
     /**
@@ -90,8 +76,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit = limiter.acquire();
+    public Optional<ListenableFuture<Response>> maybeExecute(
+            Endpoint endpoint, Request request, SkipLimits skipLimits) {
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit =
+                limiter.acquire(skipLimits == SkipLimits.Yes);
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();

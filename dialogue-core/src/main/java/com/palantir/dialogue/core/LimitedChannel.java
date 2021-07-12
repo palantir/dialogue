@@ -29,7 +29,13 @@ import java.util.Optional;
  * Limited channels must limit exclusively based on the state of the {@link com.palantir.dialogue.Channel}, not
  * the {@link Endpoint} or {@link Request} arguments, otherwise the caller (generally a {@link QueuedChannel})
  * may prevent <i>all</i> requests from proceeding.
+ * Implementations should support skipping the limit checks, while still tracking usage appropriately.
  */
 interface LimitedChannel {
-    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
+    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, SkipLimits skipLimits);
+
+    enum SkipLimits {
+        Yes,
+        No
+    }
 }

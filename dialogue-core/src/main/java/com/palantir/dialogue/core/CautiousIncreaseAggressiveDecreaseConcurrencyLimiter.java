@@ -69,7 +69,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Permit> acquire() {
+    Optional<Permit> acquire(boolean force) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
@@ -83,7 +83,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         int currentLimit = (int) getLimit();
         while (true) {
             int currentInFlight = localInFlight.get();
-            if (currentInFlight >= currentLimit) {
+            if (!force && currentInFlight >= currentLimit) {
                 return Optional.empty();
             }
 

@@ -28,6 +28,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.LimitedChannel.SkipLimits;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -62,6 +63,7 @@ import org.slf4j.LoggerFactory;
  */
 final class QueuedChannel implements Channel {
     private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
+    private static final SkipLimits DO_NOT_SKIP_LIMITS = SkipLimits.No;
 
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
@@ -124,7 +126,8 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult =
+                    delegate.maybeExecute(endpoint, request, DO_NOT_SKIP_LIMITS);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
@@ -224,7 +227,8 @@ final class QueuedChannel implements Channel {
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
             Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            Optional<ListenableFuture<Response>> maybeResponse =
+                    delegate.maybeExecute(endpoint, queueHead.request(), DO_NOT_SKIP_LIMITS);
 
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();

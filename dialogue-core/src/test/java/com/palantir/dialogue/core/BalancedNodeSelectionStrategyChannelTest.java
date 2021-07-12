@@ -33,6 +33,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.LimitedChannel.SkipLimits;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
@@ -75,13 +76,13 @@ class BalancedNodeSelectionStrategyChannelTest {
     void when_one_channel_is_in_use_prefer_the_other() {
         set200(chan1);
         SettableFuture<Response> settableFuture = SettableFuture.create();
-        when(chan2.maybeExecute(any(), any())).thenReturn(Optional.of(settableFuture));
+        when(chan2.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(Optional.of(settableFuture));
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, SkipLimits.No);
         }
-        verify(chan1, times(199)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(199)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
     }
 
     @Test
@@ -90,53 +91,55 @@ class BalancedNodeSelectionStrategyChannelTest {
         set200(chan2);
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, SkipLimits.No);
         }
-        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
     }
 
     @Test
     void when_channels_refuse_try_all_then_give_up() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(Optional.empty());
-        when(chan2.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        when(chan1.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(Optional.empty());
+        when(chan2.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(Optional.empty());
 
-        assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
-        verify(chan1, times(1)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
+        assertThat(channel.maybeExecute(endpoint, request, SkipLimits.No)).isNotPresent();
+        verify(chan1, times(1)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
     }
 
     @Test
     void a_single_4xx_doesnt_move_the_needle() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(http(400)).thenReturn(http(200));
-        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan1.maybeExecute(any(), any(), eq(SkipLimits.No)))
+                .thenReturn(http(400))
+                .thenReturn(http(200));
+        when(chan2.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(http(200));
 
         for (long start = clock.read();
                 clock.read() < start + Duration.ofSeconds(10).toNanos();
                 incrementClockBy(Duration.ofMillis(50))) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, SkipLimits.No);
             assertThat(channel.getScoresForTesting())
                     .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
                     .containsExactly(0, 0);
         }
 
-        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any(), eq(SkipLimits.No));
     }
 
     @Test
     void constant_4xxs_do_eventually_move_the_needle_but_we_go_back_to_fair_distribution() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(http(400));
-        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan1.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(http(400));
+        when(chan2.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(http(200));
 
         for (int i = 0; i < 11; i++) {
-            rttChannel.maybeExecute(endpoint, request);
+            rttChannel.maybeExecute(endpoint, request, SkipLimits.No);
             assertThat(rttChannel.getScoresForTesting())
                     .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), rttChannel)
                     .containsExactly(0, 0);
             incrementClockBy(Duration.ofMillis(50));
         }
-        rttChannel.maybeExecute(endpoint, request);
+        rttChannel.maybeExecute(endpoint, request, SkipLimits.No);
         assertThat(rttChannel.getScoresForTesting())
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(1, 0);
@@ -151,7 +154,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     }
 
     private static void set200(LimitedChannel chan) {
-        when(chan.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(http(200));
     }
 
     private static Optional<ListenableFuture<Response>> http(int value) {

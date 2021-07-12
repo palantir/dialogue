@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -51,6 +52,11 @@ interface Config {
     @Value.Derived
     default MeshMode mesh() {
         return MeshMode.fromUris(rawConfig().uris(), SafeArg.of("channelName", channelName()));
+    }
+
+    @Value.Derived
+    default boolean isConcurrencyLimitingEnabled() {
+        return clientConf().clientQoS() == ClientQoS.ENABLED && mesh() != MeshMode.USE_EXTERNAL_MESH;
     }
 
     @Value.Default
