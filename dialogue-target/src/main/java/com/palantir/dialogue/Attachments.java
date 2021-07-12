@@ -33,7 +33,7 @@ final class Attachments {
     }
 
     @Nullable
-    public <V> V put(AttachmentKey<V> key, V value) {
+    <V> V put(AttachmentKey<V> key, V value) {
         Preconditions.checkNotNull(key, "key");
         Preconditions.checkNotNull(value, "value");
         key.checkIsInstance(value);
@@ -41,7 +41,7 @@ final class Attachments {
     }
 
     @Nullable
-    public <V> V getOrDefault(AttachmentKey<V> key, @Nullable V defaultValue) {
+    <V> V getOrDefault(AttachmentKey<V> key, @Nullable V defaultValue) {
         Preconditions.checkNotNull(key, "key");
         return (V) attachments.getOrDefault(key, defaultValue);
     }
