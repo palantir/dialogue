@@ -41,6 +41,8 @@ import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -151,6 +153,13 @@ class BalancedNodeSelectionStrategyChannelTest {
                         "%s: We quickly forget about 4xxs and go back to fair shuffling %s",
                         Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(0, 0);
+    }
+
+    @ParameterizedTest
+    @EnumSource(SkipLimits.class)
+    public void skiplimits_passthrough(SkipLimits skipLimits) {
+        when(chan1.maybeExecute(any(), any(), eq(skipLimits))).thenReturn(http(200));
+        assertThat(channel.maybeExecute(endpoint, request, skipLimits)).isPresent();
     }
 
     private static void set200(LimitedChannel chan) {
