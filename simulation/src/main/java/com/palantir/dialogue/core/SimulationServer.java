@@ -26,6 +26,7 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
@@ -299,6 +300,11 @@ final class SimulationServer implements Channel {
             @Override
             public Optional<String> getFirstHeader(String header) {
                 return delegate.getFirstHeader(header);
+            }
+
+            @Override
+            public ResponseAttachments attachments() {
+                return delegate.attachments();
             }
 
             @Override

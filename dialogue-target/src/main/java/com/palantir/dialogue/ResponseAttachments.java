@@ -16,21 +16,24 @@
 
 package com.palantir.dialogue;
 
-import com.palantir.dialogue.Attachments.AttachmentKey;
+import javax.annotation.Nullable;
 
-public final class RequestAttachmentKey<V> {
+public final class ResponseAttachments {
+    private final Attachments attachments = Attachments.create();
 
-    private final AttachmentKey<V> attachment;
+    private ResponseAttachments() {}
 
-    private RequestAttachmentKey(AttachmentKey<V> attachment) {
-        this.attachment = attachment;
+    public static ResponseAttachments create() {
+        return new ResponseAttachments();
     }
 
-    AttachmentKey<V> attachment() {
-        return attachment;
+    @Nullable
+    public <V> V put(RequestAttachmentKey<V> key, V value) {
+        return attachments.put(key.attachment(), value);
     }
 
-    public static <T> RequestAttachmentKey<T> create(Class<? super T> valueClazz) {
-        return new RequestAttachmentKey<>(Attachments.createAttachmentKey(valueClazz));
+    @Nullable
+    public <V> V getOrDefault(RequestAttachmentKey<V> key, @Nullable V defaultValue) {
+        return attachments.getOrDefault(key.attachment(), defaultValue);
     }
 }

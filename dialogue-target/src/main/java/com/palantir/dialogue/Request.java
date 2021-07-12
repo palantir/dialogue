@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.annotations.Beta;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
@@ -90,7 +89,6 @@ public final class Request {
      * The mutable request attachments for this request. Attachments will be propagated when this request is mutated
      * through the builder
      */
-    @Beta
     public RequestAttachments attachments() {
         return attachments;
     }
