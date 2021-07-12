@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: LimitedChannel supports skipping limits.
+  links:
+  - https://github.com/palantir/dialogue/pull/1316
