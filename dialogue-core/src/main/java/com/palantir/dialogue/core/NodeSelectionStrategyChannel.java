@@ -92,8 +92,9 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
+    public Optional<ListenableFuture<Response>> maybeExecute(
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
         if (!maybe.isPresent()) {
             return Optional.empty();
         }

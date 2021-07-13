@@ -23,7 +23,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -149,14 +148,17 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = HostMetricsChannel.create(cf, channel, uri);
                 Channel tracingChannel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
-                channel = cf.clientConf().clientQoS() == ClientQoS.ENABLED && cf.mesh() != MeshMode.USE_EXTERNAL_MESH
+                channel = cf.isConcurrencyLimitingEnabled()
                         ? new ChannelToEndpointChannel(endpoint -> {
                             LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(
                                     tracingChannel, cf.channelName(), uriIndexForInstrumentation, endpoint);
                             return QueuedChannel.create(cf, endpoint, limited);
                         })
                         : tracingChannel;
-                perUriChannels.add(ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation));
+                LimitedChannel limitedChannel = cf.isConcurrencyLimitingEnabled()
+                        ? ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation)
+                        : new ChannelToLimitedChannelAdapter(channel);
+                perUriChannels.add(limitedChannel);
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 

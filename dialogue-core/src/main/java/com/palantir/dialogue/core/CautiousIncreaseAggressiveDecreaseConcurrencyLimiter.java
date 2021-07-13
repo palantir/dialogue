@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
 import java.io.IOException;
 import java.util.Optional;
@@ -69,7 +70,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Permit> acquire() {
+    Optional<Permit> acquire(LimitEnforcement limitEnforcement) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
@@ -83,7 +84,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         int currentLimit = (int) getLimit();
         while (true) {
             int currentInFlight = localInFlight.get();
-            if (currentInFlight >= currentLimit) {
+            if (limitEnforcement.enforceLimits() && currentInFlight >= currentLimit) {
                 return Optional.empty();
             }
 

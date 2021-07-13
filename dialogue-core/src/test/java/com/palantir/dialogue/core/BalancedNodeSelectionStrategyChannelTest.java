@@ -33,6 +33,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
@@ -40,6 +41,8 @@ import java.util.Random;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -75,13 +78,14 @@ class BalancedNodeSelectionStrategyChannelTest {
     void when_one_channel_is_in_use_prefer_the_other() {
         set200(chan1);
         SettableFuture<Response> settableFuture = SettableFuture.create();
-        when(chan2.maybeExecute(any(), any())).thenReturn(Optional.of(settableFuture));
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(settableFuture));
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         }
-        verify(chan1, times(199)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(199)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
     }
 
     @Test
@@ -90,53 +94,61 @@ class BalancedNodeSelectionStrategyChannelTest {
         set200(chan2);
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         }
-        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
     }
 
     @Test
     void when_channels_refuse_try_all_then_give_up() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(Optional.empty());
-        when(chan2.maybeExecute(any(), any())).thenReturn(Optional.empty());
+        when(chan1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.empty());
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.empty());
 
-        assertThat(channel.maybeExecute(endpoint, request)).isNotPresent();
-        verify(chan1, times(1)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(1)).maybeExecute(eq(endpoint), any());
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isNotPresent();
+        verify(chan1, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
     }
 
     @Test
     void a_single_4xx_doesnt_move_the_needle() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(http(400)).thenReturn(http(200));
-        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(http(400))
+                .thenReturn(http(200));
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(http(200));
 
         for (long start = clock.read();
                 clock.read() < start + Duration.ofSeconds(10).toNanos();
                 incrementClockBy(Duration.ofMillis(50))) {
-            channel.maybeExecute(endpoint, request);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
             assertThat(channel.getScoresForTesting())
                     .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
                     .containsExactly(0, 0);
         }
 
-        verify(chan1, times(99)).maybeExecute(eq(endpoint), any());
-        verify(chan2, times(101)).maybeExecute(eq(endpoint), any());
+        verify(chan1, times(99)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
+        verify(chan2, times(101)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
     }
 
     @Test
     void constant_4xxs_do_eventually_move_the_needle_but_we_go_back_to_fair_distribution() {
-        when(chan1.maybeExecute(any(), any())).thenReturn(http(400));
-        when(chan2.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(http(400));
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(http(200));
 
         for (int i = 0; i < 11; i++) {
-            rttChannel.maybeExecute(endpoint, request);
+            rttChannel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
             assertThat(rttChannel.getScoresForTesting())
                     .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), rttChannel)
                     .containsExactly(0, 0);
             incrementClockBy(Duration.ofMillis(50));
         }
-        rttChannel.maybeExecute(endpoint, request);
+        rttChannel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         assertThat(rttChannel.getScoresForTesting())
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(1, 0);
@@ -150,8 +162,16 @@ class BalancedNodeSelectionStrategyChannelTest {
                 .containsExactly(0, 0);
     }
 
+    @ParameterizedTest
+    @EnumSource(LimitEnforcement.class)
+    public void skiplimits_passthrough(LimitEnforcement limitEnforcement) {
+        when(chan1.maybeExecute(any(), any(), eq(limitEnforcement))).thenReturn(http(200));
+        assertThat(channel.maybeExecute(endpoint, request, limitEnforcement)).isPresent();
+    }
+
     private static void set200(LimitedChannel chan) {
-        when(chan.maybeExecute(any(), any())).thenReturn(http(200));
+        when(chan.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(http(200));
     }
 
     private static Optional<ListenableFuture<Response>> http(int value) {

@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -31,6 +32,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.ConcurrencyLimitedChannelInstrumentation;
 import com.palantir.dialogue.core.ConcurrencyLimitedChannel.HostConcurrencyLimitedChannelInstrumentation;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -60,13 +62,13 @@ public class ConcurrencyLimitedChannelTest {
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit hostPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.HOST_LEVEL)
-                    .acquire()
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED)
                     .get();
 
     @Spy
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit endpointPermit =
             new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.ENDPOINT_LEVEL)
-                    .acquire()
+                    .acquire(LimitEnforcement.DEFAULT_ENABLED)
                     .get();
 
     @Mock
@@ -92,7 +94,8 @@ public class ConcurrencyLimitedChannelTest {
         mockHostLimitAvailable();
         mockResponseCode(200);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(hostPermit).success();
     }
 
@@ -101,7 +104,8 @@ public class ConcurrencyLimitedChannelTest {
         mockEndpointLimitAvailable();
         mockResponseCode(200);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(endpointPermit).success();
     }
 
@@ -110,7 +114,8 @@ public class ConcurrencyLimitedChannelTest {
         mockEndpointLimitAvailable();
         mockResponseCode(429);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(endpointPermit).dropped();
     }
 
@@ -119,7 +124,8 @@ public class ConcurrencyLimitedChannelTest {
         mockHostLimitAvailable();
         mockResponseCode(429);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(hostPermit).ignore();
     }
 
@@ -128,7 +134,8 @@ public class ConcurrencyLimitedChannelTest {
         mockHostLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(hostPermit).ignore();
     }
 
@@ -137,7 +144,8 @@ public class ConcurrencyLimitedChannelTest {
         mockEndpointLimitAvailable();
         responseFuture.setException(new IllegalStateException());
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(endpointPermit).ignore();
     }
 
@@ -146,7 +154,8 @@ public class ConcurrencyLimitedChannelTest {
         mockHostLimitAvailable();
         responseFuture.setException(new SafeIoException("failure"));
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(hostPermit).dropped();
     }
 
@@ -155,7 +164,8 @@ public class ConcurrencyLimitedChannelTest {
         mockEndpointLimitAvailable();
         responseFuture.setException(new SafeIoException("failure"));
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
         verify(endpointPermit).ignore();
     }
 
@@ -163,7 +173,8 @@ public class ConcurrencyLimitedChannelTest {
     public void testUnavailable_host() {
         mockHostLimitUnavailable();
 
-        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isEmpty();
         verifyNoMoreInteractions(hostPermit);
     }
 
@@ -171,7 +182,8 @@ public class ConcurrencyLimitedChannelTest {
     public void testUnavailable_endpoint() {
         mockEndpointLimitUnavailable();
 
-        assertThat(channel.maybeExecute(endpoint, request)).isEmpty();
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isEmpty();
         verifyNoMoreInteractions(endpointPermit);
     }
 
@@ -182,7 +194,8 @@ public class ConcurrencyLimitedChannelTest {
                 ConcurrencyLimitedChannel.createLimiter(Behavior.HOST_LEVEL),
                 NopConcurrencyLimitedChannelInstrumentation.INSTANCE);
 
-        assertThat(channel.maybeExecute(endpoint, request)).contains(responseFuture);
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .contains(responseFuture);
     }
 
     @Test
@@ -198,19 +211,19 @@ public class ConcurrencyLimitedChannelTest {
     }
 
     private void mockHostLimitAvailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.of(hostPermit));
+        when(mockLimiter.acquire(any())).thenReturn(Optional.of(hostPermit));
     }
 
     private void mockHostLimitUnavailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
     }
 
     private void mockEndpointLimitAvailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.of(endpointPermit));
+        when(mockLimiter.acquire(any())).thenReturn(Optional.of(endpointPermit));
     }
 
     private void mockEndpointLimitUnavailable() {
-        when(mockLimiter.acquire()).thenReturn(Optional.empty());
+        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
     }
 
     @SuppressWarnings("unchecked")

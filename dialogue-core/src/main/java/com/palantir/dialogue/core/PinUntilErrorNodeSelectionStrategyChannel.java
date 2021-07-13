@@ -128,16 +128,17 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, limitEnforcement);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
 
-        DialogueFutures.addDirectCallback(maybeResponse.get(), new FutureCallback<Response>() {
+        DialogueFutures.addDirectCallback(maybeResponse.get(), new FutureCallback<>() {
             @Override
             public void onSuccess(Response response) {
                 // We specifically don't switch  429 responses to support transactional
@@ -186,8 +187,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         int stableIndex();
 
         @Override
-        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            return delegate().maybeExecute(endpoint, request);
+        default Optional<ListenableFuture<Response>> maybeExecute(
+                Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+            return delegate().maybeExecute(endpoint, request, limitEnforcement);
         }
     }
 

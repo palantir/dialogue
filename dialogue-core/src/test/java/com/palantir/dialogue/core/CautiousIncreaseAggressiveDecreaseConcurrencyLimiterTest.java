@@ -28,6 +28,7 @@ import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -55,17 +56,17 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         double max = limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
         for (int i = 0; i < max; ++i) {
-            latestPermit = limiter.acquire();
+            latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
             assertThat(latestPermit).isPresent();
         }
 
         // Limit reached, cannot acquire permit
         assertThat(limiter.getInflight()).isEqualTo((int) max);
-        assertThat(limiter.acquire()).isEmpty();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isEmpty();
 
         // Release one permit, can acquire new permit.
         latestPermit.get().ignore();
-        assertThat(limiter.acquire()).isPresent();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isPresent();
     }
 
     @ParameterizedTest
@@ -76,7 +77,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         double max = limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit = null;
         for (int i = 0; i < max; ++i) {
-            latestPermit = limiter.acquire();
+            latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
             assertThat(latestPermit).isPresent();
         }
 
@@ -84,8 +85,23 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         assertThat(limiter.getLimit()).isEqualTo(20.05);
 
         // Now we can only acquire one extra permit, not 2
-        assertThat(limiter.acquire()).isPresent();
-        assertThat(limiter.acquire()).isEmpty();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isPresent();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isEmpty();
+    }
+
+    @ParameterizedTest
+    @EnumSource(Behavior.class)
+    public void acquire_canTurnOffLimits(Behavior behavior) {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
+
+        double max = limiter.getLimit();
+        for (int i = 0; i < max; ++i) {
+            assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isPresent();
+        }
+
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isEmpty();
+        assertThat(limiter.acquire(LimitEnforcement.DANGEROUS_BYPASS_LIMITS)).isPresent();
+        assertThat(limiter.getInflight()).isEqualTo((int) (max + 1));
     }
 
     @ParameterizedTest
@@ -93,7 +109,8 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void ignore_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit =
+                limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
         permit.get().ignore();
         assertThat(limiter.getInflight()).isEqualTo(0);
@@ -104,7 +121,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void ignore_doesNotChangeLimits(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
-        limiter.acquire().get().ignore();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().ignore();
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -113,7 +130,8 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void dropped_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit =
+                limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
         permit.get().dropped();
         assertThat(limiter.getInflight()).isEqualTo(0);
@@ -124,7 +142,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void dropped_reducesLimit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
-        limiter.acquire().get().dropped();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().dropped();
         assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
     }
 
@@ -133,7 +151,8 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     public void success_releasesPermit(Behavior behavior) {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         assertThat(limiter.getInflight()).isEqualTo(0);
-        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit = limiter.acquire();
+        Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> permit =
+                limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(limiter.getInflight()).isEqualTo(1);
         permit.get().success();
         assertThat(limiter.getInflight()).isEqualTo(0);
@@ -145,11 +164,11 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(behavior);
         double max = limiter.getLimit();
         for (int i = 0; i < max * .9; ++i) {
-            assertThat(limiter.acquire()).isPresent();
+            assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isPresent();
             assertThat(limiter.getLimit()).isEqualTo(max);
         }
 
-        limiter.acquire().get().success();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().success();
         assertThat(limiter.getLimit()).isGreaterThan(max).isLessThanOrEqualTo(max + 1);
     }
 
@@ -161,7 +180,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         when(response.code()).thenReturn(200);
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onSuccess(response);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -173,7 +192,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
             when(response.code()).thenReturn(code);
 
             double max = limiter.getLimit();
-            limiter.acquire().get().onSuccess(response);
+            limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
             assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
         }
     }
@@ -186,7 +205,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         when(response.code()).thenReturn(code);
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onSuccess(response);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
         assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
     }
 
@@ -198,7 +217,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         when(response.code()).thenReturn(code);
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onSuccess(response);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -210,7 +229,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         when(response.code()).thenReturn(code);
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onSuccess(response);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
         assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
     }
 
@@ -220,7 +239,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         IOException exception = new IOException();
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onFailure(exception);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onFailure(exception);
         assertThat(limiter.getLimit()).isEqualTo((int) (max * 0.9));
     }
 
@@ -230,7 +249,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         IOException exception = new IOException();
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onFailure(exception);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onFailure(exception);
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -241,7 +260,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         RuntimeException exception = new RuntimeException();
 
         double max = limiter.getLimit();
-        limiter.acquire().get().onFailure(exception);
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onFailure(exception);
         assertThat(limiter.getLimit()).isEqualTo(max);
     }
 
@@ -252,13 +271,13 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         int max = (int) limiter.getLimit();
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> latestPermit;
         for (int i = 0; i < max - 1; ++i) {
-            latestPermit = limiter.acquire();
+            latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
             assertThat(latestPermit).isPresent();
         }
 
-        latestPermit = limiter.acquire();
+        latestPermit = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
         assertThat(latestPermit).isPresent();
-        assertThat(limiter.acquire()).isEmpty();
+        assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isEmpty();
         latestPermit.get().ignore();
 
         // Now let's have some threads fight for that last remaining permit.
@@ -274,7 +293,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
                     Uninterruptibles.awaitUninterruptibly(latch);
 
                     for (int i = 0; i < numIterations; i++) {
-                        Optional<Permit> acquire = limiter.acquire();
+                        Optional<Permit> acquire = limiter.acquire(LimitEnforcement.DEFAULT_ENABLED);
                         if (acquire.isPresent()) {
                             assertThat(acquire.get().inFlightSnapshot()).isLessThanOrEqualTo(max);
                             acquire.get().ignore();

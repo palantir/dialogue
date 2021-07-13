@@ -33,7 +33,8 @@ final class ChannelToLimitedChannelAdapter implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(
+            Endpoint endpoint, Request request, LimitEnforcement _limitEnforcement) {
         return Optional.of(delegate.execute(endpoint, request));
     }
 
