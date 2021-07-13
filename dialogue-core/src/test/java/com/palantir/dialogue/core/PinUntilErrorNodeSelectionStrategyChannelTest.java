@@ -29,7 +29,7 @@ import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.LimitedChannel.SkipLimits;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
@@ -166,13 +166,15 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
         SettableFuture<Response> future1 = SettableFuture.create();
         SettableFuture<Response> future2 = SettableFuture.create();
-        when(channel2.maybeExecute(any(), any(), eq(SkipLimits.No)))
+        when(channel2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.of(future1))
                 .thenReturn(Optional.of(future2));
 
         // kick off two requests
-        assertThat(pinUntilError.maybeExecute(null, null, SkipLimits.No)).isPresent();
-        assertThat(pinUntilError.maybeExecute(null, null, SkipLimits.No)).isPresent();
+        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
         future2.set(response(500));
@@ -190,9 +192,11 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @Test
     public void finds_first_non_limited_channel() {
-        when(channel1.maybeExecute(any(), any(), eq(SkipLimits.No))).thenReturn(Optional.empty());
+        when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.empty());
         setResponse(channel2, 204);
-        assertThat(pinUntilError.maybeExecute(null, null, SkipLimits.No)).isPresent();
+        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
     }
 
     @Test
@@ -209,8 +213,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
         try {
-            ListenableFuture<Response> future =
-                    channel.maybeExecute(null, null, SkipLimits.No).get();
+            ListenableFuture<Response> future = channel.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED)
+                    .get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
             return response.code();
         } catch (Exception e) {
@@ -223,7 +227,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         Mockito.reset(mockChannel);
         Response resp = response(status);
         lenient()
-                .when(mockChannel.maybeExecute(any(), any(), eq(SkipLimits.No)))
+                .when(mockChannel.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.of(Futures.immediateFuture(resp)));
     }
 

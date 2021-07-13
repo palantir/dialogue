@@ -77,9 +77,9 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
-            Endpoint endpoint, Request request, SkipLimits skipLimits) {
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         Optional<CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit> maybePermit =
-                limiter.acquire(skipLimits == SkipLimits.Yes);
+                limiter.acquire(limitEnforcement);
         if (maybePermit.isPresent()) {
             CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit = maybePermit.get();
             logPermitAcquired();

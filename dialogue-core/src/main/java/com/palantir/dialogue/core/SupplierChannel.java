@@ -32,8 +32,8 @@ final class SupplierChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
-            Endpoint endpoint, Request request, SkipLimits skipLimits) {
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         LimitedChannel delegate = channelSupplier.get();
-        return delegate.maybeExecute(endpoint, request, skipLimits);
+        return delegate.maybeExecute(endpoint, request, limitEnforcement);
     }
 }

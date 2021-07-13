@@ -40,9 +40,9 @@ final class NeverThrowLimitedChannel implements LimitedChannel {
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
-            Endpoint endpoint, Request request, SkipLimits skipLimits) {
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         try {
-            return delegate.maybeExecute(endpoint, request, skipLimits);
+            return delegate.maybeExecute(endpoint, request, limitEnforcement);
         } catch (RuntimeException | Error e) {
             log.error("Dialogue channels should never throw. This may be a bug in the channel implementation", e);
             return Optional.of(Futures.immediateFailedFuture(e));

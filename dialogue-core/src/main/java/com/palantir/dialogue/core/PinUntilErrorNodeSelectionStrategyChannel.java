@@ -129,11 +129,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
-            Endpoint endpoint, Request request, SkipLimits skipLimits) {
+            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, skipLimits);
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, limitEnforcement);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
@@ -188,8 +188,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         @Override
         default Optional<ListenableFuture<Response>> maybeExecute(
-                Endpoint endpoint, Request request, SkipLimits skipLimits) {
-            return delegate().maybeExecute(endpoint, request, skipLimits);
+                Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+            return delegate().maybeExecute(endpoint, request, limitEnforcement);
         }
     }
 

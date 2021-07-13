@@ -26,7 +26,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
-import com.palantir.dialogue.core.LimitedChannel.SkipLimits;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -136,7 +136,7 @@ public class NodeSelectionBenchmark {
     @Threads(4)
     @Benchmark
     public Optional<ListenableFuture<Response>> postRequest() {
-        return channel.maybeExecute(TestEndpoint.POST, request, SkipLimits.No);
+        return channel.maybeExecute(TestEndpoint.POST, request, LimitEnforcement.DEFAULT_ENABLED);
     }
 
     public static void main(String[] _args) throws Exception {
@@ -154,7 +154,7 @@ public class NodeSelectionBenchmark {
 
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(
-                Endpoint _endpoint, Request _request, SkipLimits _skipLimits) {
+                Endpoint _endpoint, Request _request, LimitEnforcement _limitEnforcement) {
             return Optional.of(future);
         }
     }

@@ -30,7 +30,7 @@ import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.LimitedChannel.SkipLimits;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tracing.TestTracing;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
@@ -48,7 +48,7 @@ import org.mockito.stubbing.OngoingStubbing;
 @SuppressWarnings("FutureReturnValueIgnored")
 public class QueuedChannelTest {
 
-    private static final SkipLimits DO_NOT_SKIP_LIMITS = SkipLimits.No;
+    private static final LimitEnforcement DO_NOT_SKIP_LIMITS = LimitEnforcement.DEFAULT_ENABLED;
 
     @Mock
     private LimitedChannel delegate;
