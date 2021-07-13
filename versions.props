@@ -22,6 +22,8 @@ org.derive4j:* = 1.1.1
 org.glassfish.jersey.core:jersey-common = 2.31
 org.immutables:* = 2.8.8
 org.slf4j:* = 1.7.31
+com.palantir.goethe:* = 0.2.0
+com.github.ben-manes.caffeine:caffeine = 2.9.0
 
 # test deps
 junit:junit = 4.13.2
@@ -47,9 +49,4 @@ com.squareup.okhttp3:* = 3.13.1
 
 # Avoid forcing consumers to upgrade jackson
 com.fasterxml.jackson.*:jackson-* = 2.11.1
-
-# Avoid forcing a java 11 requirement
-com.github.ben-manes.caffeine:caffeine = 2.9.0
-# Generator should be compatible with java 8
-com.palantir.javaformat:palantir-java-format = 1.1.0
 # dependency-upgrader:ON
