@@ -1,5 +1,5 @@
 type: improvement
 improvement:
-  description: LimitedChannel supports skipping limits.
+  description: LimitedChannel supports disabling limit enforcement.
   links:
   - https://github.com/palantir/dialogue/pull/1316
