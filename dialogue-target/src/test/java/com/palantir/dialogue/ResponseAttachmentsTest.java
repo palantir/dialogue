@@ -16,24 +16,18 @@
 
 package com.palantir.dialogue;
 
-import javax.annotation.Nullable;
+import static org.assertj.core.api.Assertions.assertThat;
 
-public final class ResponseAttachments {
-    private final Attachments attachments = Attachments.create();
+import org.junit.jupiter.api.Test;
 
-    private ResponseAttachments() {}
+public final class ResponseAttachmentsTest {
 
-    public static ResponseAttachments create() {
-        return new ResponseAttachments();
-    }
+    private static final ResponseAttachmentKey<Integer> ATTACHMENT_KEY = ResponseAttachmentKey.create(Integer.class);
 
-    @Nullable
-    public <V> V put(ResponseAttachmentKey<V> key, V value) {
-        return attachments.put(key.attachment(), value);
-    }
-
-    @Nullable
-    public <V> V getOrDefault(ResponseAttachmentKey<V> key, @Nullable V defaultValue) {
-        return attachments.getOrDefault(key.attachment(), defaultValue);
+    @Test
+    public void testSanity() {
+        ResponseAttachments responseAttachments = ResponseAttachments.create();
+        responseAttachments.put(ATTACHMENT_KEY, 1);
+        assertThat(responseAttachments.getOrDefault(ATTACHMENT_KEY, 2)).isEqualTo(1);
     }
 }
