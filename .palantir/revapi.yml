@@ -254,3 +254,17 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method com.palantir.dialogue.ResponseAttachments com.palantir.dialogue.Response::attachments()"
       justification: "New state in Response."
+  "3.0.0":
+    com.palantir.dialogue:dialogue-target:
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter <V> V com.palantir.dialogue.ResponseAttachments::getOrDefault(===com.palantir.dialogue.RequestAttachmentKey<V>===,\
+        \ V)"
+      new: "parameter <V> V com.palantir.dialogue.ResponseAttachments::getOrDefault(===com.palantir.dialogue.ResponseAttachmentKey<V>===,\
+        \ V)"
+      justification: "Incorrect parameter types"
+    - code: "java.method.parameterTypeChanged"
+      old: "parameter <V> V com.palantir.dialogue.ResponseAttachments::put(===com.palantir.dialogue.RequestAttachmentKey<V>===,\
+        \ V)"
+      new: "parameter <V> V com.palantir.dialogue.ResponseAttachments::put(===com.palantir.dialogue.ResponseAttachmentKey<V>===,\
+        \ V)"
+      justification: "Incorrect parameter types"
