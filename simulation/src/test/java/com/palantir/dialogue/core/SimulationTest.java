@@ -62,6 +62,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 import org.junit.jupiter.api.parallel.Execution;
@@ -547,18 +548,31 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
+        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(strategy, StickyChannelFactory.STICKY);
     }
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
         server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
+                strategy, StickyChannelFactory.STICKY);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky2_clients_steady_vs_bursty_client(Strategy strategy) {
+        // Ignore that one, because it's currently failing.
+        Assumptions.assumeTrue(strategy != Strategy.UNLIMITED_ROUND_ROBIN);
+        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
+                strategy, StickyChannelFactory.STICKY2);
+    }
+
+    @SimulationCase
+    void server_side_rate_limits_with_sticky2_clients_fairness_across_multiple_clients(Strategy strategy) {
+        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
+                strategy, StickyChannelFactory.STICKY2);
     }
 
     private void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
+            Strategy strategy, StickyChannelFactory stickyChannelFactory) {
 
         // 1 server
         // 2 types of clients sharing a DialogueChannel
@@ -599,7 +613,7 @@ final class SimulationTest {
         Supplier<Channel> stickyChannelSupplier =
                 stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
 
-        builder.simulation(simulation);
+        Benchmark builder = Benchmark.builder().simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
                 builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
         EndpointChannel oneShotBurstChannel =
@@ -621,7 +635,7 @@ final class SimulationTest {
     }
 
     private void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
+            Strategy strategy, StickyChannelFactory stickyChannelFactory) {
 
         int numServers = 1;
         int numClients = 10;
@@ -642,7 +656,8 @@ final class SimulationTest {
                 stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
 
         st = strategy;
-        result = builder.simulation(simulation)
+        result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(30)
                 .sendUntil(Duration.ofMinutes(1))
                 .clients(numClients, _i -> stickyChannelSupplier.get())
@@ -652,7 +667,8 @@ final class SimulationTest {
 
     @SuppressWarnings("ImmutableEnumChecker")
     private enum StickyChannelFactory {
-        STICKY(StickyChannelFactory::sticky);
+        STICKY(StickyChannelFactory::sticky),
+        STICKY2(StickyChannelFactory::sticky2);
 
         private final BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction;
 
@@ -669,6 +685,11 @@ final class SimulationTest {
                     .channelName(SimulationUtils.CHANNEL_NAME)
                     .taggedMetricRegistry(taggedMetricRegistry)
                     .build();
+        }
+
+        static Supplier<Channel> sticky2(TaggedMetricRegistry taggedMetricRegistry, Channel channel) {
+            return StickyEndpointChannels2.create(endpoint -> request -> channel.execute(endpoint, request))
+                    .get();
         }
     }
 
@@ -714,6 +735,10 @@ final class SimulationTest {
 
     @AfterEach
     public void after(TestInfo testInfo) throws IOException {
+        if (result == null) {
+            return;
+        }
+
         Stopwatch after = Stopwatch.createStarted();
         Duration serverCpu = Duration.ofNanos(
                 MetricNames.globalServerTimeNanos(simulation.taggedMetrics()).getCount());

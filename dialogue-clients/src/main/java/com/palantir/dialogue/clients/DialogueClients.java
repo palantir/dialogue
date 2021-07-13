@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.annotations.Beta;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -101,6 +102,30 @@ public final class DialogueClients {
         <T> T getCurrentBest(Class<T> clientInterface);
     }
 
+    // Unclear if this should be decomped this way: we may want just generally the async clients to be able to override
+    // their UUID for fairness. But this is the easiest way to provide this for now (in terms of API).
+
+    /** A stateful object - should only need one of these. Live reloads under the hood. */
+    public interface StickyChannels {
+        /**
+         * Returns a factory for clients which will all route to a single host, even if that host returns
+         * some 429s.
+         */
+        StickyChannelFactory2 create();
+    }
+
+    /**
+     * All clients created from this factory will route to the same host. Some care should be taked with longevity of
+     * these factories: if the host to which this factory is pinned gets decomissioned, all the requests for all the
+     * clients created through this factory will start always failing.
+     */
+    public interface StickyChannelFactory2 {
+        /**
+         * Each successive call to this method will get a fair share of the available bandwidth.
+         */
+        <T> T create(Class<T> clientInterface);
+    }
+
     public interface PerHostClientFactory {
 
         /** Single-uri channels. */
@@ -120,6 +145,9 @@ public final class DialogueClients {
                     ClientConfigurationNonReloadingClientFactory {
 
         StickyChannelFactory getStickyChannels(String serviceName);
+
+        @Beta
+        StickyChannels getStickyChannels2(String serviceName);
 
         PerHostClientFactory perHost(String serviceName);
     }

@@ -25,6 +25,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -58,7 +59,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -128,11 +129,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request);
+        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, force);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
@@ -161,6 +162,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         return maybeResponse;
     }
 
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostId _hostId, Endpoint _endpoint, Request _request) {
+        return Optional.empty();
+    }
+
     /**
      * If we have some reason to think the currentIndex is bad, we want to move to the next host. This is done with a
      * compareAndSet to ensure that out of order responses which signal information about a previous host don't kick
@@ -186,8 +193,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         int stableIndex();
 
         @Override
-        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-            return delegate().maybeExecute(endpoint, request);
+        default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
+            return delegate().maybeExecute(endpoint, request, force);
         }
     }
 

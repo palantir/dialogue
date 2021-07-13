@@ -35,7 +35,7 @@ final class ZeroUriNodeSelectionChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request _request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request _request, boolean _force) {
         return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
                 "There are no URIs configured to handle requests",
                 SafeArg.of("channel", channelName),

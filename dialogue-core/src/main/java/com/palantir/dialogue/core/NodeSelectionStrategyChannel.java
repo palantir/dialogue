@@ -24,6 +24,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -50,7 +51,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<LimitedChannel> channels;
 
     @SuppressWarnings("NullAway")
-    private final LimitedChannel delegate =
+    private final NodeSelectionStrategyLimitedChannel delegate =
             new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
 
     @VisibleForTesting
@@ -92,9 +93,18 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
-        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request);
-        if (!maybe.isPresent()) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
+        HostId hostId = request.attachments().getOrDefault(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, null);
+
+        // TODO(12345): This is broken for stats gathering, make sure to propagate this to strategies.
+        final Optional<ListenableFuture<Response>> maybe;
+        if (hostId != null) {
+            maybe = channels.get(hostId.value()).maybeExecute(endpoint, request, force);
+        } else {
+            maybe = delegate.maybeExecute(endpoint, request, force);
+        }
+
+        if (maybe.isEmpty()) {
             return Optional.empty();
         }
 
@@ -168,7 +178,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
-        LimitedChannel channel();
+        NodeSelectionStrategyLimitedChannel channel();
 
         class Builder extends ImmutableNodeSelectionChannel.Builder {}
 

@@ -90,6 +90,16 @@ final class QueuedChannel implements Channel {
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
+    // TODO(12345): The metrics will be global, even though maxSize is per-queue.
+    static QueuedChannel createForSticky(Config cf, LimitedChannel delegate) {
+        return new QueuedChannel(
+                delegate,
+                cf.channelName(),
+                stickyInstrumentation(
+                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
+                cf.maxQueueSize());
+    }
+
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
         return new QueuedChannel(
                 delegate,
@@ -124,7 +134,7 @@ final class QueuedChannel implements Channel {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
         if (queueSizeEstimate.get() <= 0) {
-            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request);
+            Optional<ListenableFuture<Response>> maybeResult = delegate.maybeExecute(endpoint, request, false);
             if (maybeResult.isPresent()) {
                 ListenableFuture<Response> result = maybeResult.get();
                 DialogueFutures.addDirectListener(result, this::onCompletion);
@@ -224,7 +234,8 @@ final class QueuedChannel implements Channel {
         }
         try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
             Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse = delegate.maybeExecute(endpoint, queueHead.request());
+            Optional<ListenableFuture<Response>> maybeResponse =
+                    delegate.maybeExecute(endpoint, queueHead.request(), false);
 
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();
@@ -358,6 +369,20 @@ final class QueuedChannel implements Channel {
             @Override
             public Timer requestQueuedTime() {
                 return metrics.requestQueuedTime(channelName);
+            }
+        };
+    }
+
+    static QueuedChannelInstrumentation stickyInstrumentation(DialogueClientMetrics metrics, String channelName) {
+        return new QueuedChannelInstrumentation() {
+            @Override
+            public Counter requestsQueued() {
+                return metrics.requestsStickyQueued(channelName);
+            }
+
+            @Override
+            public Timer requestQueuedTime() {
+                return metrics.requestStickyQueuedTime(channelName);
             }
         };
     }

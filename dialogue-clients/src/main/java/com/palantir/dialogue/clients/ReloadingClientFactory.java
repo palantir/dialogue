@@ -40,8 +40,11 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannels;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.core.StickyEndpointChannels2;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -241,6 +244,32 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             @Override
             public String toString() {
                 return "StickyChannelFactory{" + bestSupplier.get() + '}';
+            }
+        };
+    }
+
+    @Override
+    public StickyChannels getStickyChannels2(String serviceName) {
+        Channel channel = getChannel(serviceName);
+        Supplier<Supplier<Channel>> endpointChannelFactorySupplier = StickyEndpointChannels2.create(
+                endpoint -> params.runtime().clients().bind(channel, endpoint));
+
+        return new StickyChannels() {
+            @Override
+            public StickyChannelFactory2 create() {
+                Supplier<Channel> channelSupplier = endpointChannelFactorySupplier.get();
+                return new StickyChannelFactory2() {
+                    @Override
+                    public <T> T create(Class<T> clientInterface) {
+                        return Reflection.callStaticFactoryMethod(
+                                clientInterface, channelSupplier.get(), params.runtime());
+                    }
+                };
+            }
+
+            @Override
+            public String toString() {
+                return "StickyChannels{}";
             }
         };
     }

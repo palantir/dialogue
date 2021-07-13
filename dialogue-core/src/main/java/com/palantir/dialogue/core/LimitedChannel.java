@@ -31,5 +31,9 @@ import java.util.Optional;
  * may prevent <i>all</i> requests from proceeding.
  */
 interface LimitedChannel {
-    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request);
+    default Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+        return maybeExecute(endpoint, request, false);
+    }
+
+    Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force);
 }

@@ -1,0 +1,214 @@
+/*
+ * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package com.palantir.dialogue.core;
+
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.EndpointChannel;
+import com.palantir.dialogue.EndpointChannelFactory;
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
+import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Preconditions;
+import java.util.function.Supplier;
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
+import org.immutables.value.Value;
+
+@Value.Enclosing
+public final class StickyEndpointChannels2 implements Supplier<Supplier<Channel>> {
+
+    private final EndpointChannelFactory delegate;
+
+    private StickyEndpointChannels2(EndpointChannelFactory endpointChannelFactory) {
+        this.delegate = Preconditions.checkNotNull(endpointChannelFactory, "endpointChannelFactory");
+    }
+
+    @Override
+    public Supplier<Channel> get() {
+        return new StickySessionSupplier(delegate);
+    }
+
+    @Override
+    public String toString() {
+        return "StickyEndpointChannels2{" + delegate + "}";
+    }
+
+    private static final class StickySessionSupplier implements Supplier<Channel> {
+
+        private final EndpointChannelFactory channelFactory;
+        private final StickyRouter router = new StickyRouter();
+
+        private StickySessionSupplier(EndpointChannelFactory channelFactory) {
+            this.channelFactory = channelFactory;
+        }
+
+        @Override
+        public Channel get() {
+            return new Sticky(channelFactory, router);
+        }
+    }
+
+    private static final class Sticky implements EndpointChannelFactory, Channel {
+
+        private final EndpointChannelFactory channelFactory;
+        private final StickyRouter router;
+        private final QueueStrategy queueStrategy;
+
+        private Sticky(EndpointChannelFactory channelFactory, StickyRouter router) {
+            this.router = router;
+            this.channelFactory = channelFactory;
+            this.queueStrategy = create();
+        }
+
+        @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint), queueStrategy);
+        }
+
+        /**
+         * .
+         * @deprecated prefer {@link #endpoint}, as it allows binding work upfront
+         */
+        @Deprecated
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return endpoint(endpoint).execute(request);
+        }
+
+        @Override
+        public String toString() {
+            return "Sticky{" + channelFactory + '}';
+        }
+    }
+
+    public static StickyEndpointChannels2 create(EndpointChannelFactory endpointChannelFactory) {
+        return new StickyEndpointChannels2(endpointChannelFactory);
+    }
+
+    private static final class StickyRouter {
+
+        private final InFlightCallCallback callback = new InFlightCallCallback();
+
+        @Nullable
+        private volatile HostId hostId;
+
+        @Nullable
+        @GuardedBy("this")
+        private volatile ListenableFuture<Response> callInFlight;
+
+        public ListenableFuture<Response> execute(Request request, EndpointChannel endpointChannel) {
+            if (hostId != null) {
+                return executeWithHostId(hostId, request, endpointChannel);
+            }
+
+            synchronized (this) {
+                if (hostId != null) {
+                    return executeWithHostId(hostId, request, endpointChannel);
+                }
+
+                ListenableFuture<Response> callInFlightSnapshot = callInFlight;
+                if (callInFlightSnapshot == null) {
+                    ListenableFuture<Response> result = DialogueFutures.addDirectCallback(
+                            executeWithAttachHostId(request, endpointChannel), callback);
+                    callInFlight = Futures.nonCancellationPropagating(result);
+                    return result;
+                } else {
+                    ListenableFuture<Response> result = callInFlightSnapshot;
+                    result = DialogueFutures.transformAsync(result, _input -> execute(request, endpointChannel));
+                    result = DialogueFutures.catchingAllAsync(result, _throwable -> execute(request, endpointChannel));
+                    return result;
+                }
+            }
+        }
+
+        private final class InFlightCallCallback implements FutureCallback<Response> {
+
+            @Override
+            public void onSuccess(Response result) {
+                successfulCall(result);
+            }
+
+            @Override
+            public void onFailure(Throwable _throwable) {
+                failed();
+            }
+        }
+
+        private synchronized void successfulCall(Response response) {
+            callInFlight = null;
+            if (hostId == null) {
+                HostId successfulHostId = response.attachments()
+                        .getOrDefault(RoutingAttachments.EXECUTED_ON_HOST_ID_RESPONSE_ATTACHMENT_KEY, null);
+                if (successfulHostId != null) {
+                    hostId = successfulHostId;
+                }
+            }
+        }
+
+        private synchronized void failed() {
+            callInFlight = null;
+        }
+
+        private static ListenableFuture<Response> executeWithAttachHostId(
+                Request request, EndpointChannel endpointChannel) {
+            request.attachments().put(RoutingAttachments.ATTACH_HOST_ID, Boolean.TRUE);
+            return endpointChannel.execute(request);
+        }
+
+        private static ListenableFuture<Response> executeWithHostId(
+                HostId hostId, Request request, EndpointChannel endpointChannel) {
+            request.attachments().put(RoutingAttachments.EXECUTE_ON_HOST_ID_KEY, hostId);
+            return endpointChannel.execute(request);
+        }
+    }
+
+    private static final class StickyEndpointChannel implements EndpointChannel {
+        private final StickyRouter stickyRouter;
+        private final EndpointChannel delegate;
+        private final QueueStrategy queueStrategy;
+
+        StickyEndpointChannel(StickyRouter stickyRouter, EndpointChannel delegate, QueueStrategy queueStrategy) {
+            this.stickyRouter = stickyRouter;
+            this.delegate = delegate;
+            this.queueStrategy = queueStrategy;
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Request request) {
+            request.attachments().put(RoutingAttachments.QUEUE_STRATEGY_KEY, queueStrategy);
+            return stickyRouter.execute(request, delegate);
+        }
+
+        @Override
+        public String toString() {
+            return "StickyEndpointChannel{delegate=" + delegate + '}';
+        }
+    }
+
+    private static QueueStrategy create() {
+        return QueueStrategy.of(channelKey -> {
+            LimitedChannel forQueueKey = StickyConcurrencyLimitedChannel.createForQueueKey(
+                    channelKey.limitedChannel(), channelKey.config().channelName());
+            return QueuedChannel.createForSticky(channelKey.config(), forQueueKey);
+        });
+    }
+}

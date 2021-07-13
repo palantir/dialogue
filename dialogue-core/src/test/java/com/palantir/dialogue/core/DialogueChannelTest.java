@@ -39,6 +39,7 @@ import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.RequestAttachments;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
@@ -87,6 +88,9 @@ public final class DialogueChannelTest {
     private Endpoint endpoint = TestEndpoint.POST;
 
     @Mock
+    private RequestAttachments requestAttachments;
+
+    @Mock
     private Response response;
 
     private Request request = Request.builder().build();
@@ -94,6 +98,7 @@ public final class DialogueChannelTest {
 
     @BeforeEach
     public void before() {
+        lenient().when(response.attachments()).thenReturn(requestAttachments);
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)

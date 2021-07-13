@@ -152,7 +152,7 @@ public class NodeSelectionBenchmark {
         INSTANCE;
 
         @Override
-        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request) {
+        public Optional<ListenableFuture<Response>> maybeExecute(Endpoint _endpoint, Request _request, boolean _force) {
             return Optional.of(future);
         }
     }

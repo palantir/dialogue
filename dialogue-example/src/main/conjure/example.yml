@@ -45,6 +45,11 @@ services:
       voidToVoid:
         http: GET /voidToVoid
 
+      stringToVoid:
+        http: GET /stringToVoid/{path}
+        args:
+          path: string
+
       objectToObject:
         http: POST /objectToObject/objects/{path}
         args:

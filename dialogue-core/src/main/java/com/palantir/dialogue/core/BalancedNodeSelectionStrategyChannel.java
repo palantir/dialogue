@@ -26,6 +26,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.BalancedScoreTracker.ChannelScoreInfo;
 import com.palantir.dialogue.core.BalancedScoreTracker.ScoreSnapshot;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -47,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -71,7 +72,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
         int giveUpThreshold = Integer.MAX_VALUE;
@@ -116,7 +117,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             channelInfo.startRequest();
 
             Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request);
+                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request, force);
 
             if (maybe.isPresent()) {
                 channelInfo.observability().markRequestMade();
@@ -138,5 +139,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public String toString() {
         return "BalancedNodeSelectionStrategyChannel{channels=" + channels + ", tracker=" + tracker + '}';
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostId _hostId, Endpoint _endpoint, Request _request) {
+        return Optional.empty();
     }
 }

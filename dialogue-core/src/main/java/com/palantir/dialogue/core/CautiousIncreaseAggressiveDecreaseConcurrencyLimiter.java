@@ -57,6 +57,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         this.behavior = behavior;
     }
 
+    Optional<Permit> acquire() {
+        return acquire(false);
+    }
+
     /**
      * Returns a new request permit if the number of {@link #getInflight in-flight} permits is smaller than the
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
@@ -69,8 +73,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
-    Optional<Permit> acquire() {
-
+    Optional<Permit> acquire(boolean force) {
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
         // reliably optimize out references to final fields due to the potential for reflective
         // modification.
@@ -83,7 +86,7 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
         int currentLimit = (int) getLimit();
         while (true) {
             int currentInFlight = localInFlight.get();
-            if (currentInFlight >= currentLimit) {
+            if (!force && currentInFlight >= currentLimit) {
                 return Optional.empty();
             }
 
@@ -133,6 +136,17 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
+        },
+        STICKY() {
+            @Override
+            void onSuccess(Response _result, PermitControl control) {
+                control.success();
+            }
+
+            @Override
+            void onFailure(Throwable _throwable, PermitControl control) {
+                control.ignore();
+            }
         };
 
         abstract void onSuccess(Response result, PermitControl control);
@@ -154,6 +168,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
+        }
+
+        boolean isOnlyInFlight() {
+            return inFlightSnapshot == 1;
         }
 
         @VisibleForTesting

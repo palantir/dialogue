@@ -20,19 +20,26 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.RoutingAttachments.HostId;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-final class SupplierChannel implements LimitedChannel {
-    private final Supplier<LimitedChannel> channelSupplier;
+final class SupplierChannel implements NodeSelectionStrategyLimitedChannel {
+    private final Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier;
 
-    SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
+    SupplierChannel(Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier) {
         this.channelSupplier = channelSupplier;
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
+    public Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request, boolean force) {
         LimitedChannel delegate = channelSupplier.get();
-        return delegate.maybeExecute(endpoint, request);
+        return delegate.maybeExecute(endpoint, request, force);
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(HostId hostId, Endpoint endpoint, Request request) {
+        NodeSelectionStrategyLimitedChannel delegate = channelSupplier.get();
+        return delegate.maybeExecuteOnHost(hostId, endpoint, request);
     }
 }
