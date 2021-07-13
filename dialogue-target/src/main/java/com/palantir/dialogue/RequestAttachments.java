@@ -16,16 +16,11 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.annotations.Beta;
-import com.palantir.logsafe.Preconditions;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
-@Beta
 public final class RequestAttachments {
 
-    private final Map<RequestAttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>(0);
+    private final Attachments attachments = Attachments.create();
 
     private RequestAttachments() {}
 
@@ -35,15 +30,11 @@ public final class RequestAttachments {
 
     @Nullable
     public <V> V put(RequestAttachmentKey<V> key, V value) {
-        Preconditions.checkNotNull(key, "key");
-        Preconditions.checkNotNull(value, "value");
-        key.checkIsInstance(value);
-        return (V) attachments.put(key, value);
+        return attachments.put(key.attachment(), value);
     }
 
     @Nullable
     public <V> V getOrDefault(RequestAttachmentKey<V> key, @Nullable V defaultValue) {
-        Preconditions.checkNotNull(key, "key");
-        return (V) attachments.getOrDefault(key, defaultValue);
+        return attachments.getOrDefault(key.attachment(), defaultValue);
     }
 }

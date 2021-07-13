@@ -30,6 +30,7 @@ import javax.ws.rs.core.HttpHeaders;
 public final class TestResponse extends Response {
 
     private final CloseRecordingInputStream inputStream;
+    private final ResponseAttachments attachments = ResponseAttachments.create();
 
     private boolean closeCalled = false;
     private int code = 0;
@@ -66,6 +67,11 @@ public final class TestResponse extends Response {
     @Override
     public ListMultimap<String, String> headers() {
         return headers;
+    }
+
+    @Override
+    public ResponseAttachments attachments() {
+        return attachments;
     }
 
     @Override

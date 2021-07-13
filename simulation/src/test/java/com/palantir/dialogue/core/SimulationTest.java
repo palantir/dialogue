@@ -658,7 +658,7 @@ final class SimulationTest {
 
         st = strategy;
         result = builder.simulation(simulation)
-                .requestsPerSecond(100)
+                .requestsPerSecond(30)
                 .sendUntil(Duration.ofMinutes(1))
                 .clients(numClients, _i -> stickyChannelSupplier.get())
                 .abortAfter(Duration.ofMinutes(2))

@@ -20,16 +20,17 @@ import static com.palantir.logsafe.testing.Assertions.assertThatLoggableExceptio
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.palantir.dialogue.Attachments.AttachmentKey;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import org.assertj.core.api.AbstractLongAssert;
 import org.junit.jupiter.api.Test;
 
-public final class RequestAttachmentsTest {
+public final class AttachmentsTest {
 
-    private static final RequestAttachmentKey<Long> KEY1 = RequestAttachmentKey.create(Long.class);
-    private static final RequestAttachmentKey<Long> KEY2 = RequestAttachmentKey.create(Long.class);
-    private final RequestAttachments attachments = RequestAttachments.create();
+    private static final AttachmentKey<Long> KEY1 = Attachments.createAttachmentKey(Long.class);
+    private static final AttachmentKey<Long> KEY2 = Attachments.createAttachmentKey(Long.class);
+    private final Attachments attachments = Attachments.create();
 
     @Test
     public void testInitiallyEmpty() {
@@ -60,7 +61,7 @@ public final class RequestAttachmentsTest {
 
     @Test
     public void testCannotPutNullKey() {
-        RequestAttachmentKey<Long> key = null;
+        AttachmentKey<Long> key = null;
         assertThatLoggableExceptionThrownBy(() -> attachments.put(key, 1L))
                 .isExactlyInstanceOf(SafeNullPointerException.class)
                 .hasExactlyArgs()
@@ -78,12 +79,12 @@ public final class RequestAttachmentsTest {
     @Test
     @SuppressWarnings("RawTypes")
     public void testCannotAttachIncorrectType() {
-        assertThatThrownBy(() -> attachments.put((RequestAttachmentKey) KEY1, ""))
+        assertThatThrownBy(() -> attachments.put((AttachmentKey) KEY1, ""))
                 .isExactlyInstanceOf(SafeIllegalArgumentException.class)
                 .hasMessageContaining("Unexpected type");
     }
 
-    private AbstractLongAssert<?> assertThatKey(RequestAttachmentKey<Long> key) {
+    private AbstractLongAssert<?> assertThatKey(AttachmentKey<Long> key) {
         return assertThat(attachments.getOrDefault(key, null));
     }
 }

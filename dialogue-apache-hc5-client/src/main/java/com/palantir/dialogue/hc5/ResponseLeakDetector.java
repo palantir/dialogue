@@ -19,6 +19,7 @@ package com.palantir.dialogue.hc5;
 import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -180,6 +181,11 @@ final class ResponseLeakDetector {
         @Override
         public Optional<String> getFirstHeader(String header) {
             return delegate.getFirstHeader(header);
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return delegate.attachments();
         }
 
         @Override

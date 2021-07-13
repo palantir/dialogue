@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.AtomicDouble;
 import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
@@ -73,23 +74,26 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * ignore/dropped/success depending on the success or failure state of the response.
      * */
     Optional<Permit> acquire(boolean force) {
-        while (true) {
-            int currentInFlight = getInflight();
+        // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
+        // reliably optimize out references to final fields due to the potential for reflective
+        // modification.
+        AtomicInteger localInFlight = inFlight;
 
-            // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
-            // send
-            // our inflight number to 5, which is clearly above the limit.  Instead, we wait until there is capacity for
-            // one whole request before handing out a permit. In the worst-case scenario with zero inflight and a limit
-            // of
-            // 1, we'll still hand out a permit
-            if (force || currentInFlight < getLimit()) {
-                int inFlightSnapshot = currentInFlight + 1;
-                if (inFlight.compareAndSet(currentInFlight, inFlightSnapshot)) {
-                    return Optional.of(new Permit(inFlightSnapshot));
-                }
+        // We don't want to hand out a permit if there are 4 inflight and a limit of 4.1, as this will immediately
+        // send our inflight number to 5, which is clearly above the limit.
+        // Instead, we wait until there is capacity for one whole request before handing out a permit.
+        // In the worst-case scenario with zero inflight and a limit of 1, we'll still hand out a permit.
+        int currentLimit = (int) getLimit();
+        while (true) {
+            int currentInFlight = localInFlight.get();
+            if (!force && currentInFlight >= currentLimit) {
+                return Optional.empty();
             }
 
-            return Optional.empty();
+            int newInFlight = currentInFlight + 1;
+            if (inFlight.compareAndSet(currentInFlight, newInFlight)) {
+                return Optional.of(new Permit(newInFlight));
+            }
         }
     }
 
@@ -168,6 +172,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         boolean isOnlyInFlight() {
             return inFlightSnapshot == 1;
+        }
+
+        @VisibleForTesting
+        int inFlightSnapshot() {
+            return inFlightSnapshot;
         }
 
         @Override

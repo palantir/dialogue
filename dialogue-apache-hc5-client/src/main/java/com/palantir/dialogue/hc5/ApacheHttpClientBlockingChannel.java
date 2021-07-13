@@ -24,6 +24,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Arg;
@@ -242,6 +243,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse extends Response {
 
         private final CloseableHttpResponse response;
+
+        private final ResponseAttachments attachments = ResponseAttachments.create();
+
         // Client reference is used to prevent premature termination
         @Nullable
         private ApacheHttpClientChannels.CloseableClient client;
@@ -294,6 +298,11 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         @Override
         public Optional<String> getFirstHeader(String header) {
             return Optional.ofNullable(response.getFirstHeader(header)).map(Header::getValue);
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return attachments;
         }
 
         @Override

@@ -25,6 +25,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
@@ -106,6 +107,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
 
         private final HttpURLConnection connection;
         private final int code;
+        private final ResponseAttachments attachments = ResponseAttachments.create();
 
         HttpUrlConnectionResponse(HttpURLConnection connection) throws IOException {
             this.connection = connection;
@@ -146,6 +148,11 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         @Override
         public Optional<String> getFirstHeader(String header) {
             return Optional.ofNullable(connection.getHeaderField(header));
+        }
+
+        @Override
+        public ResponseAttachments attachments() {
+            return attachments;
         }
 
         @Override

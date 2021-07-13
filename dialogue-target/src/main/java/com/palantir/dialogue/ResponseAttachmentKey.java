@@ -18,11 +18,11 @@ package com.palantir.dialogue;
 
 import com.palantir.dialogue.Attachments.AttachmentKey;
 
-public final class RequestAttachmentKey<V> {
+public final class ResponseAttachmentKey<V> {
 
     private final AttachmentKey<V> attachment;
 
-    private RequestAttachmentKey(AttachmentKey<V> attachment) {
+    private ResponseAttachmentKey(AttachmentKey<V> attachment) {
         this.attachment = attachment;
     }
 
@@ -30,7 +30,7 @@ public final class RequestAttachmentKey<V> {
         return attachment;
     }
 
-    public static <T> RequestAttachmentKey<T> create(Class<? super T> valueClazz) {
-        return new RequestAttachmentKey<>(Attachments.createAttachmentKey(valueClazz));
+    public static <T> ResponseAttachmentKey<T> create(Class<? super T> valueClazz) {
+        return new ResponseAttachmentKey<>(Attachments.createAttachmentKey(valueClazz));
     }
 }
