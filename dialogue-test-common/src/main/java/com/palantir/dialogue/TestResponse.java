@@ -27,7 +27,7 @@ import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
 import javax.ws.rs.core.HttpHeaders;
 
-public final class TestResponse extends Response {
+public final class TestResponse implements Response {
 
     private final CloseRecordingInputStream inputStream;
     private final ResponseAttachments attachments = ResponseAttachments.create();

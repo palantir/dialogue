@@ -103,7 +103,7 @@ final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
         return "HttpUrlConnectionBlockingChannel{baseUrl=" + baseUrl + '}';
     }
 
-    private static final class HttpUrlConnectionResponse extends Response {
+    private static final class HttpUrlConnectionResponse implements Response {
 
         private final HttpURLConnection connection;
         private final int code;

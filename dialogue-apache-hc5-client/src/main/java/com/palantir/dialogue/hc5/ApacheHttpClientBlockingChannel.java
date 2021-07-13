@@ -240,7 +240,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         return requestBody.contentLength();
     }
 
-    private static final class HttpClientResponse extends Response {
+    private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
 

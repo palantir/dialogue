@@ -22,23 +22,19 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
-// TODO(1234): probs not want abstract
-public abstract class Response implements Closeable {
-
-    private final RequestAttachments attachments = RequestAttachments.create();
-
+public interface Response extends Closeable {
     /** The HTTP body for this response. */
-    public abstract InputStream body();
+    InputStream body();
 
     /** The HTTP response code for this response. */
-    public abstract int code();
+    int code();
 
     /** The HTTP headers for this response. Headers names are compared in a case-insensitive fashion as per
      * https://tools.ietf.org/html/rfc7540#section-8.1.2. */
-    public abstract ListMultimap<String, String> headers();
+    ListMultimap<String, String> headers();
 
     /** Retrieves the first value from the header map for the given key. */
-    public Optional<String> getFirstHeader(String header) {
+    default Optional<String> getFirstHeader(String header) {
         List<String> headerList = headers().get(header);
         return headerList.isEmpty() ? Optional.empty() : Optional.of(headerList.get(0));
     }
@@ -57,10 +53,5 @@ public abstract class Response implements Closeable {
      * expected to close the {@link #body()} themselves.
      */
     @Override
-    public abstract void close();
-
-    // TODO(jakubk): Should be ResponseAttachments.
-    public final RequestAttachments attachments() {
-        return attachments;
-    }
+    void close();
 }

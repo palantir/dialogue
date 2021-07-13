@@ -90,7 +90,7 @@ final class ContentDecodingChannel implements EndpointChannel {
         return "ContentDecodingChannel{" + delegate + '}';
     }
 
-    private static final class ContentDecodingResponse extends Response {
+    private static final class ContentDecodingResponse implements Response {
 
         private final Response delegate;
         private final ListMultimap<String, String> headers;
