@@ -89,7 +89,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
     static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<PinUntilErrorNodeSelectionStrategyChannel> previous,
             DialogueNodeSelectionStrategy strategy,
-            HostLimitedChannels channels,
+            HostAndLimitedChannels channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             Ticker ticker,
@@ -131,11 +131,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
-            HostLimitedChannel hostLimitedChannel,
+            HostAndLimitedChannel hostAndLimitedChannel,
             Endpoint endpoint,
             Request request,
             LimitEnforcement limitEnforcement) {
-        PinChannel pinChannel = nodeList.get(hostLimitedChannel);
+        PinChannel pinChannel = nodeList.get(hostAndLimitedChannel);
         int pin = nodeList.getPin(pinChannel);
         return maybeExecute(pin, pinChannel, endpoint, request, limitEnforcement);
     }
@@ -193,7 +193,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
     interface NodeList {
         PinChannel get(int index);
 
-        PinChannel get(HostLimitedChannel limitedChannel);
+        PinChannel get(HostAndLimitedChannel limitedChannel);
 
         int getPin(PinChannel pinChannel);
 
@@ -202,7 +202,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
     @Value.Immutable
     interface PinChannel extends LimitedChannel {
-        HostLimitedChannel delegate();
+        HostAndLimitedChannel delegate();
 
         @Value.Auxiliary
         HostIdx stableIndex();
@@ -228,7 +228,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         }
 
         @Override
-        public PinChannel get(HostLimitedChannel limitedChannel) {
+        public PinChannel get(HostAndLimitedChannel limitedChannel) {
             return channels.get(limitedChannel);
         }
 
@@ -296,7 +296,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         }
 
         @Override
-        public PinChannel get(HostLimitedChannel limitedChannel) {
+        public PinChannel get(HostAndLimitedChannel limitedChannel) {
             return channels.get(limitedChannel);
         }
 
@@ -334,7 +334,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
     private static final class PinChannelList {
         private final ImmutableList<PinChannel> channels;
-        private final Map<HostLimitedChannel, PinChannel> limitedToPin;
+        private final Map<HostAndLimitedChannel, PinChannel> limitedToPin;
         private final Map<PinChannel, Integer> channelToPin;
 
         private PinChannelList(ImmutableList<PinChannel> channels) {
@@ -351,7 +351,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
             return channels;
         }
 
-        PinChannel get(HostLimitedChannel limitedChannel) {
+        PinChannel get(HostAndLimitedChannel limitedChannel) {
             return limitedToPin.get(limitedChannel);
         }
 

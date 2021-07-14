@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
-interface HostLimitedChannel extends LimitedChannel {
+interface HostAndLimitedChannel {
     HostIdx getHostIdx();
+
+    LimitedChannel limitedChannel();
 }

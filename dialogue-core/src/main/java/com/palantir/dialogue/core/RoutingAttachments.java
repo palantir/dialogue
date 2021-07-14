@@ -24,7 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
-public final class RoutingAttachments {
+final class RoutingAttachments {
 
     /** When present, {@link #EXECUTED_ON_CHANNEL} will be set. */
     private static final RequestAttachmentKey<Boolean> ADD_EXECUTED_ON_RESPONSE_ATTACHMENT =
@@ -33,15 +33,15 @@ public final class RoutingAttachments {
     /**
      * This request attachment specifies that a request should be executed on a specific host channel.
      */
-    private static final RequestAttachmentKey<HostLimitedChannel> EXECUTE_ON_CHANNEL =
-            RequestAttachmentKey.create(HostLimitedChannel.class);
+    private static final RequestAttachmentKey<HostAndLimitedChannel> EXECUTE_ON_CHANNEL =
+            RequestAttachmentKey.create(HostAndLimitedChannel.class);
 
     /**
      * If {@link #ADD_EXECUTED_ON_RESPONSE_ATTACHMENT} is requested, this attachment will be present on the response
      * to indicate the host channel that executed the request.
      */
-    private static final ResponseAttachmentKey<HostLimitedChannel> EXECUTED_ON_CHANNEL =
-            ResponseAttachmentKey.create(HostLimitedChannel.class);
+    private static final ResponseAttachmentKey<HostAndLimitedChannel> EXECUTED_ON_CHANNEL =
+            ResponseAttachmentKey.create(HostAndLimitedChannel.class);
 
     private RoutingAttachments() {}
 
@@ -50,7 +50,7 @@ public final class RoutingAttachments {
     }
 
     static Consumer<Request> stickyRoute(Response initialResponse) {
-        HostLimitedChannel limitedChannel = Preconditions.checkNotNull(
+        HostAndLimitedChannel limitedChannel = Preconditions.checkNotNull(
                 initialResponse.attachments().getOrDefault(EXECUTED_ON_CHANNEL, null), "executedOnChannel");
         return request -> request.attachments().put(EXECUTE_ON_CHANNEL, limitedChannel);
     }
@@ -60,16 +60,16 @@ public final class RoutingAttachments {
                 request.attachments().getOrDefault(ADD_EXECUTED_ON_RESPONSE_ATTACHMENT, Boolean.FALSE));
     }
 
-    static void executedOn(Response response, HostLimitedChannel limitedChannel) {
+    static void executedOn(Response response, HostAndLimitedChannel limitedChannel) {
         response.attachments().put(EXECUTED_ON_CHANNEL, limitedChannel);
     }
 
     @Nullable
-    static HostLimitedChannel maybeGetExecuteOn(Request request) {
+    static HostAndLimitedChannel maybeGetExecuteOn(Request request) {
         return request.attachments().getOrDefault(EXECUTE_ON_CHANNEL, null);
     }
 
-    static void setExecuteOn(Request request, HostLimitedChannel executeOn) {
+    static void setExecuteOn(Request request, HostAndLimitedChannel executeOn) {
         request.attachments().put(EXECUTE_ON_CHANNEL, executeOn);
     }
 }

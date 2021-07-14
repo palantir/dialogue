@@ -153,8 +153,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
             if (singleHostChannels.isEmpty()) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured", SafeArg.of("serviceName", serviceName)));
+                EmptyInternalDialogueChannel alwaysThrowing =
+                        new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured", SafeArg.of("serviceName", serviceName)));
                 return () -> alwaysThrowing;
             }
 
@@ -268,14 +269,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
             if (!block.services().containsKey(serviceName)) {
-                return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
                         "Service not configured (config block not present)",
                         SafeArg.of("serviceName", serviceName),
                         SafeArg.of("available", block.services().keySet())));
             }
 
             if (block.services().get(serviceName).uris().isEmpty()) {
-                return new AlwaysThrowingChannel(() -> {
+                return new EmptyInternalDialogueChannel(() -> {
                     Map<String, PartialServiceConfiguration> servicesWithUris =
                             Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
                     return new SafeIllegalStateException(
@@ -294,10 +295,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
     }
 
-    private static final class AlwaysThrowingChannel implements InternalDialogueChannel {
+    private static final class EmptyInternalDialogueChannel implements InternalDialogueChannel {
         private final Supplier<? extends Throwable> exceptionSupplier;
 
-        AlwaysThrowingChannel(Supplier<? extends Throwable> exceptionSupplier) {
+        EmptyInternalDialogueChannel(Supplier<? extends Throwable> exceptionSupplier) {
             this.exceptionSupplier = exceptionSupplier;
         }
 
@@ -325,9 +326,13 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final class InternalDialogueChannelFromDialogueChannel implements InternalDialogueChannel {
 
         private final DialogueChannel dialogueChannel;
+        private final ImmutableList<Channel> downcast;
 
         private InternalDialogueChannelFromDialogueChannel(DialogueChannel dialogueChannel) {
             this.dialogueChannel = dialogueChannel;
+            downcast = dialogueChannel.perHostChannels().stream()
+                    .map(perHost -> (Channel) perHost)
+                    .collect(ImmutableList.toImmutableList());
         }
 
         @Override

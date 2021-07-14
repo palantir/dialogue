@@ -33,7 +33,6 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.IntStream;
-import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,10 +55,10 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final HostLimitedChannels channels;
+    private final HostAndLimitedChannels channels;
 
     BalancedNodeSelectionStrategyChannel(
-            HostLimitedChannels channels,
+            HostAndLimitedChannels channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
@@ -74,25 +73,16 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
-            @Nullable HostLimitedChannel channelOverride,
+            HostAndLimitedChannel channelOverride,
             Endpoint endpoint,
             Request request,
             LimitEnforcement limitEnforcement) {
-
-        if (channelOverride != null) {
-            return maybeExecuteOverride(channelOverride, endpoint, request, limitEnforcement);
-        } else {
-            return maybeExecuteBalanced(endpoint, request, limitEnforcement);
-        }
-    }
-
-    private Optional<ListenableFuture<Response>> maybeExecuteOverride(
-            HostLimitedChannel channelOverride, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         ChannelScoreInfo channelInfo = tracker.getChannelScoreInfo(channelOverride.getHostIdx());
-        return maybeExecute(channelInfo, channelOverride, endpoint, request, limitEnforcement);
+        return maybeExecute(channelInfo, channelOverride.limitedChannel(), endpoint, request, limitEnforcement);
     }
 
-    private Optional<ListenableFuture<Response>> maybeExecuteBalanced(
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
@@ -140,9 +130,9 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
 
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
 
-            HostLimitedChannel hostLimitedChannel = channels.getByHostIdx(channelInfo.hostIdx());
+            HostAndLimitedChannel hostAndLimitedChannel = channels.getByHostIdx(channelInfo.hostIdx());
             Optional<ListenableFuture<Response>> responseListenableFuture =
-                    maybeExecuteOnHost(hostLimitedChannel, endpoint, request, limitEnforcement);
+                    maybeExecuteOnHost(hostAndLimitedChannel, endpoint, request, limitEnforcement);
 
             if (responseListenableFuture.isPresent()) {
                 return responseListenableFuture;

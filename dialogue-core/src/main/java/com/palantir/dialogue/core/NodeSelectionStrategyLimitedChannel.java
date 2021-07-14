@@ -24,5 +24,8 @@ import java.util.Optional;
 
 interface NodeSelectionStrategyLimitedChannel extends LimitedChannel {
     Optional<ListenableFuture<Response>> maybeExecuteOnHost(
-            HostLimitedChannel channelOverride, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
+            HostAndLimitedChannel channelOverride,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement);
 }

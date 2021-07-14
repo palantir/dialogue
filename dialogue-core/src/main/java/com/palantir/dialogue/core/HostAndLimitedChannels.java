@@ -20,30 +20,30 @@ import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
 
-final class HostLimitedChannels {
+final class HostAndLimitedChannels {
 
-    private final ImmutableList<HostLimitedChannel> channels;
-    private final BiMap<HostIdx, HostLimitedChannel> lookups;
+    private final ImmutableList<HostAndLimitedChannel> channels;
+    private final BiMap<HostIdx, HostAndLimitedChannel> lookups;
 
-    HostLimitedChannels(ImmutableList<HostLimitedChannel> channels) {
+    HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
         this.channels = channels;
         this.lookups = HashBiMap.create(channels.size());
         channels.forEach(hostLimitedChannel -> lookups.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
     }
 
-    ImmutableList<HostLimitedChannel> getChannels() {
+    ImmutableList<HostAndLimitedChannel> getChannels() {
         return channels;
     }
 
-    boolean isValid(HostLimitedChannel hostLimitedChannel) {
-        return lookups.inverse().containsKey(hostLimitedChannel);
+    boolean isValid(HostAndLimitedChannel hostAndLimitedChannel) {
+        return lookups.inverse().containsKey(hostAndLimitedChannel);
     }
 
-    HostLimitedChannel getByHostIdx(HostIdx hostIdx) {
+    HostAndLimitedChannel getByHostIdx(HostIdx hostIdx) {
         return lookups.get(hostIdx);
     }
 
-    static HostLimitedChannels create(ImmutableList<HostLimitedChannel> limitedChannels) {
-        return new HostLimitedChannels(limitedChannels);
+    static HostAndLimitedChannels create(ImmutableList<HostAndLimitedChannel> limitedChannels) {
+        return new HostAndLimitedChannels(limitedChannels);
     }
 }

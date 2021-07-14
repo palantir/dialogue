@@ -48,7 +48,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
     private final DialogueNodeselectionMetrics nodeSelectionMetrics;
-    private final HostLimitedChannels channels;
+    private final HostAndLimitedChannels channels;
 
     @SuppressWarnings("NullAway")
     private final NodeSelectionStrategyLimitedChannel delegate =
@@ -62,7 +62,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             TaggedMetricRegistry metrics,
-            HostLimitedChannels channels) {
+            HostAndLimitedChannels channels) {
         this.strategySelector = strategySelector;
         this.channelName = channelName;
         this.random = random;
@@ -73,7 +73,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeSelectionStrategy.set(createNodeSelectionChannel(null, initialStrategy));
     }
 
-    static LimitedChannel create(Config cf, ImmutableList<HostLimitedChannel> channels) {
+    static LimitedChannel create(Config cf, ImmutableList<HostAndLimitedChannel> channels) {
         if (channels.isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
@@ -89,13 +89,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 cf.random(),
                 cf.ticker(),
                 cf.clientConf().taggedMetricRegistry(),
-                HostLimitedChannels.create(channels));
+                HostAndLimitedChannels.create(channels));
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        HostLimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOn(request);
+        HostAndLimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOn(request);
 
         final Optional<ListenableFuture<Response>> maybe;
         if (executeOnChannel != null) {

@@ -23,7 +23,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.Optional;
 
-final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
+final class ExecutedOnResponseMarkingChannel implements HostAndLimitedChannel, LimitedChannel {
 
     private final HostIdx hostIdx;
     private final LimitedChannel delegate;
@@ -45,7 +45,7 @@ final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
         }
     }
 
-    static HostLimitedChannel create(HostIdx hostIdx, LimitedChannel delegate) {
+    static HostAndLimitedChannel create(HostIdx hostIdx, LimitedChannel delegate) {
         return new ExecutedOnResponseMarkingChannel(hostIdx, delegate);
     }
 
@@ -57,5 +57,10 @@ final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
     @Override
     public HostIdx getHostIdx() {
         return hostIdx;
+    }
+
+    @Override
+    public LimitedChannel limitedChannel() {
+        return this;
     }
 }
