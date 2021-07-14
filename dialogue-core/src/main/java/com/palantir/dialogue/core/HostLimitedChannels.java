@@ -16,28 +16,24 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
-import java.util.IdentityHashMap;
+import com.palantir.logsafe.Preconditions;
 
 final class HostLimitedChannels {
 
     private final ImmutableList<HostLimitedChannel> channels;
-    private final IdentityHashMap<HostIdx, HostLimitedChannel> byHostIdx = null;
-    private final IdentityHashMap<HostLimitedChannel, HostIdx> byHostLimitedChannel = null;
+    private final BiMap<HostIdx, HostLimitedChannel> lookups;
 
     HostLimitedChannels(ImmutableList<HostLimitedChannel> channels) {
         this.channels = channels;
-        // hostIdxs = new IdentityHashMap<>();
-        // for (int i = 0; i < channels.size(); i++) {
-        //     hostIdxs.put(channels.get(i), HostIdx.of(i));
-        // }
+        this.lookups = HashBiMap.create(channels.size());
+        channels.forEach(hostLimitedChannel -> lookups.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
     }
 
     HostIdx getIdx(HostLimitedChannel limitedChannel) {
-        // HostIdx idx = hostIdxs.get(limitedChannel);
-        // Preconditions.checkNotNull(idx, "idx");
-        // return idx;
-        return null;
+        return Preconditions.checkNotNull(lookups.inverse().get(limitedChannel));
     }
 
     ImmutableList<HostLimitedChannel> getChannels() {
@@ -45,15 +41,14 @@ final class HostLimitedChannels {
     }
 
     boolean isValid(HostLimitedChannel hostLimitedChannel) {
-        //
-        return true;
+        return lookups.inverse().containsKey(hostLimitedChannel);
     }
 
     HostLimitedChannel getByHostIdx(HostIdx hostIdx) {
-        return null;
+        return lookups.get(hostIdx);
     }
 
     static HostLimitedChannels create(ImmutableList<HostLimitedChannel> limitedChannels) {
-        return null;
+        return new HostLimitedChannels(limitedChannels);
     }
 }
