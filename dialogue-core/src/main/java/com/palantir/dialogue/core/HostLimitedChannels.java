@@ -53,7 +53,7 @@ final class HostLimitedChannels {
         return null;
     }
 
-    static HostLimitedChannels create(ImmutableList<LimitedChannel> limitedChannels) {
+    static HostLimitedChannels create(ImmutableList<HostLimitedChannel> limitedChannels) {
         return null;
     }
 }

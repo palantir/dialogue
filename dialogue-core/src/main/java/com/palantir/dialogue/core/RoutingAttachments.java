@@ -65,7 +65,11 @@ public final class RoutingAttachments {
     }
 
     @Nullable
-    static HostLimitedChannel shouldExecuteOn(Request request) {
+    static HostLimitedChannel maybeGetExecuteOn(Request request) {
         return request.attachments().getOrDefault(EXECUTE_ON_CHANNEL, null);
+    }
+
+    static void setExecuteOn(Request request, HostLimitedChannel executeOn) {
+        request.attachments().put(EXECUTE_ON_CHANNEL, executeOn);
     }
 }

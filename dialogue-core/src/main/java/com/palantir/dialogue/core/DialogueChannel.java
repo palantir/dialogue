@@ -35,20 +35,26 @@ import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
-public final class DialogueChannel implements Channel, EndpointChannelFactory {
+public final class DialogueChannel implements ChannelAndEndpointChannelFactory {
+    private final Channel channel;
     private final EndpointChannelFactory delegate;
-    private final ImmutableList<Channel> perHostChannels;
+    private final ImmutableList<ChannelAndEndpointChannelFactory> perHostChannels;
     private final Config cf;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, ImmutableList<Channel> perHostChannels) {
+    private DialogueChannel(
+            Config cf,
+            Channel channel,
+            EndpointChannelFactory delegate,
+            ImmutableList<ChannelAndEndpointChannelFactory> perHostChannels) {
         this.cf = cf;
+        this.channel = channel;
         this.delegate = delegate;
         this.perHostChannels = perHostChannels;
     }
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        return delegate.endpoint(endpoint).execute(request);
+        return channel.execute(endpoint, request);
     }
 
     @Override
@@ -56,7 +62,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         return delegate.endpoint(endpoint);
     }
 
-    public List<Channel> perHostChannels() {
+    // Currently unsafe: no specialized queuing support yet!
+    public List<ChannelAndEndpointChannelFactory> perHostChannels() {
         return perHostChannels;
     }
 
@@ -141,7 +148,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
+            ImmutableList.Builder<HostLimitedChannel> perUriChannels = ImmutableList.builder();
             for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
@@ -165,10 +172,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 LimitedChannel limitedChannel = cf.isConcurrencyLimitingEnabled()
                         ? ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation)
                         : new ChannelToLimitedChannelAdapter(channel);
-                limitedChannel = ExecutedOnResponseMarkingChannel.create(limitedChannel);
-                perUriChannels.add(limitedChannel);
+                HostLimitedChannel hostLimitedChannel =
+                        ExecutedOnResponseMarkingChannel.create(HostIdx.of(uriIndex), limitedChannel);
+                perUriChannels.add(hostLimitedChannel);
             }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
+            ImmutableList<HostLimitedChannel> channels = perUriChannels.build();
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
             Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
@@ -194,7 +202,32 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory);
+            Channel channel =
+                    (endpoint, request) -> channelFactory.endpoint(endpoint).execute(request);
+
+            ImmutableList<ChannelAndEndpointChannelFactory> perHostChannels = channels.stream()
+                    .map(hostLimitedChannel -> new ChannelAndEndpointChannelFactory() {
+                        @Override
+                        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                            RoutingAttachments.setExecuteOn(request, hostLimitedChannel);
+                            return channel.execute(endpoint, request);
+                        }
+
+                        @Override
+                        public EndpointChannel endpoint(Endpoint endpoint) {
+                            EndpointChannel endpoint1 = channelFactory.endpoint(endpoint);
+                            return new EndpointChannel() {
+                                @Override
+                                public ListenableFuture<Response> execute(Request request) {
+                                    RoutingAttachments.setExecuteOn(request, hostLimitedChannel);
+                                    return endpoint1.execute(request);
+                                }
+                            };
+                        }
+                    })
+                    .collect(ImmutableList.toImmutableList());
+
+            return new DialogueChannel(cf, channel, channelFactory, perHostChannels);
         }
 
         /** Does *not* do any clever live-reloading. */

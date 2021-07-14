@@ -25,9 +25,11 @@ import java.util.Optional;
 
 final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
 
+    private final HostIdx hostIdx;
     private final LimitedChannel delegate;
 
-    private ExecutedOnResponseMarkingChannel(LimitedChannel delegate) {
+    private ExecutedOnResponseMarkingChannel(HostIdx hostIdx, LimitedChannel delegate) {
+        this.hostIdx = hostIdx;
         this.delegate = delegate;
     }
 
@@ -43,8 +45,8 @@ final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
         }
     }
 
-    static LimitedChannel create(LimitedChannel delegate) {
-        return new ExecutedOnResponseMarkingChannel(delegate);
+    static HostLimitedChannel create(HostIdx hostIdx, LimitedChannel delegate) {
+        return new ExecutedOnResponseMarkingChannel(hostIdx, delegate);
     }
 
     private Response addExecutedOnResponseAttachment(Response response) {
@@ -54,6 +56,6 @@ final class ExecutedOnResponseMarkingChannel implements HostLimitedChannel {
 
     @Override
     public HostIdx getHostIdx() {
-        return null;
+        return hostIdx;
     }
 }

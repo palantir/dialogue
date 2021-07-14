@@ -73,7 +73,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeSelectionStrategy.set(createNodeSelectionChannel(null, initialStrategy));
     }
 
-    static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
+    static LimitedChannel create(Config cf, ImmutableList<HostLimitedChannel> channels) {
         if (channels.isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
@@ -95,7 +95,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        HostLimitedChannel executeOnChannel = RoutingAttachments.shouldExecuteOn(request);
+        HostLimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOn(request);
 
         final Optional<ListenableFuture<Response>> maybe;
         if (executeOnChannel != null) {
