@@ -82,8 +82,22 @@ public class NodeSelectionBenchmark {
 
     @Setup(Level.Invocation)
     public void before() {
-        ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
-                .mapToObj(_i -> FakeChannel.INSTANCE)
+        ImmutableList<HostLimitedChannel> channels = IntStream.range(0, numChannels)
+                .mapToObj(i -> new HostLimitedChannel() {
+
+                    private final HostIdx hostIdx = HostIdx.of(i);
+
+                    @Override
+                    public HostIdx getHostIdx() {
+                        return hostIdx;
+                    }
+
+                    @Override
+                    public Optional<ListenableFuture<Response>> maybeExecute(
+                            Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+                        return FakeChannel.INSTANCE.maybeExecute(endpoint, request, limitEnforcement);
+                    }
+                })
                 .collect(ImmutableList.toImmutableList());
 
         if (headerDriven) {

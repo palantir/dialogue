@@ -33,7 +33,9 @@ import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -200,7 +202,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
     @Value.Immutable
     interface PinChannel extends LimitedChannel {
-        LimitedChannel delegate();
+        HostLimitedChannel delegate();
 
         @Value.Auxiliary
         HostIdx stableIndex();
@@ -214,10 +216,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
     @VisibleForTesting
     static final class ConstantNodeList implements NodeList {
-        private final List<PinChannel> channels;
+        private final PinChannelList channels;
 
-        ConstantNodeList(List<PinChannel> channels) {
-            this.channels = channels;
+        ConstantNodeList(ImmutableList<PinChannel> channels) {
+            this.channels = new PinChannelList(channels);
         }
 
         @Override
@@ -226,8 +228,18 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         }
 
         @Override
+        public PinChannel get(HostLimitedChannel limitedChannel) {
+            return channels.get(limitedChannel);
+        }
+
+        @Override
+        public int getPin(PinChannel pinChannel) {
+            return channels.getPin(pinChannel);
+        }
+
+        @Override
         public int size() {
-            return channels.size();
+            return channels.getChannels().size();
         }
 
         @Override
@@ -245,7 +257,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         private final PinUntilErrorNodeSelectionStrategyChannel.Instrumentation instrumentation;
 
         private final AtomicLong nextReshuffle;
-        private volatile ImmutableList<PinChannel> channels;
+        private volatile PinChannelList channels;
 
         static ReshufflingNodeList of(
                 ImmutableList<PinChannel> channels,
@@ -269,8 +281,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
                 long intervalWithJitter,
                 AtomicLong nextReshuffle,
                 String channelName) {
-            this.channels = channels;
-            this.channelsSize = channels.size();
+            this.channels = new PinChannelList(channels);
+            this.channelsSize = this.channels.getChannels().size();
             this.nextReshuffle = nextReshuffle;
             this.intervalWithJitter = intervalWithJitter;
             this.random = random;
@@ -280,13 +292,22 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
 
         @Override
         public PinChannel get(int index) {
-            reshuffleChannelsIfNecessary();
             return channels.get(index);
         }
 
         @Override
+        public PinChannel get(HostLimitedChannel limitedChannel) {
+            return channels.get(limitedChannel);
+        }
+
+        @Override
+        public int getPin(PinChannel pinChannel) {
+            return channels.getPin(pinChannel);
+        }
+
+        @Override
         public int size() {
-            return channelsSize;
+            return channels.getChannels().size();
         }
 
         private void reshuffleChannelsIfNecessary() {
@@ -296,9 +317,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
             }
 
             if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
-                ImmutableList<PinChannel> newList = shuffleImmutableList(channels, random);
+                ImmutableList<PinChannel> newList = shuffleImmutableList(channels.getChannels(), random);
                 instrumentation.reshuffled(newList, intervalWithJitter);
-                channels = newList;
+                channels = new PinChannelList(newList);
             }
         }
 
@@ -308,6 +329,38 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
                     + channels + ", nextReshuffle="
                     + nextReshuffle + ", intervalWithJitter="
                     + intervalWithJitter + '}';
+        }
+    }
+
+    private static final class PinChannelList {
+        private final ImmutableList<PinChannel> channels;
+        private final Map<HostLimitedChannel, PinChannel> limitedToPin;
+        private final Map<PinChannel, Integer> channelToPin;
+
+        private PinChannelList(ImmutableList<PinChannel> channels) {
+            this.channels = channels;
+            this.limitedToPin = new HashMap<>();
+            channels.forEach(pinChannel -> limitedToPin.put(pinChannel.delegate(), pinChannel));
+            this.channelToPin = new HashMap<>();
+            for (int pin = 0; pin < channels.size(); pin++) {
+                channelToPin.put(channels.get(pin), pin);
+            }
+        }
+
+        ImmutableList<PinChannel> getChannels() {
+            return channels;
+        }
+
+        PinChannel get(HostLimitedChannel limitedChannel) {
+            return limitedToPin.get(limitedChannel);
+        }
+
+        int getPin(PinChannel pinChannel) {
+            return channelToPin.get(pinChannel);
+        }
+
+        PinChannel get(int index) {
+            return channels.get(index);
         }
     }
 
