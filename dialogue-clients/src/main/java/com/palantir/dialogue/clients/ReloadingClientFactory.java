@@ -50,6 +50,7 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -118,74 +119,18 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public Channel getChannel(String serviceName) {
-        Preconditions.checkNotNull(serviceName, "serviceName");
-        String channelName = ChannelNames.reloading(serviceName, params);
-
-        Refreshable<Channel> mapped = params.scb().map(block -> {
-            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
-
-            if (!block.services().containsKey(serviceName)) {
-                return new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)",
-                        SafeArg.of("serviceName", serviceName),
-                        SafeArg.of("available", block.services().keySet())));
-            }
-
-            if (block.services().get(serviceName).uris().isEmpty()) {
-                return new AlwaysThrowingChannel(() -> {
-                    Map<String, PartialServiceConfiguration> servicesWithUris =
-                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
-                    return new SafeIllegalStateException(
-                            "Service not configured (no URIs)",
-                            SafeArg.of("serviceName", serviceName),
-                            SafeArg.of("available", servicesWithUris.keySet()));
-                });
-            }
-
-            ServiceConfiguration serviceConf =
-                    ServiceConfigurationFactory.of(block).get(serviceName);
-
-            return cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
-        });
         // TODO(dfox): reloading currently forgets which channel we were pinned to. Can we do this in a non-gross way?
-
-        return new LiveReloadingChannel(mapped, params.runtime().clients());
+        return new LiveReloadingChannel(
+                getInternalDialogueChannel(serviceName), params.runtime().clients());
     }
 
     @Override
     public PerHostClientFactory perHost(String serviceName) {
-        Preconditions.checkNotNull(serviceName, "serviceName");
-        String channelName = ChannelNames.reloading(serviceName, params);
-
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
-                .map(block -> {
-                    if (!block.services().containsKey(serviceName)) {
-                        return ImmutableList.of();
-                    }
-
-                    ServiceConfiguration serviceConfiguration =
-                            ServiceConfigurationFactory.of(block).get(serviceName);
-
-                    ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
-                    for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
-                        ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
-                                .from(serviceConfiguration)
-                                .uris(ImmutableList.of(
-                                        serviceConfiguration.uris().get(i)))
-                                .build();
-
-                        // subtle gotcha here is that every single one of these has the same channelName,
-                        // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
-                        list.add(cache.getNonReloadingChannel(
-                                params, singleUriServiceConf, channelName, OptionalInt.of(i)));
-                    }
-                    return list.build();
-                });
-
+        Refreshable<InternalDialogueChannel> dialogueChannel = getInternalDialogueChannel(serviceName);
         return new PerHostClientFactory() {
             @Override
             public Refreshable<List<Channel>> getPerHostChannels() {
-                return perHostDialogueChannels.map(ImmutableList::copyOf);
+                return dialogueChannel.map(InternalDialogueChannel::perHostChannels);
             }
 
             @Override
@@ -197,8 +142,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public String toString() {
-                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostDialogueChannels.get()
-                        + '}';
+                return "PerHostClientFactory{serviceName=" + serviceName + '}';
             }
         };
     }
@@ -209,8 +153,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Refreshable<Supplier<Channel>> bestSupplier = perHostChannels.map(singleHostChannels -> {
             if (singleHostChannels.isEmpty()) {
-                AlwaysThrowingChannel alwaysThrowing = new AlwaysThrowingChannel(() -> new SafeIllegalStateException(
-                        "Service not configured", SafeArg.of("serviceName", serviceName)));
+                EmptyInternalDialogueChannel alwaysThrowing =
+                        new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured", SafeArg.of("serviceName", serviceName)));
                 return () -> alwaysThrowing;
             }
 
@@ -316,10 +261,44 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
     }
 
-    private static final class AlwaysThrowingChannel implements Channel {
+    private Refreshable<InternalDialogueChannel> getInternalDialogueChannel(String serviceName) {
+        Preconditions.checkNotNull(serviceName, "serviceName");
+        String channelName = ChannelNames.reloading(serviceName, params);
+
+        return params.scb().map(block -> {
+            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
+
+            if (!block.services().containsKey(serviceName)) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)",
+                        SafeArg.of("serviceName", serviceName),
+                        SafeArg.of("available", block.services().keySet())));
+            }
+
+            if (block.services().get(serviceName).uris().isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> {
+                    Map<String, PartialServiceConfiguration> servicesWithUris =
+                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
+                    return new SafeIllegalStateException(
+                            "Service not configured (no URIs)",
+                            SafeArg.of("serviceName", serviceName),
+                            SafeArg.of("available", servicesWithUris.keySet()));
+                });
+            }
+
+            ServiceConfiguration serviceConf =
+                    ServiceConfigurationFactory.of(block).get(serviceName);
+
+            DialogueChannel dialogueChannel =
+                    cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+            return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
+        });
+    }
+
+    private static final class EmptyInternalDialogueChannel implements InternalDialogueChannel {
         private final Supplier<? extends Throwable> exceptionSupplier;
 
-        AlwaysThrowingChannel(Supplier<? extends Throwable> exceptionSupplier) {
+        EmptyInternalDialogueChannel(Supplier<? extends Throwable> exceptionSupplier) {
             this.exceptionSupplier = exceptionSupplier;
         }
 
@@ -333,14 +312,46 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             return "AlwaysThrowingChannel{exceptionSupplier="
                     + exceptionSupplier.get().getMessage() + '}';
         }
+
+        @Override
+        public List<Channel> perHostChannels() {
+            return Collections.emptyList();
+        }
+    }
+
+    interface InternalDialogueChannel extends Channel {
+        List<Channel> perHostChannels();
+    }
+
+    private static final class InternalDialogueChannelFromDialogueChannel implements InternalDialogueChannel {
+
+        private final DialogueChannel dialogueChannel;
+        private final ImmutableList<Channel> downcast;
+
+        private InternalDialogueChannelFromDialogueChannel(DialogueChannel dialogueChannel) {
+            this.dialogueChannel = dialogueChannel;
+            downcast = dialogueChannel.perHostChannels().stream()
+                    .map(perHost -> (Channel) perHost)
+                    .collect(ImmutableList.toImmutableList());
+        }
+
+        @Override
+        public List<Channel> perHostChannels() {
+            return dialogueChannel.perHostChannels();
+        }
+
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return dialogueChannel.execute(endpoint, request);
+        }
     }
 
     @VisibleForTesting
     static final class LiveReloadingChannel implements Channel, EndpointChannelFactory {
-        private final Refreshable<Channel> refreshable;
+        private final Refreshable<? extends Channel> refreshable;
         private final Clients utils;
 
-        LiveReloadingChannel(Refreshable<Channel> refreshable, Clients utils) {
+        LiveReloadingChannel(Refreshable<? extends Channel> refreshable, Clients utils) {
             this.refreshable = refreshable;
             this.utils = utils;
         }

@@ -302,6 +302,9 @@ public final class DialogueChannelTest {
     }
 
     @Test
+    public void can_request_executed_on_attachment() {}
+
+    @Test
     @TestTracing(snapshot = true)
     public void traces_on_retries() throws Exception {
         when(response.code()).thenReturn(429);

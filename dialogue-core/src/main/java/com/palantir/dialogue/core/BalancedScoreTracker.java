@@ -65,12 +65,20 @@ final class BalancedScoreTracker {
         Preconditions.checkState(channelCount >= 1, "At least one channel required");
         this.random = random;
         this.clock = ticker;
+
+        // TODO(12345): Reuse the same HostIdx or just pass them in instead of channel count.
         this.channelStats = IntStream.range(0, channelCount)
                 .mapToObj(index -> new ChannelScoreInfo(
-                        index, clock, PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
+                        HostIdx.of(index),
+                        clock,
+                        PerHostObservability.create(channelCount, taggedMetrics, channelName, index)))
                 .collect(ImmutableList.toImmutableList());
 
         registerGauges(taggedMetrics, channelName, channelStats);
+    }
+
+    ChannelScoreInfo getChannelScoreInfo(HostIdx hostIdx) {
+        return channelStats.get(hostIdx.index());
     }
 
     /**
@@ -116,7 +124,7 @@ final class BalancedScoreTracker {
     }
 
     public static final class ChannelScoreInfo implements FutureCallback<Response> {
-        private final int hostIndex;
+        private final HostIdx hostIndex;
         private final PerHostObservability observability;
 
         private final AtomicInteger inflight = new AtomicInteger(0);
@@ -128,7 +136,7 @@ final class BalancedScoreTracker {
          */
         private final CoarseExponentialDecayReservoir recentFailuresReservoir;
 
-        ChannelScoreInfo(int hostIndex, Ticker clock, PerHostObservability observability) {
+        ChannelScoreInfo(HostIdx hostIndex, Ticker clock, PerHostObservability observability) {
             this.hostIndex = hostIndex;
             this.recentFailuresReservoir = new CoarseExponentialDecayReservoir(clock::read, FAILURE_MEMORY);
             this.observability = observability;
@@ -169,7 +177,7 @@ final class BalancedScoreTracker {
             return Responses.isQosStatus(response) && !Responses.isTooManyRequests(response);
         }
 
-        public int channelIndex() {
+        public HostIdx hostIdx() {
             return hostIndex;
         }
 
