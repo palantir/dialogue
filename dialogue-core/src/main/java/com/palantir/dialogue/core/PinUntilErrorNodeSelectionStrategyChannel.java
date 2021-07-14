@@ -85,7 +85,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
     }
 
     static PinUntilErrorNodeSelectionStrategyChannel of(
-            Optional<LimitedChannel> initialChannel,
+            Optional<PinUntilErrorNodeSelectionStrategyChannel> previous,
             DialogueNodeSelectionStrategy strategy,
             HostLimitedChannels channels,
             DialoguePinuntilerrorMetrics metrics,
@@ -106,9 +106,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
          * situation where there might be many nodes but all clients have decided to hammer one of them.
          */
         ImmutableList<PinChannel> initialShuffle = shuffleImmutableList(pinChannels, random);
-        int initialPin = initialChannel
+        int initialPin = previous
                 // indexOf relies on reference equality since we expect LimitedChannels to be reused across updates
-                .map(limitedChannel -> Math.max(0, initialShuffle.indexOf(limitedChannel)))
+                .map(pinUntilErrorNodeSelectionStrategyChannel -> Math.max(
+                        0, initialShuffle.indexOf(pinUntilErrorNodeSelectionStrategyChannel.getCurrentChannel())))
                 .orElse(0);
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
@@ -122,7 +123,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
     }
 
-    LimitedChannel getCurrentChannel() {
+    private PinChannel getCurrentChannel() {
         return nodeList.get(currentPin.get());
     }
 

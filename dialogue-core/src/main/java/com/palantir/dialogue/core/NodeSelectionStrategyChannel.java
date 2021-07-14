@@ -129,7 +129,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                             (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
                     return channelBuilder
                             .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
-                                    Optional.of(previousPinUntilError.getCurrentChannel()),
+                                    Optional.of(previousPinUntilError),
                                     strategy,
                                     channels,
                                     pinuntilerrorMetrics,
