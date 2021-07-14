@@ -19,7 +19,6 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.BiMap;
 import com.google.common.collect.HashBiMap;
 import com.google.common.collect.ImmutableList;
-import com.palantir.logsafe.Preconditions;
 
 final class HostLimitedChannels {
 
@@ -30,10 +29,6 @@ final class HostLimitedChannels {
         this.channels = channels;
         this.lookups = HashBiMap.create(channels.size());
         channels.forEach(hostLimitedChannel -> lookups.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
-    }
-
-    HostIdx getIdx(HostLimitedChannel limitedChannel) {
-        return Preconditions.checkNotNull(lookups.inverse().get(limitedChannel));
     }
 
     ImmutableList<HostLimitedChannel> getChannels() {
