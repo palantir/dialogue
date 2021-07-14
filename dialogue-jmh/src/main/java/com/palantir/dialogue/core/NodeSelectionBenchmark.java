@@ -96,7 +96,7 @@ public class NodeSelectionBenchmark {
                             random,
                             ticker,
                             metrics,
-                            channels);
+                            HostLimitedChannels.create(channels));
                     break;
                 case ROUND_ROBIN:
                     channel = new NodeSelectionStrategyChannel(
@@ -106,7 +106,7 @@ public class NodeSelectionBenchmark {
                             random,
                             ticker,
                             metrics,
-                            channels);
+                            HostLimitedChannels.create(channels));
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
@@ -117,15 +117,15 @@ public class NodeSelectionBenchmark {
                     channel = PinUntilErrorNodeSelectionStrategyChannel.of(
                             Optional.empty(),
                             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                            channels,
+                            HostLimitedChannels.create(channels),
                             DialoguePinuntilerrorMetrics.of(metrics),
                             random,
                             ticker,
                             "channelName");
                     break;
                 case ROUND_ROBIN:
-                    channel =
-                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
+                    channel = new BalancedNodeSelectionStrategyChannel(
+                            HostLimitedChannels.create(channels), random, ticker, metrics, "channelName");
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");

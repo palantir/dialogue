@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -34,6 +33,7 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.IntStream;
+import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -56,22 +56,43 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<LimitedChannel> channels;
+    private final HostLimitedChannels channels;
 
     BalancedNodeSelectionStrategyChannel(
-            ImmutableList<LimitedChannel> channels,
+            HostLimitedChannels channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName) {
-        Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
+        Preconditions.checkState(channels.getChannels().size() >= 2, "At least two channels required");
+        this.tracker =
+                new BalancedScoreTracker(channels.getChannels().size(), random, ticker, taggedMetrics, channelName);
         this.channels = channels;
-        log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
+        log.debug(
+                "Initialized", SafeArg.of("count", channels.getChannels().size()), UnsafeArg.of("channels", channels));
     }
 
     @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            @Nullable HostLimitedChannel channelOverride,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+
+        if (channelOverride != null) {
+            return maybeExecuteOverride(channelOverride, endpoint, request, limitEnforcement);
+        } else {
+            return maybeExecuteBalanced(endpoint, request, limitEnforcement);
+        }
+    }
+
+    private Optional<ListenableFuture<Response>> maybeExecuteOverride(
+            HostLimitedChannel channelOverride, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+        ChannelScoreInfo channelInfo = tracker.getChannelScoreInfo(channelOverride.getHostIdx());
+        return maybeExecute(channelInfo, channelOverride, endpoint, request, limitEnforcement);
+    }
+
+    private Optional<ListenableFuture<Response>> maybeExecuteBalanced(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         ScoreSnapshot[] snapshotsByScore = tracker.getSnapshotsInOrderOfIncreasingScore();
 
@@ -96,7 +117,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                             "Giving up and queueing because channel score ({}) for channel {} is not worth sending a "
                                     + "request to ({})",
                             SafeArg.of("score", snapshot.getScore()),
-                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of(
+                                    "hostIndex",
+                                    snapshot.getDelegate().hostIdx().index()),
                             SafeArg.of("giveUpScore", giveUpThreshold));
                 }
                 return Optional.empty();
@@ -106,7 +129,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 if (log.isDebugEnabled()) {
                     log.debug(
                             "When considering channel {}, giveUpThreshold {} -> {}",
-                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            SafeArg.of(
+                                    "hostIndex",
+                                    snapshot.getDelegate().hostIdx().index()),
                             SafeArg.of("old", giveUpThreshold),
                             SafeArg.of("new", newThreshold));
                 }
@@ -114,18 +139,36 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
 
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
-            channelInfo.startRequest();
 
-            Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request, limitEnforcement);
+            HostLimitedChannel hostLimitedChannel = channels.getByHostIdx(channelInfo.hostIdx());
+            Optional<ListenableFuture<Response>> responseListenableFuture =
+                    maybeExecuteOnHost(hostLimitedChannel, endpoint, request, limitEnforcement);
 
-            if (maybe.isPresent()) {
-                channelInfo.observability().markRequestMade();
-                DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
-                return maybe;
-            } else {
-                channelInfo.undoStartRequest();
+            if (responseListenableFuture.isPresent()) {
+                return responseListenableFuture;
             }
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<ListenableFuture<Response>> maybeExecute(
+            ChannelScoreInfo channelInfo,
+            LimitedChannel hostLimitedChannel,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        channelInfo.startRequest();
+
+        Optional<ListenableFuture<Response>> maybe =
+                hostLimitedChannel.maybeExecute(endpoint, request, limitEnforcement);
+
+        if (maybe.isPresent()) {
+            channelInfo.observability().markRequestMade();
+            DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
+            return maybe;
+        } else {
+            channelInfo.undoStartRequest();
         }
 
         return Optional.empty();

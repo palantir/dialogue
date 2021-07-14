@@ -30,17 +30,20 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
+    private final ImmutableList<Channel> perHostChannels;
     private final Config cf;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, ImmutableList<Channel> perHostChannels) {
         this.cf = cf;
         this.delegate = delegate;
+        this.perHostChannels = perHostChannels;
     }
 
     @Override
@@ -51,6 +54,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
+    }
+
+    public List<Channel> perHostChannels() {
+        return perHostChannels;
     }
 
     public static Builder builder() {
@@ -158,6 +165,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 LimitedChannel limitedChannel = cf.isConcurrencyLimitingEnabled()
                         ? ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation)
                         : new ChannelToLimitedChannelAdapter(channel);
+                limitedChannel = ExecutedOnResponseMarkingChannel.create(limitedChannel);
                 perUriChannels.add(limitedChannel);
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();

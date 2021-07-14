@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,19 +21,8 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import java.util.Optional;
-import java.util.function.Supplier;
 
-final class SupplierChannel implements NodeSelectionStrategyLimitedChannel {
-    private final Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier;
-
-    SupplierChannel(Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier) {
-        this.channelSupplier = channelSupplier;
-    }
-
-    @Override
-    public Optional<ListenableFuture<Response>> maybeExecute(
-            int hostIdx, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        NodeSelectionStrategyLimitedChannel delegate = channelSupplier.get();
-        return delegate.maybeExecuteOnHost(hostIdx, endpoint, request, limitEnforcement);
-    }
+interface NodeSelectionStrategyLimitedChannel extends LimitedChannel {
+    Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostLimitedChannel channelOverride, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
 }

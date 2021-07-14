@@ -25,6 +25,7 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -47,10 +48,10 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
     private final DialogueNodeselectionMetrics nodeSelectionMetrics;
-    private final ImmutableList<LimitedChannel> channels;
+    private final HostLimitedChannels channels;
 
     @SuppressWarnings("NullAway")
-    private final LimitedChannel delegate =
+    private final NodeSelectionStrategyLimitedChannel delegate =
             new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
 
     @VisibleForTesting
@@ -61,7 +62,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             TaggedMetricRegistry metrics,
-            ImmutableList<LimitedChannel> channels) {
+            HostLimitedChannels channels) {
         this.strategySelector = strategySelector;
         this.channelName = channelName;
         this.random = random;
@@ -88,14 +89,23 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 cf.random(),
                 cf.ticker(),
                 cf.clientConf().taggedMetricRegistry(),
-                channels);
+                HostLimitedChannels.create(channels));
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
-        if (!maybe.isPresent()) {
+        HostLimitedChannel executeOnChannel = RoutingAttachments.shouldExecuteOn(request);
+
+        final Optional<ListenableFuture<Response>> maybe;
+        if (executeOnChannel != null) {
+            Preconditions.checkState(channels.isValid(executeOnChannel), "invalid host");
+            maybe = delegate.maybeExecuteOnHost(executeOnChannel, endpoint, request, limitEnforcement);
+        } else {
+            maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
+        }
+
+        if (maybe.isEmpty()) {
             return Optional.empty();
         }
 
@@ -104,7 +114,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private NodeSelectionChannel createNodeSelectionChannel(
-            @Nullable LimitedChannel previousNodeSelectionStrategy, DialogueNodeSelectionStrategy strategy) {
+            @Nullable NodeSelectionStrategyLimitedChannel previousNodeSelectionStrategy,
+            DialogueNodeSelectionStrategy strategy) {
         NodeSelectionChannel.Builder channelBuilder =
                 NodeSelectionChannel.builder().strategy(strategy);
 
@@ -169,7 +180,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
-        LimitedChannel channel();
+        NodeSelectionStrategyLimitedChannel channel();
 
         class Builder extends ImmutableNodeSelectionChannel.Builder {}
 

@@ -58,7 +58,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -87,16 +87,15 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<LimitedChannel> initialChannel,
             DialogueNodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
+            HostLimitedChannels channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             Ticker ticker,
             String channelName) {
-        // We preserve the 'stableIndex' so that calls can be attributed to one host even across reshuffles
-        List<PinChannel> pinChannels = IntStream.range(0, channels.size())
-                .mapToObj(index -> ImmutablePinChannel.builder()
-                        .delegate(channels.get(index))
-                        .stableIndex(index)
+        List<PinChannel> pinChannels = channels.getChannels().stream()
+                .map(channel -> ImmutablePinChannel.builder()
+                        .delegate(channel)
+                        .stableIndex(channel.getHostIdx())
                         .build())
                 .collect(ImmutableList.toImmutableList());
 
@@ -128,13 +127,28 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostLimitedChannel hostLimitedChannel,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        PinChannel pinChannel = nodeList.get(hostLimitedChannel);
+        int pin = nodeList.getPin(pinChannel);
+        return maybeExecute(pin, pinChannel, endpoint, request, limitEnforcement);
+    }
+
+    @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
+        return maybeExecute(pin, channel, endpoint, request, limitEnforcement);
+    }
 
+    private Optional<ListenableFuture<Response>> maybeExecute(
+            int pin, PinChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, limitEnforcement);
-        if (!maybeResponse.isPresent()) {
+        if (maybeResponse.isEmpty()) {
             return Optional.empty();
         }
 
@@ -176,6 +190,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     interface NodeList {
         PinChannel get(int index);
 
+        PinChannel get(HostLimitedChannel limitedChannel);
+
+        int getPin(PinChannel pinChannel);
+
         int size();
     }
 
@@ -184,7 +202,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         LimitedChannel delegate();
 
         @Value.Auxiliary
-        int stableIndex();
+        HostIdx stableIndex();
 
         @Override
         default Optional<ListenableFuture<Response>> maybeExecute(
@@ -403,9 +421,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             }
         }
 
-        private void successfulResponse(int currentIndex) {
+        private void successfulResponse(HostIdx currentIndex) {
             if (successesPerHost != null) {
-                successesPerHost[currentIndex].mark();
+                successesPerHost[currentIndex.index()].mark();
             }
         }
     }
