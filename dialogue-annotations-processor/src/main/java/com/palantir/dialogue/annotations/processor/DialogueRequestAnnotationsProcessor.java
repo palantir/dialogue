@@ -27,8 +27,9 @@ import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
 import com.palantir.dialogue.annotations.processor.data.ImmutableServiceDefinition;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
-import com.palantir.dialogue.annotations.processor.format.Goethe;
 import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
+import com.palantir.goethe.Goethe;
+import com.palantir.goethe.GoetheException;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeExceptions;
@@ -36,7 +37,6 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.TypeSpec;
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -105,11 +105,14 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                     }
 
                     try {
-                        Goethe.formatAndEmit(javaFile, filer, interfaceElement);
-                    } catch (FilerException e) {
-                        // Happens when same file is written twice. Dunno why this is a problem
-                    } catch (IOException e) {
-                        error("Failed to format generated code", interfaceElement, e);
+                        Goethe.formatAndEmit(javaFile, filer);
+                    } catch (GoetheException e) {
+                        if (e.getCause() instanceof FilerException) {
+                            // Happens when same file is written twice.
+                            // This indicates additional data was discovered in a subsequent processing round.
+                        } else {
+                            error("Failed to format generated code", interfaceElement, e);
+                        }
                     }
                 });
 
@@ -154,7 +157,11 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                 .build();
 
         TypeSpec generatedClass = new DialogueServiceFactoryGenerator(serviceDefinition).generate();
-        return JavaFile.builder(serviceInterface.packageName(), generatedClass).build();
+        TypeSpec withOriginatingElement = generatedClass.toBuilder()
+                .addOriginatingElement(annotatedInterface)
+                .build();
+        return JavaFile.builder(serviceInterface.packageName(), withOriginatingElement)
+                .build();
     }
 
     private void validationStep(Consumer<DefaultErrorContext> validationFunction) {
