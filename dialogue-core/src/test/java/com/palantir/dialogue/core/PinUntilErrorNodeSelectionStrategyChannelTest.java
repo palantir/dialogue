@@ -50,14 +50,15 @@ import org.mockito.quality.Strictness;
 public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @Mock
-    private PinUntilErrorNodeSelectionStrategyChannel.PinChannel channel1;
+    private LimitedChannel channel1;
 
     @Mock
-    private PinUntilErrorNodeSelectionStrategyChannel.PinChannel channel2;
+    private LimitedChannel channel2;
 
     @Mock
     private Ticker clock;
 
+    private HostAndLimitedChannels hostAndLimitedChannels;
     private PinUntilErrorNodeSelectionStrategyChannel pinUntilErrorWithoutReshuffle;
     private PinUntilErrorNodeSelectionStrategyChannel pinUntilError;
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
@@ -66,14 +67,13 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @BeforeEach
     public void before() {
-        ImmutableList<PinUntilErrorNodeSelectionStrategyChannel.PinChannel> channels =
-                ImmutableList.of(channel1, channel2);
+        hostAndLimitedChannels = HostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(channel1, channel2));
 
         PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList constantList =
-                new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(channels);
+                new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(hostAndLimitedChannels);
         PinUntilErrorNodeSelectionStrategyChannel.ReshufflingNodeList shufflingList =
                 PinUntilErrorNodeSelectionStrategyChannel.ReshufflingNodeList.of(
-                        channels, pseudo, clock, metrics, channelName);
+                        hostAndLimitedChannels, pseudo, clock, metrics, channelName);
 
         pinUntilErrorWithoutReshuffle =
                 new PinUntilErrorNodeSelectionStrategyChannel(constantList, 1, metrics, channelName);
@@ -159,7 +159,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     @Test
-    public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
+    public void out_of_order_responses_dont_cause_us_to_switch_channel() {
         setResponse(channel1, 100);
         setResponse(channel2, 101);
         assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(101);
@@ -204,11 +204,54 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         PinUntilErrorNodeSelectionStrategyChannel.of(
                 Optional.empty(),
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                ImmutableList.of(channel1, channel2),
+                hostAndLimitedChannels,
                 metrics,
                 pseudo,
                 Ticker.systemTicker(),
                 channelName);
+    }
+
+    @Test
+    void handles_reconstruction_from_previous_state() {
+        PinUntilErrorNodeSelectionStrategyChannel initial = PinUntilErrorNodeSelectionStrategyChannel.of(
+                Optional.empty(),
+                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                hostAndLimitedChannels,
+                metrics,
+                pseudo,
+                Ticker.systemTicker(),
+                channelName);
+
+        // Initial list has been shuffled
+        HostAndLimitedChannel predictedPin =
+                hostAndLimitedChannels.getUnorderedChannels().get(1);
+        assertThat(initial.getNodeListSnapshot().getUnorderedChannels())
+                .containsExactly(
+                        HostAndLimitedChannel.builder()
+                                .hostIdx(HostIdx.of(1))
+                                .limitedChannel(channel2)
+                                .build(),
+                        HostAndLimitedChannel.builder()
+                                .hostIdx(HostIdx.of(0))
+                                .limitedChannel(channel1)
+                                .build());
+        assertThat(initial.getCurrentChannel()).isEqualTo(predictedPin);
+
+        PinUntilErrorNodeSelectionStrategyChannel reconstructed = PinUntilErrorNodeSelectionStrategyChannel.of(
+                Optional.of(initial),
+                DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
+                hostAndLimitedChannels,
+                metrics,
+                pseudo,
+                Ticker.systemTicker(),
+                channelName);
+
+        // Reconstructed list has been shuffled back to original order
+        assertThat(reconstructed.getNodeListSnapshot().getUnorderedChannels())
+                .containsExactlyElementsOf(hostAndLimitedChannels.getUnorderedChannels());
+
+        // Yet pin stayed the same
+        assertThat(reconstructed.getCurrentChannel()).isEqualTo(predictedPin);
     }
 
     private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {

@@ -86,7 +86,7 @@ public final class StickyEndpointChannels implements Supplier<Channel> {
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
             ChannelScoreInfo channelScoreInfo = getSingleBestChannel.get();
-            int hostIndex = channelScoreInfo.channelIndex();
+            int hostIndex = channelScoreInfo.hostIdx().index();
             EndpointChannel delegate = channels.get(hostIndex).endpoint(endpoint);
             return new ScoreTrackingEndpointChannel(delegate, channelScoreInfo);
         }

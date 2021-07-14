@@ -68,10 +68,12 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @BeforeEach
     public void before() {
+        HostAndLimitedChannels hostAndLimitedChannels =
+                HostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(chan1, chan2));
         channel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
+                hostAndLimitedChannels, random, clock, new DefaultTaggedMetricRegistry(), "channelName");
         rttChannel = new BalancedNodeSelectionStrategyChannel(
-                ImmutableList.of(chan1, chan2), random, clock, new DefaultTaggedMetricRegistry(), "channelName");
+                hostAndLimitedChannels, random, clock, new DefaultTaggedMetricRegistry(), "channelName");
     }
 
     @Test

@@ -18,7 +18,6 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.google.common.math.IntMath;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -56,18 +55,22 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<LimitedChannel> channels;
+    private final HostAndLimitedChannels channels;
 
     BalancedNodeSelectionStrategyChannel(
-            ImmutableList<LimitedChannel> channels,
+            HostAndLimitedChannels channels,
             Random random,
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName) {
-        Preconditions.checkState(channels.size() >= 2, "At least two channels required");
-        this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
+        Preconditions.checkState(channels.getUnorderedChannels().size() >= 2, "At least two channels required");
+        this.tracker = new BalancedScoreTracker(
+                channels.getUnorderedChannels().size(), random, ticker, taggedMetrics, channelName);
         this.channels = channels;
-        log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
+        log.debug(
+                "Initialized",
+                SafeArg.of("count", channels.getUnorderedChannels().size()),
+                UnsafeArg.of("channels", channels));
     }
 
     @Override
@@ -96,7 +99,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                             "Giving up and queueing because channel score ({}) for channel {} is not worth sending a "
                                     + "request to ({})",
                             SafeArg.of("score", snapshot.getScore()),
-                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            snapshot.getDelegate().hostIdx().safeArg(),
                             SafeArg.of("giveUpScore", giveUpThreshold));
                 }
                 return Optional.empty();
@@ -106,7 +109,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 if (log.isDebugEnabled()) {
                     log.debug(
                             "When considering channel {}, giveUpThreshold {} -> {}",
-                            SafeArg.of("hostIndex", snapshot.getDelegate().channelIndex()),
+                            snapshot.getDelegate().hostIdx().safeArg(),
                             SafeArg.of("old", giveUpThreshold),
                             SafeArg.of("new", newThreshold));
                 }
@@ -116,8 +119,9 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
             channelInfo.startRequest();
 
-            Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request, limitEnforcement);
+            Optional<ListenableFuture<Response>> maybe = channels.getByHostIdx(channelInfo.hostIdx())
+                    .limitedChannel()
+                    .maybeExecute(endpoint, request, limitEnforcement);
 
             if (maybe.isPresent()) {
                 channelInfo.observability().markRequestMade();

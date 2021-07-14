@@ -18,7 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -47,7 +47,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final Ticker tick;
     private final TaggedMetricRegistry metrics;
     private final DialogueNodeselectionMetrics nodeSelectionMetrics;
-    private final ImmutableList<LimitedChannel> channels;
+    private final HostAndLimitedChannels channels;
 
     @SuppressWarnings("NullAway")
     private final LimitedChannel delegate =
@@ -61,7 +61,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
             Random random,
             Ticker tick,
             TaggedMetricRegistry metrics,
-            ImmutableList<LimitedChannel> channels) {
+            HostAndLimitedChannels channels) {
         this.strategySelector = strategySelector;
         this.channelName = channelName;
         this.random = random;
@@ -72,13 +72,13 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeSelectionStrategy.set(createNodeSelectionChannel(null, initialStrategy));
     }
 
-    static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
-        if (channels.isEmpty()) {
+    static LimitedChannel create(Config cf, HostAndLimitedChannels channels) {
+        if (channels.getUnorderedChannels().isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
 
-        if (channels.size() == 1) {
-            return channels.get(0);
+        if (channels.getUnorderedChannels().size() == 1) {
+            return Iterables.getOnlyElement(channels.getUnorderedChannels()).limitedChannel();
         }
 
         return new NodeSelectionStrategyChannel(
@@ -118,7 +118,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                             (PinUntilErrorNodeSelectionStrategyChannel) previousNodeSelectionStrategy;
                     return channelBuilder
                             .channel(PinUntilErrorNodeSelectionStrategyChannel.of(
-                                    Optional.of(previousPinUntilError.getCurrentChannel()),
+                                    Optional.of(previousPinUntilError),
                                     strategy,
                                     channels,
                                     pinuntilerrorMetrics,
