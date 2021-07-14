@@ -82,9 +82,9 @@ public class NodeSelectionBenchmark {
 
     @Setup(Level.Invocation)
     public void before() {
-        ImmutableList<LimitedChannel> channels = IntStream.range(0, numChannels)
+        HostAndLimitedChannels channels = HostAndLimitedChannels.createAndAssignHostIdx(IntStream.range(0, numChannels)
                 .mapToObj(_i -> FakeChannel.INSTANCE)
-                .collect(ImmutableList.toImmutableList());
+                .collect(ImmutableList.toImmutableList()));
 
         if (headerDriven) {
             switch (selectionStrategy) {
@@ -96,7 +96,7 @@ public class NodeSelectionBenchmark {
                             random,
                             ticker,
                             metrics,
-                            HostAndLimitedChannels.createAndAssignHostIdx(channels));
+                            channels);
                     break;
                 case ROUND_ROBIN:
                     channel = new NodeSelectionStrategyChannel(
@@ -106,7 +106,7 @@ public class NodeSelectionBenchmark {
                             random,
                             ticker,
                             metrics,
-                            HostAndLimitedChannels.createAndAssignHostIdx(channels));
+                            channels);
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
@@ -117,19 +117,15 @@ public class NodeSelectionBenchmark {
                     channel = PinUntilErrorNodeSelectionStrategyChannel.of(
                             Optional.empty(),
                             DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR,
-                            HostAndLimitedChannels.createAndAssignHostIdx(channels),
+                            channels,
                             DialoguePinuntilerrorMetrics.of(metrics),
                             random,
                             ticker,
                             "channelName");
                     break;
                 case ROUND_ROBIN:
-                    channel = new BalancedNodeSelectionStrategyChannel(
-                            HostAndLimitedChannels.createAndAssignHostIdx(channels),
-                            random,
-                            ticker,
-                            metrics,
-                            "channelName");
+                    channel =
+                            new BalancedNodeSelectionStrategyChannel(channels, random, ticker, metrics, "channelName");
                     break;
                 default:
                     throw new SafeIllegalArgumentException("Unsupported");
