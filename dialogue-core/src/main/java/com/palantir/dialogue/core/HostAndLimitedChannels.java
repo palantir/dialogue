@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
+import java.util.stream.IntStream;
 
 /**
  * Maintains stable {@code HostIdx -> LimitedChannel} association. Channels can be shuffled to obtain different
@@ -57,7 +58,14 @@ final class HostAndLimitedChannels {
         return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups);
     }
 
-    static HostAndLimitedChannels create(ImmutableList<HostAndLimitedChannel> channels) {
+    static HostAndLimitedChannels createAndAssignHostIdx(ImmutableList<LimitedChannel> limitedChannels) {
+        ImmutableList<HostAndLimitedChannel> channels = IntStream.range(0, limitedChannels.size())
+                .mapToObj(HostIdx::of)
+                .map(hostIdx -> HostAndLimitedChannel.builder()
+                        .hostIdx(hostIdx)
+                        .limitedChannel(limitedChannels.get(hostIdx.index()))
+                        .build())
+                .collect(ImmutableList.toImmutableList());
         return new HostAndLimitedChannels(channels);
     }
 
