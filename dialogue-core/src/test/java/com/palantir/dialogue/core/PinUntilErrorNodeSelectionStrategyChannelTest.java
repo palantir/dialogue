@@ -249,9 +249,40 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         assertThat(reconstructed.getCurrentChannel()).isEqualTo(predictedPin);
     }
 
+    @Test
+    void handles_routing_to_specific_host() {
+        int channel1CodeErrorCode = 500;
+        int channel2Code = 101;
+        setResponse(channel1, channel1CodeErrorCode);
+        setResponse(channel2, channel2Code);
+
+        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(channel2Code);
+
+        assertThat(getCode(hostAndLimitedChannels.getChannels().get(0), pinUntilError))
+                .describedAs("Can route to channel while pinnned to channel2")
+                .isEqualTo(channel1CodeErrorCode);
+
+        assertThat(getCode(pinUntilError))
+                .describedAs("Failure on host routing does not switch good channel")
+                .isEqualTo(channel2Code);
+    }
+
     private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
         try {
             ListenableFuture<Response> future = channel.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED)
+                    .get();
+            Response response = future.get(1, TimeUnit.MILLISECONDS);
+            return response.code();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private int getCode(
+            HostAndLimitedChannel hostAndLimitedChannel, PinUntilErrorNodeSelectionStrategyChannel channel) {
+        try {
+            ListenableFuture<Response> future = channel.maybeExecuteOnHost(
+                            hostAndLimitedChannel, null, null, LimitEnforcement.DEFAULT_ENABLED)
                     .get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
             return response.code();
