@@ -23,17 +23,27 @@ import com.palantir.dialogue.Response;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-final class SupplierChannel implements LimitedChannel {
-    private final Supplier<LimitedChannel> channelSupplier;
+final class SupplierNodeSelectionStrategyLimitedChannel implements NodeSelectionStrategyLimitedChannel {
+    private final Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier;
 
-    SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
+    SupplierNodeSelectionStrategyLimitedChannel(Supplier<NodeSelectionStrategyLimitedChannel> channelSupplier) {
         this.channelSupplier = channelSupplier;
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        LimitedChannel delegate = channelSupplier.get();
+        NodeSelectionStrategyLimitedChannel delegate = channelSupplier.get();
         return delegate.maybeExecute(endpoint, request, limitEnforcement);
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostAndLimitedChannel channelOverride,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        NodeSelectionStrategyLimitedChannel delegate = channelSupplier.get();
+        return delegate.maybeExecuteOnHost(channelOverride, endpoint, request, limitEnforcement);
     }
 }

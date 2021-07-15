@@ -50,8 +50,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final HostAndLimitedChannels channels;
 
     @SuppressWarnings("NullAway")
-    private final LimitedChannel delegate =
-            new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
+    private final NodeSelectionStrategyLimitedChannel delegate = new SupplierNodeSelectionStrategyLimitedChannel(
+            () -> nodeSelectionStrategy.get().channel());
 
     @VisibleForTesting
     NodeSelectionStrategyChannel(
@@ -104,7 +104,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private NodeSelectionChannel createNodeSelectionChannel(
-            @Nullable LimitedChannel previousNodeSelectionStrategy, DialogueNodeSelectionStrategy strategy) {
+            @Nullable NodeSelectionStrategyLimitedChannel previousNodeSelectionStrategy,
+            DialogueNodeSelectionStrategy strategy) {
         NodeSelectionChannel.Builder channelBuilder =
                 NodeSelectionChannel.builder().strategy(strategy);
 
@@ -169,7 +170,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
-        LimitedChannel channel();
+        NodeSelectionStrategyLimitedChannel channel();
 
         class Builder extends ImmutableNodeSelectionChannel.Builder {}
 

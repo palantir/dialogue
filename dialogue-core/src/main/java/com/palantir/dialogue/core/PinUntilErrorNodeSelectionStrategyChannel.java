@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
@@ -122,14 +122,32 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     }
 
     @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostAndLimitedChannel hostAndLimitedChannel,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        int pin = nodeList.getPinByHostAndLimitedChannel(hostAndLimitedChannel);
+        return maybeExecute(pin, hostAndLimitedChannel, endpoint, request, limitEnforcement);
+    }
+
+    @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         int pin = currentPin.get();
         HostAndLimitedChannel channel = nodeList.get(pin);
+        return maybeExecute(pin, channel, endpoint, request, limitEnforcement);
+    }
 
+    private Optional<ListenableFuture<Response>> maybeExecute(
+            int pin,
+            HostAndLimitedChannel channel,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
         Optional<ListenableFuture<Response>> maybeResponse =
                 channel.limitedChannel().maybeExecute(endpoint, request, limitEnforcement);
-        if (!maybeResponse.isPresent()) {
+        if (maybeResponse.isEmpty()) {
             return Optional.empty();
         }
 
@@ -176,6 +194,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
     interface NodeList {
         HostAndLimitedChannel get(int index);
 
+        int getPinByHostAndLimitedChannel(HostAndLimitedChannel hostAndLimitedChannel);
+
         int size();
 
         HostAndLimitedChannels getSnapshot();
@@ -192,6 +212,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         @Override
         public HostAndLimitedChannel get(int index) {
             return channels.getChannels().get(index);
+        }
+
+        @Override
+        public int getPinByHostAndLimitedChannel(HostAndLimitedChannel hostAndLimitedChannel) {
+            return channels.getCurrentIndex(hostAndLimitedChannel);
         }
 
         @Override
@@ -254,6 +279,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         public HostAndLimitedChannel get(int index) {
             reshuffleChannelsIfNecessary();
             return channels.getChannels().get(index);
+        }
+
+        @Override
+        public int getPinByHostAndLimitedChannel(HostAndLimitedChannel hostAndLimitedChannel) {
+            reshuffleChannelsIfNecessary();
+            return channels.getCurrentIndex(hostAndLimitedChannel);
         }
 
         @Override

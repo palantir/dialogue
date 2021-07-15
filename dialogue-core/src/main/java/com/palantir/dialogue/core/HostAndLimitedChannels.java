@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -32,6 +33,7 @@ import java.util.stream.IntStream;
 final class HostAndLimitedChannels {
 
     private final ImmutableList<HostAndLimitedChannel> channels;
+    private final ImmutableMap<HostAndLimitedChannel, Integer> byIndex;
     private final ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups;
 
     private HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
@@ -42,6 +44,7 @@ final class HostAndLimitedChannels {
             ImmutableList<HostAndLimitedChannel> channels, ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups) {
         this.channels = channels;
         this.lookups = lookups;
+        this.byIndex = buildByIndex(channels);
     }
 
     ImmutableList<HostAndLimitedChannel> getChannels() {
@@ -50,6 +53,10 @@ final class HostAndLimitedChannels {
 
     HostAndLimitedChannel getByHostIdx(HostIdx hostIdx) {
         return Preconditions.checkNotNull(lookups.get(hostIdx), "Unknown hostIdx");
+    }
+
+    int getCurrentIndex(HostAndLimitedChannel hostAndLimitedChannel) {
+        return Preconditions.checkNotNull(byIndex.get(hostAndLimitedChannel), "Unknown hostAndLimitedChannel");
     }
 
     HostAndLimitedChannels shuffle(Random random) {
@@ -79,5 +86,14 @@ final class HostAndLimitedChannels {
         ImmutableBiMap.Builder<HostIdx, HostAndLimitedChannel> lookupsBuilder = ImmutableBiMap.builder();
         channels.forEach(hostLimitedChannel -> lookupsBuilder.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
         return lookupsBuilder.build();
+    }
+
+    private static ImmutableMap<HostAndLimitedChannel, Integer> buildByIndex(
+            ImmutableList<HostAndLimitedChannel> channels) {
+        ImmutableMap.Builder<HostAndLimitedChannel, Integer> byIndexBuilder = ImmutableMap.builder();
+        for (int i = 0; i < channels.size(); i++) {
+            byIndexBuilder.put(channels.get(i), i);
+        }
+        return byIndexBuilder.build();
     }
 }

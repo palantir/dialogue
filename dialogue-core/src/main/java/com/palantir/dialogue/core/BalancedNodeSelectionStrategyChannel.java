@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrategyLimitedChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -69,6 +69,16 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         this.channels = channels;
         log.debug(
                 "Initialized", SafeArg.of("count", channels.getChannels().size()), UnsafeArg.of("channels", channels));
+    }
+
+    @Override
+    public Optional<ListenableFuture<Response>> maybeExecuteOnHost(
+            HostAndLimitedChannel channelOverride,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        ChannelScoreInfo channelInfo = tracker.getChannelScoreInfo(channelOverride.getHostIdx());
+        return maybeExecute(channelInfo, channelOverride.limitedChannel(), endpoint, request, limitEnforcement);
     }
 
     @Override
@@ -115,19 +125,36 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             }
 
             ChannelScoreInfo channelInfo = snapshot.getDelegate();
-            channelInfo.startRequest();
 
-            Optional<ListenableFuture<Response>> maybe = channels.getByHostIdx(channelInfo.hostIdx())
-                    .limitedChannel()
-                    .maybeExecute(endpoint, request, limitEnforcement);
+            HostAndLimitedChannel hostAndLimitedChannel = channels.getByHostIdx(channelInfo.hostIdx());
+            Optional<ListenableFuture<Response>> responseListenableFuture =
+                    maybeExecuteOnHost(hostAndLimitedChannel, endpoint, request, limitEnforcement);
 
-            if (maybe.isPresent()) {
-                channelInfo.observability().markRequestMade();
-                DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
-                return maybe;
-            } else {
-                channelInfo.undoStartRequest();
+            if (responseListenableFuture.isPresent()) {
+                return responseListenableFuture;
             }
+        }
+
+        return Optional.empty();
+    }
+
+    private Optional<ListenableFuture<Response>> maybeExecute(
+            ChannelScoreInfo channelInfo,
+            LimitedChannel hostLimitedChannel,
+            Endpoint endpoint,
+            Request request,
+            LimitEnforcement limitEnforcement) {
+        channelInfo.startRequest();
+
+        Optional<ListenableFuture<Response>> maybe =
+                hostLimitedChannel.maybeExecute(endpoint, request, limitEnforcement);
+
+        if (maybe.isPresent()) {
+            channelInfo.observability().markRequestMade();
+            DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
+            return maybe;
+        } else {
+            channelInfo.undoStartRequest();
         }
 
         return Optional.empty();
