@@ -158,7 +158,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 LimitedChannel limitedChannel = cf.isConcurrencyLimitingEnabled()
                         ? ConcurrencyLimitedChannel.createForHost(cf, channel, uriIndexForInstrumentation)
                         : new ChannelToLimitedChannelAdapter(channel);
-                perUriChannels.add(new DefaultHostAndLimitedChannel(HostIdx.of(uriIndex), limitedChannel));
+                perUriChannels.add(
+                        new ExecutedOnResponseMarkingHostAndLimitedChannel(HostIdx.of(uriIndex), limitedChannel));
             }
             HostAndLimitedChannels hostAndLimitedChannels = HostAndLimitedChannels.create(perUriChannels.build());
 
