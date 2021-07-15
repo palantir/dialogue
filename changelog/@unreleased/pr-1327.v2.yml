@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Extract HostAndLimitedChannel and a container for them.
+  links:
+  - https://github.com/palantir/dialogue/pull/1327

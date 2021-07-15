@@ -77,7 +77,7 @@ class NodeSelectionStrategyChannelTest {
                 pseudo,
                 clock,
                 new DefaultTaggedMetricRegistry(),
-                channels);
+                HostAndLimitedChannels.createAndAssignHostIdx(channels));
 
         when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.of(Futures.immediateFuture(
