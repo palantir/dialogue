@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -33,15 +34,21 @@ final class HostAndLimitedChannels {
 
     private final ImmutableList<HostAndLimitedChannel> channels;
     private final ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups;
+    private final ImmutableMap<HostAndLimitedChannel, Integer> byIndex;
+    private final ImmutableMap<LimitedChannel, HostAndLimitedChannel> byLimitedChannel;
 
     private HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
-        this(channels, buildLookups(channels));
+        this(channels, buildLookups(channels), buildByLimitedChannel(channels));
     }
 
     private HostAndLimitedChannels(
-            ImmutableList<HostAndLimitedChannel> channels, ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups) {
+            ImmutableList<HostAndLimitedChannel> channels,
+            ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups,
+            ImmutableMap<LimitedChannel, HostAndLimitedChannel> byLimitedChannel) {
         this.channels = channels;
         this.lookups = lookups;
+        this.byLimitedChannel = byLimitedChannel;
+        this.byIndex = buildByIndex(channels);
     }
 
     ImmutableList<HostAndLimitedChannel> getChannels() {
@@ -52,10 +59,18 @@ final class HostAndLimitedChannels {
         return Preconditions.checkNotNull(lookups.get(hostIdx), "Unknown hostIdx");
     }
 
+    int getCurrentIndex(HostAndLimitedChannel hostAndLimitedChannel) {
+        return Preconditions.checkNotNull(byIndex.get(hostAndLimitedChannel), "Unknown hostAndLimitedChannel");
+    }
+
+    HostAndLimitedChannel getByLimitedChannel(LimitedChannel limitedChannel) {
+        return Preconditions.checkNotNull(byLimitedChannel.get(limitedChannel), "Unknown limitedChannel");
+    }
+
     HostAndLimitedChannels shuffle(Random random) {
         List<HostAndLimitedChannel> mutableList = new ArrayList<>(channels);
         Collections.shuffle(mutableList, random);
-        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups);
+        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups, byLimitedChannel);
     }
 
     static HostAndLimitedChannels createAndAssignHostIdx(ImmutableList<LimitedChannel> limitedChannels) {
@@ -79,5 +94,24 @@ final class HostAndLimitedChannels {
         ImmutableBiMap.Builder<HostIdx, HostAndLimitedChannel> lookupsBuilder = ImmutableBiMap.builder();
         channels.forEach(hostLimitedChannel -> lookupsBuilder.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
         return lookupsBuilder.build();
+    }
+
+    private static ImmutableMap<HostAndLimitedChannel, Integer> buildByIndex(
+            ImmutableList<HostAndLimitedChannel> channels) {
+        ImmutableMap.Builder<HostAndLimitedChannel, Integer> byIndexBuilder = ImmutableMap.builder();
+        for (int i = 0; i < channels.size(); i++) {
+            byIndexBuilder.put(channels.get(i), i);
+        }
+        return byIndexBuilder.build();
+    }
+
+    private static ImmutableMap<LimitedChannel, HostAndLimitedChannel> buildByLimitedChannel(
+            ImmutableList<HostAndLimitedChannel> channels) {
+        ImmutableMap.Builder<LimitedChannel, HostAndLimitedChannel> byLimitedChannel = ImmutableMap.builder();
+        for (int i = 0; i < channels.size(); i++) {
+            HostAndLimitedChannel hostAndLimitedChannel = channels.get(i);
+            byLimitedChannel.put(hostAndLimitedChannel.limitedChannel(), hostAndLimitedChannel);
+        }
+        return byLimitedChannel.build();
     }
 }

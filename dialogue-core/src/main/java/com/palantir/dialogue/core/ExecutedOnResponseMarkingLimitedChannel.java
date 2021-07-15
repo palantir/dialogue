@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2020 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,20 +20,31 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.Optional;
-import java.util.function.Supplier;
 
-final class SupplierChannel implements LimitedChannel {
-    private final Supplier<LimitedChannel> channelSupplier;
+final class ExecutedOnResponseMarkingLimitedChannel implements LimitedChannel {
 
-    SupplierChannel(Supplier<LimitedChannel> channelSupplier) {
-        this.channelSupplier = channelSupplier;
+    private final LimitedChannel delegate;
+
+    ExecutedOnResponseMarkingLimitedChannel(LimitedChannel delegate) {
+        this.delegate = delegate;
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        LimitedChannel delegate = channelSupplier.get();
-        return delegate.maybeExecute(endpoint, request, limitEnforcement);
+        if (RoutingAttachments.shouldAttachExecutedOnChannelResponseAttachment(request)) {
+            return delegate.maybeExecute(endpoint, request, limitEnforcement)
+                    .map(responseFuture ->
+                            DialogueFutures.transform(responseFuture, this::addExecutedOnResponseAttachment));
+        } else {
+            return delegate.maybeExecute(endpoint, request, limitEnforcement);
+        }
+    }
+
+    private Response addExecutedOnResponseAttachment(Response response) {
+        RoutingAttachments.setExecutedOnChannelResponseAttachment(response, this);
+        return response;
     }
 }

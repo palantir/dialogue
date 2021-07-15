@@ -50,8 +50,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final HostAndLimitedChannels channels;
 
     @SuppressWarnings("NullAway")
-    private final LimitedChannel delegate =
-            new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
+    private final NodeSelectionStrategyLimitedChannel delegate = new SupplierNodeSelectionStrategyLimitedChannel(
+            () -> nodeSelectionStrategy.get().channel());
 
     @VisibleForTesting
     NodeSelectionStrategyChannel(
@@ -94,8 +94,17 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
-        if (!maybe.isPresent()) {
+        LimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOnChannel(request);
+
+        final Optional<ListenableFuture<Response>> maybe;
+        if (executeOnChannel != null) {
+            maybe = delegate.maybeExecuteOnHost(
+                    channels.getByLimitedChannel(executeOnChannel), endpoint, request, limitEnforcement);
+        } else {
+            maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
+        }
+
+        if (maybe.isEmpty()) {
             return Optional.empty();
         }
 
@@ -104,7 +113,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     private NodeSelectionChannel createNodeSelectionChannel(
-            @Nullable LimitedChannel previousNodeSelectionStrategy, DialogueNodeSelectionStrategy strategy) {
+            @Nullable NodeSelectionStrategyLimitedChannel previousNodeSelectionStrategy,
+            DialogueNodeSelectionStrategy strategy) {
         NodeSelectionChannel.Builder channelBuilder =
                 NodeSelectionChannel.builder().strategy(strategy);
 
@@ -169,7 +179,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
-        LimitedChannel channel();
+        NodeSelectionStrategyLimitedChannel channel();
 
         class Builder extends ImmutableNodeSelectionChannel.Builder {}
 

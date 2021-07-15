@@ -75,6 +75,10 @@ final class BalancedScoreTracker {
         registerGauges(taggedMetrics, channelName, channelStats);
     }
 
+    ChannelScoreInfo getChannelScoreInfo(HostIdx hostIdx) {
+        return channelStats.get(hostIdx.index());
+    }
+
     /**
      * Returns all channels, ordered with the best score first. Called on every request, so needs to be performant!
      * Callers *must* use the {@link ChannelScoreInfo#startRequest} and {@link ChannelScoreInfo#onSuccess} etc
