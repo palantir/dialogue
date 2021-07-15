@@ -16,8 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.collect.BiMap;
-import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableBiMap;
 import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
@@ -29,12 +28,13 @@ import java.util.stream.IntStream;
 final class HostAndLimitedChannels {
 
     private final ImmutableList<HostAndLimitedChannel> channels;
-    private final BiMap<HostIdx, HostAndLimitedChannel> lookups;
+    private final ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups;
 
     private HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
         this.channels = channels;
-        this.lookups = HashBiMap.create(channels.size());
-        channels.forEach(hostLimitedChannel -> lookups.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
+        ImmutableBiMap.Builder<HostIdx, HostAndLimitedChannel> lookupsBuilder = ImmutableBiMap.builder();
+        channels.forEach(hostLimitedChannel -> lookupsBuilder.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
+        lookups = lookupsBuilder.build();
     }
 
     ImmutableList<HostAndLimitedChannel> getUnorderedChannels() {
