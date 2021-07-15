@@ -16,8 +16,23 @@
 
 package com.palantir.dialogue.core;
 
-interface HostAndLimitedChannel {
-    HostIdx getHostIdx();
+final class DefaultHostAndLimitedChannel implements HostAndLimitedChannel {
 
-    LimitedChannel limitedChannel();
+    private final HostIdx hostIdx;
+    private final LimitedChannel delegate;
+
+    DefaultHostAndLimitedChannel(HostIdx hostIdx, LimitedChannel delegate) {
+        this.hostIdx = hostIdx;
+        this.delegate = delegate;
+    }
+
+    @Override
+    public HostIdx getHostIdx() {
+        return hostIdx;
+    }
+
+    @Override
+    public LimitedChannel limitedChannel() {
+        return delegate;
+    }
 }
