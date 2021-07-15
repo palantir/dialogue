@@ -60,6 +60,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     Request request;
 
     private Endpoint endpoint = TestEndpoint.GET;
+    private HostAndLimitedChannels hostAndLimitedChannels;
     private BalancedNodeSelectionStrategyChannel channel;
     private BalancedNodeSelectionStrategyChannel rttChannel;
 
@@ -68,8 +69,7 @@ class BalancedNodeSelectionStrategyChannelTest {
 
     @BeforeEach
     public void before() {
-        HostAndLimitedChannels hostAndLimitedChannels =
-                TestHostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(chan1, chan2));
+        hostAndLimitedChannels = TestHostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(chan1, chan2));
         channel = new BalancedNodeSelectionStrategyChannel(
                 hostAndLimitedChannels, random, clock, new DefaultTaggedMetricRegistry(), "channelName");
         rttChannel = new BalancedNodeSelectionStrategyChannel(
@@ -169,6 +169,23 @@ class BalancedNodeSelectionStrategyChannelTest {
     public void skiplimits_passthrough(LimitEnforcement limitEnforcement) {
         when(chan1.maybeExecute(any(), any(), eq(limitEnforcement))).thenReturn(http(200));
         assertThat(channel.maybeExecute(endpoint, request, limitEnforcement)).isPresent();
+    }
+
+    @Test
+    void when_routing_to_host_we_still_maintain_scores() {
+        set200(chan1);
+        SettableFuture<Response> settableFuture = SettableFuture.create();
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(settableFuture));
+
+        channel.maybeExecuteOnHost(
+                hostAndLimitedChannels.getChannels().get(1), endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+
+        for (int i = 0; i < 199; i++) {
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        }
+        verify(chan1, times(199)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
+        verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
     }
 
     private static void set200(LimitedChannel chan) {
