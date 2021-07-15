@@ -82,10 +82,9 @@ public class NodeSelectionBenchmark {
 
     @Setup(Level.Invocation)
     public void before() {
-        HostAndLimitedChannels channels =
-                TestHostAndLimitedChannels.createAndAssignHostIdx(IntStream.range(0, numChannels)
-                        .mapToObj(_i -> FakeChannel.INSTANCE)
-                        .collect(ImmutableList.toImmutableList()));
+        HostAndLimitedChannels channels = HostAndLimitedChannels.createAndAssignHostIdx(IntStream.range(0, numChannels)
+                .mapToObj(_i -> FakeChannel.INSTANCE)
+                .collect(ImmutableList.toImmutableList()));
 
         if (headerDriven) {
             switch (selectionStrategy) {

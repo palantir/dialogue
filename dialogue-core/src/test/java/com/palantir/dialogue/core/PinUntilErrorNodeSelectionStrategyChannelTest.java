@@ -67,8 +67,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
     @BeforeEach
     public void before() {
-        hostAndLimitedChannels =
-                TestHostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(channel1, channel2));
+        hostAndLimitedChannels = HostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(channel1, channel2));
 
         PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList constantList =
                 new PinUntilErrorNodeSelectionStrategyChannel.ConstantNodeList(hostAndLimitedChannels);
@@ -228,8 +227,14 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 hostAndLimitedChannels.getChannels().get(1);
         assertThat(initial.getNodeListSnapshot().getChannels())
                 .containsExactly(
-                        TestHostAndLimitedChannels.hostAndLimitedChannel(1, channel2),
-                        TestHostAndLimitedChannels.hostAndLimitedChannel(0, channel1));
+                        HostAndLimitedChannel.builder()
+                                .hostIdx(HostIdx.of(1))
+                                .limitedChannel(channel2)
+                                .build(),
+                        HostAndLimitedChannel.builder()
+                                .hostIdx(HostIdx.of(0))
+                                .limitedChannel(channel1)
+                                .build());
         assertThat(initial.getCurrentChannel()).isEqualTo(predictedPin);
 
         PinUntilErrorNodeSelectionStrategyChannel reconstructed = PinUntilErrorNodeSelectionStrategyChannel.of(

@@ -69,7 +69,7 @@ class NodeSelectionStrategyChannelTest {
     @BeforeEach
     void beforeEach() {
         ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
-        hostAndLimitedChannels = TestHostAndLimitedChannels.createAndAssignHostIdx(channels);
+        hostAndLimitedChannels = HostAndLimitedChannels.createAndAssignHostIdx(channels);
         channel = new NodeSelectionStrategyChannel(
                 strategySelector,
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,

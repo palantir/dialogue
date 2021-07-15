@@ -16,8 +16,19 @@
 
 package com.palantir.dialogue.core;
 
+import com.palantir.dialogue.DialogueImmutablesStyle;
+import org.immutables.value.Value;
+
+@Value.Immutable
+@DialogueImmutablesStyle
 interface HostAndLimitedChannel {
     HostIdx getHostIdx();
 
     LimitedChannel limitedChannel();
+
+    class Builder extends ImmutableHostAndLimitedChannel.Builder {}
+
+    static Builder builder() {
+        return new Builder();
+    }
 }
