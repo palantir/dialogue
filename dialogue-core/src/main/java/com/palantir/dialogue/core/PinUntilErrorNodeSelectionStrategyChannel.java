@@ -172,7 +172,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectionSt
                 instrumentation.receivedThrowable(pin, channel, throwable, next);
             }
         });
-        return maybeResponse;
+        return ExecutedOnResponseMarker.maybeMarkExecutedOn(request, maybeResponse, channel);
     }
 
     @VisibleForTesting

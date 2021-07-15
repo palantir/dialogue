@@ -78,7 +78,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
             Request request,
             LimitEnforcement limitEnforcement) {
         ChannelScoreInfo channelInfo = tracker.getChannelScoreInfo(channelOverride.getHostIdx());
-        return maybeExecute(channelInfo, channelOverride.limitedChannel(), endpoint, request, limitEnforcement);
+        return maybeExecuteImpl(channelInfo, channelOverride, endpoint, request, limitEnforcement);
     }
 
     @Override
@@ -128,7 +128,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
 
             HostAndLimitedChannel hostAndLimitedChannel = channels.getByHostIdx(channelInfo.hostIdx());
             Optional<ListenableFuture<Response>> responseListenableFuture =
-                    maybeExecuteOnHost(hostAndLimitedChannel, endpoint, request, limitEnforcement);
+                    maybeExecuteImpl(channelInfo, hostAndLimitedChannel, endpoint, request, limitEnforcement);
 
             if (responseListenableFuture.isPresent()) {
                 return responseListenableFuture;
@@ -138,21 +138,21 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
         return Optional.empty();
     }
 
-    private Optional<ListenableFuture<Response>> maybeExecute(
+    private Optional<ListenableFuture<Response>> maybeExecuteImpl(
             ChannelScoreInfo channelInfo,
-            LimitedChannel hostLimitedChannel,
+            HostAndLimitedChannel hostLimitedChannel,
             Endpoint endpoint,
             Request request,
             LimitEnforcement limitEnforcement) {
         channelInfo.startRequest();
 
         Optional<ListenableFuture<Response>> maybe =
-                hostLimitedChannel.maybeExecute(endpoint, request, limitEnforcement);
+                hostLimitedChannel.limitedChannel().maybeExecute(endpoint, request, limitEnforcement);
 
         if (maybe.isPresent()) {
             channelInfo.observability().markRequestMade();
             DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
-            return maybe;
+            return ExecutedOnResponseMarker.maybeMarkExecutedOn(request, maybe, hostLimitedChannel);
         } else {
             channelInfo.undoStartRequest();
         }
