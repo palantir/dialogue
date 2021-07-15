@@ -41,8 +41,7 @@ public final class HostAndLimitedChannelsTest {
 
     @BeforeEach
     public void beforeEach() {
-        hostAndLimitedChannels =
-                TestHostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(channel1, channel2));
+        hostAndLimitedChannels = HostAndLimitedChannels.createAndAssignHostIdx(ImmutableList.of(channel1, channel2));
     }
 
     @Test
