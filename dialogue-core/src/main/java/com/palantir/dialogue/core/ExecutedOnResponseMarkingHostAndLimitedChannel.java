@@ -36,7 +36,7 @@ final class ExecutedOnResponseMarkingHostAndLimitedChannel implements HostAndLim
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        if (RoutingAttachments.shouldAttachExecutedOnResponseAttachment(request)) {
+        if (RoutingAttachments.shouldAttachExecutedOnChannelResponseAttachment(request)) {
             return delegate.maybeExecute(endpoint, request, limitEnforcement)
                     .map(responseFuture ->
                             DialogueFutures.transform(responseFuture, this::addExecutedOnResponseAttachment));
@@ -46,7 +46,7 @@ final class ExecutedOnResponseMarkingHostAndLimitedChannel implements HostAndLim
     }
 
     private Response addExecutedOnResponseAttachment(Response response) {
-        RoutingAttachments.executedOn(response, this);
+        RoutingAttachments.setExecutedOnChannelResponseAttachment(response, this);
         return response;
     }
 

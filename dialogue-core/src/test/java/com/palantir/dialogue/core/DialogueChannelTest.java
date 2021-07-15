@@ -26,6 +26,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -82,7 +83,10 @@ public final class DialogueChannelTest {
             .build();
 
     @Mock
-    private Channel mockChannel;
+    private Channel mockChannel1;
+
+    @Mock
+    private Channel mockChannel2;
 
     private Endpoint endpoint = TestEndpoint.POST;
 
@@ -97,11 +101,11 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .factory(_args -> mockChannel)
+                .factory(_args -> mockChannel1)
                 .build();
 
         ListenableFuture<Response> expectedResponse = Futures.immediateFuture(response);
-        lenient().when(mockChannel.execute(eq(endpoint), any())).thenReturn(expectedResponse);
+        lenient().when(mockChannel1.execute(eq(endpoint), any())).thenReturn(expectedResponse);
     }
 
     @Test
@@ -173,11 +177,11 @@ public final class DialogueChannelTest {
 
     @Test
     void test_queue_rejection_is_not_retried() {
-        when(mockChannel.execute(any(), any())).thenReturn(SettableFuture.create());
+        when(mockChannel1.execute(any(), any())).thenReturn(SettableFuture.create());
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
-                .factory(_args -> mockChannel)
+                .factory(_args -> mockChannel1)
                 .random(new Random(123456L))
                 .maxQueueSize(1)
                 .build();
@@ -276,7 +280,7 @@ public final class DialogueChannelTest {
                         .from(stubConfig)
                         .uris(Collections.emptyList())
                         .build())
-                .factory(_args -> mockChannel)
+                .factory(_args -> mockChannel1)
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
         assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
@@ -284,7 +288,7 @@ public final class DialogueChannelTest {
 
     @Test
     void nice_tostring() {
-        DialogueChannelFactory factory = _args -> mockChannel;
+        DialogueChannelFactory factory = _args -> mockChannel1;
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(stubConfig)
@@ -302,13 +306,70 @@ public final class DialogueChannelTest {
     }
 
     @Test
-    public void test_can_request_routing_attachments() {
-        DialogueChannelFactory factory = _args -> mockChannel;
+    public void test_can_route_to_specific_host() throws ExecutionException {
+        String host1 = "http://localhost1";
+        String host2 = "http://localhost2";
+        ImmutableMap<String, Channel> channels = ImmutableMap.of(host1, mockChannel1, host2, mockChannel2);
+        ClientConfiguration twoNodeConfig = ClientConfiguration.builder()
+                .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                        .addUris(host1)
+                        .addUris(host2)
+                        .security(SSL_CONFIG)
+                        .build()))
+                .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
+                .userAgent(USER_AGENT)
+                .build();
+
+        DialogueChannelFactory factory = channelArgs -> channels.get(channelArgs.uri());
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
-                .clientConfiguration(stubConfig)
+                .clientConfiguration(twoNodeConfig)
                 .factory(factory)
+                .random(new Random(1L))
                 .build();
+
+        SettableFuture<Response> channel1ResponseFuture = SettableFuture.create();
+        SettableFuture<Response> channel2ResponseFuture = SettableFuture.create();
+
+        when(mockChannel1.execute(any(), any())).thenReturn(channel1ResponseFuture);
+        when(mockChannel2.execute(any(), any())).thenReturn(channel2ResponseFuture);
+
+        Request request1 = createRequestWithAddExecutedOnAttachment();
+        ListenableFuture<Response> response1 = channel.execute(endpoint, request1);
+
+        Request request2 = createRequestWithAddExecutedOnAttachment();
+        ListenableFuture<Response> response2 = channel.execute(endpoint, request2);
+
+        Response channel1Response = TestResponse.withBody(null);
+        channel1ResponseFuture.set(channel1Response);
+
+        Response channel2Response = TestResponse.withBody(null);
+        channel2ResponseFuture.set(channel2Response);
+
+        assertThat(Futures.getDone(response1)).isEqualTo(channel1Response);
+        assertThat(Futures.getDone(response2)).isEqualTo(channel2Response);
+
+        HostAndLimitedChannel channel1HostAndLimitedChannel = RoutingAttachments.getExecutedOnChannel(channel1Response);
+        HostAndLimitedChannel channel2HostAndLimitedChannel = RoutingAttachments.getExecutedOnChannel(channel2Response);
+
+        channel1Response = TestResponse.withBody(null);
+        channel2Response = TestResponse.withBody(null);
+        when(mockChannel1.execute(any(), any())).thenReturn(Futures.immediateFuture(channel1Response));
+        when(mockChannel2.execute(any(), any())).thenReturn(Futures.immediateFuture(channel2Response));
+
+        request1 = Request.builder().build();
+        RoutingAttachments.setExecuteOnChannel(request1, channel1HostAndLimitedChannel);
+        assertThat(Futures.getDone(channel.execute(endpoint, request1))).isEqualTo(channel1Response);
+
+        request2 = Request.builder().build();
+        RoutingAttachments.setExecuteOnChannel(request2, channel2HostAndLimitedChannel);
+        assertThat(Futures.getDone(channel.execute(endpoint, request2))).isEqualTo(channel2Response);
+    }
+
+    private Request createRequestWithAddExecutedOnAttachment() {
+        Request request2 = Request.builder().build();
+        RoutingAttachments.requestExecutedOnChannelResponseAttachment(request2);
+        return request2;
     }
 
     @Test

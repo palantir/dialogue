@@ -20,12 +20,13 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.ResponseAttachmentKey;
+import com.palantir.logsafe.Preconditions;
 import javax.annotation.Nullable;
 
 final class RoutingAttachments {
 
     /** When present, {@link #EXECUTED_ON_CHANNEL} will be set. */
-    private static final RequestAttachmentKey<Boolean> ADD_EXECUTED_ON_RESPONSE_ATTACHMENT =
+    private static final RequestAttachmentKey<Boolean> ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT =
             RequestAttachmentKey.create(Boolean.class);
 
     /**
@@ -35,7 +36,7 @@ final class RoutingAttachments {
             RequestAttachmentKey.create(HostAndLimitedChannel.class);
 
     /**
-     * If {@link #ADD_EXECUTED_ON_RESPONSE_ATTACHMENT} is requested, this attachment will be present on the response
+     * If {@link #ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT} is requested, this attachment will be present on the response
      * to indicate the host channel that executed the request.
      */
     private static final ResponseAttachmentKey<HostAndLimitedChannel> EXECUTED_ON_CHANNEL =
@@ -43,12 +44,16 @@ final class RoutingAttachments {
 
     private RoutingAttachments() {}
 
-    static boolean shouldAttachExecutedOnResponseAttachment(Request request) {
+    static boolean shouldAttachExecutedOnChannelResponseAttachment(Request request) {
         return Boolean.TRUE.equals(
-                request.attachments().getOrDefault(ADD_EXECUTED_ON_RESPONSE_ATTACHMENT, Boolean.FALSE));
+                request.attachments().getOrDefault(ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT, Boolean.FALSE));
     }
 
-    static void executedOn(Response response, HostAndLimitedChannel limitedChannel) {
+    static void requestExecutedOnChannelResponseAttachment(Request request) {
+        request.attachments().put(ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT, Boolean.TRUE);
+    }
+
+    static void setExecutedOnChannelResponseAttachment(Response response, HostAndLimitedChannel limitedChannel) {
         response.attachments().put(EXECUTED_ON_CHANNEL, limitedChannel);
     }
 
@@ -59,5 +64,10 @@ final class RoutingAttachments {
 
     static void setExecuteOnChannel(Request request, HostAndLimitedChannel hostAndLimitedChannel) {
         request.attachments().put(EXECUTE_ON_CHANNEL, hostAndLimitedChannel);
+    }
+
+    static HostAndLimitedChannel getExecutedOnChannel(Response response) {
+        return Preconditions.checkNotNull(
+                response.attachments().getOrDefault(EXECUTED_ON_CHANNEL, null), "attachment not present");
     }
 }
