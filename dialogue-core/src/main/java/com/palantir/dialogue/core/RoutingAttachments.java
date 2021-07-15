@@ -32,15 +32,15 @@ final class RoutingAttachments {
     /**
      * This request attachment specifies that a request should be executed on a specific host channel.
      */
-    private static final RequestAttachmentKey<HostAndLimitedChannel> EXECUTE_ON_CHANNEL =
-            RequestAttachmentKey.create(HostAndLimitedChannel.class);
+    private static final RequestAttachmentKey<LimitedChannel> EXECUTE_ON_CHANNEL =
+            RequestAttachmentKey.create(LimitedChannel.class);
 
     /**
      * If {@link #ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT} is requested, this attachment will be present on the response
      * to indicate the host channel that executed the request.
      */
-    private static final ResponseAttachmentKey<HostAndLimitedChannel> EXECUTED_ON_CHANNEL =
-            ResponseAttachmentKey.create(HostAndLimitedChannel.class);
+    private static final ResponseAttachmentKey<LimitedChannel> EXECUTED_ON_CHANNEL =
+            ResponseAttachmentKey.create(LimitedChannel.class);
 
     private RoutingAttachments() {}
 
@@ -53,20 +53,20 @@ final class RoutingAttachments {
         request.attachments().put(ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT, Boolean.TRUE);
     }
 
-    static void setExecutedOnChannelResponseAttachment(Response response, HostAndLimitedChannel limitedChannel) {
+    static void setExecutedOnChannelResponseAttachment(Response response, LimitedChannel limitedChannel) {
         response.attachments().put(EXECUTED_ON_CHANNEL, limitedChannel);
     }
 
     @Nullable
-    static HostAndLimitedChannel maybeGetExecuteOnChannel(Request request) {
+    static LimitedChannel maybeGetExecuteOnChannel(Request request) {
         return request.attachments().getOrDefault(EXECUTE_ON_CHANNEL, null);
     }
 
-    static void setExecuteOnChannel(Request request, HostAndLimitedChannel hostAndLimitedChannel) {
-        request.attachments().put(EXECUTE_ON_CHANNEL, hostAndLimitedChannel);
+    static void setExecuteOnChannel(Request request, LimitedChannel limitedChannel) {
+        request.attachments().put(EXECUTE_ON_CHANNEL, limitedChannel);
     }
 
-    static HostAndLimitedChannel getExecutedOnChannel(Response response) {
+    static LimitedChannel getExecutedOnChannel(Response response) {
         return Preconditions.checkNotNull(
                 response.attachments().getOrDefault(EXECUTED_ON_CHANNEL, null), "attachment not present");
     }

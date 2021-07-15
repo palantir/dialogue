@@ -152,7 +152,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectionStrateg
         if (maybe.isPresent()) {
             channelInfo.observability().markRequestMade();
             DialogueFutures.addDirectCallback(maybe.get(), channelInfo);
-            return ExecutedOnResponseMarker.maybeMarkExecutedOn(request, maybe, hostLimitedChannel);
+            return maybe;
         } else {
             channelInfo.undoStartRequest();
         }

@@ -33,17 +33,21 @@ import java.util.stream.IntStream;
 final class HostAndLimitedChannels {
 
     private final ImmutableList<HostAndLimitedChannel> channels;
-    private final ImmutableMap<HostAndLimitedChannel, Integer> byIndex;
     private final ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups;
+    private final ImmutableMap<HostAndLimitedChannel, Integer> byIndex;
+    private final ImmutableMap<LimitedChannel, HostAndLimitedChannel> byLimitedChannel;
 
     private HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
-        this(channels, buildLookups(channels));
+        this(channels, buildLookups(channels), buildByLimitedChannel(channels));
     }
 
     private HostAndLimitedChannels(
-            ImmutableList<HostAndLimitedChannel> channels, ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups) {
+            ImmutableList<HostAndLimitedChannel> channels,
+            ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups,
+            ImmutableMap<LimitedChannel, HostAndLimitedChannel> byLimitedChannel) {
         this.channels = channels;
         this.lookups = lookups;
+        this.byLimitedChannel = byLimitedChannel;
         this.byIndex = buildByIndex(channels);
     }
 
@@ -59,10 +63,14 @@ final class HostAndLimitedChannels {
         return Preconditions.checkNotNull(byIndex.get(hostAndLimitedChannel), "Unknown hostAndLimitedChannel");
     }
 
+    HostAndLimitedChannel getByLimitedChannel(LimitedChannel limitedChannel) {
+        return Preconditions.checkNotNull(byLimitedChannel.get(limitedChannel), "Unknown limitedChannel");
+    }
+
     HostAndLimitedChannels shuffle(Random random) {
         List<HostAndLimitedChannel> mutableList = new ArrayList<>(channels);
         Collections.shuffle(mutableList, random);
-        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups);
+        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups, byLimitedChannel);
     }
 
     static HostAndLimitedChannels createAndAssignHostIdx(ImmutableList<LimitedChannel> limitedChannels) {
@@ -95,5 +103,15 @@ final class HostAndLimitedChannels {
             byIndexBuilder.put(channels.get(i), i);
         }
         return byIndexBuilder.build();
+    }
+
+    private static ImmutableMap<LimitedChannel, HostAndLimitedChannel> buildByLimitedChannel(
+            ImmutableList<HostAndLimitedChannel> channels) {
+        ImmutableMap.Builder<LimitedChannel, HostAndLimitedChannel> byLimitedChannel = ImmutableMap.builder();
+        for (int i = 0; i < channels.size(); i++) {
+            HostAndLimitedChannel hostAndLimitedChannel = channels.get(i);
+            byLimitedChannel.put(hostAndLimitedChannel.limitedChannel(), hostAndLimitedChannel);
+        }
+        return byLimitedChannel.build();
     }
 }

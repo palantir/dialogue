@@ -349,8 +349,8 @@ public final class DialogueChannelTest {
         assertThat(Futures.getDone(response1)).isEqualTo(channel1Response);
         assertThat(Futures.getDone(response2)).isEqualTo(channel2Response);
 
-        HostAndLimitedChannel channel1HostAndLimitedChannel = RoutingAttachments.getExecutedOnChannel(channel1Response);
-        HostAndLimitedChannel channel2HostAndLimitedChannel = RoutingAttachments.getExecutedOnChannel(channel2Response);
+        LimitedChannel channel1LimitedChannel = RoutingAttachments.getExecutedOnChannel(channel1Response);
+        LimitedChannel channel2LimitedChannel = RoutingAttachments.getExecutedOnChannel(channel2Response);
 
         channel1Response = TestResponse.withBody(null);
         channel2Response = TestResponse.withBody(null);
@@ -358,11 +358,11 @@ public final class DialogueChannelTest {
         when(mockChannel2.execute(any(), any())).thenReturn(Futures.immediateFuture(channel2Response));
 
         request1 = Request.builder().build();
-        RoutingAttachments.setExecuteOnChannel(request1, channel1HostAndLimitedChannel);
+        RoutingAttachments.setExecuteOnChannel(request1, channel1LimitedChannel);
         assertThat(Futures.getDone(channel.execute(endpoint, request1))).isEqualTo(channel1Response);
 
         request2 = Request.builder().build();
-        RoutingAttachments.setExecuteOnChannel(request2, channel2HostAndLimitedChannel);
+        RoutingAttachments.setExecuteOnChannel(request2, channel2LimitedChannel);
         assertThat(Futures.getDone(channel.execute(endpoint, request2))).isEqualTo(channel2Response);
     }
 

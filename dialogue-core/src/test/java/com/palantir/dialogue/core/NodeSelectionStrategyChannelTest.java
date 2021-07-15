@@ -95,7 +95,7 @@ class NodeSelectionStrategyChannelTest {
 
         Request request = Request.builder().build();
         RoutingAttachments.setExecuteOnChannel(
-                request, hostAndLimitedChannels.getChannels().get(1));
+                request, hostAndLimitedChannels.getChannels().get(1).limitedChannel());
 
         assertThat(channel.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();

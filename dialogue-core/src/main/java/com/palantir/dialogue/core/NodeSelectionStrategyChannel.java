@@ -94,11 +94,12 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        HostAndLimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOnChannel(request);
+        LimitedChannel executeOnChannel = RoutingAttachments.maybeGetExecuteOnChannel(request);
 
         final Optional<ListenableFuture<Response>> maybe;
         if (executeOnChannel != null) {
-            maybe = delegate.maybeExecuteOnHost(executeOnChannel, endpoint, request, limitEnforcement);
+            maybe = delegate.maybeExecuteOnHost(
+                    channels.getByLimitedChannel(executeOnChannel), endpoint, request, limitEnforcement);
         } else {
             maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
         }
