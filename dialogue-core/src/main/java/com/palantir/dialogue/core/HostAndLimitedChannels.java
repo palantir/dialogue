@@ -31,10 +31,13 @@ final class HostAndLimitedChannels {
     private final ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups;
 
     private HostAndLimitedChannels(ImmutableList<HostAndLimitedChannel> channels) {
+        this(channels, buildLookups(channels));
+    }
+
+    private HostAndLimitedChannels(
+            ImmutableList<HostAndLimitedChannel> channels, ImmutableBiMap<HostIdx, HostAndLimitedChannel> lookups) {
         this.channels = channels;
-        ImmutableBiMap.Builder<HostIdx, HostAndLimitedChannel> lookupsBuilder = ImmutableBiMap.builder();
-        channels.forEach(hostLimitedChannel -> lookupsBuilder.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
-        lookups = lookupsBuilder.build();
+        this.lookups = lookups;
     }
 
     ImmutableList<HostAndLimitedChannel> getUnorderedChannels() {
@@ -56,7 +59,7 @@ final class HostAndLimitedChannels {
     HostAndLimitedChannels shuffle(Random random) {
         List<HostAndLimitedChannel> mutableList = new ArrayList<>(channels);
         Collections.shuffle(mutableList, random);
-        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList));
+        return new HostAndLimitedChannels(ImmutableList.copyOf(mutableList), lookups);
     }
 
     static HostAndLimitedChannels createAndAssignHostIdx(ImmutableList<LimitedChannel> limitedChannels) {
@@ -73,5 +76,12 @@ final class HostAndLimitedChannels {
     @Override
     public String toString() {
         return channels.toString();
+    }
+
+    private static ImmutableBiMap<HostIdx, HostAndLimitedChannel> buildLookups(
+            ImmutableList<HostAndLimitedChannel> channels) {
+        ImmutableBiMap.Builder<HostIdx, HostAndLimitedChannel> lookupsBuilder = ImmutableBiMap.builder();
+        channels.forEach(hostLimitedChannel -> lookupsBuilder.put(hostLimitedChannel.getHostIdx(), hostLimitedChannel));
+        return lookupsBuilder.build();
     }
 }
