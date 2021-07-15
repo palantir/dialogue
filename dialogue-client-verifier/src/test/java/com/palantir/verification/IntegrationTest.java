@@ -57,9 +57,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.zip.GZIPOutputStream;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class IntegrationTest {
     private static final UserAgent USER_AGENT = UserAgent.of(UserAgent.Agent.of("BinaryReturnTypeTest", "0.0.0"));
@@ -73,7 +73,7 @@ public class IntegrationTest {
     private SampleServiceBlocking blocking;
     private SampleServiceAsync async;
 
-    @Before
+    @BeforeEach
     public void before() {
         undertow = Undertow.builder()
                 .addHttpListener(
@@ -244,7 +244,7 @@ public class IntegrationTest {
         };
     }
 
-    @After
+    @AfterEach
     public void after() {
         undertow.stop();
     }
