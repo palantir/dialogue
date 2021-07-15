@@ -56,4 +56,8 @@ final class RoutingAttachments {
     static HostAndLimitedChannel maybeGetExecuteOnChannel(Request request) {
         return request.attachments().getOrDefault(EXECUTE_ON_CHANNEL, null);
     }
+
+    static void setExecuteOnChannel(Request request, HostAndLimitedChannel hostAndLimitedChannel) {
+        request.attachments().put(EXECUTE_ON_CHANNEL, hostAndLimitedChannel);
+    }
 }

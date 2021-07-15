@@ -63,14 +63,13 @@ class NodeSelectionStrategyChannelTest {
 
     private String channelName = "channelName";
     private Random pseudo = new Random(12893712L);
+    private HostAndLimitedChannels hostAndLimitedChannels;
     private NodeSelectionStrategyChannel channel;
 
     @BeforeEach
-    void beforeEach() {}
-
-    @Test
-    void updates_strategy_on_response() {
+    void beforeEach() {
         ImmutableList<LimitedChannel> channels = ImmutableList.of(channel1, channel2);
+        hostAndLimitedChannels = TestHostAndLimitedChannels.createAndAssignHostIdx(channels);
         channel = new NodeSelectionStrategyChannel(
                 strategySelector,
                 DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE,
@@ -78,14 +77,38 @@ class NodeSelectionStrategyChannelTest {
                 pseudo,
                 clock,
                 new DefaultTaggedMetricRegistry(),
-                TestHostAndLimitedChannels.createAndAssignHostIdx(channels));
+                hostAndLimitedChannels);
+    }
 
-        when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
-                .thenReturn(Optional.of(Futures.immediateFuture(
-                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
+    @Test
+    void updates_strategy_on_response() {
+        whenRespondWithNodeSelectionStrategyChange(channel1);
 
         assertThat(channel.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
+        verifyStrategyChanged();
+    }
+
+    @Test
+    void can_route_to_specific_host() {
+        whenRespondWithNodeSelectionStrategyChange(channel2);
+
+        Request request = Request.builder().build();
+        RoutingAttachments.setExecuteOnChannel(
+                request, hostAndLimitedChannels.getChannels().get(1));
+
+        assertThat(channel.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+        verifyStrategyChanged();
+    }
+
+    private void whenRespondWithNodeSelectionStrategyChange(LimitedChannel limitedChannel) {
+        when(limitedChannel.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(Futures.immediateFuture(
+                        new TestResponse().code(200).withHeader("Node-Selection-Strategy", "BALANCED,FOO"))));
+    }
+
+    private void verifyStrategyChanged() {
         verify(strategySelector, times(1))
                 .updateAndGet(eq(ImmutableList.of(
                         DialogueNodeSelectionStrategy.BALANCED, DialogueNodeSelectionStrategy.UNKNOWN)));

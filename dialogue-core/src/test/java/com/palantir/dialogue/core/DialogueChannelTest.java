@@ -302,6 +302,16 @@ public final class DialogueChannelTest {
     }
 
     @Test
+    public void test_can_request_routing_attachments() {
+        DialogueChannelFactory factory = _args -> mockChannel;
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .factory(factory)
+                .build();
+    }
+
+    @Test
     @TestTracing(snapshot = true)
     public void traces_on_retries() throws Exception {
         when(response.code()).thenReturn(429);
