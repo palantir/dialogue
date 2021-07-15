@@ -224,8 +224,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
 
         // Initial list has been shuffled
         HostAndLimitedChannel predictedPin =
-                hostAndLimitedChannels.getUnorderedChannels().get(1);
-        assertThat(initial.getNodeListSnapshot().getUnorderedChannels())
+                hostAndLimitedChannels.getChannels().get(1);
+        assertThat(initial.getNodeListSnapshot().getChannels())
                 .containsExactly(
                         HostAndLimitedChannel.builder()
                                 .hostIdx(HostIdx.of(1))
@@ -247,8 +247,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 channelName);
 
         // Reconstructed list has been shuffled back to original order
-        assertThat(reconstructed.getNodeListSnapshot().getUnorderedChannels())
-                .containsExactlyElementsOf(hostAndLimitedChannels.getUnorderedChannels());
+        assertThat(reconstructed.getNodeListSnapshot().getChannels())
+                .containsExactlyElementsOf(hostAndLimitedChannels.getChannels());
 
         // Yet pin stayed the same
         assertThat(reconstructed.getCurrentChannel()).isEqualTo(predictedPin);

@@ -73,12 +73,12 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     }
 
     static LimitedChannel create(Config cf, HostAndLimitedChannels channels) {
-        if (channels.getUnorderedChannels().isEmpty()) {
+        if (channels.getChannels().isEmpty()) {
             return new ZeroUriNodeSelectionChannel(cf.channelName());
         }
 
-        if (channels.getUnorderedChannels().size() == 1) {
-            return Iterables.getOnlyElement(channels.getUnorderedChannels()).limitedChannel();
+        if (channels.getChannels().size() == 1) {
+            return Iterables.getOnlyElement(channels.getChannels()).limitedChannel();
         }
 
         return new NodeSelectionStrategyChannel(

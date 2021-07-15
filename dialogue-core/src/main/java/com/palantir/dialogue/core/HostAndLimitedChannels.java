@@ -25,6 +25,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.stream.IntStream;
 
+/**
+ * Maintains stable {@code HostIdx -> LimitedChannel} association. Channels can be shuffled to obtain different
+ * orderings, whilst still maintaining the ability to retrieve channels by their original {@link HostIdx}.
+ */
 final class HostAndLimitedChannels {
 
     private final ImmutableList<HostAndLimitedChannel> channels;
@@ -40,20 +44,12 @@ final class HostAndLimitedChannels {
         this.lookups = lookups;
     }
 
-    ImmutableList<HostAndLimitedChannel> getUnorderedChannels() {
+    ImmutableList<HostAndLimitedChannel> getChannels() {
         return channels;
-    }
-
-    HostAndLimitedChannel getByUnordered(int index) {
-        return channels.get(index);
     }
 
     HostAndLimitedChannel getByHostIdx(HostIdx hostIdx) {
         return Preconditions.checkNotNull(lookups.get(hostIdx), "Unknown hostIdx");
-    }
-
-    int unorderedIndexOf(HostAndLimitedChannel hostAndLimitedChannel) {
-        return channels.indexOf(hostAndLimitedChannel);
     }
 
     HostAndLimitedChannels shuffle(Random random) {

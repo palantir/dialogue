@@ -63,14 +63,12 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             Ticker ticker,
             TaggedMetricRegistry taggedMetrics,
             String channelName) {
-        Preconditions.checkState(channels.getUnorderedChannels().size() >= 2, "At least two channels required");
-        this.tracker = new BalancedScoreTracker(
-                channels.getUnorderedChannels().size(), random, ticker, taggedMetrics, channelName);
+        Preconditions.checkState(channels.getChannels().size() >= 2, "At least two channels required");
+        this.tracker =
+                new BalancedScoreTracker(channels.getChannels().size(), random, ticker, taggedMetrics, channelName);
         this.channels = channels;
         log.debug(
-                "Initialized",
-                SafeArg.of("count", channels.getUnorderedChannels().size()),
-                UnsafeArg.of("channels", channels));
+                "Initialized", SafeArg.of("count", channels.getChannels().size()), UnsafeArg.of("channels", channels));
     }
 
     @Override

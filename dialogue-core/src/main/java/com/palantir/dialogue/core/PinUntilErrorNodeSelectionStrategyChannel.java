@@ -100,7 +100,9 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
                 // indexOf relies on reference equality since we expect LimitedChannels to be reused across updates
                 .map(pinUntilErrorNodeSelectionStrategyChannel -> Math.max(
                         0,
-                        initialShuffle.unorderedIndexOf(pinUntilErrorNodeSelectionStrategyChannel.getCurrentChannel())))
+                        initialShuffle
+                                .getChannels()
+                                .indexOf(pinUntilErrorNodeSelectionStrategyChannel.getCurrentChannel())))
                 .orElse(0);
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
@@ -189,12 +191,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         @Override
         public HostAndLimitedChannel get(int index) {
-            return channels.getByUnordered(index);
+            return channels.getChannels().get(index);
         }
 
         @Override
         public int size() {
-            return channels.getUnorderedChannels().size();
+            return channels.getChannels().size();
         }
 
         @Override
@@ -245,14 +247,13 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             this.intervalWithJitter = intervalWithJitter;
             this.random = random;
             this.clock = clock;
-            this.instrumentation =
-                    new Instrumentation(channels.getUnorderedChannels().size(), metrics, channelName);
+            this.instrumentation = new Instrumentation(channels.getChannels().size(), metrics, channelName);
         }
 
         @Override
         public HostAndLimitedChannel get(int index) {
             reshuffleChannelsIfNecessary();
-            return channels.getByUnordered(index);
+            return channels.getChannels().get(index);
         }
 
         @Override
@@ -262,7 +263,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         @Override
         public int size() {
-            return channels.getUnorderedChannels().size();
+            return channels.getChannels().size();
         }
 
         private void reshuffleChannelsIfNecessary() {
@@ -273,7 +274,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
             if (nextReshuffle.compareAndSet(reshuffleTime, clock.read() + intervalWithJitter)) {
                 HostAndLimitedChannels newList = channels.shuffle(random);
-                instrumentation.reshuffled(newList.getUnorderedChannels(), intervalWithJitter);
+                instrumentation.reshuffled(newList.getChannels(), intervalWithJitter);
                 channels = newList;
             }
         }
