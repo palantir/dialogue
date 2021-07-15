@@ -36,8 +36,8 @@ final class RoutingAttachments {
             RequestAttachmentKey.create(LimitedChannel.class);
 
     /**
-     * If {@link #ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT} is requested, this attachment will be present on the response
-     * to indicate the host channel that executed the request.
+     * If {@link #ADD_EXECUTED_ON_CHANNEL_RESPONSE_ATTACHMENT} is requested, this attachment will be present on
+     * the response to indicate the host channel that executed the request.
      */
     private static final ResponseAttachmentKey<LimitedChannel> EXECUTED_ON_CHANNEL =
             ResponseAttachmentKey.create(LimitedChannel.class);
