@@ -134,6 +134,17 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
+        },
+        STICKY() {
+            @Override
+            void onSuccess(Response _result, PermitControl control) {
+                control.success();
+            }
+
+            @Override
+            void onFailure(Throwable _throwable, PermitControl control) {
+                control.ignore();
+            }
         };
 
         abstract void onSuccess(Response result, PermitControl control);
@@ -155,6 +166,10 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
         Permit(int inFlightSnapshot) {
             this.inFlightSnapshot = inFlightSnapshot;
+        }
+
+        boolean isOnlyInFlight() {
+            return inFlightSnapshot == 1;
         }
 
         @VisibleForTesting
