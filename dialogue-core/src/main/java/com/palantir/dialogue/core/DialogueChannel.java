@@ -37,10 +37,12 @@ import java.util.concurrent.ScheduledExecutorService;
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
+    private final StickySessionFactory stickySessionFactory;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickySessionFactory stickySessionFactory) {
         this.cf = cf;
         this.delegate = delegate;
+        this.stickySessionFactory = stickySessionFactory;
     }
 
     @Override
@@ -51,6 +53,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
+    }
+
+    public StickySessionFactory stickySessionFactory() {
+        return stickySessionFactory;
     }
 
     public static Builder builder() {
@@ -163,7 +169,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
-            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+
+            Channel defaultQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            Channel queuedChannel = new QueueOverrideChannel(defaultQueuedChannel);
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
@@ -179,6 +187,19 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
+            StickySessionFactory stickySessionFactory = DefaultStickySessionFactory.create(() -> {
+                LimitedChannel stickyLimitedChannel =
+                        StickyConcurrencyLimitedChannel.createForQueueKey(nodeSelectionChannel, cf.channelName());
+                Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
+                return endpoint -> {
+                    EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
+                    return (EndpointChannel) request -> {
+                        request.attachments().put(QueueAttachments.QUEUE_OVERRIDE, queueOverride);
+                        return endpointChannel.execute(request);
+                    };
+                };
+            });
+
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()
                     .clientName(cf.channelName())
@@ -186,7 +207,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory);
+            return new DialogueChannel(cf, channelFactory, stickySessionFactory);
         }
 
         /** Does *not* do any clever live-reloading. */
