@@ -16,8 +16,9 @@
 
 package com.palantir.dialogue.core;
 
-import com.palantir.dialogue.Request;
+import com.google.common.collect.ImmutableList;
 
 interface NodeSelectingChannel extends LimitedChannel {
-    void routeToHost(int index, Request request);
+    /** Returns a stable list of all known delegate nodes. */
+    ImmutableList<LimitedChannel> nodeChannels();
 }

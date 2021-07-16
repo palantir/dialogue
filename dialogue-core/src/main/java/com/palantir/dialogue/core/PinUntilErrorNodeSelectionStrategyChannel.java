@@ -64,14 +64,14 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectingCh
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
 
-    private final ImmutableList<PinChannel> originalChannels;
+    private final ImmutableList<LimitedChannel> originalChannels;
     private final AtomicInteger currentPin;
     private final NodeList nodeList;
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
     PinUntilErrorNodeSelectionStrategyChannel(
-            ImmutableList<PinChannel> originalChannels,
+            ImmutableList<LimitedChannel> originalChannels,
             NodeList nodeList,
             int initialPin,
             DialoguePinuntilerrorMetrics metrics,
@@ -93,7 +93,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectingCh
     static PinUntilErrorNodeSelectionStrategyChannel of(
             Optional<LimitedChannel> initialChannel,
             DialogueNodeSelectionStrategy strategy,
-            List<LimitedChannel> channels,
+            ImmutableList<LimitedChannel> channels,
             DialoguePinuntilerrorMetrics metrics,
             Random random,
             Ticker ticker,
@@ -120,12 +120,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectingCh
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
             NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, ticker, metrics, channelName);
-            return new PinUntilErrorNodeSelectionStrategyChannel(
-                    pinChannels, shuffling, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(channels, shuffling, initialPin, metrics, channelName);
         } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
             NodeList constant = new ConstantNodeList(initialShuffle);
-            return new PinUntilErrorNodeSelectionStrategyChannel(
-                    pinChannels, constant, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(channels, constant, initialPin, metrics, channelName);
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
@@ -185,8 +183,8 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectingCh
     }
 
     @Override
-    public void routeToHost(int index, Request request) {
-        StickyAttachments.routeToChannel(request, originalChannels.get(index));
+    public ImmutableList<LimitedChannel> nodeChannels() {
+        return originalChannels;
     }
 
     interface NodeList {

@@ -81,12 +81,12 @@ final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
         if (channels.size() == 1) {
             return new StickyChannelHandler(new StuckRequestHandler(new NodeSelectingChannel() {
 
-                private LimitedChannel delegate = channels.get(0);
-
                 @Override
-                public void routeToHost(int _index, Request request) {
-                    StickyAttachments.routeToChannel(request, delegate);
+                public ImmutableList<LimitedChannel> nodeChannels() {
+                    return channels;
                 }
+
+                private LimitedChannel delegate = channels.get(0);
 
                 @Override
                 public Optional<ListenableFuture<Response>> maybeExecute(
@@ -182,8 +182,8 @@ final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
     }
 
     @Override
-    public void routeToHost(int index, Request request) {
-        delegate.routeToHost(index, request);
+    public ImmutableList<LimitedChannel> nodeChannels() {
+        return delegate.nodeChannels();
     }
 
     @Value.Immutable
@@ -257,8 +257,8 @@ final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
         }
 
         @Override
-        public void routeToHost(int index, Request request) {
-            delegate.routeToHost(index, request);
+        public ImmutableList<LimitedChannel> nodeChannels() {
+            return delegate.nodeChannels();
         }
     }
 
@@ -277,8 +277,8 @@ final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
         }
 
         @Override
-        public void routeToHost(int index, Request request) {
-            delegate.routeToHost(index, request);
+        public ImmutableList<LimitedChannel> nodeChannels() {
+            return delegate.nodeChannels();
         }
     }
 }

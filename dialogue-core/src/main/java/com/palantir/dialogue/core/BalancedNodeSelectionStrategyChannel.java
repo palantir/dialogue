@@ -56,7 +56,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectingChannel
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<BalancedChannel> channels;
+    private final ImmutableList<LimitedChannel> channels;
 
     BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
@@ -116,7 +116,7 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectingChannel
                 giveUpThreshold = newThreshold;
             }
 
-            BalancedChannel channel = channels.get(snapshot.getDelegate().channelIndex());
+            LimitedChannel channel = channels.get(snapshot.getDelegate().channelIndex());
             Optional<ListenableFuture<Response>> maybe =
                     StickyAttachments.maybeExecute(channel, endpoint, request, limitEnforcement);
             if (maybe.isPresent()) {
@@ -128,8 +128,8 @@ final class BalancedNodeSelectionStrategyChannel implements NodeSelectingChannel
     }
 
     @Override
-    public void routeToHost(int index, Request request) {
-        StickyAttachments.routeToChannel(request, channels.get(index));
+    public ImmutableList<LimitedChannel> nodeChannels() {
+        return channels;
     }
 
     private static final class BalancedChannel implements LimitedChannel {
