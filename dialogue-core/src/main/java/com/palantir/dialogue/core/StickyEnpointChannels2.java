@@ -34,11 +34,11 @@ import javax.annotation.concurrent.GuardedBy;
 import org.immutables.value.Value;
 
 @Value.Enclosing
-public final class DefaultStickySessionFactory implements Supplier<Channel> {
+final class StickyEnpointChannels2 implements Supplier<Channel> {
 
     private final Supplier<EndpointChannelFactory> delegate;
 
-    private DefaultStickySessionFactory(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+    private StickyEnpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
         this.delegate = Preconditions.checkNotNull(endpointChannelFactory, "endpointChannelFactory");
     }
 
@@ -82,8 +82,8 @@ public final class DefaultStickySessionFactory implements Supplier<Channel> {
         }
     }
 
-    public static DefaultStickySessionFactory create(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        return new DefaultStickySessionFactory(endpointChannelFactory);
+    public static StickyEnpointChannels2 create(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+        return new StickyEnpointChannels2(endpointChannelFactory);
     }
 
     private static final class StickyRouter {

@@ -188,7 +188,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
-            Supplier<Channel> stickyChannelSupplier = DefaultStickySessionFactory.create(() -> {
+            Supplier<Channel> stickyChannelSupplier = StickyEnpointChannels2.create(() -> {
                 LimitedChannel stickyLimitedChannel =
                         StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
                 Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
