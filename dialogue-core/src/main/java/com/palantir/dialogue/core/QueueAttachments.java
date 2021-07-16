@@ -17,8 +17,21 @@
 package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestAttachmentKey;
+import javax.annotation.CheckForNull;
 
-interface QueueAttachments {
-    RequestAttachmentKey<Channel> QUEUE_OVERRIDE = RequestAttachmentKey.create(Channel.class);
+final class QueueAttachments {
+    static final RequestAttachmentKey<Channel> QUEUE_OVERRIDE = RequestAttachmentKey.create(Channel.class);
+
+    private QueueAttachments() {}
+
+    static void setQueueOverride(Request request, Channel channel) {
+        request.attachments().put(QueueAttachments.QUEUE_OVERRIDE, channel);
+    }
+
+    @CheckForNull
+    static Channel getQueueOverride(Request request) {
+        return request.attachments().getOrDefault(QueueAttachments.QUEUE_OVERRIDE, null);
+    }
 }

@@ -195,7 +195,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return endpoint -> {
                     EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
                     return (EndpointChannel) request -> {
-                        request.attachments().put(QueueAttachments.QUEUE_OVERRIDE, queueOverride);
+                        QueueAttachments.setQueueOverride(request, queueOverride);
                         return endpointChannel.execute(request);
                     };
                 };

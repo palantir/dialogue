@@ -32,7 +32,7 @@ final class QueueOverrideChannel implements Channel {
 
     @Override
     public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-        Channel override = request.attachments().getOrDefault(QueueAttachments.QUEUE_OVERRIDE, null);
+        Channel override = QueueAttachments.getQueueOverride(request);
         if (override != null) {
             return override.execute(endpoint, request);
         } else {
