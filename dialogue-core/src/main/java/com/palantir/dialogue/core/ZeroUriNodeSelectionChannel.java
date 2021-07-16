@@ -45,7 +45,7 @@ final class ZeroUriNodeSelectionChannel implements NodeSelectingChannel {
     }
 
     @Override
-    public void routeToHost(int index, Request request) {
+    public void routeToHost(int _index, Request _request) {
         throw new SafeIllegalStateException(
                 "There are no URIs configured to handle requests", SafeArg.of("channel", channelName));
     }

@@ -84,7 +84,7 @@ final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
                 private LimitedChannel delegate = channels.get(0);
 
                 @Override
-                public void routeToHost(int index, Request request) {
+                public void routeToHost(int _index, Request request) {
                     StickyAttachments.routeToChannel(request, delegate);
                 }
 
