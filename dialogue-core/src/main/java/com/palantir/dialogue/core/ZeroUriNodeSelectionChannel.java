@@ -27,7 +27,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
 
 /** When we have zero URIs, no request can get out the door. */
-final class ZeroUriNodeSelectionChannel implements LimitedChannel {
+final class ZeroUriNodeSelectionChannel implements NodeSelectingChannel {
     private final String channelName;
 
     ZeroUriNodeSelectionChannel(String channelName) {
@@ -42,5 +42,11 @@ final class ZeroUriNodeSelectionChannel implements LimitedChannel {
                 SafeArg.of("channel", channelName),
                 SafeArg.of("service", endpoint.serviceName()),
                 SafeArg.of("endpoint", endpoint.endpointName()))));
+    }
+
+    @Override
+    public void routeToHost(int _index, Request _request) {
+        throw new SafeIllegalStateException(
+                "There are no URIs configured to handle requests", SafeArg.of("channel", channelName));
     }
 }

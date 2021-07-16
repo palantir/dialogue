@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  * workloads (where n requests must all land on the same server) or scenarios where cache warming is very important.
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
-final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
+final class BalancedNodeSelectionStrategyChannel implements NodeSelectingChannel {
     private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
@@ -125,6 +125,11 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         return Optional.empty();
+    }
+
+    @Override
+    public void routeToHost(int index, Request request) {
+        StickyAttachments.routeToChannel(request, channels.get(index));
     }
 
     private static final class BalancedChannel implements LimitedChannel {

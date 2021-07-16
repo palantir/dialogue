@@ -36,7 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
-final class NodeSelectionStrategyChannel implements LimitedChannel {
+final class NodeSelectionStrategyChannel implements NodeSelectingChannel {
     private static final String NODE_SELECTION_HEADER = "Node-Selection-Strategy";
 
     private final FutureCallback<Response> callback = new NodeSelectionCallback();
@@ -51,7 +51,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     private final ImmutableList<LimitedChannel> channels;
 
     @SuppressWarnings("NullAway")
-    private final LimitedChannel delegate =
+    private final NodeSelectingChannel delegate =
             new SupplierChannel(() -> nodeSelectionStrategy.get().channel());
 
     @VisibleForTesting
@@ -73,13 +73,27 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         this.nodeSelectionStrategy.set(createNodeSelectionChannel(null, initialStrategy));
     }
 
-    static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
+    static NodeSelectingChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
         if (channels.isEmpty()) {
             return new StickyChannelHandler(new ZeroUriNodeSelectionChannel(cf.channelName()));
         }
 
         if (channels.size() == 1) {
-            return new StickyChannelHandler(new StuckRequestHandler(channels.get(0)));
+            return new StickyChannelHandler(new StuckRequestHandler(new NodeSelectingChannel() {
+
+                private LimitedChannel delegate = channels.get(0);
+
+                @Override
+                public void routeToHost(int _index, Request request) {
+                    StickyAttachments.routeToChannel(request, delegate);
+                }
+
+                @Override
+                public Optional<ListenableFuture<Response>> maybeExecute(
+                        Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+                    return delegate.maybeExecute(endpoint, request, limitEnforcement);
+                }
+            }));
         }
 
         return new NodeSelectionStrategyChannel(
@@ -167,11 +181,16 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         return "NodeSelectionStrategyChannel{" + nodeSelectionStrategy + '}';
     }
 
+    @Override
+    public void routeToHost(int index, Request request) {
+        delegate.routeToHost(index, request);
+    }
+
     @Value.Immutable
     interface NodeSelectionChannel {
         DialogueNodeSelectionStrategy strategy();
 
-        LimitedChannel channel();
+        NodeSelectingChannel channel();
 
         class Builder extends ImmutableNodeSelectionChannel.Builder {}
 
@@ -214,11 +233,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private static final class StickyChannelHandler implements LimitedChannel {
+    private static final class StickyChannelHandler implements NodeSelectingChannel {
 
-        private final LimitedChannel delegate;
+        private final NodeSelectingChannel delegate;
 
-        StickyChannelHandler(LimitedChannel delegate) {
+        StickyChannelHandler(NodeSelectingChannel delegate) {
             this.delegate = delegate;
         }
 
@@ -236,13 +255,18 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
             return maybeExecute(delegate, endpoint, request, limitEnforcement);
         }
+
+        @Override
+        public void routeToHost(int index, Request request) {
+            delegate.routeToHost(index, request);
+        }
     }
 
-    private static final class StuckRequestHandler implements LimitedChannel {
+    private static final class StuckRequestHandler implements NodeSelectingChannel {
 
-        private final LimitedChannel delegate;
+        private final NodeSelectingChannel delegate;
 
-        StuckRequestHandler(LimitedChannel delegate) {
+        StuckRequestHandler(NodeSelectingChannel delegate) {
             this.delegate = delegate;
         }
 
@@ -250,6 +274,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         public Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
             return StickyAttachments.maybeExecute(delegate, endpoint, request, limitEnforcement);
+        }
+
+        @Override
+        public void routeToHost(int index, Request request) {
+            delegate.routeToHost(index, request);
         }
     }
 }

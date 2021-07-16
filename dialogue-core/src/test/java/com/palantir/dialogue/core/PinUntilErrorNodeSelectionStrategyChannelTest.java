@@ -76,8 +76,8 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                         channels, pseudo, clock, metrics, channelName);
 
         pinUntilErrorWithoutReshuffle =
-                new PinUntilErrorNodeSelectionStrategyChannel(constantList, 1, metrics, channelName);
-        pinUntilError = new PinUntilErrorNodeSelectionStrategyChannel(shufflingList, 1, metrics, channelName);
+                new PinUntilErrorNodeSelectionStrategyChannel(null, constantList, 1, metrics, channelName);
+        pinUntilError = new PinUntilErrorNodeSelectionStrategyChannel(null, shufflingList, 1, metrics, channelName);
     }
 
     @Test

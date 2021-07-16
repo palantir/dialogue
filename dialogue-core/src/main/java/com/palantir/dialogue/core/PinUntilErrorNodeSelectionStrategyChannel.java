@@ -58,19 +58,25 @@ import org.slf4j.LoggerFactory;
  *
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
-final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
+final class PinUntilErrorNodeSelectionStrategyChannel implements NodeSelectingChannel {
     private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);
 
+    private final ImmutableList<PinChannel> originalChannels;
     private final AtomicInteger currentPin;
     private final NodeList nodeList;
     private final Instrumentation instrumentation;
 
     @VisibleForTesting
     PinUntilErrorNodeSelectionStrategyChannel(
-            NodeList nodeList, int initialPin, DialoguePinuntilerrorMetrics metrics, String channelName) {
+            ImmutableList<PinChannel> originalChannels,
+            NodeList nodeList,
+            int initialPin,
+            DialoguePinuntilerrorMetrics metrics,
+            String channelName) {
+        this.originalChannels = originalChannels;
         this.nodeList = nodeList;
         this.currentPin = new AtomicInteger(initialPin);
         this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
@@ -93,7 +99,7 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
             Ticker ticker,
             String channelName) {
         // We preserve the 'stableIndex' so that calls can be attributed to one host even across reshuffles
-        List<PinChannel> pinChannels = IntStream.range(0, channels.size())
+        ImmutableList<PinChannel> pinChannels = IntStream.range(0, channels.size())
                 .mapToObj(index -> ImmutablePinChannel.builder()
                         .delegate(channels.get(index))
                         .stableIndex(index)
@@ -114,10 +120,12 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
 
         if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR) {
             NodeList shuffling = ReshufflingNodeList.of(initialShuffle, random, ticker, metrics, channelName);
-            return new PinUntilErrorNodeSelectionStrategyChannel(shuffling, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(
+                    pinChannels, shuffling, initialPin, metrics, channelName);
         } else if (strategy == DialogueNodeSelectionStrategy.PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE) {
             NodeList constant = new ConstantNodeList(initialShuffle);
-            return new PinUntilErrorNodeSelectionStrategyChannel(constant, initialPin, metrics, channelName);
+            return new PinUntilErrorNodeSelectionStrategyChannel(
+                    pinChannels, constant, initialPin, metrics, channelName);
         }
 
         throw new SafeIllegalArgumentException("Unsupported NodeSelectionStrategy", SafeArg.of("strategy", strategy));
@@ -174,6 +182,11 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         int nextIndex = (pin + 1) % nodeList.size();
         boolean saved = currentPin.compareAndSet(pin, nextIndex);
         return saved ? OptionalInt.of(nextIndex) : OptionalInt.empty(); // we've moved on already
+    }
+
+    @Override
+    public void routeToHost(int index, Request request) {
+        StickyAttachments.routeToChannel(request, originalChannels.get(index));
     }
 
     interface NodeList {
