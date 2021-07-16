@@ -92,7 +92,7 @@ final class QueuedChannel implements Channel {
                 "Unable to make a request (queue is full)", SafeArg.of("maxQueueSize", maxQueueSize)));
     }
 
-    // TODO(12345): The metrics will be global, even though maxSize is per-queue.
+    // Metrics are global, even if max size is per queue.
     static QueuedChannel createForSticky(Config cf, LimitedChannel delegate) {
         return new QueuedChannel(
                 delegate,

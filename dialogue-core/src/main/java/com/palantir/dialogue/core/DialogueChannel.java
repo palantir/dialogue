@@ -33,16 +33,17 @@ import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
-    private final StickySessionFactory stickySessionFactory;
+    private final Supplier<Channel> stickyChannelSupplier;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickySessionFactory stickySessionFactory) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, Supplier<Channel> stickyChannelSupplier) {
         this.cf = cf;
         this.delegate = delegate;
-        this.stickySessionFactory = stickySessionFactory;
+        this.stickyChannelSupplier = stickyChannelSupplier;
     }
 
     @Override
@@ -55,8 +56,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         return delegate.endpoint(endpoint);
     }
 
-    public StickySessionFactory stickySessionFactory() {
-        return stickySessionFactory;
+    public Supplier<Channel> stickyChannels() {
+        return stickyChannelSupplier;
     }
 
     public static Builder builder() {
@@ -187,9 +188,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
-            StickySessionFactory stickySessionFactory = DefaultStickySessionFactory.create(() -> {
+            Supplier<Channel> stickyChannelSupplier = DefaultStickySessionFactory.create(() -> {
                 LimitedChannel stickyLimitedChannel =
-                        StickyConcurrencyLimitedChannel.createForQueueKey(nodeSelectionChannel, cf.channelName());
+                        StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
                 Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
                 return endpoint -> {
                     EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
@@ -207,7 +208,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickySessionFactory);
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
         /** Does *not* do any clever live-reloading. */

@@ -34,7 +34,7 @@ import javax.annotation.concurrent.GuardedBy;
 import org.immutables.value.Value;
 
 @Value.Enclosing
-public final class DefaultStickySessionFactory implements StickySessionFactory {
+public final class DefaultStickySessionFactory implements Supplier<Channel> {
 
     private final Supplier<EndpointChannelFactory> delegate;
 
@@ -43,8 +43,8 @@ public final class DefaultStickySessionFactory implements StickySessionFactory {
     }
 
     @Override
-    public StickySession get() {
-        return new DefaultStickySession(delegate);
+    public Channel get() {
+        return new StickyChannel2(delegate.get());
     }
 
     @Override
@@ -52,28 +52,12 @@ public final class DefaultStickySessionFactory implements StickySessionFactory {
         return "StickyEndpointChannels2{" + delegate + "}";
     }
 
-    private static final class DefaultStickySession implements StickySession {
-
-        private final Supplier<EndpointChannelFactory> channelFactory;
-        private final StickyRouter router = new StickyRouter();
-
-        private DefaultStickySession(Supplier<EndpointChannelFactory> channelFactory) {
-            this.channelFactory = channelFactory;
-        }
-
-        @Override
-        public Channel get() {
-            return new Sticky(channelFactory.get(), router);
-        }
-    }
-
-    private static final class Sticky implements EndpointChannelFactory, Channel {
+    private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
 
         private final EndpointChannelFactory channelFactory;
-        private final StickyRouter router;
+        private final StickyRouter router = new StickyRouter();
 
-        private Sticky(EndpointChannelFactory channelFactory, StickyRouter router) {
-            this.router = router;
+        private StickyChannel2(EndpointChannelFactory channelFactory) {
             this.channelFactory = channelFactory;
         }
 
