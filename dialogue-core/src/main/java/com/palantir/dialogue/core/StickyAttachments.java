@@ -54,6 +54,10 @@ public final class StickyAttachments {
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
     }
 
+    static void routeToChannel(Request request, LimitedChannel limitedChannel) {
+        request.attachments().put(STICKY, limitedChannel::maybeExecute);
+    }
+
     @CheckReturnValue
     static Optional<ListenableFuture<Response>> maybeExecute(
             LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {

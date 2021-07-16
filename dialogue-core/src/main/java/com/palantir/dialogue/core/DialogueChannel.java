@@ -33,16 +33,23 @@ import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.stream.IntStream;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
     private final StickySessionFactory stickySessionFactory;
+    private final ImmutableList<Channel> perHostChannels;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate, StickySessionFactory stickySessionFactory) {
+    private DialogueChannel(
+            Config cf,
+            EndpointChannelFactory delegate,
+            StickySessionFactory stickySessionFactory,
+            ImmutableList<Channel> perHostChannels) {
         this.cf = cf;
         this.delegate = delegate;
         this.stickySessionFactory = stickySessionFactory;
+        this.perHostChannels = perHostChannels;
     }
 
     @Override
@@ -57,6 +64,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
     public StickySessionFactory stickySessionFactory() {
         return stickySessionFactory;
+    }
+
+    public ImmutableList<Channel> perHost() {
+        return perHostChannels;
     }
 
     public static Builder builder() {
@@ -168,7 +179,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
-            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
+            NodeSelectingChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
 
             Channel defaultQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
             Channel queuedChannel = new QueueOverrideChannel(defaultQueuedChannel);
@@ -207,7 +218,26 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory, stickySessionFactory);
+            ImmutableList<Channel> perHostChannels = IntStream.range(0, channels.size())
+                    .mapToObj(index -> new ChannelAndFactory() {
+                        @Override
+                        public EndpointChannel endpoint(Endpoint endpoint) {
+                            EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
+                            return request -> {
+                                nodeSelectionChannel.routeToHost(index, request);
+                                return endpointChannel.execute(request);
+                            };
+                        }
+
+                        @Override
+                        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+                            nodeSelectionChannel.routeToHost(index, request);
+                            return channelFactory.endpoint(endpoint).execute(request);
+                        }
+                    })
+                    .collect(ImmutableList.toImmutableList());
+
+            return new DialogueChannel(cf, channelFactory, stickySessionFactory, perHostChannels);
         }
 
         /** Does *not* do any clever live-reloading. */
@@ -216,4 +246,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return build();
         }
     }
+
+    interface ChannelAndFactory extends Channel, EndpointChannelFactory {}
 }
