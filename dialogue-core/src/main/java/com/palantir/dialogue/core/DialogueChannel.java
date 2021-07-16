@@ -220,10 +220,18 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             ImmutableList<Channel> perHostChannels = IntStream.range(0, channels.size())
                     .mapToObj(index -> new ChannelAndFactory() {
+
+                        private final LimitedChannel stickyLimitedChannel =
+                                StickyConcurrencyLimitedChannel.createForQueueKey(
+                                        nodeSelectionChannel, cf.channelName());
+                        private final Channel queueOverride =
+                                QueuedChannel.createPerHost(cf, stickyLimitedChannel, index);
+
                         @Override
                         public EndpointChannel endpoint(Endpoint endpoint) {
                             EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
                             return request -> {
+                                request.attachments().put(QueueAttachments.QUEUE_OVERRIDE, queueOverride);
                                 nodeSelectionChannel.routeToHost(index, request);
                                 return endpointChannel.execute(request);
                             };
@@ -231,8 +239,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
                         @Override
                         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
-                            nodeSelectionChannel.routeToHost(index, request);
-                            return channelFactory.endpoint(endpoint).execute(request);
+                            return endpoint(endpoint).execute(request);
                         }
                     })
                     .collect(ImmutableList.toImmutableList());

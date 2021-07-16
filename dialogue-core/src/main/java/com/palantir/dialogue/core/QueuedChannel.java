@@ -106,8 +106,8 @@ final class QueuedChannel implements Channel {
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
-                stickyInstrumentation(
-                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
+                perHostInstrumentation(
+                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName(), hostIndex),
                 cf.maxQueueSize());
     }
 
@@ -401,15 +401,22 @@ final class QueuedChannel implements Channel {
 
     static QueuedChannelInstrumentation perHostInstrumentation(
             DialogueClientMetrics metrics, String channelName, int hostIndex) {
+        String hostIndexString = Integer.toString(hostIndex);
         return new QueuedChannelInstrumentation() {
             @Override
             public Counter requestsQueued() {
-                return metrics.requestsPerhostQueued().channelName(channelName).hostIndex(hostIndex);
+                return metrics.requestsPerhostQueued()
+                        .channelName(channelName)
+                        .hostIndex(hostIndexString)
+                        .build();
             }
 
             @Override
             public Timer requestQueuedTime() {
-                return metrics.requestStickyQueuedTime(channelName);
+                return metrics.requestPerhostQueuedTime()
+                        .channelName(channelName)
+                        .hostIndex(hostIndexString)
+                        .build();
             }
         };
     }
