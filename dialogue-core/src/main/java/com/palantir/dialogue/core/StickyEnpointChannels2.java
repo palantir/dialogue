@@ -16,7 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Channel;
@@ -28,6 +28,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.StickyAttachments.StickyTarget;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -88,7 +89,8 @@ final class StickyEnpointChannels2 implements Supplier<Channel> {
 
     private static final class StickyRouter {
 
-        private final InFlightCallCallback callback = new InFlightCallCallback();
+        private final InFlightCallSuccessTransformer successTransformer = new InFlightCallSuccessTransformer();
+        private final InFlightCallFailureTransformer failureTransformer = new InFlightCallFailureTransformer();
 
         @Nullable
         private volatile StickyTarget stickyTarget;
@@ -109,8 +111,12 @@ final class StickyEnpointChannels2 implements Supplier<Channel> {
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
                 if (callInFlightSnapshot == null) {
-                    ListenableFuture<Response> result = DialogueFutures.addDirectCallback(
-                            executeWithStickyToken(request, endpointChannel), callback);
+                    // Cannot use DialogueFutures#addDirectCallback because we want ordering of listeners:
+                    // we want the success/failure callbacks to run BEFORE the queued requests inspect the result of
+                    // the first call.
+                    ListenableFuture<Response> result = DialogueFutures.transform(
+                            executeWithStickyToken(request, endpointChannel), successTransformer);
+                    result = DialogueFutures.catchingAllAsync(result, failureTransformer);
                     callInFlight = Futures.nonCancellationPropagating(result);
                     return result;
                 } else {
@@ -122,16 +128,19 @@ final class StickyEnpointChannels2 implements Supplier<Channel> {
             }
         }
 
-        private final class InFlightCallCallback implements FutureCallback<Response> {
-
+        private final class InFlightCallSuccessTransformer implements Function<Response, Response> {
             @Override
-            public void onSuccess(Response result) {
-                successfulCall(result);
+            public Response apply(Response response) {
+                successfulCall(response);
+                return response;
             }
+        }
 
+        private final class InFlightCallFailureTransformer implements AsyncFunction<Throwable, Response> {
             @Override
-            public void onFailure(Throwable _throwable) {
+            public ListenableFuture<Response> apply(Throwable input) throws Exception {
                 failed();
+                return Futures.immediateFailedFuture(input);
             }
         }
 
