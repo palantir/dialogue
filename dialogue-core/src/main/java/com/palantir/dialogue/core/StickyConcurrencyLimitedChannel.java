@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -31,13 +32,17 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
 
     private static final Logger log = LoggerFactory.getLogger(StickyConcurrencyLimitedChannel.class);
 
-    private final LimitedChannel delegate;
+    private final NeverThrowLimitedChannel delegate;
     private final CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter;
     private final String channelNameForLogging;
 
-    StickyConcurrencyLimitedChannel(LimitedChannel delegate, String channelNameForLogging) {
-        this.delegate = delegate;
-        this.limiter = new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.STICKY);
+    @VisibleForTesting
+    StickyConcurrencyLimitedChannel(
+            LimitedChannel delegate,
+            CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
+            String channelNameForLogging) {
+        this.delegate = new NeverThrowLimitedChannel(delegate);
+        this.limiter = limiter;
         this.channelNameForLogging = channelNameForLogging;
     }
 
@@ -58,7 +63,7 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(
                     endpoint,
                     request,
-                    permit.isOnlyInFlight()
+                    permit.isOnlyInFlight() || limitEnforcement == LimitEnforcement.DANGEROUS_BYPASS_LIMITS
                             ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS
                             : LimitEnforcement.DEFAULT_ENABLED);
             if (result.isPresent()) {
@@ -75,7 +80,8 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
     }
 
     static LimitedChannel create(LimitedChannel channel, String channelName) {
-        return new StickyConcurrencyLimitedChannel(channel, channelName);
+        return new StickyConcurrencyLimitedChannel(
+                channel, new CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior.STICKY), channelName);
     }
 
     private void logPermitAcquired() {
