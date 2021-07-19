@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.annotations.Beta;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -101,6 +102,18 @@ public final class DialogueClients {
         <T> T getCurrentBest(Class<T> clientInterface);
     }
 
+    /** A stateful object - should only need one of these. Live reloads under the hood. */
+    @Beta
+    public interface StickyChannelFactory2 {
+        /**
+         * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
+         * Each successive call to this method may get a different channel (or it may return the same one).
+         */
+        Channel getStickyChannel();
+
+        <T> T getCurrentBest(Class<T> clientInterface);
+    }
+
     public interface PerHostClientFactory {
 
         /** Single-uri channels. */
@@ -120,6 +133,9 @@ public final class DialogueClients {
                     ClientConfigurationNonReloadingClientFactory {
 
         StickyChannelFactory getStickyChannels(String serviceName);
+
+        @Beta
+        StickyChannelFactory2 getStickyChannels2(String serviceName);
 
         PerHostClientFactory perHost(String serviceName);
     }
