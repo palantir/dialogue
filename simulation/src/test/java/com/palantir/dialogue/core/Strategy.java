@@ -20,7 +20,6 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfiguration.Builder;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
@@ -39,7 +38,7 @@ public enum Strategy {
     UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
     private static final ClientConfiguration STUB_CONFIG = stubConfig();
-    private final Consumer<Builder> applyConfig;
+    private final Consumer<ClientConfiguration.Builder> applyConfig;
 
     Strategy(Consumer<ClientConfiguration.Builder> applyConfig) {
         this.applyConfig = applyConfig;
@@ -83,7 +82,7 @@ public enum Strategy {
 
     private Channel refreshingChannel(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                channelSupplier::get, channels -> dialogueChannelWithDefaults(sim, channels));
+                channelSupplier, channels -> dialogueChannelWithDefaults(sim, channels));
     }
 
     private DialogueChannel dialogueChannelWithDefaults(Simulation sim, Map<String, SimulationServer> channelSupplier) {
