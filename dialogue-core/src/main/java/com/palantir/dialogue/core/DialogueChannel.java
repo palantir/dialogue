@@ -171,8 +171,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
             LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
 
-            Channel defaultQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-            Channel queuedChannel = new QueueOverrideChannel(defaultQueuedChannel);
+            Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
@@ -188,18 +188,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
-            Supplier<Channel> stickyChannelSupplier = StickyEnpointChannels2.create(() -> {
-                LimitedChannel stickyLimitedChannel =
-                        StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
-                Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
-                return endpoint -> {
-                    EndpointChannel endpointChannel = channelFactory.endpoint(endpoint);
-                    return (EndpointChannel) request -> {
-                        QueueAttachments.setQueueOverride(request, queueOverride);
-                        return endpointChannel.execute(request);
-                    };
-                };
-            });
+            Supplier<Channel> stickyChannelSupplier =
+                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
 
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()

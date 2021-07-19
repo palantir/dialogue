@@ -35,11 +35,11 @@ import javax.annotation.concurrent.GuardedBy;
 import org.immutables.value.Value;
 
 @Value.Enclosing
-final class StickyEnpointChannels2 implements Supplier<Channel> {
+final class StickyEndpointChannels2 implements Supplier<Channel> {
 
     private final Supplier<EndpointChannelFactory> delegate;
 
-    private StickyEnpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+    private StickyEndpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
         this.delegate = Preconditions.checkNotNull(endpointChannelFactory, "endpointChannelFactory");
     }
 
@@ -51,6 +51,40 @@ final class StickyEnpointChannels2 implements Supplier<Channel> {
     @Override
     public String toString() {
         return "StickyEndpointChannels2{" + delegate + "}";
+    }
+
+    static Supplier<Channel> create(Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
+        return new StickyEndpointChannels2(
+                new StickyEndpointChannels2EndpointFactorySupplier(cf, nodeSelectionChannel, delegate));
+    }
+
+    private static final class StickyEndpointChannels2EndpointFactorySupplier
+            implements Supplier<EndpointChannelFactory> {
+
+        private final Config cf;
+        private final LimitedChannel nodeSelectionChannel;
+        private final EndpointChannelFactory delegate;
+
+        StickyEndpointChannels2EndpointFactorySupplier(
+                Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
+            this.cf = cf;
+            this.nodeSelectionChannel = nodeSelectionChannel;
+            this.delegate = delegate;
+        }
+
+        @Override
+        public EndpointChannelFactory get() {
+            LimitedChannel stickyLimitedChannel =
+                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
+            Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
+            return endpoint -> {
+                EndpointChannel endpointChannel = delegate.endpoint(endpoint);
+                return (EndpointChannel) request -> {
+                    QueueAttachments.setQueueOverride(request, queueOverride);
+                    return endpointChannel.execute(request);
+                };
+            };
+        }
     }
 
     private static final class StickyChannel2 implements EndpointChannelFactory, Channel {
@@ -83,8 +117,8 @@ final class StickyEnpointChannels2 implements Supplier<Channel> {
         }
     }
 
-    public static StickyEnpointChannels2 create(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        return new StickyEnpointChannels2(endpointChannelFactory);
+    public static StickyEndpointChannels2 create(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+        return new StickyEndpointChannels2(endpointChannelFactory);
     }
 
     private static final class StickyRouter {
