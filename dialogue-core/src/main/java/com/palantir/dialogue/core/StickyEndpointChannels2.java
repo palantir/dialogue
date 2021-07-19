@@ -117,10 +117,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         }
     }
 
-    public static StickyEndpointChannels2 create(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        return new StickyEndpointChannels2(endpointChannelFactory);
-    }
-
     private static final class StickyRouter {
 
         private final InFlightCallSuccessTransformer successTransformer = new InFlightCallSuccessTransformer();

@@ -20,16 +20,17 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfiguration.Builder;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.dialogue.Channel;
+import com.palantir.logsafe.Preconditions;
 import java.nio.file.Paths;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 @SuppressWarnings("ImmutableEnumChecker")
 public enum Strategy {
@@ -38,57 +39,67 @@ public enum Strategy {
     UNLIMITED_ROUND_ROBIN(Strategy::unlimitedRoundRobin);
 
     private static final ClientConfiguration STUB_CONFIG = stubConfig();
-    private final BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel;
+    private final Consumer<Builder> applyConfig;
 
-    Strategy(BiFunction<Simulation, Supplier<Map<String, SimulationServer>>, Channel> getChannel) {
-        this.getChannel = getChannel;
+    Strategy(Consumer<ClientConfiguration.Builder> applyConfig) {
+        this.applyConfig = applyConfig;
     }
 
     public Channel getChannel(Simulation simulation, Supplier<Map<String, SimulationServer>> servers) {
-        return getChannel.apply(simulation, servers);
+        return refreshingChannel(simulation, servers);
     }
 
-    static Channel concurrencyLimiter(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
-        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+    public Supplier<Channel> getStickyNonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
+        Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
+        DialogueChannel dialogueChannel = dialogueChannelWithDefaults(simulation, servers);
+        return StickyEndpointChannels.builder()
+                .channels(Collections.singletonList(dialogueChannel))
+                .channelName(SimulationUtils.CHANNEL_NAME)
+                .taggedMetricRegistry(simulation.taggedMetrics())
+                .build();
+    }
+
+    public Supplier<Channel> getSticky2NonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
+        Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
+        return dialogueChannelWithDefaults(simulation, servers).stickyChannels();
+    }
+
+    private static void concurrencyLimiter(ClientConfiguration.Builder configBuilder) {
+        configBuilder
                 .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
-                .failedUrlCooldown(Duration.ofMillis(200)));
+                .failedUrlCooldown(Duration.ofMillis(200));
     }
 
-    private static Channel pinUntilError(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
-        return withDefaults(
-                sim,
-                channelSupplier,
-                configBuilder -> configBuilder.nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR));
+    private static void pinUntilError(ClientConfiguration.Builder configBuilder) {
+        configBuilder.nodeSelectionStrategy(NodeSelectionStrategy.PIN_UNTIL_ERROR);
     }
 
-    private static Channel unlimitedRoundRobin(
-            Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
-        return withDefaults(sim, channelSupplier, configBuilder -> configBuilder
+    private static void unlimitedRoundRobin(ClientConfiguration.Builder configBuilder) {
+        configBuilder
                 .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
                 .failedUrlCooldown(Duration.ofMillis(200))
-                .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS));
+                .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS);
     }
 
-    private static Channel withDefaults(
-            Simulation sim,
-            Supplier<Map<String, SimulationServer>> channelSupplier,
-            UnaryOperator<ClientConfiguration.Builder> applyConfig) {
+    private Channel refreshingChannel(Simulation sim, Supplier<Map<String, SimulationServer>> channelSupplier) {
         return RefreshingChannelFactory.RefreshingChannel.create(
-                () -> channelSupplier.get().keySet(), uris -> {
-                    return DialogueChannel.builder()
-                            .channelName(SimulationUtils.CHANNEL_NAME)
-                            .clientConfiguration(applyConfig
-                                    .apply(ClientConfiguration.builder()
-                                            .uris(uris)
-                                            .from(STUB_CONFIG)
-                                            .taggedMetricRegistry(sim.taggedMetrics()))
-                                    .build())
-                            .factory(args -> channelSupplier.get().get(args.uri()))
-                            .random(sim.pseudoRandom())
-                            .scheduler(sim.scheduler())
-                            .ticker(sim.clock())
-                            .buildNonLiveReloading();
-                });
+                channelSupplier::get, channels -> dialogueChannelWithDefaults(sim, channels));
+    }
+
+    private DialogueChannel dialogueChannelWithDefaults(Simulation sim, Map<String, SimulationServer> channelSupplier) {
+        ClientConfiguration.Builder confBuilder = ClientConfiguration.builder()
+                .uris(channelSupplier.keySet())
+                .from(STUB_CONFIG)
+                .taggedMetricRegistry(sim.taggedMetrics());
+        applyConfig.accept(confBuilder);
+        return DialogueChannel.builder()
+                .channelName(SimulationUtils.CHANNEL_NAME)
+                .clientConfiguration(confBuilder.build())
+                .factory(args -> channelSupplier.get(args.uri()))
+                .random(sim.pseudoRandom())
+                .scheduler(sim.scheduler())
+                .ticker(sim.clock())
+                .build();
     }
 
     private static ClientConfiguration stubConfig() {
