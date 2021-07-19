@@ -51,8 +51,7 @@ final class StickyAttachments {
 
     private StickyAttachments() {}
 
-    // package private, used exclusively around the borders of the node selection channel.
-    interface StickyTarget {
+    private interface StickyTarget {
         Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
     }
