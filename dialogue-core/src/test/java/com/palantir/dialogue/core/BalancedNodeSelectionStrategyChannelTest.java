@@ -56,8 +56,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     @Mock
     LimitedChannel chan2;
 
-    @Mock
-    Request request;
+    private final Request request = Request.builder().build();
 
     private Endpoint endpoint = TestEndpoint.GET;
     private BalancedNodeSelectionStrategyChannel channel;

@@ -103,6 +103,10 @@ final class BalancedScoreTracker {
         return channelStats.stream().mapToInt(c -> c.computeScoreSnapshot().score);
     }
 
+    ImmutableList<ChannelScoreInfo> channelStats() {
+        return channelStats;
+    }
+
     /** Returns a new shuffled list, without mutating the input list (which may be immutable). */
     private static <T> List<T> shuffleImmutableList(ImmutableList<T> sourceList, Random random) {
         List<T> mutableList = new ArrayList<>(sourceList);

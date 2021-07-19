@@ -133,7 +133,10 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         int pin = currentPin.get();
         PinChannel channel = nodeList.get(pin);
 
-        Optional<ListenableFuture<Response>> maybeResponse = channel.maybeExecute(endpoint, request, limitEnforcement);
+        // n.b. StickyAttachments.maybeExecute uses the delegate PinChannel, which bypasses the FutureCallback
+        // instrumentation below on subsequent "sticky" requests.
+        Optional<ListenableFuture<Response>> maybeResponse =
+                StickyAttachments.maybeExecute(channel, endpoint, request, limitEnforcement);
         if (!maybeResponse.isPresent()) {
             return Optional.empty();
         }
