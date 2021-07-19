@@ -27,28 +27,29 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.Optional;
 import javax.annotation.CheckReturnValue;
 
-public final class StickyAttachments {
+final class StickyAttachments {
 
     /**
      * Added to {@link com.palantir.dialogue.RequestAttachments} to opt into a {@link #STICKY_TOKEN} on the response.
      */
-    public static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN = RequestAttachmentKey.create(Boolean.class);
+    private static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN =
+            RequestAttachmentKey.create(Boolean.class);
 
     /**
      * Maybe transferred from {@link com.palantir.dialogue.RequestAttachments} to
      * {@link com.palantir.dialogue.ResponseAttachments} as {@link #STICKY} to stick to the same channel.
      */
-    public static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN =
+    private static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN =
             ResponseAttachmentKey.create(StickyTarget.class);
 
     /**
      * Used to execute requests against the same host.
      */
-    public static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
+    private static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
 
     private StickyAttachments() {}
 
-    // package private, used exclusively
+    // package private, used exclusively around the borders of the node selection channel.
     interface StickyTarget {
         Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
@@ -57,8 +58,7 @@ public final class StickyAttachments {
     @CheckReturnValue
     static Optional<ListenableFuture<Response>> maybeExecute(
             LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        if (request != null
-                && Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE))) {
+        if (Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE))) {
             return channel.maybeExecute(endpoint, request, limitEnforcement)
                     .map(future -> DialogueFutures.transform(future, response -> {
                         response.attachments().put(STICKY_TOKEN, channel::maybeExecute);
