@@ -210,8 +210,32 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
+    public void onSuccess_releasesSuccessfullyIfResponseIndicatesQosOrError_sticky() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.STICKY);
+        int code = 429;
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(code);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
     public void onSuccess_ignoresIfResponseIndicatesUnknownServerError_endpoint() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        int code = 599;
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(code);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
+    public void onSuccess_ignoresIfResponseIndicatesUnknownServerError_sticky() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.STICKY);
         int code = 599;
         Response response = mock(Response.class);
         when(response.code()).thenReturn(code);
@@ -246,6 +270,16 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     @Test
     public void onFailure_ignoresIfIoException_endpoint() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.ENDPOINT_LEVEL);
+        IOException exception = new IOException();
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onFailure(exception);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
+    public void onFailure_ignoresIfIoException_sticky() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.STICKY);
         IOException exception = new IOException();
 
         double max = limiter.getLimit();
