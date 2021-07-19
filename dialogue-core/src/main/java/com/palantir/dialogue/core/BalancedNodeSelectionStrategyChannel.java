@@ -118,7 +118,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
 
             BalancedChannel channel = channels.get(snapshot.getDelegate().channelIndex());
             Optional<ListenableFuture<Response>> maybe =
-                    StickyAttachments.maybeExecute(channel, endpoint, request, limitEnforcement);
+                    StickyAttachments.maybeAddStickyToken(channel, endpoint, request, limitEnforcement);
             if (maybe.isPresent()) {
                 return maybe;
             }

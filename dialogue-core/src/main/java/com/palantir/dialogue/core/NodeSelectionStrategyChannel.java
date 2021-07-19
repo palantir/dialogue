@@ -24,7 +24,6 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.StickyAttachments.StickyTarget;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -224,11 +223,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
         static Optional<ListenableFuture<Response>> maybeExecute(
                 LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-            StickyTarget target = request.attachments().getOrDefault(StickyAttachments.STICKY, null);
-            if (target != null) {
-                return target.maybeExecute(endpoint, request, limitEnforcement);
-            }
-            return channel.maybeExecute(endpoint, request, limitEnforcement);
+            return StickyAttachments.maybeExecuteOnSticky(channel, endpoint, request, limitEnforcement);
         }
 
         @Override
@@ -249,7 +244,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         @Override
         public Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-            return StickyAttachments.maybeExecute(delegate, endpoint, request, limitEnforcement);
+            return StickyAttachments.maybeAddStickyToken(delegate, endpoint, request, limitEnforcement);
         }
     }
 }

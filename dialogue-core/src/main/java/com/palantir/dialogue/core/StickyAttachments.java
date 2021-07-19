@@ -24,7 +24,9 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.ResponseAttachmentKey;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Preconditions;
 import java.util.Optional;
+import java.util.function.Consumer;
 import javax.annotation.CheckReturnValue;
 
 final class StickyAttachments {
@@ -56,7 +58,7 @@ final class StickyAttachments {
     }
 
     @CheckReturnValue
-    static Optional<ListenableFuture<Response>> maybeExecute(
+    static Optional<ListenableFuture<Response>> maybeAddStickyToken(
             LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
         if (Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE))) {
             return channel.maybeExecute(endpoint, request, limitEnforcement)
@@ -67,5 +69,26 @@ final class StickyAttachments {
         } else {
             return channel.maybeExecute(endpoint, request, limitEnforcement);
         }
+    }
+
+    static Optional<ListenableFuture<Response>> maybeExecuteOnSticky(
+            LimitedChannel fallback, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+        StickyTarget target = request.attachments().getOrDefault(StickyAttachments.STICKY, null);
+        if (target != null) {
+            return target.maybeExecute(endpoint, request, limitEnforcement);
+        }
+        return fallback.maybeExecute(endpoint, request, limitEnforcement);
+    }
+
+    static void requestStickyToken(Request request) {
+        request.attachments().put(REQUEST_STICKY_TOKEN, Boolean.TRUE);
+    }
+
+    static Consumer<Request> copyStickyTarget(Response response) {
+        StickyTarget stickyTarget =
+                Preconditions.checkNotNull(response.attachments().getOrDefault(STICKY_TOKEN, null), "stickyToken");
+        return request -> {
+            request.attachments().put(STICKY, stickyTarget);
+        };
     }
 }
