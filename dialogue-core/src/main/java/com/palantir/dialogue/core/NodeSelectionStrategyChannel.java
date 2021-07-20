@@ -78,7 +78,7 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         }
 
         if (channels.size() == 1) {
-            return new StickyChannelHandler(new StuckRequestHandler(channels.get(0)));
+            return new StickyChannelHandler(new StickyTokenHandler(channels.get(0)));
         }
 
         return new NodeSelectionStrategyChannel(
@@ -233,11 +233,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
         }
     }
 
-    private static final class StuckRequestHandler implements LimitedChannel {
+    private static final class StickyTokenHandler implements LimitedChannel {
 
         private final LimitedChannel delegate;
 
-        StuckRequestHandler(LimitedChannel delegate) {
+        StickyTokenHandler(LimitedChannel delegate) {
             this.delegate = delegate;
         }
 
