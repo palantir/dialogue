@@ -28,6 +28,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
@@ -63,6 +64,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
     private String channelName = "channelName";
     private Random pseudo = new Random(12893712L);
+    private Request request = Request.builder().build();
 
     @BeforeEach
     public void before() {
@@ -171,9 +173,9 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(future2));
 
         // kick off two requests
-        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
-        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
@@ -195,7 +197,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.empty());
         setResponse(channel2, 204);
-        assertThat(pinUntilError.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
     }
 
@@ -211,9 +213,9 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 channelName);
     }
 
-    private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
+    private int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
         try {
-            ListenableFuture<Response> future = channel.maybeExecute(null, null, LimitEnforcement.DEFAULT_ENABLED)
+            ListenableFuture<Response> future = channel.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED)
                     .get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
             return response.code();
