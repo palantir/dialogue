@@ -37,7 +37,6 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,12 +116,12 @@ public final class StickyEndpointChannels2Test {
 
         assertThat(Futures.getDone(response1ListenableFuture)).isEqualTo(testResponse1);
 
-        Consumer<Request> requestConsumer = StickyAttachments.copyStickyTarget(testResponse1);
         Request request2 = Request.builder().build();
-        requestConsumer.accept(request2);
-
-        assertThat(testResponse1.attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
-                .isEqualTo(request2.attachments().getOrDefault(StickyAttachments.STICKY, null));
+        SettableFuture<Response> response2SettableFuture = expectStickyRequest(testResponse1, request2);
+        ListenableFuture<Response> response2ListenableFuture = channel.execute(endpoint, request2);
+        TestResponse testResponse2 = TestResponse.withBody(null);
+        response2SettableFuture.set(testResponse2);
+        assertThat(Futures.getDone(response2ListenableFuture)).isEqualTo(testResponse2);
     }
 
     private SettableFuture<Response> expectAddStickyTokenRequest(Request request) {
@@ -136,6 +135,18 @@ public final class StickyEndpointChannels2Test {
             return StickyAttachments.maybeAddStickyToken(
                             stickyTarget, endpoint, actualRequest, LimitEnforcement.DEFAULT_ENABLED)
                     .get();
+        });
+        return responseSettableFuture;
+    }
+
+    private SettableFuture<Response> expectStickyRequest(Response response, Request request) {
+        SettableFuture<Response> responseSettableFuture = SettableFuture.create();
+        when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            Request actualRequest = invocation.getArgument(0);
+            assertThat(actualRequest).isEqualTo(request);
+            assertThat(response.attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
+                    .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
+            return responseSettableFuture;
         });
         return responseSettableFuture;
     }
