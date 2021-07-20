@@ -308,7 +308,22 @@ public final class DialogueChannelTest {
 
     @ParameterizedTest
     @EnumSource(NodeSelectionStrategy.class)
-    public void test_can_use_sticky_attachments(NodeSelectionStrategy nodeSelectionStrategy) throws ExecutionException {
+    public void test_can_request_sticky_token_with_single_uri(NodeSelectionStrategy nodeSelectionStrategy)
+            throws ExecutionException {
+        test_can_use_sticky_attachments_impl(nodeSelectionStrategy, ImmutableList.of("http://localhost"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(NodeSelectionStrategy.class)
+    public void test_can_request_sticky_token_with_many_uris(NodeSelectionStrategy nodeSelectionStrategy)
+            throws ExecutionException {
+        test_can_use_sticky_attachments_impl(
+                nodeSelectionStrategy,
+                ImmutableList.of("http://localhost", "http" + "://localhost2", "http" + "://localhost3"));
+    }
+
+    private void test_can_use_sticky_attachments_impl(
+            NodeSelectionStrategy nodeSelectionStrategy, ImmutableList<String> uris) throws ExecutionException {
         String uriHeader = "uri";
         DialogueChannelFactory factory = args -> {
             mockChannel = Mockito.mock(Channel.class);
@@ -320,7 +335,7 @@ public final class DialogueChannelTest {
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(ClientConfiguration.builder()
-                        .uris(ImmutableList.of("http://localhost", "http://localhost2", "http://localhost3"))
+                        .uris(uris)
                         .from(stubConfig)
                         .nodeSelectionStrategy(nodeSelectionStrategy)
                         .build())
