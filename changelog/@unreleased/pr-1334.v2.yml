@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: New sticky channel implementation.
+  links:
+  - https://github.com/palantir/dialogue/pull/1334
