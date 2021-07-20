@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -45,7 +47,7 @@ public final class StickyConcurrencyLimitedChannelTest {
     private Response response;
 
     private LimitedChannel channel;
-    private SettableFuture<Response> responseFuture;
+    private SettableFuture<Response> _responseFuture;
 
     @BeforeEach
     public void before() {
@@ -53,5 +55,7 @@ public final class StickyConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testLimiterAvailable_successfulRequest_host() {}
+    public void testLimiterAvailable_successfulRequest_host() {
+        assertThat(channel).isNotNull();
+    }
 }

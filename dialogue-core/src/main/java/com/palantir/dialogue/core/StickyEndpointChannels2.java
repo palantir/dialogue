@@ -25,9 +25,9 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.StickyAttachments.StickyTarget;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -123,7 +123,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final InFlightCallFailureTransformer failureTransformer = new InFlightCallFailureTransformer();
 
         @Nullable
-        private volatile StickyTarget stickyTarget;
+        private volatile Consumer<Request> stickyTarget;
 
         @Nullable
         @GuardedBy("this")
@@ -177,11 +177,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private synchronized void successfulCall(Response response) {
             callInFlight = null;
             if (stickyTarget == null) {
-                StickyTarget newStickyTarget =
-                        response.attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null);
-                if (newStickyTarget != null) {
-                    stickyTarget = newStickyTarget;
-                }
+                stickyTarget = StickyAttachments.copyStickyTarget(response);
             }
         }
 
@@ -191,13 +187,13 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
         private static ListenableFuture<Response> executeWithStickyToken(
                 Request request, EndpointChannel endpointChannel) {
-            request.attachments().put(StickyAttachments.REQUEST_STICKY_TOKEN, Boolean.TRUE);
+            StickyAttachments.requestStickyToken(request);
             return endpointChannel.execute(request);
         }
 
         private static ListenableFuture<Response> executeWithStickyTarget(
-                StickyTarget stickyTarget, Request request, EndpointChannel endpointChannel) {
-            request.attachments().put(StickyAttachments.STICKY, stickyTarget);
+                Consumer<Request> stickyTarget, Request request, EndpointChannel endpointChannel) {
+            stickyTarget.accept(request);
             return endpointChannel.execute(request);
         }
     }
