@@ -48,16 +48,6 @@ public enum Strategy {
         return refreshingChannel(simulation, servers);
     }
 
-    public Supplier<Channel> getStickyNonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
-        Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
-        DialogueChannel dialogueChannel = dialogueChannelWithDefaults(simulation, servers);
-        return StickyEndpointChannels.builder()
-                .channels(Collections.singletonList(dialogueChannel))
-                .channelName(SimulationUtils.CHANNEL_NAME)
-                .taggedMetricRegistry(simulation.taggedMetrics())
-                .build();
-    }
-
     public Supplier<Channel> getSticky2NonReloading(Simulation simulation, Map<String, SimulationServer> servers) {
         Preconditions.checkArgument(servers.size() == 1, "Only one server supported");
         return dialogueChannelWithDefaults(simulation, servers).stickyChannels();

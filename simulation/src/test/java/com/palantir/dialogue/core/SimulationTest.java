@@ -543,31 +543,6 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-                strategy, StickyChannelStrategy.STICKY);
-    }
-
-    @SimulationCase
-    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-                strategy, StickyChannelStrategy.STICKY);
-    }
-
-    @SimulationCase
-    void server_side_rate_limits_with_sticky2_clients_steady_vs_bursty_client(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-                strategy, StickyChannelStrategy.STICKY2);
-    }
-
-    @SimulationCase
-    void server_side_rate_limits_with_sticky2_clients_fairness_across_multiple_clients(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-                strategy, StickyChannelStrategy.STICKY2);
-    }
-
-    private void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-            Strategy strategy, StickyChannelStrategy stickyChannelStrategy) {
-
         // 1 server
         // 2 types of clients sharing a DialogueChannel
         //   - client that sends a request once a second
@@ -603,8 +578,7 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Supplier<Channel> stickyChannelSupplier =
-                stickyChannelStrategy.factoryFunction.create(strategy, simulation, servers.get());
+        Supplier<Channel> stickyChannelSupplier = strategy.getSticky2NonReloading(simulation, servers.get());
 
         Benchmark builder = Benchmark.builder().simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
@@ -627,9 +601,8 @@ final class SimulationTest {
                 .run();
     }
 
-    private void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-            Strategy strategy, StickyChannelStrategy stickyChannelStrategy) {
-
+    @SimulationCase
+    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
         int numServers = 1;
         int numClients = 10;
         Duration responseTime = Duration.ofMillis(150);
@@ -644,8 +617,7 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Supplier<Channel> stickyChannelSupplier =
-                stickyChannelStrategy.factoryFunction.create(strategy, simulation, servers.get());
+        Supplier<Channel> stickyChannelSupplier = strategy.getSticky2NonReloading(simulation, servers.get());
 
         st = strategy;
         result = Benchmark.builder()
@@ -655,30 +627,6 @@ final class SimulationTest {
                 .clients(numClients, _i -> stickyChannelSupplier.get())
                 .abortAfter(Duration.ofMinutes(2))
                 .run();
-    }
-
-    @SuppressWarnings("ImmutableEnumChecker")
-    private enum StickyChannelStrategy {
-        STICKY(StickyChannelStrategy::sticky),
-        STICKY2(StickyChannelStrategy::sticky2);
-
-        private final StickyChannelFactory factoryFunction;
-
-        StickyChannelStrategy(StickyChannelFactory factoryFunction) {
-            this.factoryFunction = factoryFunction;
-        }
-
-        static Supplier<Channel> sticky(Strategy strategy, Simulation sim, Map<String, SimulationServer> servers) {
-            return strategy.getStickyNonReloading(sim, servers);
-        }
-
-        static Supplier<Channel> sticky2(Strategy strategy, Simulation sim, Map<String, SimulationServer> servers) {
-            return strategy.getSticky2NonReloading(sim, servers);
-        }
-    }
-
-    interface StickyChannelFactory {
-        Supplier<Channel> create(Strategy strategy, Simulation sim, Map<String, SimulationServer> servers);
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
