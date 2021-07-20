@@ -67,6 +67,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 
@@ -308,10 +309,18 @@ public final class DialogueChannelTest {
     @ParameterizedTest
     @EnumSource(NodeSelectionStrategy.class)
     public void test_can_use_sticky_attachments(NodeSelectionStrategy nodeSelectionStrategy) throws ExecutionException {
-        DialogueChannelFactory factory = _args -> mockChannel;
+        String uriHeader = "uri";
+        DialogueChannelFactory factory = args -> {
+            mockChannel = Mockito.mock(Channel.class);
+            lenient().when(mockChannel.execute(eq(endpoint), any())).thenAnswer((Answer<ListenableFuture<Response>>)
+                    _invocation ->
+                            Futures.immediateFuture(TestResponse.withBody(null).withHeader(uriHeader, args.uri())));
+            return mockChannel;
+        };
         channel = DialogueChannel.builder()
                 .channelName("my-channel")
                 .clientConfiguration(ClientConfiguration.builder()
+                        .uris(ImmutableList.of("http://localhost", "http://localhost2", "http://localhost3"))
                         .from(stubConfig)
                         .nodeSelectionStrategy(nodeSelectionStrategy)
                         .build())
@@ -319,17 +328,16 @@ public final class DialogueChannelTest {
                 .random(new Random(1L))
                 .build();
 
-        when(mockChannel.execute(eq(endpoint), any())).thenAnswer((Answer<ListenableFuture<Response>>)
-                _invocation -> Futures.immediateFuture(TestResponse.withBody(null)));
-
         request = createRequestWithAddExecutedOnAttachment();
-        ListenableFuture<Response> future = channel.execute(endpoint, request);
+        response = Futures.getDone(channel.execute(endpoint, request));
+        String expectedUri = response.getFirstHeader(uriHeader).get();
 
-        Consumer<Request> stickyTarget = StickyAttachments.copyStickyTarget(Futures.getDone(future));
+        Consumer<Request> stickyTarget = StickyAttachments.copyStickyTarget(response);
 
         request = Request.builder().build();
         stickyTarget.accept(request);
-        assertThat(channel.execute(endpoint, request)).isDone();
+        response = Futures.getDone(channel.execute(endpoint, request));
+        assertThat(response.getFirstHeader(uriHeader)).hasValue(expectedUri);
     }
 
     private Request createRequestWithAddExecutedOnAttachment() {
