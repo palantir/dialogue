@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -34,6 +35,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
@@ -92,96 +94,52 @@ public final class StickyEndpointChannels2Test {
         Channel channel1 = sticky.get();
         Channel channel2 = sticky.get();
 
-        TestHarness request1 = new TestHarness(channel1);
-        TestHarness request2 = new TestHarness(channel2);
-
-        request1.expectAddStickyTokenRequest().execute();
-        request2.expectAddStickyTokenRequest().execute();
+        TestHarness request1 =
+                new TestHarness(channel1).expectAddStickyTokenRequest().execute();
+        TestHarness request2 =
+                new TestHarness(channel2).expectAddStickyTokenRequest().execute();
 
         assertThat(QueueAttachments.getQueueOverride(request1.request))
                 .isNotEqualTo(QueueAttachments.getQueueOverride(request2.request));
     }
 
     @Test
-    public void requests_queue_up_and_propagate_sticky_target() throws ExecutionException {
+    public void requests_queue_up_and_propagate_sticky_target() {
         Channel channel = sticky.get();
 
-        Request request1 = Request.builder().build();
-        SettableFuture<Response> response1SettableFuture = expectAddStickyTokenRequest(request1);
-        ListenableFuture<Response> response1ListenableFuture = channel.execute(endpoint, request1);
-        assertThat(response1ListenableFuture).isNotDone();
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
 
-        Request request2 = Request.builder().build();
-        SettableFuture<Response> response2SettableFuture = expectStickyRequest(response1ListenableFuture, request2);
-        ListenableFuture<Response> response2ListenableFuture = channel.execute(endpoint, request2);
-        assertThat(response2ListenableFuture).isNotDone();
+        TestHarness request2 =
+                new TestHarness(channel).expectStickyRequest(request1).execute().assertNotDone();
 
-        TestResponse testResponse1 = TestResponse.withBody(null);
-        response1SettableFuture.set(testResponse1);
-
-        assertThat(Futures.getDone(response1ListenableFuture)).isEqualTo(testResponse1);
-
-        TestResponse testResponse2 = TestResponse.withBody(null);
-        response2SettableFuture.set(testResponse2);
-        assertThat(Futures.getDone(response2ListenableFuture)).isEqualTo(testResponse2);
+        request1.setResponse().assertDoneSuccessful();
+        request2.setResponse().assertDoneSuccessful();
     }
 
     @Test
-    public void on_failure_next_request_is_executed() throws ExecutionException {
+    public void on_failure_next_request_is_executed() {
         Channel channel = sticky.get();
 
-        Request request1 = Request.builder().build();
-        SettableFuture<Response> response1SettableFuture = expectAddStickyTokenRequest(request1);
-        ListenableFuture<Response> response1ListenableFuture = channel.execute(endpoint, request1);
-        assertThat(response1ListenableFuture).isNotDone();
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
 
-        Request request2 = Request.builder().build();
-        SettableFuture<Response> response2SettableFuture = expectAddStickyTokenRequest(request2);
-        ListenableFuture<Response> response2ListenableFuture = channel.execute(endpoint, request2);
-        assertThat(response2ListenableFuture).isNotDone();
+        TestHarness request2 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
 
-        response1SettableFuture.setException(new RuntimeException());
-        assertThat(response2ListenableFuture).isNotDone();
+        request1.setException().assertDoneFailed();
+        request2.assertNotDone();
 
-        TestResponse testResponse2 = TestResponse.withBody(null);
-        response2SettableFuture.set(testResponse2);
-        assertThat(Futures.getDone(response2ListenableFuture)).isEqualTo(testResponse2);
+        request2.setResponse().assertDoneSuccessful();
     }
 
-    // On failure we execute queued request.
     // Can cancel queued request, without cancelling in-flight
-
-    private SettableFuture<Response> expectAddStickyTokenRequest(Request request) {
-        SettableFuture<Response> responseSettableFuture = SettableFuture.create();
-        when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
-            Request actualRequest = invocation.getArgument(0);
-            assertThat(actualRequest).isEqualTo(request);
-            LimitedChannel stickyTarget = mock(LimitedChannel.class);
-            when(stickyTarget.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
-                    .thenReturn(Optional.of(responseSettableFuture));
-            return StickyAttachments.maybeAddStickyToken(
-                            stickyTarget, endpoint, actualRequest, LimitEnforcement.DEFAULT_ENABLED)
-                    .get();
-        });
-        return responseSettableFuture;
-    }
-
-    private SettableFuture<Response> expectStickyRequest(ListenableFuture<Response> response, Request request) {
-        SettableFuture<Response> responseSettableFuture = SettableFuture.create();
-        when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
-            Request actualRequest = invocation.getArgument(0);
-            assertThat(actualRequest).isEqualTo(request);
-            assertThat(response).isDone();
-            assertThat(Futures.getDone(response).attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
-                    .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
-            return responseSettableFuture;
-        });
-        return responseSettableFuture;
-    }
 
     private final class TestHarness {
         Channel channel;
         Request request = Request.builder().build();
+        TestResponse response = TestResponse.withBody(null);
+        RuntimeException runtimeException = new RuntimeException();
 
         SettableFuture<Response> responseSettableFuture = SettableFuture.create();
 
@@ -206,12 +164,12 @@ public final class StickyEndpointChannels2Test {
             return this;
         }
 
-        TestHarness expectStickyRequest(TestHarness response) {
+        TestHarness expectStickyRequest(TestHarness responseTestHarness) {
             when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
                 Request actualRequest = invocation.getArgument(0);
                 assertThat(actualRequest).isEqualTo(request);
-                assertThat(response.responseListenableFuture).isDone();
-                assertThat(Futures.getDone(response.responseListenableFuture)
+                assertThat(responseTestHarness.responseListenableFuture).isDone();
+                assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
                                 .attachments()
                                 .getOrDefault(StickyAttachments.STICKY_TOKEN, null))
                         .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
@@ -222,6 +180,41 @@ public final class StickyEndpointChannels2Test {
 
         TestHarness execute() {
             responseListenableFuture = channel.execute(endpoint, request);
+            return this;
+        }
+
+        TestHarness assertNotDone() {
+            assertThat(responseListenableFuture).isNotDone();
+            return this;
+        }
+
+        TestHarness assertDoneSuccessful() {
+            assertThat(responseListenableFuture).isDone();
+            try {
+                assertThat(Futures.getDone(Preconditions.checkNotNull(responseListenableFuture, "setup failure")))
+                        .isEqualTo(response);
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e);
+            }
+            return this;
+        }
+
+        TestHarness assertDoneFailed() {
+            assertThat(responseListenableFuture).isDone();
+            assertThatThrownBy(() ->
+                            Futures.getDone(Preconditions.checkNotNull(responseListenableFuture, "setup failure")))
+                    .isInstanceOf(ExecutionException.class)
+                    .hasRootCause(runtimeException);
+            return this;
+        }
+
+        TestHarness setResponse() {
+            responseSettableFuture.set(response);
+            return this;
+        }
+
+        TestHarness setException() {
+            responseSettableFuture.setException(runtimeException);
             return this;
         }
     }
