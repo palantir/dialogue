@@ -38,6 +38,8 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,9 +58,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     @Mock
     LimitedChannel chan2;
 
-    @Mock
-    Request request;
-
+    private Request request = Request.builder().build();
     private Endpoint endpoint = TestEndpoint.GET;
     private BalancedNodeSelectionStrategyChannel channel;
     private BalancedNodeSelectionStrategyChannel rttChannel;
@@ -167,6 +167,45 @@ class BalancedNodeSelectionStrategyChannelTest {
     public void skiplimits_passthrough(LimitEnforcement limitEnforcement) {
         when(chan1.maybeExecute(any(), any(), eq(limitEnforcement))).thenReturn(http(200));
         assertThat(channel.maybeExecute(endpoint, request, limitEnforcement)).isPresent();
+    }
+
+    @Test
+    public void stickyToken_requests_maintain_scores() throws ExecutionException {
+        SettableFuture<Response> initialRequestFuture = SettableFuture.create();
+        SettableFuture<Response> stickyRequestFuture = SettableFuture.create();
+        when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
+                .thenReturn(Optional.of(initialRequestFuture))
+                .thenReturn(Optional.of(stickyRequestFuture));
+
+        request = Request.builder().build();
+        StickyAttachments.requestStickyToken(request);
+        ListenableFuture<Response> responseFuture = channel.maybeExecute(
+                        endpoint, request, LimitEnforcement.DEFAULT_ENABLED)
+                .get();
+
+        assertThat(channel.getScoresForTesting())
+                .describedAs("initial request maintains scores")
+                .containsExactly(0, 1);
+
+        initialRequestFuture.set(TestResponse.withBody(null));
+        Consumer<Request> requestConsumer = StickyAttachments.copyStickyTarget(Futures.getDone(responseFuture));
+
+        assertThat(channel.getScoresForTesting())
+                .describedAs("complete initial request updates scores")
+                .containsExactly(0, 0);
+
+        request = Request.builder().build();
+        requestConsumer.accept(request);
+        assertThat(StickyAttachments.maybeExecuteOnSticky(null, endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+
+        assertThat(channel.getScoresForTesting())
+                .describedAs("Follow on request maintains scores")
+                .containsExactly(0, 1);
+        stickyRequestFuture.set(TestResponse.withBody(null));
+        assertThat(channel.getScoresForTesting())
+                .describedAs("Complete follow on request updates scores")
+                .containsExactly(0, 0);
     }
 
     private static void set200(LimitedChannel chan) {

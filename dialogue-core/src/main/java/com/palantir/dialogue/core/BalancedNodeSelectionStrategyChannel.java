@@ -56,7 +56,7 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
     private static final int UNHEALTHY_SCORE_MULTIPLIER = 2;
 
     private final BalancedScoreTracker tracker;
-    private final ImmutableList<LimitedChannel> channels;
+    private final ImmutableList<BalancedChannel> channels;
 
     BalancedNodeSelectionStrategyChannel(
             ImmutableList<LimitedChannel> channels,
@@ -66,7 +66,10 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             String channelName) {
         Preconditions.checkState(channels.size() >= 2, "At least two channels required");
         this.tracker = new BalancedScoreTracker(channels.size(), random, ticker, taggedMetrics, channelName);
-        this.channels = channels;
+        this.channels = IntStream.range(0, channels.size())
+                .mapToObj(index -> new BalancedChannel(
+                        channels.get(index), tracker.channelStats().get(index)))
+                .collect(ImmutableList.toImmutableList());
         log.debug("Initialized", SafeArg.of("count", channels.size()), UnsafeArg.of("channels", channels));
     }
 
@@ -113,11 +116,32 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
                 giveUpThreshold = newThreshold;
             }
 
-            ChannelScoreInfo channelInfo = snapshot.getDelegate();
+            BalancedChannel channel = channels.get(snapshot.getDelegate().channelIndex());
+            Optional<ListenableFuture<Response>> maybe =
+                    StickyAttachments.maybeAddStickyToken(channel, endpoint, request, limitEnforcement);
+            if (maybe.isPresent()) {
+                return maybe;
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    private static final class BalancedChannel implements LimitedChannel {
+        private final LimitedChannel delegate;
+        private final ChannelScoreInfo channelInfo;
+
+        BalancedChannel(LimitedChannel delegate, ChannelScoreInfo channelInfo) {
+            this.delegate = delegate;
+            this.channelInfo = channelInfo;
+        }
+
+        @Override
+        public Optional<ListenableFuture<Response>> maybeExecute(
+                Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
             channelInfo.startRequest();
 
-            Optional<ListenableFuture<Response>> maybe =
-                    channels.get(channelInfo.channelIndex()).maybeExecute(endpoint, request, limitEnforcement);
+            Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
 
             if (maybe.isPresent()) {
                 channelInfo.observability().markRequestMade();
@@ -126,9 +150,13 @@ final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
             } else {
                 channelInfo.undoStartRequest();
             }
+            return Optional.empty();
         }
 
-        return Optional.empty();
+        @Override
+        public String toString() {
+            return "BalancedChannel{delegate=" + delegate + ", channelInfo=" + channelInfo + '}';
+        }
     }
 
     @VisibleForTesting

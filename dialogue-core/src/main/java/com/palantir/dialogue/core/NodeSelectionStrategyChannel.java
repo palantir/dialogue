@@ -74,11 +74,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
         if (channels.isEmpty()) {
-            return new ZeroUriNodeSelectionChannel(cf.channelName());
+            return new StickyChannelHandler(new ZeroUriNodeSelectionChannel(cf.channelName()));
         }
 
         if (channels.size() == 1) {
-            return channels.get(0);
+            return new StickyChannelHandler(new StickyTokenHandler(channels.get(0)));
         }
 
         return new NodeSelectionStrategyChannel(
@@ -94,7 +94,8 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        Optional<ListenableFuture<Response>> maybe = delegate.maybeExecute(endpoint, request, limitEnforcement);
+        Optional<ListenableFuture<Response>> maybe =
+                StickyChannelHandler.maybeExecute(delegate, endpoint, request, limitEnforcement);
         if (!maybe.isPresent()) {
             return Optional.empty();
         }
@@ -209,6 +210,41 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
                     .mark();
             nodeSelectionStrategy.getAndUpdate(
                     prevChannel -> createNodeSelectionChannel(prevChannel.channel(), fromServer));
+        }
+    }
+
+    private static final class StickyChannelHandler implements LimitedChannel {
+
+        private final LimitedChannel delegate;
+
+        StickyChannelHandler(LimitedChannel delegate) {
+            this.delegate = delegate;
+        }
+
+        static Optional<ListenableFuture<Response>> maybeExecute(
+                LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+            return StickyAttachments.maybeExecuteOnSticky(channel, endpoint, request, limitEnforcement);
+        }
+
+        @Override
+        public Optional<ListenableFuture<Response>> maybeExecute(
+                Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+            return maybeExecute(delegate, endpoint, request, limitEnforcement);
+        }
+    }
+
+    private static final class StickyTokenHandler implements LimitedChannel {
+
+        private final LimitedChannel delegate;
+
+        StickyTokenHandler(LimitedChannel delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public Optional<ListenableFuture<Response>> maybeExecute(
+                Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+            return StickyAttachments.maybeAddStickyToken(delegate, endpoint, request, limitEnforcement);
         }
     }
 }

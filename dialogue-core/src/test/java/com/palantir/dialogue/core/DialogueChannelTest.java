@@ -59,12 +59,17 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
 public final class DialogueChannelTest {
@@ -299,6 +304,61 @@ public final class DialogueChannelTest {
         assertThat(channel.toString())
                 .describedAs("It's important we can differentiate two instances built from the same config!")
                 .isNotEqualTo(channel2.toString());
+    }
+
+    @ParameterizedTest
+    @EnumSource(NodeSelectionStrategy.class)
+    public void test_can_request_sticky_token_with_single_uri(NodeSelectionStrategy nodeSelectionStrategy)
+            throws ExecutionException {
+        test_can_use_sticky_attachments_impl(nodeSelectionStrategy, ImmutableList.of("http://localhost"));
+    }
+
+    @ParameterizedTest
+    @EnumSource(NodeSelectionStrategy.class)
+    public void test_can_request_sticky_token_with_many_uris(NodeSelectionStrategy nodeSelectionStrategy)
+            throws ExecutionException {
+        test_can_use_sticky_attachments_impl(
+                nodeSelectionStrategy,
+                ImmutableList.of("http://localhost", "http" + "://localhost2", "http" + "://localhost3"));
+    }
+
+    private void test_can_use_sticky_attachments_impl(
+            NodeSelectionStrategy nodeSelectionStrategy, ImmutableList<String> uris) throws ExecutionException {
+        String uriHeader = "uri";
+        DialogueChannelFactory factory = args -> {
+            mockChannel = Mockito.mock(Channel.class);
+            lenient().when(mockChannel.execute(eq(endpoint), any())).thenAnswer((Answer<ListenableFuture<Response>>)
+                    _invocation ->
+                            Futures.immediateFuture(TestResponse.withBody(null).withHeader(uriHeader, args.uri())));
+            return mockChannel;
+        };
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(ClientConfiguration.builder()
+                        .uris(uris)
+                        .from(stubConfig)
+                        .nodeSelectionStrategy(nodeSelectionStrategy)
+                        .build())
+                .factory(factory)
+                .random(new Random(1L))
+                .build();
+
+        request = createRequestWithAddExecutedOnAttachment();
+        response = Futures.getDone(channel.execute(endpoint, request));
+        String expectedUri = response.getFirstHeader(uriHeader).get();
+
+        Consumer<Request> stickyTarget = StickyAttachments.copyStickyTarget(response);
+
+        request = Request.builder().build();
+        stickyTarget.accept(request);
+        response = Futures.getDone(channel.execute(endpoint, request));
+        assertThat(response.getFirstHeader(uriHeader)).hasValue(expectedUri);
+    }
+
+    private Request createRequestWithAddExecutedOnAttachment() {
+        Request newRequest = Request.builder().build();
+        StickyAttachments.requestStickyToken(newRequest);
+        return newRequest;
     }
 
     @Test
