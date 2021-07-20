@@ -63,9 +63,7 @@ final class StickyConcurrencyLimitedChannel implements LimitedChannel {
             Optional<ListenableFuture<Response>> result = delegate.maybeExecute(
                     endpoint,
                     request,
-                    permit.isOnlyInFlight()
-                            ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS
-                            : limitEnforcement);
+                    permit.isOnlyInFlight() ? LimitEnforcement.DANGEROUS_BYPASS_LIMITS : limitEnforcement);
             if (result.isPresent()) {
                 DialogueFutures.addDirectCallback(result.get(), permit);
                 return result;
