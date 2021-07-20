@@ -156,21 +156,21 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                 }
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
+                ListenableFuture<Response> result;
                 if (callInFlightSnapshot == null) {
                     // Cannot use DialogueFutures#addDirectCallback because we want ordering of listeners:
                     // we want the success/failure callbacks to run BEFORE the queued requests inspect the result of
                     // the first call.
-                    ListenableFuture<Response> result = DialogueFutures.transform(
+                    result = DialogueFutures.transform(
                             executeWithStickyToken(request, endpointChannel), successTransformer);
                     result = DialogueFutures.catchingAllAsync(result, failureTransformer);
                     callInFlight = Futures.nonCancellationPropagating(result);
-                    return result;
                 } else {
-                    ListenableFuture<Response> result = callInFlightSnapshot;
+                    result = callInFlightSnapshot;
                     result = DialogueFutures.transformAsync(result, _input -> execute(request, endpointChannel));
                     result = DialogueFutures.catchingAllAsync(result, _throwable -> execute(request, endpointChannel));
-                    return result;
                 }
+                return result;
             }
         }
 
