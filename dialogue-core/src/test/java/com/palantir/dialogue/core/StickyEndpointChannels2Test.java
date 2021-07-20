@@ -104,25 +104,31 @@ public final class StickyEndpointChannels2Test {
     }
 
     @Test
-    public void requests_propagate_sticky_target() throws ExecutionException {
+    public void requests_queue_up_and_propagate_sticky_target() throws ExecutionException {
         Channel channel = sticky.get();
 
         Request request1 = Request.builder().build();
         SettableFuture<Response> response1SettableFuture = expectAddStickyTokenRequest(request1);
         ListenableFuture<Response> response1ListenableFuture = channel.execute(endpoint, request1);
         assertThat(response1ListenableFuture).isNotDone();
+
+        Request request2 = Request.builder().build();
+        SettableFuture<Response> response2SettableFuture = expectStickyRequest(response1ListenableFuture, request2);
+        ListenableFuture<Response> response2ListenableFuture = channel.execute(endpoint, request2);
+        assertThat(response2ListenableFuture).isNotDone();
+
         TestResponse testResponse1 = TestResponse.withBody(null);
         response1SettableFuture.set(testResponse1);
 
         assertThat(Futures.getDone(response1ListenableFuture)).isEqualTo(testResponse1);
 
-        Request request2 = Request.builder().build();
-        SettableFuture<Response> response2SettableFuture = expectStickyRequest(testResponse1, request2);
-        ListenableFuture<Response> response2ListenableFuture = channel.execute(endpoint, request2);
         TestResponse testResponse2 = TestResponse.withBody(null);
         response2SettableFuture.set(testResponse2);
         assertThat(Futures.getDone(response2ListenableFuture)).isEqualTo(testResponse2);
     }
+
+    // On failure we execute queued request.
+    // We queue up requests.
 
     private SettableFuture<Response> expectAddStickyTokenRequest(Request request) {
         SettableFuture<Response> responseSettableFuture = SettableFuture.create();
@@ -139,12 +145,13 @@ public final class StickyEndpointChannels2Test {
         return responseSettableFuture;
     }
 
-    private SettableFuture<Response> expectStickyRequest(Response response, Request request) {
+    private SettableFuture<Response> expectStickyRequest(ListenableFuture<Response> response, Request request) {
         SettableFuture<Response> responseSettableFuture = SettableFuture.create();
         when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
             Request actualRequest = invocation.getArgument(0);
             assertThat(actualRequest).isEqualTo(request);
-            assertThat(response.attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
+            assertThat(response).isDone();
+            assertThat(Futures.getDone(response).attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
                     .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
             return responseSettableFuture;
         });
