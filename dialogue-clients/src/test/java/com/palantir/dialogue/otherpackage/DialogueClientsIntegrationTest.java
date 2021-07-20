@@ -235,7 +235,7 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     public void test_sticky2_is_sticky() {
-        testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::getCurrentBest);
+        testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::sticky);
     }
 
     private <F> void testSticky(

@@ -111,7 +111,7 @@ public final class DialogueClients {
          */
         Channel getStickyChannel();
 
-        <T> T getCurrentBest(Class<T> clientInterface);
+        <T> T sticky(Class<T> clientInterface);
     }
 
     public interface PerHostClientFactory {

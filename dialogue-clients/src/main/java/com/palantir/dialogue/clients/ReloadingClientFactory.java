@@ -228,7 +228,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             }
 
             @Override
-            public <T> T getCurrentBest(Class<T> clientInterface) {
+            public <T> T sticky(Class<T> clientInterface) {
                 return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
             }
         };
@@ -364,7 +364,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     /* Abstracts away DialogueChannel so that we can handle no-service/no-uri case in #getInternalDialogueChannel. */
-    interface InternalDialogueChannel extends Channel {
+    private interface InternalDialogueChannel extends Channel {
         Supplier<Channel> stickyChannels();
     }
 

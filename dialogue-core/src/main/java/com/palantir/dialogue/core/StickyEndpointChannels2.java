@@ -26,12 +26,12 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.logsafe.Preconditions;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
+import javax.annotation.concurrent.ThreadSafe;
 import org.immutables.value.Value;
 
 @Value.Enclosing
@@ -39,8 +39,8 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
     private final Supplier<EndpointChannelFactory> delegate;
 
-    private StickyEndpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
-        this.delegate = Preconditions.checkNotNull(endpointChannelFactory, "endpointChannelFactory");
+    StickyEndpointChannels2(Supplier<EndpointChannelFactory> endpointChannelFactory) {
+        this.delegate = endpointChannelFactory;
     }
 
     @Override
@@ -54,29 +54,44 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
     }
 
     static Supplier<Channel> create(Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
+        Supplier<Channel> queueOverrideSupplier = new QueueOverrideSupplier(cf, nodeSelectionChannel);
         return new StickyEndpointChannels2(
-                new StickyEndpointChannels2EndpointFactorySupplier(cf, nodeSelectionChannel, delegate));
+                new StickyEndpointChannels2EndpointFactorySupplier(queueOverrideSupplier, delegate));
+    }
+
+    private static final class QueueOverrideSupplier implements Supplier<Channel> {
+
+        private final Config cf;
+        private final LimitedChannel nodeSelectionChannel;
+
+        private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
+            this.cf = cf;
+            this.nodeSelectionChannel = nodeSelectionChannel;
+        }
+
+        @Override
+        public Channel get() {
+            LimitedChannel stickyLimitedChannel =
+                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
+            return QueuedChannel.createForSticky(cf, stickyLimitedChannel);
+        }
     }
 
     private static final class StickyEndpointChannels2EndpointFactorySupplier
             implements Supplier<EndpointChannelFactory> {
 
-        private final Config cf;
-        private final LimitedChannel nodeSelectionChannel;
+        private final Supplier<Channel> queueOverrideSupplier;
         private final EndpointChannelFactory delegate;
 
         StickyEndpointChannels2EndpointFactorySupplier(
-                Config cf, LimitedChannel nodeSelectionChannel, EndpointChannelFactory delegate) {
-            this.cf = cf;
-            this.nodeSelectionChannel = nodeSelectionChannel;
+                Supplier<Channel> queueOverrideSupplier, EndpointChannelFactory delegate) {
+            this.queueOverrideSupplier = queueOverrideSupplier;
             this.delegate = delegate;
         }
 
         @Override
         public EndpointChannelFactory get() {
-            LimitedChannel stickyLimitedChannel =
-                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
-            Channel queueOverride = QueuedChannel.createForSticky(cf, stickyLimitedChannel);
+            Channel queueOverride = queueOverrideSupplier.get();
             return endpoint -> {
                 EndpointChannel endpointChannel = delegate.endpoint(endpoint);
                 return (EndpointChannel) request -> {
@@ -117,6 +132,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         }
     }
 
+    @ThreadSafe
     private static final class StickyRouter {
 
         private final InFlightCallSuccessTransformer successTransformer = new InFlightCallSuccessTransformer();
