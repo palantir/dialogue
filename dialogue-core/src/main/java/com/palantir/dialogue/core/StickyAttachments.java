@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -34,24 +35,26 @@ final class StickyAttachments {
     /**
      * Added to {@link com.palantir.dialogue.RequestAttachments} to opt into a {@link #STICKY_TOKEN} on the response.
      */
-    private static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN =
-            RequestAttachmentKey.create(Boolean.class);
+    @VisibleForTesting
+    static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN = RequestAttachmentKey.create(Boolean.class);
 
     /**
      * Maybe transferred from {@link com.palantir.dialogue.RequestAttachments} to
      * {@link com.palantir.dialogue.ResponseAttachments} as {@link #STICKY} to stick to the same channel.
      */
-    private static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN =
-            ResponseAttachmentKey.create(StickyTarget.class);
+    @VisibleForTesting
+    static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN = ResponseAttachmentKey.create(StickyTarget.class);
 
     /**
      * Used to execute requests against the same host.
      */
-    private static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
+    @VisibleForTesting
+    static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
 
     private StickyAttachments() {}
 
-    private interface StickyTarget {
+    @VisibleForTesting
+    interface StickyTarget {
         Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
     }

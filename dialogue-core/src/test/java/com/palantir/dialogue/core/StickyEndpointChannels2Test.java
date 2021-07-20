@@ -19,8 +19,11 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
@@ -29,13 +32,19 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
 public final class StickyEndpointChannels2Test {
@@ -44,7 +53,10 @@ public final class StickyEndpointChannels2Test {
     private Endpoint endpoint;
 
     @Mock
-    private LimitedChannel delegate;
+    private LimitedChannel nodeSelectionChannel;
+
+    // @Mock
+    // private LimitedChannel stickyTarget;
 
     @Mock
     private EndpointChannelFactory endpointChannelFactory;
@@ -66,7 +78,7 @@ public final class StickyEndpointChannels2Test {
         when(config.clientConf()).thenReturn(clientConfiguration);
         lenient().when(endpointChannelFactory.endpoint(any())).thenReturn(endpointChannel);
         when(clientConfiguration.taggedMetricRegistry()).thenReturn(new DefaultTaggedMetricRegistry());
-        sticky = StickyEndpointChannels2.create(config, delegate, endpointChannelFactory);
+        sticky = StickyEndpointChannels2.create(config, nodeSelectionChannel, endpointChannelFactory);
     }
 
     @Test
@@ -81,11 +93,11 @@ public final class StickyEndpointChannels2Test {
         Channel channel2 = sticky.get();
 
         Request request1 = Request.builder().build();
-        expectRequest(request1);
+        expectAddStickyTokenRequest(request1);
         channel1.execute(endpoint, request1);
 
         Request request2 = Request.builder().build();
-        expectRequest(request2);
+        expectAddStickyTokenRequest(request2);
         channel2.execute(endpoint, request2);
 
         assertThat(QueueAttachments.getQueueOverride(request1))
@@ -93,11 +105,38 @@ public final class StickyEndpointChannels2Test {
     }
 
     @Test
-    public void requests_propagate_sticky_target() {}
+    public void requests_propagate_sticky_target() throws ExecutionException {
+        Channel channel = sticky.get();
 
-    private SettableFuture<Response> expectRequest(Request request) {
+        Request request1 = Request.builder().build();
+        SettableFuture<Response> response1SettableFuture = expectAddStickyTokenRequest(request1);
+        ListenableFuture<Response> response1ListenableFuture = channel.execute(endpoint, request1);
+        assertThat(response1ListenableFuture).isNotDone();
+        TestResponse testResponse1 = TestResponse.withBody(null);
+        response1SettableFuture.set(testResponse1);
+
+        assertThat(Futures.getDone(response1ListenableFuture)).isEqualTo(testResponse1);
+
+        Consumer<Request> requestConsumer = StickyAttachments.copyStickyTarget(testResponse1);
+        Request request2 = Request.builder().build();
+        requestConsumer.accept(request2);
+
+        assertThat(testResponse1.attachments().getOrDefault(StickyAttachments.STICKY_TOKEN, null))
+                .isEqualTo(request2.attachments().getOrDefault(StickyAttachments.STICKY, null));
+    }
+
+    private SettableFuture<Response> expectAddStickyTokenRequest(Request request) {
         SettableFuture<Response> responseSettableFuture = SettableFuture.create();
-        when(endpointChannel.execute(request)).thenReturn(responseSettableFuture);
+        when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            Request actualRequest = invocation.getArgument(0);
+            assertThat(actualRequest).isEqualTo(request);
+            LimitedChannel stickyTarget = mock(LimitedChannel.class);
+            when(stickyTarget.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                    .thenReturn(Optional.of(responseSettableFuture));
+            return StickyAttachments.maybeAddStickyToken(
+                            stickyTarget, endpoint, actualRequest, LimitEnforcement.DEFAULT_ENABLED)
+                    .get();
+        });
         return responseSettableFuture;
     }
 }
