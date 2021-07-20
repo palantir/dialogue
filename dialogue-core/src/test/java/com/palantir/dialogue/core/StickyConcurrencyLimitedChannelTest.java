@@ -17,9 +17,19 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import java.time.Duration;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,10 +46,16 @@ public final class StickyConcurrencyLimitedChannelTest {
     private Request request;
 
     @Mock
+    private Response response;
+
+    @Mock
     private LimitedChannel delegate;
 
     @Mock
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter mockLimiter;
+
+    @Mock
+    private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Permit permit;
 
     private LimitedChannel channel;
 
@@ -49,7 +65,98 @@ public final class StickyConcurrencyLimitedChannelTest {
     }
 
     @Test
-    public void testLimiterAvailable_successfulRequest_host() {
-        assertThat(channel).isNotNull();
+    public void first_in_flight_request_is_forced() {
+        whenAcquireSuccessful();
+        whenOnlyInFlight(true);
+        whenDelegateCallSuccessfulIgnoreResult();
+
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+        verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS);
+    }
+
+    @Test
+    public void subsequent_requests_respect_limits() {
+        whenAcquireSuccessful();
+        whenOnlyInFlight(false);
+        whenDelegateCallSuccessfulIgnoreResult();
+
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isPresent();
+        verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+    }
+
+    @Test
+    public void delegate_reject_drops() {
+        whenAcquireSuccessful();
+        whenOnlyInFlight(false);
+        whenDelegateRejects();
+
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                .isEmpty();
+        verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
+        verify(permit).dropped();
+    }
+
+    @Test
+    public void delegate_future_releases_permit() {
+        whenAcquireSuccessful();
+        whenOnlyInFlight(false);
+        SettableFuture<Response> responseSettableFuture = whenDelegateCallSuccessful();
+
+        ListenableFuture<Response> responseListenableFuture = channel.maybeExecute(
+                        endpoint, request, LimitEnforcement.DEFAULT_ENABLED)
+                .get();
+
+        responseSettableFuture.set(response);
+
+        assertThat(responseListenableFuture)
+                .isDone()
+                .succeedsWithin(Duration.ZERO)
+                .isEqualTo(response);
+        verify(permit).onSuccess(response);
+    }
+
+    @Test
+    public void limit_enforcement_passthrough() {
+        whenAcquireSuccessful();
+        whenOnlyInFlight(false);
+        whenDelegateCallSuccessfulIgnoreResult();
+
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS))
+                .isPresent();
+        verify(mockLimiter).acquire(LimitEnforcement.DANGEROUS_BYPASS_LIMITS);
+        verify(delegate).maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS);
+    }
+
+    @Test
+    public void acquire_fails() {
+        when(mockLimiter.acquire(any())).thenReturn(Optional.empty());
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DANGEROUS_BYPASS_LIMITS))
+                .isEmpty();
+        verifyNoInteractions(permit, delegate);
+    }
+
+    private void whenAcquireSuccessful() {
+        when(mockLimiter.acquire(any())).thenReturn(Optional.of(permit));
+    }
+
+    private void whenOnlyInFlight(boolean onlyInFlight) {
+        when(permit.isOnlyInFlight()).thenReturn(onlyInFlight);
+    }
+
+    @SuppressWarnings("FutureReturnValueIgnored")
+    private void whenDelegateCallSuccessfulIgnoreResult() {
+        whenDelegateCallSuccessful();
+    }
+
+    private SettableFuture<Response> whenDelegateCallSuccessful() {
+        SettableFuture<Response> responseSettableFuture = SettableFuture.create();
+        when(delegate.maybeExecute(any(), any(), any())).thenReturn(Optional.of(responseSettableFuture));
+        return responseSettableFuture;
+    }
+
+    private void whenDelegateRejects() {
+        when(delegate.maybeExecute(any(), any(), any())).thenReturn(Optional.empty());
     }
 }
