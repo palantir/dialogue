@@ -133,7 +133,20 @@ public final class StickyEndpointChannels2Test {
         request2.setResponse().assertDoneSuccessful();
     }
 
-    // Can cancel queued request, without cancelling in-flight
+    @Test
+    public void cancel_queued_request_does_not_cancel_in_flight() {
+        Channel channel = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        TestHarness request2 =
+                new TestHarness(channel).expectNoRequest().execute().assertNotDone();
+
+        request2.cancelResponse().assertDoneCancelled();
+
+        request1.assertNotDone();
+    }
 
     private final class TestHarness {
         Channel channel;
@@ -178,6 +191,11 @@ public final class StickyEndpointChannels2Test {
             return this;
         }
 
+        TestHarness expectNoRequest() {
+            lenient().when(endpointChannel.execute(request)).thenThrow(new RuntimeException());
+            return this;
+        }
+
         TestHarness execute() {
             responseListenableFuture = channel.execute(endpoint, request);
             return this;
@@ -208,6 +226,11 @@ public final class StickyEndpointChannels2Test {
             return this;
         }
 
+        TestHarness assertDoneCancelled() {
+            assertThat(responseListenableFuture).isCancelled();
+            return this;
+        }
+
         TestHarness setResponse() {
             responseSettableFuture.set(response);
             return this;
@@ -215,6 +238,11 @@ public final class StickyEndpointChannels2Test {
 
         TestHarness setException() {
             responseSettableFuture.setException(runtimeException);
+            return this;
+        }
+
+        TestHarness cancelResponse() {
+            assertThat(responseListenableFuture.cancel(true)).isTrue();
             return this;
         }
     }
