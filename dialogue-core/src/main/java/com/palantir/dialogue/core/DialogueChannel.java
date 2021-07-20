@@ -169,7 +169,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
-            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
+            LimitedChannel nodeSelectionChannel =
+                    new StickyValidationChannel(NodeSelectionStrategyChannel.create(cf, channels));
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
             Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
