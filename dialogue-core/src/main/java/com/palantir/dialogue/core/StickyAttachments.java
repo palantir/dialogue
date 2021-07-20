@@ -86,8 +86,6 @@ final class StickyAttachments {
     static Consumer<Request> copyStickyTarget(Response response) {
         StickyTarget stickyTarget =
                 Preconditions.checkNotNull(response.attachments().getOrDefault(STICKY_TOKEN, null), "stickyToken");
-        return request -> {
-            request.attachments().put(STICKY, stickyTarget);
-        };
+        return request -> request.attachments().put(STICKY, stickyTarget);
     }
 }

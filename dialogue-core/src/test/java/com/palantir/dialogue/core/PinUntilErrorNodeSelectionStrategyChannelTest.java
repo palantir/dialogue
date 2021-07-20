@@ -20,7 +20,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.github.benmanes.caffeine.cache.Ticker;
@@ -30,12 +29,15 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -64,7 +66,6 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     private DialoguePinuntilerrorMetrics metrics = DialoguePinuntilerrorMetrics.of(new DefaultTaggedMetricRegistry());
     private String channelName = "channelName";
     private Random pseudo = new Random(12893712L);
-    private Request request = Request.builder().build();
 
     @BeforeEach
     public void before() {
@@ -161,7 +162,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     @Test
-    public void out_of_order_responses_dont_cause_us_to_switch_channel() throws Exception {
+    public void out_of_order_responses_dont_cause_us_to_switch_channel() {
         setResponse(channel1, 100);
         setResponse(channel2, 101);
         assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(101);
@@ -173,9 +174,9 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(future2));
 
         // kick off two requests
-        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
-        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
 
         // second request completes before the first (i.e. out of order), but they both signify the host wass broken
@@ -197,7 +198,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
         when(channel1.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.empty());
         setResponse(channel2, 204);
-        assertThat(pinUntilError.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(pinUntilError.maybeExecute(null, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
                 .isPresent();
     }
 
@@ -213,9 +214,46 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
                 channelName);
     }
 
+    @Test
+    void sticky_request_do_not_switch_nodes() throws ExecutionException {
+        setResponse(channel1, 100);
+        setResponse(channel2, 101);
+        assertThat(getCode(pinUntilError)).describedAs("On channel2 initially").isEqualTo(101);
+
+        Request requestSticky = Request.builder().build();
+        StickyAttachments.requestStickyToken(requestSticky);
+
+        int errorStatus = 500;
+        setResponse(channel2, errorStatus);
+        Consumer<Request> requestConsumer = StickyAttachments.copyStickyTarget(Futures.getDone(pinUntilError
+                .maybeExecute(null, requestSticky, LimitEnforcement.DEFAULT_ENABLED)
+                .get()));
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
+                .describedAs("A single error code should switch us to channel 1")
+                .contains(100, 100, 100, 100, 100, 100);
+
+        assertThat(IntStream.range(0, 6).map(_number -> {
+                    Request stickyRequest = Request.builder().build();
+                    requestConsumer.accept(stickyRequest);
+                    return getCode(pinUntilError, stickyRequest);
+                }))
+                .describedAs("sticky request continues being pinned to channel 2")
+                .contains(errorStatus, errorStatus, errorStatus, errorStatus, errorStatus, errorStatus);
+
+        assertThat(IntStream.range(0, 6).map(_number -> getCode(pinUntilError)))
+                .describedAs("unpinned requests stay on channel 1")
+                .contains(100, 100, 100, 100, 100, 100);
+    }
+
     private int getCode(PinUntilErrorNodeSelectionStrategyChannel channel) {
+        return getCode(channel, Request.builder().build());
+    }
+
+    private static int getCode(PinUntilErrorNodeSelectionStrategyChannel channel, Request request) {
         try {
-            ListenableFuture<Response> future = channel.maybeExecute(null, request, LimitEnforcement.DEFAULT_ENABLED)
+            ListenableFuture<Response> future = StickyAttachments.maybeExecuteOnSticky(
+                            channel, null, request, LimitEnforcement.DEFAULT_ENABLED)
                     .get();
             Response response = future.get(1, TimeUnit.MILLISECONDS);
             return response.code();
@@ -234,8 +272,6 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     private static Response response(int status) {
-        Response resp = mock(Response.class);
-        lenient().when(resp.code()).thenReturn(status);
-        return resp;
+        return TestResponse.withBody(null).code(status);
     }
 }
