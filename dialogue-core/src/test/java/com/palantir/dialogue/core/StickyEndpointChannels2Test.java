@@ -33,6 +33,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.Preconditions;
@@ -51,14 +52,10 @@ import org.mockito.stubbing.Answer;
 @ExtendWith(MockitoExtension.class)
 public final class StickyEndpointChannels2Test {
 
-    @Mock
-    private Endpoint endpoint;
+    private final Endpoint endpoint = TestEndpoint.GET;
 
     @Mock
     private LimitedChannel nodeSelectionChannel;
-
-    // @Mock
-    // private LimitedChannel stickyTarget;
 
     @Mock
     private EndpointChannelFactory endpointChannelFactory;
