@@ -58,6 +58,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     @Mock
     LimitedChannel chan2;
 
+    private Request request = Request.builder().build();
     private Endpoint endpoint = TestEndpoint.GET;
     private BalancedNodeSelectionStrategyChannel channel;
     private BalancedNodeSelectionStrategyChannel rttChannel;
@@ -81,7 +82,7 @@ class BalancedNodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(settableFuture));
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         }
         verify(chan1, times(199)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
         verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
@@ -93,7 +94,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         set200(chan2);
 
         for (int i = 0; i < 200; i++) {
-            channel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         }
         verify(chan1, times(99)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
         verify(chan2, times(101)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
@@ -106,7 +107,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         when(chan2.maybeExecute(any(), any(), eq(LimitEnforcement.DEFAULT_ENABLED)))
                 .thenReturn(Optional.empty());
 
-        assertThat(channel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED))
+        assertThat(channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
                 .isNotPresent();
         verify(chan1, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
         verify(chan2, times(1)).maybeExecute(eq(endpoint), any(), eq(LimitEnforcement.DEFAULT_ENABLED));
@@ -123,7 +124,7 @@ class BalancedNodeSelectionStrategyChannelTest {
         for (long start = clock.read();
                 clock.read() < start + Duration.ofSeconds(10).toNanos();
                 incrementClockBy(Duration.ofMillis(50))) {
-            channel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED);
+            channel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
             assertThat(channel.getScoresForTesting())
                     .describedAs("A single 400 at the beginning isn't enough to impact scores", channel)
                     .containsExactly(0, 0);
@@ -141,13 +142,13 @@ class BalancedNodeSelectionStrategyChannelTest {
                 .thenReturn(http(200));
 
         for (int i = 0; i < 11; i++) {
-            rttChannel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED);
+            rttChannel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
             assertThat(rttChannel.getScoresForTesting())
                     .describedAs("%s %s: Scores not affected yet %s", i, Duration.ofNanos(clock.read()), rttChannel)
                     .containsExactly(0, 0);
             incrementClockBy(Duration.ofMillis(50));
         }
-        rttChannel.maybeExecute(endpoint, Request.builder().build(), LimitEnforcement.DEFAULT_ENABLED);
+        rttChannel.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED);
         assertThat(rttChannel.getScoresForTesting())
                 .describedAs("%s: Constant 4xxs did move the needle %s", Duration.ofNanos(clock.read()), rttChannel)
                 .containsExactly(1, 0);
@@ -165,8 +166,7 @@ class BalancedNodeSelectionStrategyChannelTest {
     @EnumSource(LimitEnforcement.class)
     public void skiplimits_passthrough(LimitEnforcement limitEnforcement) {
         when(chan1.maybeExecute(any(), any(), eq(limitEnforcement))).thenReturn(http(200));
-        assertThat(channel.maybeExecute(endpoint, Request.builder().build(), limitEnforcement))
-                .isPresent();
+        assertThat(channel.maybeExecute(endpoint, request, limitEnforcement)).isPresent();
     }
 
     @Test
@@ -177,7 +177,7 @@ class BalancedNodeSelectionStrategyChannelTest {
                 .thenReturn(Optional.of(initialRequestFuture))
                 .thenReturn(Optional.of(stickyRequestFuture));
 
-        Request request = Request.builder().build();
+        request = Request.builder().build();
         StickyAttachments.requestStickyToken(request);
         ListenableFuture<Response> responseFuture = channel.maybeExecute(
                         endpoint, request, LimitEnforcement.DEFAULT_ENABLED)
