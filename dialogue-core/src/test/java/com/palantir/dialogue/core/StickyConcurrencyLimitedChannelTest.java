@@ -18,10 +18,8 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
-import com.palantir.dialogue.Response;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -43,11 +41,7 @@ public final class StickyConcurrencyLimitedChannelTest {
     @Mock
     private CautiousIncreaseAggressiveDecreaseConcurrencyLimiter mockLimiter;
 
-    @Mock
-    private Response response;
-
     private LimitedChannel channel;
-    private SettableFuture<Response> _responseFuture;
 
     @BeforeEach
     public void before() {
