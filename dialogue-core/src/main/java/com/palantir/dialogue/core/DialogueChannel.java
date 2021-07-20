@@ -33,14 +33,17 @@ import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
     private final EndpointChannelFactory delegate;
     private final Config cf;
+    private final Supplier<Channel> stickyChannelSupplier;
 
-    private DialogueChannel(Config cf, EndpointChannelFactory delegate) {
+    private DialogueChannel(Config cf, EndpointChannelFactory delegate, Supplier<Channel> stickyChannelSupplier) {
         this.cf = cf;
         this.delegate = delegate;
+        this.stickyChannelSupplier = stickyChannelSupplier;
     }
 
     @Override
@@ -51,6 +54,10 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
     @Override
     public EndpointChannel endpoint(Endpoint endpoint) {
         return delegate.endpoint(endpoint);
+    }
+
+    public Supplier<Channel> stickyChannels() {
+        return stickyChannelSupplier;
     }
 
     public static Builder builder() {
@@ -162,8 +169,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             }
             ImmutableList<LimitedChannel> channels = perUriChannels.build();
 
-            LimitedChannel nodeSelectionChannel = NodeSelectionStrategyChannel.create(cf, channels);
-            Channel queuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            LimitedChannel nodeSelectionChannel =
+                    new StickyValidationChannel(NodeSelectionStrategyChannel.create(cf, channels));
+
+            Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
+            Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
 
             EndpointChannelFactory channelFactory = endpoint -> {
                 EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
@@ -179,6 +189,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
 
+            Supplier<Channel> stickyChannelSupplier =
+                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
+
             Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
                     .create()
                     .clientName(cf.channelName())
@@ -186,7 +199,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .build();
             createMeter.mark();
 
-            return new DialogueChannel(cf, channelFactory);
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
         /** Does *not* do any clever live-reloading. */

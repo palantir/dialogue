@@ -268,3 +268,9 @@ acceptedBreaks:
       new: "parameter <V> V com.palantir.dialogue.ResponseAttachments::put(===com.palantir.dialogue.ResponseAttachmentKey<V>===,\
         \ V)"
       justification: "Incorrect parameter types"
+  "3.2.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::getStickyChannels2(java.lang.String)"
+      justification: "New @Beta API"

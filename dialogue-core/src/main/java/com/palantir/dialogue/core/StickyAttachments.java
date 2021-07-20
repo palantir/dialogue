@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -25,33 +27,39 @@ import com.palantir.dialogue.ResponseAttachmentKey;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.util.Optional;
 import java.util.function.Consumer;
 import javax.annotation.CheckReturnValue;
 
 final class StickyAttachments {
 
+    private static final ListenableFuture<Response> VALIDATION_FAILURE_EXCEPTION_FUTURE = Futures.immediateFailedFuture(
+            new SafeRuntimeException("Requested sticky token on request but token not present on response"));
+
     /**
      * Added to {@link com.palantir.dialogue.RequestAttachments} to opt into a {@link #STICKY_TOKEN} on the response.
      */
-    private static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN =
-            RequestAttachmentKey.create(Boolean.class);
+    @VisibleForTesting
+    static final RequestAttachmentKey<Boolean> REQUEST_STICKY_TOKEN = RequestAttachmentKey.create(Boolean.class);
 
     /**
      * Maybe transferred from {@link com.palantir.dialogue.RequestAttachments} to
      * {@link com.palantir.dialogue.ResponseAttachments} as {@link #STICKY} to stick to the same channel.
      */
-    private static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN =
-            ResponseAttachmentKey.create(StickyTarget.class);
+    @VisibleForTesting
+    static final ResponseAttachmentKey<StickyTarget> STICKY_TOKEN = ResponseAttachmentKey.create(StickyTarget.class);
 
     /**
      * Used to execute requests against the same host.
      */
-    private static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
+    @VisibleForTesting
+    static final RequestAttachmentKey<StickyTarget> STICKY = RequestAttachmentKey.create(StickyTarget.class);
 
     private StickyAttachments() {}
 
-    private interface StickyTarget {
+    @VisibleForTesting
+    interface StickyTarget {
         Optional<ListenableFuture<Response>> maybeExecute(
                 Endpoint endpoint, Request request, LimitEnforcement limitEnforcement);
     }
@@ -59,11 +67,28 @@ final class StickyAttachments {
     @CheckReturnValue
     static Optional<ListenableFuture<Response>> maybeAddStickyToken(
             LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
-        if (Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE))) {
+        if (hasRequestStickyToken(request)) {
             return channel.maybeExecute(endpoint, request, limitEnforcement)
                     .map(future -> DialogueFutures.transform(future, response -> {
                         response.attachments().put(STICKY_TOKEN, channel::maybeExecute);
                         return response;
+                    }));
+        } else {
+            return channel.maybeExecute(endpoint, request, limitEnforcement);
+        }
+    }
+
+    static Optional<ListenableFuture<Response>> maybeExecuteAndValidateRequestStickyToken(
+            LimitedChannel channel, Endpoint endpoint, Request request, LimitEnforcement limitEnforcement) {
+        if (hasRequestStickyToken(request)) {
+            return channel.maybeExecute(endpoint, request, limitEnforcement)
+                    .map(future -> DialogueFutures.transformAsync(future, response -> {
+                        if (response.attachments().getOrDefault(STICKY_TOKEN, null) != null) {
+                            return Futures.immediateFuture(response);
+                        } else {
+                            response.close();
+                            return VALIDATION_FAILURE_EXCEPTION_FUTURE;
+                        }
                     }));
         } else {
             return channel.maybeExecute(endpoint, request, limitEnforcement);
@@ -87,5 +112,9 @@ final class StickyAttachments {
         StickyTarget stickyTarget =
                 Preconditions.checkNotNull(response.attachments().getOrDefault(STICKY_TOKEN, null), "stickyToken");
         return request -> request.attachments().put(STICKY, stickyTarget);
+    }
+
+    private static boolean hasRequestStickyToken(Request request) {
+        return Boolean.TRUE.equals(request.attachments().getOrDefault(REQUEST_STICKY_TOKEN, Boolean.FALSE));
     }
 }

@@ -20,7 +20,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -29,8 +33,12 @@ import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.logsafe.Preconditions;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import io.undertow.Undertow;
@@ -39,23 +47,35 @@ import io.undertow.server.handlers.BlockingHandler;
 import java.net.InetSocketAddress;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
+import org.immutables.value.Value;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 public class DialogueClientsIntegrationTest {
+    private static final String FOO_SERVICE = "foo";
+    private static final Splitter PATH_SPLITTER = Splitter.on("/");
     private ServiceConfiguration serviceConfig;
     private Undertow undertow;
     private HttpHandler undertowHandler;
     private ServicesConfigBlock scb;
     private PartialServiceConfiguration foo1;
     private PartialServiceConfiguration foo2;
+    private PartialServiceConfiguration threeFoos;
+    private final String foo1Path = "/foo1";
+    private final String foo2Path = "/foo2";
+    private final String foo3Path = "/foo3";
 
     @BeforeEach
     public void before() {
@@ -73,10 +93,15 @@ public class DialogueClientsIntegrationTest {
                 .addUris(getUri(undertow))
                 .build();
         foo1 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo1")
+                .addUris(getUri(undertow) + foo1Path)
                 .build();
         foo2 = PartialServiceConfiguration.builder()
-                .addUris(getUri(undertow) + "/foo2")
+                .addUris(getUri(undertow) + foo2Path)
+                .build();
+        threeFoos = PartialServiceConfiguration.builder()
+                .addUris(getUri(undertow) + foo1Path)
+                .addUris(getUri(undertow) + foo2Path)
+                .addUris(getUri(undertow) + foo3Path)
                 .build();
         scb = ServicesConfigBlock.builder()
                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -98,7 +123,7 @@ public class DialogueClientsIntegrationTest {
 
     @Test
     void reload_uris_works() {
-        List<String> requestPaths = new ArrayList<>();
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(200);
@@ -121,7 +146,7 @@ public class DialogueClientsIntegrationTest {
     @Test
     void building_non_reloading_clients_always_gives_the_same_instance() {
         AtomicInteger statusCode = new AtomicInteger(200);
-        Set<String> requestPaths = new HashSet<>();
+        Set<String> requestPaths = ConcurrentHashMap.newKeySet();
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
             exchange.setStatusCode(statusCode.get());
@@ -201,6 +226,106 @@ public class DialogueClientsIntegrationTest {
         assertThatCode(client::voidToVoid)
                 .as("subsequent requests reusing the connection should not throw")
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    public void test_sticky_is_sticky() {
+        testSticky(ReloadingFactory::getStickyChannels, StickyChannelFactory::getCurrentBest);
+    }
+
+    @Test
+    public void test_sticky2_is_sticky() {
+        testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::sticky);
+    }
+
+    private <F> void testSticky(
+            BiFunction<ReloadingFactory, String, F> factoryFactory,
+            BiFunction<F, Class<SampleServiceAsync>, SampleServiceAsync> clientFactory) {
+        List<StringToVoidRequestPath> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        int maxConcurrentRequestsPerServer = 10;
+        Map<String, Integer> activeRequestsPerServer = new ConcurrentHashMap<>();
+
+        undertowHandler = exchange -> {
+            String requestPath = exchange.getRequestPath();
+            StringToVoidRequestPath path = parse(requestPath);
+            String server = path.requestPath();
+            try {
+                int activeRequests = activeRequestsPerServer.compute(server, (_ignore, activeRequests1) -> {
+                    if (activeRequests1 == null) {
+                        return 1;
+                    } else {
+                        return activeRequests1 + 1;
+                    }
+                });
+                if (activeRequests > maxConcurrentRequestsPerServer) {
+                    exchange.setStatusCode(200);
+                } else {
+                    exchange.setStatusCode(429);
+                }
+            } finally {
+                activeRequestsPerServer.compute(server, (_ignore, activeRequests12) -> {
+                    Preconditions.checkNotNull(activeRequests12, "activeRequests");
+                    Preconditions.checkState(activeRequests12 > 0, "activeRequests");
+                    return activeRequests12 - 1;
+                });
+                requestPaths.add(path);
+            }
+        };
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(ServicesConfigBlock.builder()
+                .from(scb)
+                .putServices(FOO_SERVICE, threeFoos)
+                .build());
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        F stickyChannels = factoryFactory.apply(factory, FOO_SERVICE);
+
+        int numClients = 3;
+        int numRequestPerClient = 1000;
+
+        List<ListenableFuture<?>> requests = new ArrayList<>();
+        for (int i = 0; i < numClients; i++) {
+            SampleServiceAsync client = clientFactory.apply(stickyChannels, SampleServiceAsync.class);
+            String clientId = Integer.toString(i);
+            IntStream.range(0, numRequestPerClient).forEach(_ignore -> requests.add(client.stringToVoid(clientId)));
+        }
+
+        assertThat(Futures.whenAllComplete(requests).run(() -> {}, MoreExecutors.directExecutor()))
+                .succeedsWithin(Duration.ofMinutes(1));
+
+        assertThat(requestPaths).hasSizeGreaterThanOrEqualTo(numClients * numRequestPerClient);
+        Set<StringToVoidRequestPath> uniquePaths = new HashSet<>(requestPaths);
+        assertThat(uniquePaths).hasSize(numClients);
+
+        // *I think* this technically has a chance to flake, but let's see how it goes. I am trying to make sure the
+        // requests are actually being pinned and not just because all the requests went to a single node.
+        assertThat(uniquePaths.stream().map(StringToVoidRequestPath::server)).hasSizeGreaterThanOrEqualTo(2);
+
+        List<String> clientIds =
+                uniquePaths.stream().map(StringToVoidRequestPath::client).collect(Collectors.toList());
+
+        assertThat(clientIds).containsExactlyInAnyOrder("0", "1", "2");
+    }
+
+    private static StringToVoidRequestPath parse(String requestPath) {
+        List<String> segments = PATH_SPLITTER.splitToList(requestPath);
+        assertThat(segments.get(0)).isEmpty();
+        assertThat(Collections.singleton(segments.get(1))).containsAnyOf("foo1", "foo2", "foo3");
+        assertThat(segments.get(2)).isEqualTo("stringToVoid");
+        return ImmutableStringToVoidRequestPath.of(requestPath, segments.get(1), segments.get(3));
+    }
+
+    @Value.Immutable
+    interface StringToVoidRequestPath {
+        @Value.Parameter
+        String requestPath();
+
+        @Value.Parameter
+        String server();
+
+        @Value.Parameter
+        String client();
     }
 
     private static String getUri(Undertow undertow) {

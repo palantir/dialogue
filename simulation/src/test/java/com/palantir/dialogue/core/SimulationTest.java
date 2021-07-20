@@ -25,7 +25,6 @@ import com.google.common.base.Suppliers;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
-import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestResponse;
@@ -33,7 +32,6 @@ import com.palantir.dialogue.core.Benchmark.ScheduledRequest;
 import com.palantir.tracing.Observability;
 import com.palantir.tracing.Tracer;
 import com.palantir.tracing.Tracers;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -47,14 +45,12 @@ import java.time.Duration;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -547,19 +543,6 @@ final class SimulationTest {
 
     @SimulationCase
     void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
-    }
-
-    @SimulationCase
-    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
-        server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-                Benchmark.builder(), strategy, StickyChannelFactory.STICKY);
-    }
-
-    private void server_side_rate_limits_with_sticky_clients_steady_vs_bursty_client_impl(
-            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
-
         // 1 server
         // 2 types of clients sharing a DialogueChannel
         //   - client that sends a request once a second
@@ -595,11 +578,9 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Channel channel = strategy.getChannel(simulation, servers);
-        Supplier<Channel> stickyChannelSupplier =
-                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
+        Supplier<Channel> stickyChannelSupplier = strategy.getSticky2NonReloading(simulation, servers.get());
 
-        builder.simulation(simulation);
+        Benchmark builder = Benchmark.builder().simulation(simulation);
         EndpointChannel slowAndSteadyChannel =
                 builder.addEndpointChannel("slowAndSteady", DEFAULT_ENDPOINT, stickyChannelSupplier.get());
         EndpointChannel oneShotBurstChannel =
@@ -620,9 +601,8 @@ final class SimulationTest {
                 .run();
     }
 
-    private void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients_impl(
-            Benchmark builder, Strategy strategy, StickyChannelFactory stickyChannelFactory) {
-
+    @SimulationCase
+    void server_side_rate_limits_with_sticky_clients_fairness_across_multiple_clients(Strategy strategy) {
         int numServers = 1;
         int numClients = 10;
         Duration responseTime = Duration.ofMillis(150);
@@ -637,39 +617,16 @@ final class SimulationTest {
                         .build())
                 .toArray(SimulationServer[]::new));
 
-        Channel channel = strategy.getChannel(simulation, servers);
-        Supplier<Channel> stickyChannelSupplier =
-                stickyChannelFactory.factoryFunction.apply(simulation.taggedMetrics(), channel);
+        Supplier<Channel> stickyChannelSupplier = strategy.getSticky2NonReloading(simulation, servers.get());
 
         st = strategy;
-        result = builder.simulation(simulation)
+        result = Benchmark.builder()
+                .simulation(simulation)
                 .requestsPerSecond(30)
                 .sendUntil(Duration.ofMinutes(1))
                 .clients(numClients, _i -> stickyChannelSupplier.get())
                 .abortAfter(Duration.ofMinutes(2))
                 .run();
-    }
-
-    @SuppressWarnings("ImmutableEnumChecker")
-    private enum StickyChannelFactory {
-        STICKY(StickyChannelFactory::sticky);
-
-        private final BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction;
-
-        StickyChannelFactory(BiFunction<TaggedMetricRegistry, Channel, Supplier<Channel>> factoryFunction) {
-            this.factoryFunction = factoryFunction;
-        }
-
-        static Supplier<Channel> sticky(TaggedMetricRegistry taggedMetricRegistry, Channel channel) {
-            List<EndpointChannelFactory> endpointChannelFactories =
-                    Collections.singletonList(endpoint -> request -> channel.execute(endpoint, request));
-
-            return StickyEndpointChannels.builder()
-                    .channels(endpointChannelFactories)
-                    .channelName(SimulationUtils.CHANNEL_NAME)
-                    .taggedMetricRegistry(taggedMetricRegistry)
-                    .build();
-        }
     }
 
     private Function<SimulationServer, Response> respond500AtRate(double rate) {
