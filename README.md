@@ -182,22 +182,22 @@ permit becomes available.
 #### Limiter Diagram
 
 ```
-+---------+   +----------+   +-------------+    +--------------------+   +--------------------------+   +----------------------------+
-| Request +-->+Host Queue+-->+Node Selector+--->+Host Limiter (node0)+-->+Endpoint Queue(node0,ping)+-->+Endpoint Limiter(node0,ping)+---------+
-+---------+   +----------+   +--------------+   +---------------------+  +--------------------------+   +----------------------------+         |
-                                            |                         |                                                                        |
-                                            |                         |  +---------------------------+  +-----------------------------+        |
-                                            |                         +->+Endpoint Queue(node0,hello)+->+Endpoint Limiter(node0,hello)+----v   v
-                                            |                            +---------------------------+  +-----------------------------+   +----+-------+
-                                            |                                                                                             |HTTP Request|
-                                            |                                                                                             +--+-+-------+
-                                            |   +--------------------+   +--------------------------+   +----------------------------+       ^ ^
-                                            +-->+Host Limiter (node1)+-->+Endpoint Queue(node1,ping)+-->+Endpoint Limiter(node1,ping)+-------+ |
-                                                +---------------------+  +--------------------------+   +----------------------------+         |
-                                                                      |                                                                        |
-                                                                      |  +---------------------------+  +-----------------------------+        |
-                                                                      +->+Endpoint Queue(node1,hello)+->+Endpoint Limiter(node1,hello)+--------+
-                                                                         +---------------------------+  +-----------------------------+
++---------+   +----------+      +-------------+    +--------------------+   +--------------------------+   +----------------------------+
+| Request +-->+Request Queue+-->+Node Selector+--->+Host Limiter (node0)+-->+Endpoint Queue(node0,ping)+-->+Endpoint Limiter(node0,ping)+---------+
++---------+   +----------+      +--------------+   +---------------------+  +--------------------------+   +----------------------------+         |
+                                               |                         |                                                                        |
+                                               |                         |  +---------------------------+  +-----------------------------+        |
+                                               |                         +->+Endpoint Queue(node0,hello)+->+Endpoint Limiter(node0,hello)+----v   v
+                                               |                            +---------------------------+  +-----------------------------+   +----+-------+
+                                               |                                                                                             |HTTP Request|
+                                               |                                                                                             +--+-+-------+
+                                               |   +--------------------+   +--------------------------+   +----------------------------+       ^ ^
+                                               +-->+Host Limiter (node1)+-->+Endpoint Queue(node1,ping)+-->+Endpoint Limiter(node1,ping)+-------+ |
+                                                   +---------------------+  +--------------------------+   +----------------------------+         |
+                                                                         |                                                                        |
+                                                                         |  +---------------------------+  +-----------------------------+        |
+                                                                         +->+Endpoint Queue(node1,hello)+->+Endpoint Limiter(node1,hello)+--------+
+                                                                            +---------------------------+  +-----------------------------+
 ```
 
 #### Host limits
@@ -241,6 +241,21 @@ request is then routed to the the host with the lowest `inflight + 10*recent_fai
 
 The ROUND_ROBIN strategy is _not_ appropriate for transactional use cases where successive requests must land on the
 same node, and it's also not optimal for use-cases where there are many nodes and cache affinity is very important.
+
+### Sticky requests
+
+Dialogue channels can be configured to stick to a single host: after first request is successfully executed on a host,
+all subsequent requests will be routed to the same host. This strategy is useful for transactional workflows,
+where all requests tied to a particular transaction may need to be executed on the same host.
+
+The implementation reuses the same [limiter pipeline](#limiter-diagram), with some adjustments (simplified to show a single host/endpoint only):
+
+```
+Sticky Request +-->+Per Sticky Channel queue+-->+Per Sticky Channel Limiter+-->+Node Selector+--->+Host Limiter (node0)+-->+Endpoint Queue(node0,ping)+-->+Endpoint Limiter(node0,ping)
+```
+
+Each sticky channel gets its own queue. If a sticky channel has no requests in-flight, ``Host Limiter`` is sidestepped (the request is let through regardless of current concurrency limits).
+This means there is a potential for many low-bandwidth sticky channels to compete with regular channels.
 
 ## Alternative HTTP clients
 
