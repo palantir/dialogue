@@ -116,11 +116,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
             return new StickyEndpointChannel(router, channelFactory.endpoint(endpoint));
         }
 
-        /**
-         * .
-         * @deprecated prefer {@link #endpoint}, as it allows binding work upfront
-         */
-        @Deprecated
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
             return endpoint(endpoint).execute(request);
