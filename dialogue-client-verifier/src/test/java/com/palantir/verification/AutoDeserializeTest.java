@@ -21,6 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.AutoDeserializeConfirmServiceBlocking;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.AutoDeserializeServiceBlocking;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.EndpointName;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,8 +35,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class AutoDeserializeTest {
@@ -41,7 +42,7 @@ public class AutoDeserializeTest {
     @ClassRule
     public static final VerificationServerRule server = new VerificationServerRule();
 
-    private static final Logger log = LoggerFactory.getLogger(AutoDeserializeTest.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(AutoDeserializeTest.class);
     private static final AutoDeserializeServiceBlocking testService =
             server.client(AutoDeserializeServiceBlocking.class);
     private static final AutoDeserializeConfirmServiceBlocking confirmService =
@@ -120,7 +121,11 @@ public class AutoDeserializeTest {
     private Optional<Error> expectSuccess(Method method) {
         try {
             Object resultFromServer = method.invoke(testService, index);
-            log.info("Received result for endpoint {} and index {}: {}", endpointName, index, resultFromServer);
+            log.info(
+                    "Received result for endpoint {} and index {}: {}",
+                    SafeArg.of("endpointName", endpointName),
+                    SafeArg.of("index", index),
+                    SafeArg.of("resultFromServer", resultFromServer));
             confirmService.confirm(endpointName, index, resultFromServer);
             return Optional.empty();
         } catch (Exception e) {

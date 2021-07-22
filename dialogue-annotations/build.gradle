@@ -10,10 +10,10 @@ dependencies {
     implementation project(':dialogue-serde')
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     implementation 'com.google.code.findbugs:jsr305'
+    implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.google.guava:guava'
-    implementation 'org.slf4j:slf4j-api'
 
     // MultipartRequestBody
     implementation 'org.apache.httpcomponents.core5:httpcore5'
@@ -30,5 +30,4 @@ dependencies {
 
     // com.dialogue.annotations.MultipartRequestBody == okhttp.MultipartBody
     testImplementation 'com.squareup.okhttp3:okhttp'
-    implementation 'com.palantir.safe-logging:logger'
 }

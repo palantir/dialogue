@@ -16,10 +16,10 @@ dependencies {
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.guava:guava'
     implementation 'com.palantir.conjure.java.runtime:keystores'
+    implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.tritium:tritium-registry'
-    implementation 'org.slf4j:slf4j-api'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'
@@ -37,5 +37,4 @@ dependencies {
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
-    implementation 'com.palantir.safe-logging:logger'
 }
