@@ -22,6 +22,8 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -32,11 +34,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class HttpChannel implements Channel {
-    private static final Logger log = LoggerFactory.getLogger(HttpChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(HttpChannel.class);
 
     private final HttpClient client;
     private final Duration requestTimeout;

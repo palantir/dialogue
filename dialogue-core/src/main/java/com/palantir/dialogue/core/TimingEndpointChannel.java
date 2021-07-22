@@ -27,15 +27,15 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class TimingEndpointChannel implements EndpointChannel {
 
-    private static final Logger log = LoggerFactory.getLogger(TimingEndpointChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(TimingEndpointChannel.class);
     private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1);
 
     private final EndpointChannel delegate;

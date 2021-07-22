@@ -30,12 +30,12 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.util.Optional;
 import java.util.Random;
 import java.util.stream.IntStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes to achieve the best possible client-side load balancing, by computing a 'score' for each channel and
@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
 final class BalancedNodeSelectionStrategyChannel implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(BalancedNodeSelectionStrategyChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(BalancedNodeSelectionStrategyChannel.class);
 
     private static final int INFLIGHT_COMPARISON_THRESHOLD = 5;
     // When a channel has UNHEALTHY_SCORE_MULTIPLIER times the score of a channel with INFLIGHT_COMPARISON_THRESHOLD

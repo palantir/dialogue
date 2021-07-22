@@ -20,12 +20,12 @@ import com.google.common.base.CharMatcher;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
 import com.palantir.logsafe.SafeArg;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 
 final class ServerTimingParser {
 
-    private static final Logger log = LoggerFactory.getLogger(ServerTimingParser.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ServerTimingParser.class);
 
     /** Splits a header value into individual metrics. */
     private static final Splitter METRIC_SPLITTER =

@@ -27,6 +27,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.Tracers;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
@@ -35,13 +37,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Simple adapter to allow simple {@link BlockingChannel} implementations to be used as {@link Channel channels}. */
 public final class BlockingChannelAdapter {
 
-    private static final Logger log = LoggerFactory.getLogger(BlockingChannelAdapter.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(BlockingChannelAdapter.class);
 
     @SuppressWarnings("deprecation") // No reasonable way to pass a tagged registry to this singleton
     private static final Supplier<ExecutorService> blockingExecutor = Suppliers.memoize(() -> Tracers.wrap(

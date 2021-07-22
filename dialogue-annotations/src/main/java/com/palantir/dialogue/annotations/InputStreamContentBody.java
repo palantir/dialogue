@@ -19,15 +19,15 @@ package com.palantir.dialogue.annotations;
 import com.google.common.io.ByteStreams;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class InputStreamContentBody implements ContentBody {
 
-    private static final Logger log = LoggerFactory.getLogger(InputStreamContentBody.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(InputStreamContentBody.class);
 
     private final String contentType;
     private final InputStream inputStream;

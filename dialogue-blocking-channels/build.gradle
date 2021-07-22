@@ -17,4 +17,5 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'org.awaitility:awaitility'
     testImplementation project(':dialogue-test-common')
+    implementation 'com.palantir.safe-logging:logger'
 }

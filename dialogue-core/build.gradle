@@ -38,6 +38,7 @@ dependencies {
 
     testAnnotationProcessor 'org.immutables:value'
     testCompileOnly 'org.immutables:value::annotations'
+    implementation 'com.palantir.safe-logging:logger'
 }
 
 configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5

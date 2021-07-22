@@ -22,12 +22,12 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.DoubleBinaryOperator;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Simple lock-free concurrency limiter. Typically, a dispatching
@@ -42,8 +42,8 @@ import org.slf4j.LoggerFactory;
  */
 final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
+    private static final SafeLogger log =
+            SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
     private static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;

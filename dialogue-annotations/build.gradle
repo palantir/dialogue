@@ -30,4 +30,5 @@ dependencies {
 
     // com.dialogue.annotations.MultipartRequestBody == okhttp.MultipartBody
     testImplementation 'com.squareup.okhttp3:okhttp'
+    implementation 'com.palantir.safe-logging:logger'
 }

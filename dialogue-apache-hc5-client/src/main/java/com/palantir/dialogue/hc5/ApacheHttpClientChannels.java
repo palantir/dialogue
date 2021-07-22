@@ -35,6 +35,8 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
@@ -83,11 +85,9 @@ import org.apache.hc.core5.pool.PoolReusePolicy;
 import org.apache.hc.core5.pool.PoolStats;
 import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public final class ApacheHttpClientChannels {
-    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientChannels.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientChannels.class);
     private static final String CLIENT_TYPE = "apache-hc5";
     // Starting conservatively matching the default conjure connect timeout.
     // This value acts as a minimum timeout when a low connect timeout is configured

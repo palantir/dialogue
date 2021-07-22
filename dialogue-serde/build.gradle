@@ -34,6 +34,7 @@ dependencies {
     testImplementation 'org.mockito:mockito-core'
     testImplementation 'com.palantir.safe-logging:preconditions-assertj'
     testImplementation 'org.apache.commons:commons-lang3'
+    implementation 'com.palantir.safe-logging:logger'
 }
 
 configurations.testCompileClasspath.exclude module: 'junit' // prefer junit5

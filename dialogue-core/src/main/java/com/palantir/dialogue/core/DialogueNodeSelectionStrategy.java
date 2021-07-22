@@ -22,9 +22,9 @@ import com.google.common.collect.Lists;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Supported node selection strategies which can either be user provided or received over the wire from servers.
@@ -37,7 +37,7 @@ enum DialogueNodeSelectionStrategy {
     BALANCED,
     UNKNOWN;
 
-    private static final Logger log = LoggerFactory.getLogger(DialogueNodeSelectionStrategy.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(DialogueNodeSelectionStrategy.class);
     private static final Splitter SPLITTER = Splitter.on(",").trimResults().omitEmptyStrings();
 
     static List<DialogueNodeSelectionStrategy> fromHeader(String header) {

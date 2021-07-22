@@ -30,6 +30,8 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -38,11 +40,9 @@ import java.net.URL;
 import java.util.Objects;
 import java.util.Optional;
 import javax.net.ssl.HttpsURLConnection;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class HttpUrlConnectionBlockingChannel implements BlockingChannel {
-    private static final Logger log = LoggerFactory.getLogger(HttpUrlConnectionBlockingChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(HttpUrlConnectionBlockingChannel.class);
 
     private final ClientConfiguration config;
     private final BaseUrl baseUrl;

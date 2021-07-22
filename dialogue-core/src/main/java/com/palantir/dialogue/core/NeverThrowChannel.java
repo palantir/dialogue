@@ -22,8 +22,8 @@ import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 
 /**
  * The contract of {@link Channel} requires that the {@link Channel#execute} method never throws. This is a defensive
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  */
 final class NeverThrowChannel implements Channel {
 
-    private static final Logger log = LoggerFactory.getLogger(NeverThrowChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(NeverThrowChannel.class);
     private final Channel delegate;
 
     NeverThrowChannel(Channel delegate) {

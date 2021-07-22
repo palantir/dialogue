@@ -21,9 +21,9 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The contract of {@link LimitedChannel} requires that the {@link LimitedChannel#maybeExecute} method never throws.
@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
  */
 final class NeverThrowLimitedChannel implements LimitedChannel {
 
-    private static final Logger log = LoggerFactory.getLogger(NeverThrowLimitedChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(NeverThrowLimitedChannel.class);
     private final LimitedChannel delegate;
 
     NeverThrowLimitedChannel(LimitedChannel delegate) {

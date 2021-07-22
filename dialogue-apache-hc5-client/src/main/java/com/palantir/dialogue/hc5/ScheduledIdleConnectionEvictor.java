@@ -18,6 +18,8 @@ package com.palantir.dialogue.hc5;
 
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import java.time.Duration;
@@ -27,15 +29,13 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import org.apache.hc.core5.pool.ConnPoolControl;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Connection evictor based on the hc5 IdleConnectionEvictor, but using a scheduled executor instead of
  * a new thread for each pool.
  */
 final class ScheduledIdleConnectionEvictor {
-    private static final Logger log = LoggerFactory.getLogger(ScheduledIdleConnectionEvictor.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ScheduledIdleConnectionEvictor.class);
     private static final String EXECUTOR_NAME = "DialogueIdleConnectionEvictor";
     /*
      * Shared single thread executor is reused between idle connection evictors.

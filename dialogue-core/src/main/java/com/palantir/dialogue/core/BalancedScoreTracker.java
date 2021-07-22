@@ -25,6 +25,8 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
@@ -37,8 +39,6 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Chooses nodes based on stats about each channel, i.e. how many requests are currently
@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  * {@link PinUntilErrorNodeSelectionStrategyChannel} remains the best choice for these.
  */
 final class BalancedScoreTracker {
-    private static final Logger log = LoggerFactory.getLogger(BalancedScoreTracker.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(BalancedScoreTracker.class);
 
     private static final Comparator<ScoreSnapshot> BY_SCORE = Comparator.comparingInt(ScoreSnapshot::getScore);
     private static final Duration FAILURE_MEMORY = Duration.ofSeconds(30);

@@ -33,6 +33,8 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.api.TraceHttpHeaders;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
@@ -58,11 +60,9 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
-    private static final Logger log = LoggerFactory.getLogger(ApacheHttpClientBlockingChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientBlockingChannel.class);
 
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;

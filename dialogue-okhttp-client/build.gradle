@@ -10,6 +10,7 @@ dependencies {
     testImplementation project(':dialogue-serde')
     testImplementation project(':dialogue-core')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation 'com.palantir.safe-logging:logger'
 }
 
 tasks.checkImplicitDependenciesMain.enabled = false // not published, don't care

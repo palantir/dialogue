@@ -16,15 +16,15 @@
 
 package com.palantir.dialogue.futures;
 
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.concurrent.Executor;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** {@link Executor} implementation which catches and logs failures. */
 enum SafeDirectExecutor implements Executor {
     INSTANCE;
 
-    private static final Logger log = LoggerFactory.getLogger(SafeDirectExecutor.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(SafeDirectExecutor.class);
 
     @Override
     public void execute(Runnable command) {

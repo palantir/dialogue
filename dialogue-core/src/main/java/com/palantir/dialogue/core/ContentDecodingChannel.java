@@ -26,14 +26,14 @@ import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Optional;
 import java.util.zip.GZIPInputStream;
 import javax.annotation.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Adds support for transparently requesting and decoding <code>Content-Encoding: gzip</code> responses
@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  */
 final class ContentDecodingChannel implements EndpointChannel {
 
-    private static final Logger log = LoggerFactory.getLogger(ContentDecodingChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ContentDecodingChannel.class);
 
     private static final String ACCEPT_ENCODING = "accept-encoding";
     private static final String CONTENT_ENCODING = "content-encoding";

@@ -24,4 +24,5 @@ dependencies {
     testImplementation project(':dialogue-serde')
     testImplementation 'org.awaitility:awaitility'
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    implementation 'com.palantir.safe-logging:logger'
 }
