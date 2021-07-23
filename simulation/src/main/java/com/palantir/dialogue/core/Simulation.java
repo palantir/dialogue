@@ -18,16 +18,16 @@ package com.palantir.dialogue.core;
 
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Combined ScheduledExecutorService and Clock. All tasks get executed on the main thread. */
 final class Simulation {
-    private static final Logger log = LoggerFactory.getLogger(Simulation.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(Simulation.class);
 
     private final NanosecondPrecisionDeterministicScheduler deterministicExecutor =
             new NanosecondPrecisionDeterministicScheduler();

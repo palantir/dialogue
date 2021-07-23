@@ -25,8 +25,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
  * {@link Endpoint}'s target service and endpoint.
  */
 final class UserAgentEndpointChannel implements EndpointChannel {
-    private static final Logger log = LoggerFactory.getLogger(UserAgentEndpointChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(UserAgentEndpointChannel.class);
     static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
 
     private final EndpointChannel delegate;

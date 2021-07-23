@@ -24,6 +24,9 @@ import com.palantir.dialogue.com.palantir.conjure.verification.server.EndpointNa
 import com.palantir.dialogue.com.palantir.conjure.verification.server.SingleHeaderServiceBlocking;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.SinglePathParamServiceBlocking;
 import com.palantir.dialogue.com.palantir.conjure.verification.server.SingleQueryParamServiceBlocking;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.lang.reflect.Method;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -37,8 +40,6 @@ import org.junit.ClassRule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RunWith(Parameterized.class)
 public class SingleParamServicesTest {
@@ -46,7 +47,7 @@ public class SingleParamServicesTest {
     @ClassRule
     public static final VerificationServerRule server = new VerificationServerRule();
 
-    private static final Logger log = LoggerFactory.getLogger(SingleParamServicesTest.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(SingleParamServicesTest.class);
     private static final ObjectMapper objectMapper = ObjectMappers.newClientObjectMapper();
     private static ImmutableMap<String, Object> servicesMaps = ImmutableMap.of(
             "singlePathParamService",
@@ -99,7 +100,11 @@ public class SingleParamServicesTest {
     public void runTestCase() throws Exception {
         Assume.assumeFalse(Cases.shouldIgnore(endpointName, jsonString));
 
-        log.info("Invoking {} {}({})", serviceName, endpointName, jsonString);
+        log.info(
+                "Invoking {} {}({})",
+                SafeArg.of("serviceName", serviceName),
+                SafeArg.of("endpointName", endpointName),
+                SafeArg.of("jsonString", jsonString));
 
         Object service = servicesMaps.get(serviceName);
         for (Method method : servicesMaps.get(serviceName).getClass().getMethods()) {
@@ -125,9 +130,15 @@ public class SingleParamServicesTest {
                         method.invoke(service, index, objectMapper.readValue(jsonString, cls));
                     }
 
-                    log.info("Successfully post param to endpoint {} and index {}", endpointName, index);
+                    log.info(
+                            "Successfully post param to endpoint {} and index {}",
+                            SafeArg.of("endpointName", endpointName),
+                            SafeArg.of("index", index));
                 } catch (RemoteException e) {
-                    log.error("Caught exception with params: {}", e.getError().parameters(), e);
+                    log.error(
+                            "Caught exception with params: {}",
+                            SafeArg.of("errorParameters", e.getError().parameters()),
+                            e);
                     throw e;
                 }
             }

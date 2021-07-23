@@ -29,18 +29,18 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.CheckForNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class RetryOtherValidatingChannel implements Channel {
 
-    private static final Logger log = LoggerFactory.getLogger(RetryOtherValidatingChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(RetryOtherValidatingChannel.class);
     private static final RateLimiter VALIDATION_FAILED_LOGGING_LIMITER = RateLimiter.create(1);
 
     private final Channel delegate;

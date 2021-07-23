@@ -7,9 +7,8 @@ dependencies {
     api 'com.palantir.ri:resource-identifier'
     api 'com.palantir.conjure.java:conjure-lib'
     implementation 'com.palantir.safe-logging:preconditions'
-    implementation 'org.slf4j:slf4j-api'
-    implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'
+    implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.google.code.findbugs:jsr305'
 
     testImplementation 'jakarta.ws.rs:jakarta.ws.rs-api'

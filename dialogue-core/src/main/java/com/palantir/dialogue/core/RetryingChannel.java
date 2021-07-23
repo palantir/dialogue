@@ -36,6 +36,8 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
 import com.palantir.tracing.Tracers;
@@ -57,13 +59,11 @@ import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /** Retries failed requests by scheduling them onto a ScheduledExecutorService after an exponential backoff. */
 final class RetryingChannel implements EndpointChannel {
 
-    private static final Logger log = LoggerFactory.getLogger(RetryingChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(RetryingChannel.class);
     private static final String SCHEDULER_NAME = "dialogue-RetryingChannel-scheduler";
 
     /*

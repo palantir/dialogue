@@ -32,6 +32,8 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeExceptions;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -42,8 +44,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Extracts and returns a {@link RemoteException} from an {@link Response}.
@@ -54,7 +54,7 @@ import org.slf4j.LoggerFactory;
 public enum ErrorDecoder {
     INSTANCE;
 
-    private static final Logger log = LoggerFactory.getLogger(ErrorDecoder.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
     public boolean isError(Response response) {
@@ -63,7 +63,7 @@ public enum ErrorDecoder {
 
     public RuntimeException decode(Response response) {
         if (log.isDebugEnabled()) {
-            log.debug("Received an error response", diagnosticArgs(response).toArray(new Object[0]));
+            log.debug("Received an error response", diagnosticArgs(response));
         }
         RuntimeException result = decodeInternal(response);
         result.addSuppressed(diagnostic(response));

@@ -30,6 +30,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,8 +44,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.IntStream;
 import javax.annotation.Nullable;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Routes all requests to one host until an error is received, then we'll move on to the next host. We explicitly
@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
  * To alleviate the second downside, we reshuffle all nodes every 10 minutes.
  */
 final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel {
-    private static final Logger log = LoggerFactory.getLogger(PinUntilErrorNodeSelectionStrategyChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(PinUntilErrorNodeSelectionStrategyChannel.class);
 
     // we also add some jitter to ensure that there isn't a big spike of reshuffling every 10 minutes.
     private static final Duration RESHUFFLE_EVERY = Duration.ofMinutes(10);

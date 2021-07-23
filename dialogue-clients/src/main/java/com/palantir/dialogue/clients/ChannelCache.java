@@ -27,6 +27,8 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
@@ -39,12 +41,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.concurrent.ThreadSafe;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @ThreadSafe
 final class ChannelCache {
-    private static final Logger log = LoggerFactory.getLogger(ChannelCache.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(ChannelCache.class);
 
     /** Arbitrary bound to avoid runaway OOM. Creating more than this is still allowed, will just cause cache misses. */
     private static final int MAX_CACHED_CHANNELS = 1000;

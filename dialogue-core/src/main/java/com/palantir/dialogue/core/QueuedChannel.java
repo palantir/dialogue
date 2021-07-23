@@ -32,6 +32,8 @@ import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import java.util.Deque;
@@ -42,8 +44,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * A {@link Channel} that queues requests while the underlying {@link LimitedChannel} is unable to accept any new
@@ -62,7 +62,7 @@ import org.slf4j.LoggerFactory;
  * </ul>
  */
 final class QueuedChannel implements Channel {
-    private static final Logger log = LoggerFactory.getLogger(QueuedChannel.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(QueuedChannel.class);
     private static final LimitEnforcement DO_NOT_SKIP_LIMITS = LimitEnforcement.DEFAULT_ENABLED;
 
     private final Deque<DeferredCall> queuedCalls;

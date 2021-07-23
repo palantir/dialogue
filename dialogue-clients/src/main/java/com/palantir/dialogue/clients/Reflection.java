@@ -25,14 +25,14 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Optional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 final class Reflection {
-    private static final Logger log = LoggerFactory.getLogger(Reflection.class);
+    private static final SafeLogger log = SafeLoggerFactory.get(Reflection.class);
 
     private Reflection() {}
 
