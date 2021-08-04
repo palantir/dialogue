@@ -17,14 +17,17 @@
 package com.palantir.dialogue.otherpackage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.clients.ConjureClients;
@@ -33,6 +36,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.clients.DialogueClients;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
@@ -45,6 +49,7 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.UnknownHostException;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class DialogueClientsTest {
@@ -179,6 +184,22 @@ class DialogueClientsTest {
                         .filter(metricName -> metricName.safeName().equals("dialogue.concurrencylimiter.max")))
                 .describedAs("One concurrencylimiter metric per host")
                 .hasSize(3);
+    }
+
+    @Test
+    @SuppressWarnings("deprecation") // testing deprecated functionality
+    void legacyClientConfigurationDoesntRequireUserAgent() {
+        ClientConfiguration minimalConfiguration = ClientConfiguration.builder()
+                .from(ClientConfigurations.of(
+                        ServiceConfigurationFactory.of(scb).get("email-service")))
+                .hostEventsSink(Optional.empty())
+                .userAgent(Optional.empty())
+                .build();
+        ReloadingFactory factory = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder().build()))
+                .withUserAgent(TestConfigurations.AGENT);
+        assertThatCode(() -> factory.getNonReloading(SampleServiceBlocking.class, minimalConfiguration))
+                .doesNotThrowAnyException();
     }
 
     // this is the recommended way to depend on a clientfactory

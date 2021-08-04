@@ -70,7 +70,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
-    public Channel getNonReloadingChannel(String channelName, ClientConfiguration clientConf) {
+    public Channel getNonReloadingChannel(String channelName, ClientConfiguration input) {
+        ClientConfiguration clientConf = hydrate(input);
         ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
                 .clientConfiguration(clientConf)
                 .clientName(channelName);
@@ -303,6 +304,20 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public String toString() {
         return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
+    }
+
+    /** Apply missing user-agent and/or hostEventSink based on {@code params}. */
+    private ClientConfiguration hydrate(ClientConfiguration configuration) {
+        if ((params.hostEventsSink().isPresent()
+                        && configuration.hostEventsSink().isEmpty())
+                || (params.userAgent().isPresent() && configuration.userAgent().isEmpty())) {
+            return ClientConfiguration.builder()
+                    .from(configuration)
+                    .hostEventsSink(configuration.hostEventsSink().or(params::hostEventsSink))
+                    .userAgent(configuration.userAgent().or(params::userAgent))
+                    .build();
+        }
+        return configuration;
     }
 
     private Refreshable<InternalDialogueChannel> getInternalDialogueChannel(String serviceName) {
