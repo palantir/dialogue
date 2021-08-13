@@ -3,20 +3,20 @@ apply plugin: 'org.inferred.processors'
 
 dependencies {
     // All those must be compile because of some IntelliJ classpath issue
-    compile project(':dialogue-annotations')
-    compile project(':dialogue-target')
-    compile 'com.google.code.findbugs:jsr305'
-    compile 'com.palantir.conjure.java:conjure-lib'
-    compile 'com.palantir.common:streams'
-    compile 'com.palantir.goethe:goethe'
-    compile 'com.palantir.ri:resource-identifier'
-    compile 'com.palantir.safe-logging:preconditions'
-    compile 'com.palantir.tokens:auth-tokens'
-    compile 'com.google.auto:auto-common'
-    compile 'com.google.guava:guava'
-    compile 'com.squareup:javapoet'
+    api project(':dialogue-annotations')
+    api project(':dialogue-target')
+    api 'com.google.code.findbugs:jsr305'
+    api 'com.palantir.conjure.java:conjure-lib'
+    api 'com.palantir.common:streams'
+    api 'com.palantir.goethe:goethe'
+    api 'com.palantir.ri:resource-identifier'
+    api 'com.palantir.safe-logging:preconditions'
+    api 'com.palantir.tokens:auth-tokens'
+    api 'com.google.auto:auto-common'
+    api 'com.google.guava:guava'
+    api 'com.squareup:javapoet'
     // For HttpPath parsing
-    compile 'org.glassfish.jersey.core:jersey-common'
+    api 'org.glassfish.jersey.core:jersey-common'
 
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'
