@@ -473,7 +473,7 @@ public final class ApacheHttpClientChannels {
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
                     MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
-                    new String[] {"TLSv1.2"},
+                    TlsProtocols.enabledFor(name),
                     supportedCipherSuites(
                             conf.enableGcmCipherSuites()
                                     ? CipherSuites.allCipherSuites()
