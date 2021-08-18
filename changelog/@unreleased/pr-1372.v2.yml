@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Opt into TLSv1.3 support for 10% of java 15+ clients
+  links:
+  - https://github.com/palantir/dialogue/pull/1372
