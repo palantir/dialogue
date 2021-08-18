@@ -31,7 +31,7 @@ final class TlsProtocols {
     private static final String TLS_V1_3 = "TLSv1.3";
 
     static String[] enabledFor(String clientName) {
-        if (JAVA_15_OR_LATER && (assertsEnabled() || SafeThreadLocalRandom.get().nextInt(10) == 0)) {
+        if (JAVA_15_OR_LATER && (assertsEnabled() || SafeThreadLocalRandom.get().nextDouble() < .1D)) {
             log.info("Enabling TLSv1.3 support for client '{}'", SafeArg.of("client", clientName));
             return new String[] {TLS_V1_3, TLS_V1_2};
         } else {
