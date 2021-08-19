@@ -75,7 +75,7 @@ public final class MultipartRequestBody implements RequestBody {
         try (Closer closer = Closer.create()) {
             parts.forEach(part -> closer.register(part.contentBody));
         } catch (IOException | RuntimeException e) {
-            log.warn("Failed to close MultipartRequestBody {}", e);
+            log.warn("Failed to close MultipartRequestBody", e);
         }
     }
 
