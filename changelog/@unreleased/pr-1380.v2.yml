@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Broaden TLSv1.3 rollout by increasing TLSv1.3 probability on java 15+
+    to 50% (up from 10%)
+  links:
+  - https://github.com/palantir/dialogue/pull/1380
