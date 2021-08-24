@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue Annotation Processor Encoders may reference supertypes, for
+    example an `Object` encoder may be applied to a `BigInteger` parameter.
+  links:
+  - https://github.com/palantir/dialogue/pull/1383
