@@ -20,7 +20,9 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.ToStringParamEncoder;
 import com.palantir.tokens.auth.AuthHeader;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -81,6 +83,8 @@ public interface MyService {
                     Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
             @Request.Header("Custom-Header1") List<String> customListHeader,
             @Request.Header("Custom-Optional-Header3") Optional<List<String>> customOptionalListHeader,
+            @Request.Header(value = "Custom-To-String-Header", encoder = ToStringParamEncoder.class)
+                    BigInteger bigInteger,
             // Custom encoding classes may be provided for the request and response.
             // JSON should be easiest (default?).
             // By changing this to MySpecialJson.class you can have
