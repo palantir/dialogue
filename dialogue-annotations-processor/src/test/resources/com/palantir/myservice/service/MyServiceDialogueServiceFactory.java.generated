@@ -19,13 +19,13 @@ import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.Json;
-import com.palantir.dialogue.annotations.ListParamEncoder;
-import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
+import com.palantir.dialogue.annotations.ToStringParamEncoder;
 import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -69,21 +69,23 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                             new MyResponseDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<Response>() {});
 
-            private final ListParamEncoder<MyCustomParamType> paramsQuery1Encoder =
+            private final MyCustomParamTypeParameterEncoder paramsQuery1Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final ListParamEncoder<MyCustomParamType> paramsQuery2Encoder =
+            private final MyCustomParamTypeParameterEncoder paramsQuery2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final ListParamEncoder<String> paramsQuery3Encoder = new MyCustomStringParameterEncoder();
+            private final MyCustomStringParameterEncoder paramsQuery3Encoder = new MyCustomStringParameterEncoder();
 
-            private final ListParamEncoder<String> paramsQuery4Encoder = new MyCustomStringParameterEncoder();
+            private final MyCustomStringParameterEncoder paramsQuery4Encoder = new MyCustomStringParameterEncoder();
 
-            private final ParamEncoder<MyCustomParamType> paramsMyPathParam2Encoder =
+            private final MyCustomParamTypeParameterEncoder paramsMyPathParam2Encoder =
                     new MyCustomParamTypeParameterEncoder();
 
-            private final ListParamEncoder<MyCustomParamType> paramsMaybeCustomOptionalHeader3ValueEncoder =
+            private final MyCustomParamTypeParameterEncoder paramsMaybeCustomOptionalHeader3ValueEncoder =
                     new MyCustomParamTypeParameterEncoder();
+
+            private final ToStringParamEncoder paramsBigIntegerEncoder = new ToStringParamEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
@@ -138,6 +140,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
                     List<String> customListHeader,
                     Optional<List<String>> customOptionalListHeader,
+                    BigInteger bigInteger,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q", _parameterSerializer.serializeString(query));
@@ -192,6 +195,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                                     .map(_parameterSerializer::serializeString)
                                     .collect(Collectors.toList()));
                 }
+                _request.putAllHeaderParams(
+                        "Custom-To-String-Header", paramsBigIntegerEncoder.toParamValues(bigInteger));
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
             }

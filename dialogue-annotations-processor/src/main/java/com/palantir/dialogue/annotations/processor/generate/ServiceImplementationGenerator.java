@@ -24,9 +24,6 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
-import com.palantir.dialogue.annotations.ListParamEncoder;
-import com.palantir.dialogue.annotations.MultimapParamEncoder;
-import com.palantir.dialogue.annotations.ParamEncoder;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
@@ -49,7 +46,6 @@ import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.Modifier;
 
@@ -78,10 +74,10 @@ public final class ServiceImplementationGenerator {
                     .flatMap(arg -> ParameterTypes.caseOf(arg.paramType())
                             .body((serializer, serializerFieldName) ->
                                     Optional.of(serializer(arg, serializer, serializerFieldName)))
-                            .header((_headerName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
-                            .path(maybeEncoder -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
-                            .query((_paramName, maybeEncoder) -> maybeEncoder.map(encoder -> encoder(arg, encoder)))
-                            .queryMap(encoder -> Optional.of(encoder(arg, encoder)))
+                            .header((_headerName, maybeEncoder) -> maybeEncoder.map(this::encoder))
+                            .path(maybeEncoder -> maybeEncoder.map(this::encoder))
+                            .query((_paramName, maybeEncoder) -> maybeEncoder.map(this::encoder))
+                            .queryMap(encoder -> Optional.of(encoder(encoder)))
                             .otherwise_(Optional.empty())
                             .stream())
                     .forEach(impl::addField);
@@ -187,39 +183,11 @@ public final class ServiceImplementationGenerator {
                 .build());
     }
 
-    private FieldSpec encoder(ArgumentDefinition arg, ParameterEncoderType type) {
-        Class<?> encoderInterface = type.type().match(new EncoderType.Cases<>() {
-            @Override
-            public Class<?> param() {
-                return ParamEncoder.class;
-            }
-
-            @Override
-            public Class<?> listParam() {
-                return ListParamEncoder.class;
-            }
-
-            @Override
-            public Class<?> multimapParam() {
-                return MultimapParamEncoder.class;
-            }
-        });
-        ParameterizedTypeName encoderType =
-                ParameterizedTypeName.get(ClassName.get(encoderInterface), underlyingCustomType(arg.argType()));
-        return FieldSpec.builder(encoderType, type.encoderFieldName())
+    private FieldSpec encoder(ParameterEncoderType type) {
+        return FieldSpec.builder(type.encoderJavaType(), type.encoderFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(CodeBlock.of("new $T()", type.encoderJavaType()))
                 .build();
-    }
-
-    private TypeName underlyingCustomType(ArgumentType argumentType) {
-        return ArgumentTypes.caseOf(argumentType)
-                .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
-                .optional((_optionalJavaType, optionalType) -> underlyingCustomType(optionalType.underlyingType()))
-                .mapType(typeName -> typeName)
-                .customType(Function.identity())
-                .otherwiseEmpty()
-                .orElseThrow();
     }
 
     private CodeBlock generateParam(ArgumentDefinition param) {
