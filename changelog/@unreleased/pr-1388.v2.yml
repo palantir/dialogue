@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: remove Dialogue-request-scheduled trace
+  links:
+  - https://github.com/palantir/dialogue/pull/1388
