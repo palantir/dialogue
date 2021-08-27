@@ -235,57 +235,55 @@ final class QueuedChannel implements Channel {
             queueHead.timer().stop();
             return true;
         }
-        try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
-            Endpoint endpoint = queueHead.endpoint();
-            Optional<ListenableFuture<Response>> maybeResponse =
-                    delegate.maybeExecute(endpoint, queueHead.request(), DO_NOT_SKIP_LIMITS);
+        Endpoint endpoint = queueHead.endpoint();
+        Optional<ListenableFuture<Response>> maybeResponse =
+                delegate.maybeExecute(endpoint, queueHead.request(), DO_NOT_SKIP_LIMITS);
 
-            if (maybeResponse.isPresent()) {
-                decrementQueueSize();
-                ListenableFuture<Response> response = maybeResponse.get();
-                queueHead.span().complete();
-                queueHead.timer().stop();
-                DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
-                DialogueFutures.addDirectListener(queuedResponse, () -> {
-                    if (queuedResponse.isCancelled()) {
-                        // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
-                        // here.
-                        // Currently cancel(false) will be converted to cancel(true)
-                        if (!response.cancel(true) && log.isDebugEnabled()) {
-                            log.debug(
-                                    "Failed to cancel delegate response, it should be reported by ForwardAndSchedule "
-                                            + "logging",
-                                    SafeArg.of("channel", channelName),
-                                    SafeArg.of("service", endpoint.serviceName()),
-                                    SafeArg.of("endpoint", endpoint.endpointName()));
-                        }
-                    }
-                });
-                return true;
-            } else {
-                if (!queuedCalls.offerFirst(queueHead)) {
-                    // Should never happen, ConcurrentLinkedDeque has no maximum size
-                    log.error(
-                            "Failed to add an attempted call back to the deque",
-                            SafeArg.of("channel", channelName),
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()));
-                    decrementQueueSize();
-                    queueHead.timer().stop();
-                    if (!queuedResponse.setException(new SafeRuntimeException(
-                            "Failed to req-queue request",
-                            SafeArg.of("channel", channelName),
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName())))) {
+        if (maybeResponse.isPresent()) {
+            decrementQueueSize();
+            ListenableFuture<Response> response = maybeResponse.get();
+            queueHead.span().complete();
+            queueHead.timer().stop();
+            DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
+            DialogueFutures.addDirectListener(queuedResponse, () -> {
+                if (queuedResponse.isCancelled()) {
+                    // TODO(ckozak): Consider capturing the argument value provided to cancel to propagate
+                    // here.
+                    // Currently cancel(false) will be converted to cancel(true)
+                    if (!response.cancel(true) && log.isDebugEnabled()) {
                         log.debug(
-                                "Queued response has already been completed",
+                                "Failed to cancel delegate response, it should be reported by ForwardAndSchedule "
+                                        + "logging",
                                 SafeArg.of("channel", channelName),
                                 SafeArg.of("service", endpoint.serviceName()),
                                 SafeArg.of("endpoint", endpoint.endpointName()));
                     }
                 }
-                return false;
+            });
+            return true;
+        } else {
+            if (!queuedCalls.offerFirst(queueHead)) {
+                // Should never happen, ConcurrentLinkedDeque has no maximum size
+                log.error(
+                        "Failed to add an attempted call back to the deque",
+                        SafeArg.of("channel", channelName),
+                        SafeArg.of("service", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName()));
+                decrementQueueSize();
+                queueHead.timer().stop();
+                if (!queuedResponse.setException(new SafeRuntimeException(
+                        "Failed to req-queue request",
+                        SafeArg.of("channel", channelName),
+                        SafeArg.of("service", endpoint.serviceName()),
+                        SafeArg.of("endpoint", endpoint.endpointName())))) {
+                    log.debug(
+                            "Queued response has already been completed",
+                            SafeArg.of("channel", channelName),
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()));
+                }
             }
+            return false;
         }
     }
 
