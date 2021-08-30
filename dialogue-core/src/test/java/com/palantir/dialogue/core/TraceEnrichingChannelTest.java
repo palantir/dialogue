@@ -74,8 +74,7 @@ class TraceEnrichingChannelTest {
 
         verify(delegate).execute(any(), requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().keySet())
-                .containsExactlyInAnyOrder(
-                        "X-B3-Sampled", "X-B3-TraceId", "X-B3-SpanId", "X-B3-ParentSpanId", "X-OrigSpanId");
+                .containsExactlyInAnyOrder("X-B3-Sampled", "X-B3-TraceId", "X-B3-SpanId");
 
         assertThat(Tracer.maybeGetTraceMetadata()).isEmpty();
     }
