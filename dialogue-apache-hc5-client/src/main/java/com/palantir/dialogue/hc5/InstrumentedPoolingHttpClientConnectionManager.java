@@ -19,13 +19,9 @@ package com.palantir.dialogue.hc5;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.palantir.tracing.CloseableTracer;
-import com.palantir.tracing.DetachedSpan;
-import com.palantir.tracing.Tracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeoutException;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -70,16 +66,12 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public LeaseRequest lease(String id, HttpRoute route, Timeout requestTimeout, Object state) {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.lease")) {
-            return TracedLeaseRequest.wrap(manager.lease(id, route, requestTimeout, state));
-        }
+        return manager.lease(id, route, requestTimeout, state);
     }
 
     @Override
     public void release(ConnectionEndpoint endpoint, Object state, TimeValue keepAlive) {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.release")) {
-            manager.release(endpoint, state, keepAlive);
-        }
+        manager.release(endpoint, state, keepAlive);
     }
 
     @Override
@@ -92,23 +84,17 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public void upgrade(ConnectionEndpoint endpoint, HttpContext context) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.upgrade")) {
-            manager.upgrade(endpoint, context);
-        }
+        manager.upgrade(endpoint, context);
     }
 
     @Override
     public void closeIdle(TimeValue idleTime) {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.closeIdle")) {
-            manager.closeIdle(idleTime);
-        }
+        manager.closeIdle(idleTime);
     }
 
     @Override
     public void closeExpired() {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.closeExpired")) {
-            manager.closeExpired();
-        }
+        manager.closeExpired();
     }
 
     @Override
@@ -159,38 +145,5 @@ final class InstrumentedPoolingHttpClientConnectionManager
     @Override
     public String toString() {
         return "InstrumentedPoolingHttpClientConnectionManager{" + manager + '}';
-    }
-
-    private static final class TracedLeaseRequest implements LeaseRequest {
-
-        private final LeaseRequest delegate;
-        private final DetachedSpan span;
-
-        static LeaseRequest wrap(LeaseRequest request) {
-            if (!Tracer.hasUnobservableTrace()) {
-                return new TracedLeaseRequest(request, DetachedSpan.start("Dialogue ConnectionManager LeaseRequest"));
-            }
-            return request;
-        }
-
-        private TracedLeaseRequest(LeaseRequest delegate, DetachedSpan span) {
-            this.delegate = delegate;
-            this.span = span;
-        }
-
-        @Override
-        public ConnectionEndpoint get(Timeout timeout)
-                throws InterruptedException, ExecutionException, TimeoutException {
-            try {
-                return delegate.get(timeout);
-            } finally {
-                span.complete();
-            }
-        }
-
-        @Override
-        public boolean cancel() {
-            return delegate.cancel();
-        }
     }
 }

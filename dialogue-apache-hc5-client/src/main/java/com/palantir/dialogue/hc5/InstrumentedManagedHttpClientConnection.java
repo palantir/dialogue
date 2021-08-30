@@ -47,9 +47,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void bind(Socket socket) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.bind")) {
-            delegate.bind(socket);
-        }
+        delegate.bind(socket);
     }
 
     @Override
@@ -79,23 +77,17 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestHeader(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.sendRequestHeader")) {
-            delegate.sendRequestHeader(request);
-        }
+        delegate.sendRequestHeader(request);
     }
 
     @Override
     public void terminateRequest(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.terminateRequest")) {
-            delegate.terminateRequest(request);
-        }
+        delegate.terminateRequest(request);
     }
 
     @Override
     public void sendRequestEntity(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.sendRequestEntity")) {
-            delegate.sendRequestEntity(request);
-        }
+        delegate.sendRequestEntity(request);
     }
 
     @Override
@@ -129,16 +121,12 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void receiveResponseEntity(ClassicHttpResponse response) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.receiveResponseEntity")) {
-            delegate.receiveResponseEntity(response);
-        }
+        delegate.receiveResponseEntity(response);
     }
 
     @Override
     public boolean isDataAvailable(Timeout timeout) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.isDataAvailable")) {
-            return delegate.isDataAvailable(timeout);
-        }
+        return delegate.isDataAvailable(timeout);
     }
 
     @Override
@@ -148,9 +136,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void flush() throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.flush")) {
-            delegate.flush();
-        }
+        delegate.flush();
     }
 
     @Override
@@ -190,16 +176,12 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void close() throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.close")) {
-            delegate.close();
-        }
+        delegate.close();
     }
 
     @Override
     public void close(CloseMode closeMode) {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.close")) {
-            delegate.close(closeMode);
-        }
+        delegate.close(closeMode);
     }
 
     @Override
