@@ -18,7 +18,6 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
 import com.google.common.net.HttpHeaders;
-import com.palantir.tracing.CloseableTracer;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -47,9 +46,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void bind(Socket socket) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.bind")) {
-            delegate.bind(socket);
-        }
+        delegate.bind(socket);
     }
 
     @Override
@@ -79,33 +76,25 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void sendRequestHeader(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.sendRequestHeader")) {
-            delegate.sendRequestHeader(request);
-        }
+        delegate.sendRequestHeader(request);
     }
 
     @Override
     public void terminateRequest(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.terminateRequest")) {
-            delegate.terminateRequest(request);
-        }
+        delegate.terminateRequest(request);
     }
 
     @Override
     public void sendRequestEntity(ClassicHttpRequest request) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.sendRequestEntity")) {
-            delegate.sendRequestEntity(request);
-        }
+        delegate.sendRequestEntity(request);
     }
 
     @Override
     public ClassicHttpResponse receiveResponseHeader() throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.receiveResponseHeader")) {
-            long startTimeNanos = System.nanoTime();
-            ClassicHttpResponse response = delegate.receiveResponseHeader();
-            recordTimingDelta(response, startTimeNanos);
-            return response;
-        }
+        long startTimeNanos = System.nanoTime();
+        ClassicHttpResponse response = delegate.receiveResponseHeader();
+        recordTimingDelta(response, startTimeNanos);
+        return response;
     }
 
     // Report metrics describing the difference between client and server request time.
@@ -129,16 +118,12 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void receiveResponseEntity(ClassicHttpResponse response) throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.receiveResponseEntity")) {
-            delegate.receiveResponseEntity(response);
-        }
+        delegate.receiveResponseEntity(response);
     }
 
     @Override
     public boolean isDataAvailable(Timeout timeout) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.isDataAvailable")) {
-            return delegate.isDataAvailable(timeout);
-        }
+        return delegate.isDataAvailable(timeout);
     }
 
     @Override
@@ -148,9 +133,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void flush() throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.flush")) {
-            delegate.flush();
-        }
+        delegate.flush();
     }
 
     @Override
@@ -190,16 +173,12 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public void close() throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.close")) {
-            delegate.close();
-        }
+        delegate.close();
     }
 
     @Override
     public void close(CloseMode closeMode) {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.close")) {
-            delegate.close(closeMode);
-        }
+        delegate.close(closeMode);
     }
 
     @Override
