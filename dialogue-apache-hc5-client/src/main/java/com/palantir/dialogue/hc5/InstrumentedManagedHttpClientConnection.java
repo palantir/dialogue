@@ -18,7 +18,6 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
 import com.google.common.net.HttpHeaders;
-import com.palantir.tracing.CloseableTracer;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
@@ -92,12 +91,10 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     @Override
     public ClassicHttpResponse receiveResponseHeader() throws HttpException, IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue: Connection.receiveResponseHeader")) {
-            long startTimeNanos = System.nanoTime();
-            ClassicHttpResponse response = delegate.receiveResponseHeader();
-            recordTimingDelta(response, startTimeNanos);
-            return response;
-        }
+        long startTimeNanos = System.nanoTime();
+        ClassicHttpResponse response = delegate.receiveResponseHeader();
+        recordTimingDelta(response, startTimeNanos);
+        return response;
     }
 
     // Report metrics describing the difference between client and server request time.
