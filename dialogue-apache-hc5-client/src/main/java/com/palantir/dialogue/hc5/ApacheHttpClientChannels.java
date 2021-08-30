@@ -533,7 +533,6 @@ public final class ApacheHttpClientChannels {
                     .disableCookieManagement()
                     // Dialogue handles content-compression with ContentDecodingChannel
                     .disableContentCompression()
-                    .addExecInterceptorFirst("tracing", TracingExecChainHandler.INSTANCE)
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
