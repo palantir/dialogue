@@ -235,7 +235,7 @@ final class QueuedChannel implements Channel {
             queueHead.timer().stop();
             return true;
         }
-        try (CloseableSpan ignored = queueHead.span().childSpan("Dialogue-request-scheduled")) {
+        try (CloseableSpan ignored = queueHead.span().attach()) {
             Endpoint endpoint = queueHead.endpoint();
             Optional<ListenableFuture<Response>> maybeResponse =
                     delegate.maybeExecute(endpoint, queueHead.request(), DO_NOT_SKIP_LIMITS);

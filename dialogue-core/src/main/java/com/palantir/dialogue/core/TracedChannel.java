@@ -32,14 +32,12 @@ import com.palantir.tracing.Tracer;
 final class TracedChannel implements EndpointChannel {
     private final EndpointChannel delegate;
     private final String operationName;
-    private final String operationNameInitial;
     private final TagTranslator<Response> responseTranslator;
     private final TagTranslator<Throwable> throwableTranslator;
 
     private TracedChannel(EndpointChannel delegate, String operationName, ImmutableMap<String, String> tags) {
         this.delegate = delegate;
         this.operationName = operationName;
-        this.operationNameInitial = operationName + " initial";
         this.responseTranslator = DialogueTracing.responseTranslator(tags);
         this.throwableTranslator = DialogueTracing.failureTranslator(tags);
     }
@@ -75,8 +73,8 @@ final class TracedChannel implements EndpointChannel {
 
     private ListenableFuture<Response> executeSampled(Request request) {
         DetachedSpan span = DetachedSpan.start(operationName);
-        try (CloseableSpan ignored = span.childSpan(operationNameInitial)) {
-            return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<Response>() {
+        try (CloseableSpan ignored = span.attach()) {
+            return DialogueFutures.addDirectCallback(delegate.execute(request), new FutureCallback<>() {
                 @Override
                 public void onSuccess(Response response) {
                     span.complete(responseTranslator, response);
