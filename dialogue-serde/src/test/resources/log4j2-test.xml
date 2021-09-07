@@ -14,17 +14,17 @@
   ~ See the License for the specific language governing permissions and
   ~ limitations under the License.
   -->
-<Configuration status="WARN">
+<Configuration status="TRACE">
     <Appenders>
         <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="%d %p [%t] %c - %msg%n%ex"/>
         </Console>
     </Appenders>
     <Loggers>
-        <Root level="warn">
+        <Root level="info">
             <AppenderRef ref="Console"/>
         </Root>
-        <Logger name="com.palantir.dialogue.core.BalancedNodeSelectionStrategyChannel" level="warn"/>
-        <Logger name="com.palantir.dialogue.core.RttSampler" level="warn" />
+        <!-- Required by TracedEncodingTest -->
+        <Logger name="com.palantir.conjure.java.dialogue.serde" level="debug" />
     </Loggers>
 </Configuration>
