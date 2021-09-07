@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Remove unhelpful and redundant tracing spans
+  links:
+  - https://github.com/palantir/dialogue/pull/1394
