@@ -59,10 +59,6 @@ final class TracedChannel implements EndpointChannel {
                 .build();
     }
 
-    static EndpointChannel requestAttempt(Config cf, EndpointChannel delegate, Endpoint endpoint) {
-        return new TracedChannel(delegate, "Dialogue-request-attempt", tracingTags(cf, endpoint));
-    }
-
     @Override
     public ListenableFuture<Response> execute(Request request) {
         if (Tracer.hasUnobservableTrace()) {
