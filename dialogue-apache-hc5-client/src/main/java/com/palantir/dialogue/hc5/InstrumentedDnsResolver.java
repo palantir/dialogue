@@ -37,7 +37,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     @Override
     public InetAddress[] resolve(String host) throws UnknownHostException {
+        // Snapshot whether debug logging is enabled because it may change mid-execution
         boolean debugLoggingEnabled = log.isDebugEnabled();
+        // Avoid unnecessary timer syscall overhead when debug logging is not enabled
         long startNanos = debugLoggingEnabled ? System.nanoTime() : -1L;
         try (CloseableTracer ignored = CloseableTracer.startSpan("DnsResolver.resolve")) {
             InetAddress[] resolved = delegate.resolve(host);
@@ -66,7 +68,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     @Override
     public String resolveCanonicalHostname(String host) throws UnknownHostException {
+        // Snapshot whether debug logging is enabled because it may change mid-execution
         boolean debugLoggingEnabled = log.isDebugEnabled();
+        // Avoid unnecessary timer syscall overhead when debug logging is not enabled
         long startNanos = debugLoggingEnabled ? System.nanoTime() : -1L;
         try (CloseableTracer ignored = CloseableTracer.startSpan("DnsResolver.resolveCanonicalHostname")) {
             String resolved = delegate.resolveCanonicalHostname(host);
