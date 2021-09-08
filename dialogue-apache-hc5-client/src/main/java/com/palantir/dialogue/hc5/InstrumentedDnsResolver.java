@@ -16,6 +16,10 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -24,6 +28,7 @@ import org.apache.hc.client5.http.DnsResolver;
 /** {@link DnsResolver} wrapper which adds tracing spans. */
 final class InstrumentedDnsResolver implements DnsResolver {
 
+    private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedDnsResolver.class);
     private final DnsResolver delegate;
 
     InstrumentedDnsResolver(DnsResolver delegate) {
@@ -32,15 +37,62 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     @Override
     public InetAddress[] resolve(String host) throws UnknownHostException {
+        // Snapshot whether debug logging is enabled because it may change mid-execution
+        boolean debugLoggingEnabled = log.isDebugEnabled();
+        // Avoid unnecessary timer syscall overhead when debug logging is not enabled
+        long startNanos = debugLoggingEnabled ? System.nanoTime() : -1L;
         try (CloseableTracer ignored = CloseableTracer.startSpan("DnsResolver.resolve")) {
-            return delegate.resolve(host);
+            InetAddress[] resolved = delegate.resolve(host);
+            if (debugLoggingEnabled) {
+                long durationNanos = System.nanoTime() - startNanos;
+                log.debug(
+                        "DnsResolver.resolve({}) produced '{}' ({} results) after {} ns",
+                        UnsafeArg.of("host", host),
+                        resolved == null ? SafeArg.of("resolved", "null") : UnsafeArg.of("resolved", resolved),
+                        SafeArg.of("numResolved", resolved == null ? 0 : resolved.length),
+                        SafeArg.of("durationNanos", durationNanos));
+            }
+            return resolved;
+        } catch (Throwable t) {
+            if (debugLoggingEnabled) {
+                long durationNanos = System.nanoTime() - startNanos;
+                log.debug(
+                        "DnsResolver.resolve({}) failed after {} ns",
+                        UnsafeArg.of("host", host),
+                        SafeArg.of("durationNanos", durationNanos),
+                        t);
+            }
+            throw t;
         }
     }
 
     @Override
     public String resolveCanonicalHostname(String host) throws UnknownHostException {
+        // Snapshot whether debug logging is enabled because it may change mid-execution
+        boolean debugLoggingEnabled = log.isDebugEnabled();
+        // Avoid unnecessary timer syscall overhead when debug logging is not enabled
+        long startNanos = debugLoggingEnabled ? System.nanoTime() : -1L;
         try (CloseableTracer ignored = CloseableTracer.startSpan("DnsResolver.resolveCanonicalHostname")) {
-            return delegate.resolveCanonicalHostname(host);
+            String resolved = delegate.resolveCanonicalHostname(host);
+            if (debugLoggingEnabled) {
+                long durationNanos = System.nanoTime() - startNanos;
+                log.debug(
+                        "DnsResolver.resolveCanonicalHostname({}) produced '{}' after {} ns",
+                        UnsafeArg.of("host", host),
+                        UnsafeArg.of("resolved", resolved),
+                        SafeArg.of("durationNanos", durationNanos));
+            }
+            return resolved;
+        } catch (Throwable t) {
+            if (debugLoggingEnabled) {
+                long durationNanos = System.nanoTime() - startNanos;
+                log.debug(
+                        "DnsResolver.resolveCanonicalHostname({}) failed after {} ns",
+                        UnsafeArg.of("host", host),
+                        SafeArg.of("durationNanos", durationNanos),
+                        t);
+            }
+            throw t;
         }
     }
 
