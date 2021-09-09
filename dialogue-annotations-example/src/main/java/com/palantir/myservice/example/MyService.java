@@ -99,4 +99,7 @@ public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/multipart")
     void multipart(@Request.Body(PutFileRequestSerializer.class) PutFileRequest request);
+
+    @Request(method = HttpMethod.GET, path = "/multipath/{pathSegments}")
+    void multiplePathSegments(@Request.PathParam List<UUID> pathSegments);
 }

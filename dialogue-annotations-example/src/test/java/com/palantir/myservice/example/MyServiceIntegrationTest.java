@@ -19,6 +19,7 @@ package com.palantir.myservice.example;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
@@ -314,6 +315,17 @@ public final class MyServiceIntegrationTest {
                         .putAll("q1", "var1", "var2")
                         .build(),
                 new MyCustomParamType("var3"));
+    }
+
+    @Test
+    void testMultiplePathParams() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/multipath/" + first + '/' + second);
+        };
+        myServiceDialogue.multiplePathSegments(ImmutableList.of(first, second));
     }
 
     private void testCustomResponse(int code) {

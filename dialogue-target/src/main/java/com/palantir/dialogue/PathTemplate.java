@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.google.common.base.Verify;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Immutable;
 import com.palantir.logsafe.Preconditions;
@@ -68,6 +69,17 @@ public final class PathTemplate {
             }
         }
         Verify.verify(numVariableSegments == parameters.size(), "Too many parameters supplied, this is a bug");
+    }
+
+    /** Populates this template with the given named parameters. */
+    public void fill(ListMultimap<String, String> parameters, UrlBuilder url) {
+        for (Segment segment : segments) {
+            if (segment.fixed != null) {
+                url.pathSegment(segment.fixed);
+            } else {
+                parameters.get(segment.variable).forEach(url::pathSegment);
+            }
+        }
     }
 
     public static final class PathTemplateBuilder {

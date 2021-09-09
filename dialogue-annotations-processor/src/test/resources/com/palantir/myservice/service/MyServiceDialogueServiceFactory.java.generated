@@ -1,5 +1,6 @@
 package com.palantir.myservice.service;
 
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.Deserializer;
@@ -27,7 +28,6 @@ import java.lang.String;
 import java.lang.Void;
 import java.math.BigInteger;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.UUID;
@@ -209,7 +209,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     PathTemplate.builder().fixed("greet").build();
 
             @Override
-            public void renderPath(Map<String, String> params, UrlBuilder url) {
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
                 pathTemplate.fill(params, url);
             }
 
@@ -239,7 +239,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     PathTemplate.builder().fixed("greeting").build();
 
             @Override
-            public void renderPath(Map<String, String> params, UrlBuilder url) {
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
                 pathTemplate.fill(params, url);
             }
 
@@ -269,7 +269,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     PathTemplate.builder().fixed("custom").fixed("request").build();
 
             @Override
-            public void renderPath(Map<String, String> params, UrlBuilder url) {
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
                 pathTemplate.fill(params, url);
             }
 
@@ -299,7 +299,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     PathTemplate.builder().fixed("custom").fixed("request1").build();
 
             @Override
-            public void renderPath(Map<String, String> params, UrlBuilder url) {
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
                 pathTemplate.fill(params, url);
             }
 
@@ -332,7 +332,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     .build();
 
             @Override
-            public void renderPath(Map<String, String> params, UrlBuilder url) {
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
                 pathTemplate.fill(params, url);
             }
 

@@ -16,6 +16,9 @@
 
 package com.palantir.dialogue;
 
+import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ListMultimap;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +28,23 @@ import java.util.Set;
  * as well as the types of the request and response body.
  */
 public interface Endpoint {
-    void renderPath(Map<String, String> params, UrlBuilder url);
+    /**
+     * {@link #renderPath(ListMultimap, UrlBuilder)} is preferred, however at least one {@code renderPath} must be
+     * implemented to avoid infinite recursion.
+     */
+    default void renderPath(Map<String, String> params, UrlBuilder url) {
+        renderPath(
+                params.isEmpty()
+                        ? ImmutableListMultimap.of()
+                        : ImmutableListMultimap.<String, String>builder()
+                                .putAll(params.entrySet())
+                                .build(),
+                url);
+    }
+
+    default void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+        renderPath(params.isEmpty() ? ImmutableMap.of() : new MultimapAsMap<>(params), url);
+    }
 
     HttpMethod httpMethod();
 
