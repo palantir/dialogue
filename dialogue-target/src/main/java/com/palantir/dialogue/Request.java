@@ -73,11 +73,11 @@ public final class Request {
      * one-to-one correspondence between variable {@link PathTemplate.Segment path segments} of a {@link PathTemplate}
      * and the request's {@link #pathParams}.
      *
-     * {@link #pathParameters()} is preferred, however we have not marked this deprecated in order to avoid
-     * adding warnings to existing generated code.
+     * @deprecated in favor of {@link #pathParameters()} which returns a multimap
      */
+    @Deprecated
     public Map<String, String> pathParams() {
-        return new MultimapAsMap<>(pathParams);
+        return MultimapAsMap.of(pathParams);
     }
 
     /**

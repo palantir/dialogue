@@ -43,7 +43,7 @@ public interface Endpoint {
     }
 
     default void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
-        renderPath(params.isEmpty() ? ImmutableMap.of() : new MultimapAsMap<>(params), url);
+        renderPath(params.isEmpty() ? ImmutableMap.of() : MultimapAsMap.of(params), url);
     }
 
     HttpMethod httpMethod();
