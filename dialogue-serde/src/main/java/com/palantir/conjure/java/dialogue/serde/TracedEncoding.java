@@ -19,6 +19,8 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.Tracer;
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,6 +84,8 @@ final class TracedEncoding implements Encoding {
 
     private static final class TracedSerializer<T> implements Serializer<T> {
 
+        private static final SafeLogger log = SafeLoggerFactory.get(TracedSerializer.class);
+
         private final Serializer<T> delegate;
         private final String operation;
         private final ImmutableMap<String, String> tags;
@@ -94,11 +98,15 @@ final class TracedEncoding implements Encoding {
 
         @Override
         public void serialize(T value, OutputStream output) throws IOException {
-            Tracer.fastStartSpan(operation);
-            try {
+            if (log.isDebugEnabled()) {
+                Tracer.fastStartSpan(operation);
+                try {
+                    delegate.serialize(value, output);
+                } finally {
+                    Tracer.fastCompleteSpan(tags);
+                }
+            } else {
                 delegate.serialize(value, output);
-            } finally {
-                Tracer.fastCompleteSpan(tags);
             }
         }
 
@@ -109,6 +117,8 @@ final class TracedEncoding implements Encoding {
     }
 
     private static final class TracedDeserializer<T> implements Deserializer<T> {
+
+        private static final SafeLogger log = SafeLoggerFactory.get(TracedDeserializer.class);
 
         private final Deserializer<T> delegate;
         private final String operation;
@@ -122,11 +132,15 @@ final class TracedEncoding implements Encoding {
 
         @Override
         public T deserialize(InputStream input) throws IOException {
-            Tracer.fastStartSpan(operation);
-            try {
+            if (log.isDebugEnabled()) {
+                Tracer.fastStartSpan(operation);
+                try {
+                    return delegate.deserialize(input);
+                } finally {
+                    Tracer.fastCompleteSpan(tags);
+                }
+            } else {
                 return delegate.deserialize(input);
-            } finally {
-                Tracer.fastCompleteSpan(tags);
             }
         }
 
