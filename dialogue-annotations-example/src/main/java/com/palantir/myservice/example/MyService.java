@@ -102,4 +102,7 @@ public interface MyService {
 
     @Request(method = HttpMethod.GET, path = "/multipath/{pathSegments}")
     void multiplePathSegments(@Request.PathParam List<UUID> pathSegments);
+
+    @Request(method = HttpMethod.GET, path = "/multipath-strings/{pathSegments}")
+    void multipleStringPathSegments(@Request.PathParam List<String> pathSegments);
 }

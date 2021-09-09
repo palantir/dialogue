@@ -328,6 +328,29 @@ public final class MyServiceIntegrationTest {
         myServiceDialogue.multiplePathSegments(ImmutableList.of(first, second));
     }
 
+    @Test
+    void testMultiplePathParams_empty() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/multipath");
+        };
+        myServiceDialogue.multiplePathSegments(ImmutableList.of());
+    }
+
+    @Test
+    void testMultiplePathParams_escaped() {
+        String first = "a/b";
+        String second = "c/d";
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            // The server should receive uri-encoded slashes as '%2F' as opposed to
+            // splitting the input segment string values into sub-segments. This allows
+            // the server to recreate the original data.
+            exchange.assertPath("/multipath-strings/a%2Fb/c%2Fd");
+        };
+        myServiceDialogue.multipleStringPathSegments(ImmutableList.of(first, second));
+    }
+
     private void testCustomResponse(int code) {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.PUT);
