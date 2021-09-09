@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -29,6 +30,8 @@ import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.errors.QosException;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.TestConfigurations;
@@ -53,11 +56,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.X509TrustManager;
 import org.immutables.value.Value;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -141,6 +147,24 @@ public class DialogueClientsIntegrationTest {
 
         client.voidToVoid();
         assertThat(requestPaths).containsExactly("/foo1/voidToVoid", "/foo2/voidToVoid");
+    }
+
+    @Test
+    void test_legacy_static_factory() {
+        List<String> requestPaths = new CopyOnWriteArrayList<>();
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        SSLSocketFactory socketFactory = SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG);
+        X509TrustManager trustManager = SslSocketFactories.createX509TrustManager(TestConfigurations.SSL_CONFIG);
+
+        ClientConfiguration config = ClientConfigurations.of(
+                ImmutableList.of(getUri(undertow) + foo1Path), socketFactory, trustManager, TestConfigurations.AGENT);
+        SampleServiceBlocking client = DialogueClients.create(SampleServiceBlocking.class, config);
+        client.voidToVoid();
+        assertThat(requestPaths).containsExactly("/foo1/voidToVoid");
     }
 
     @Test
