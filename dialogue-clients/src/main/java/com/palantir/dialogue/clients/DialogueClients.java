@@ -50,6 +50,22 @@ public final class DialogueClients {
                 ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
 
+    /**
+     * Prefer {@link #create(Refreshable)}. Using a configured {@link ReloadingFactory} should always be preferred
+     * over this method, it only exists to ease migration.
+     *
+     * Construct an instance of the given {@code clientInterface} which can be used to make network calls to the
+     * single conceptual upstream identified by {@code clientConfiguration}.
+     *
+     * Behaviour is undefined if {@code clientConfiguration} contains no URIs.
+     *
+     * @param clientInterface Dialogue client interface annotated with {@link com.palantir.dialogue.DialogueService}
+     * @param clientConfiguration Configuration which <b>must</b> contain a user-agent
+     */
+    public static <T> T create(Class<T> clientInterface, ClientConfiguration clientConfiguration) {
+        return LegacyConstruction.getNonReloading(clientInterface, clientConfiguration);
+    }
+
     /** Parameters necessary for {@link DialogueChannel#builder()} and constructing an actual BlockingFoo instance. */
     @CheckReturnValue
     public interface WithDialogueOptions<T> {
