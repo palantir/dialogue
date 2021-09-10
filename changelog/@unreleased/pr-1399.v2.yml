@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Reduce Dialogue client creation overhead by deferring per-endpoint
+    initialization work until the endpoint is first used.
+  links:
+  - https://github.com/palantir/dialogue/pull/1399

@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
@@ -56,6 +57,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.immutables.value.Value;
@@ -417,7 +419,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
          */
         @Override
         public EndpointChannel endpoint(Endpoint endpoint) {
-            Refreshable<EndpointChannel> endpointChannel = refreshable.map(channel -> utils.bind(channel, endpoint));
+            Supplier<EndpointChannel> endpointChannel =
+                    new LazilyMappedRefreshable<>(refreshable, channel -> utils.bind(channel, endpoint));
             return new SupplierEndpointChannel(endpointChannel);
         }
 
@@ -449,6 +452,30 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public String toString() {
             return "SupplierEndpointChannel{" + supplier.get() + '}';
+        }
+    }
+
+    /**
+     * A lazy wrapper around {@link Refreshable#map(Function)} to reduce up-front client creation cost.
+     * Binding is avoided entirely for endpoints that are never used.
+     */
+    private static final class LazilyMappedRefreshable<T, U> implements Supplier<U> {
+
+        private final Supplier<Refreshable<U>> delegate;
+
+        LazilyMappedRefreshable(Refreshable<T> refreshable, Function<? super T, U> function) {
+            delegate = Suppliers.memoize(() -> refreshable.map(function));
+        }
+
+        @Override
+        public U get() {
+            Refreshable<U> mapped = delegate.get();
+            return mapped.current();
+        }
+
+        @Override
+        public String toString() {
+            return "LazilyMappedRefreshable{" + delegate + '}';
         }
     }
 }

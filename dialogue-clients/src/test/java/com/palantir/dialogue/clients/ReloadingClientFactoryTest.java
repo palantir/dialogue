@@ -16,18 +16,22 @@
 
 package com.palantir.dialogue.clients;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.clients.ReloadingClientFactory.LiveReloadingChannel;
+import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.refreshable.Refreshable;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -40,16 +44,21 @@ class ReloadingClientFactoryTest {
 
     interface Foo extends Channel, EndpointChannelFactory {}
 
-    @Mock
+    @Mock(lenient = true)
     Foo channel;
 
-    @Mock
+    @Mock(lenient = true)
     EndpointChannel endpointChannel;
+
+    @BeforeEach
+    void beforeEach() {
+        when(endpointChannel.execute(any())).thenReturn(SettableFuture.create());
+        when(channel.execute(any(), any())).thenReturn(SettableFuture.create());
+        when(channel.endpoint(any())).thenReturn(endpointChannel);
+    }
 
     @Test
     void plain_codegen_uses_the_EndpointChannelFactory_channel() {
-        when(channel.endpoint(any())).thenReturn(endpointChannel);
-
         SampleServiceBlocking.of((Channel) channel, runtime);
 
         // ensure we use the bind method
@@ -58,8 +67,6 @@ class ReloadingClientFactoryTest {
 
     @Test
     void plain_codegen_uses_the_EndpointChannelFactory_factory() {
-        when(channel.endpoint(any())).thenReturn(endpointChannel);
-
         SampleServiceBlocking.of((EndpointChannelFactory) channel, runtime);
 
         // ensure we use the bind method
@@ -68,10 +75,8 @@ class ReloadingClientFactoryTest {
 
     @Test
     void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_channel() {
-        when(channel.endpoint(any())).thenReturn(endpointChannel);
-
         LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), runtime.clients());
-        SampleServiceBlocking.of((Channel) live, runtime);
+        assertThat(SampleServiceAsync.of((Channel) live, runtime).getMyAlias()).isNotDone();
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
@@ -79,10 +84,9 @@ class ReloadingClientFactoryTest {
 
     @Test
     void live_reloading_wrapper_still_uses_the_EndpointChannelFactory_factory() {
-        when(channel.endpoint(any())).thenReturn(endpointChannel);
-
-        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.create(channel), runtime.clients());
-        SampleServiceBlocking.of((EndpointChannelFactory) live, runtime);
+        LiveReloadingChannel live = new LiveReloadingChannel(Refreshable.only(channel), runtime.clients());
+        assertThat(SampleServiceAsync.of((EndpointChannelFactory) live, runtime).getMyAlias())
+                .isNotDone();
 
         // ensure we use the bind method
         verify(channel, atLeastOnce()).endpoint(any());
