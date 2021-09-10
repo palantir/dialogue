@@ -19,6 +19,7 @@ package com.palantir.myservice.example;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Iterables;
@@ -314,6 +315,40 @@ public final class MyServiceIntegrationTest {
                         .putAll("q1", "var1", "var2")
                         .build(),
                 new MyCustomParamType("var3"));
+    }
+
+    @Test
+    void testMultiplePathParams() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/multipath/" + first + '/' + second);
+        };
+        myServiceDialogue.multiplePathSegments(ImmutableList.of(first, second));
+    }
+
+    @Test
+    void testMultiplePathParams_empty() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/multipath");
+        };
+        myServiceDialogue.multiplePathSegments(ImmutableList.of());
+    }
+
+    @Test
+    void testMultiplePathParams_escaped() {
+        String first = "a/b";
+        String second = "c/d";
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            // The server should receive uri-encoded slashes as '%2F' as opposed to
+            // splitting the input segment string values into sub-segments. This allows
+            // the server to recreate the original data.
+            exchange.assertPath("/multipath-strings/a%2Fb/c%2Fd");
+        };
+        myServiceDialogue.multipleStringPathSegments(ImmutableList.of(first, second));
     }
 
     private void testCustomResponse(int code) {

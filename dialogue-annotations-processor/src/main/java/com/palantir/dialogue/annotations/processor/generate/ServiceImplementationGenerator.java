@@ -242,7 +242,7 @@ public final class ServiceImplementationGenerator {
     private CodeBlock generatePathParam(ArgumentDefinition param, Optional<ParameterEncoderType> paramEncoder) {
         return generatePlainSerializer(
                 "putPathParams",
-                "nope",
+                "putAllPathParams",
                 param.argName().get(),
                 CodeBlock.of("$L", param.argName().get()),
                 param.argType(),

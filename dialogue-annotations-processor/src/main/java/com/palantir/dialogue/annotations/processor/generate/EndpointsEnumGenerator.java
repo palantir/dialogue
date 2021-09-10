@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.generate;
 
+import com.google.common.collect.ListMultimap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.PathTemplate;
@@ -32,7 +33,6 @@ import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.ParameterizedTypeName;
 import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
-import java.util.Map;
 import java.util.Optional;
 import javax.lang.model.element.Modifier;
 
@@ -76,7 +76,8 @@ public final class EndpointsEnumGenerator {
                 .addMethod(MethodSpec.methodBuilder("renderPath")
                         .addAnnotation(Override.class)
                         .addModifiers(Modifier.PUBLIC)
-                        .addParameter(ParameterizedTypeName.get(Map.class, String.class, String.class), "params")
+                        .addParameter(
+                                ParameterizedTypeName.get(ListMultimap.class, String.class, String.class), "params")
                         .addParameter(UrlBuilder.class, "url")
                         .addCode("pathTemplate.fill(params, url);")
                         .build())

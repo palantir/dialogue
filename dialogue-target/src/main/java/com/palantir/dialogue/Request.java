@@ -18,15 +18,12 @@ package com.palantir.dialogue;
 
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.ImmutableListMultimap;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -42,7 +39,7 @@ public final class Request {
 
     private final ListMultimap<String, String> headerParams;
     private final ListMultimap<String, String> queryParams;
-    private final Map<String, String> pathParams;
+    private final ListMultimap<String, String> pathParams;
     private final Optional<RequestBody> body;
     private final RequestAttachments attachments;
 
@@ -75,8 +72,20 @@ public final class Request {
      * The HTTP path parameters for this request, encoded as a map of {@code param-name: param-value}. There is a
      * one-to-one correspondence between variable {@link PathTemplate.Segment path segments} of a {@link PathTemplate}
      * and the request's {@link #pathParams}.
+     *
+     * @deprecated in favor of {@link #pathParameters()} which returns a multimap
      */
+    @Deprecated
     public Map<String, String> pathParams() {
+        return MultimapAsMap.of(pathParams);
+    }
+
+    /**
+     * The HTTP path parameters for this request, encoded as a multimap of {@code param-name: param-value}. There is a
+     * one-to-many correspondence between variable {@link PathTemplate.Segment path segments} of a {@link PathTemplate}
+     * and the request's {@link #pathParams}.
+     */
+    public ListMultimap<String, String> pathParameters() {
         return pathParams;
     }
 
@@ -146,7 +155,7 @@ public final class Request {
 
         private ListMultimap<String, String> queryParams = ImmutableListMultimap.of();
 
-        private Map<String, String> pathParams = ImmutableMap.of();
+        private ListMultimap<String, String> pathParams = ImmutableListMultimap.of();
 
         private Optional<RequestBody> body = Optional.empty();
 
@@ -241,7 +250,17 @@ public final class Request {
             return putAllPathParams(entries);
         }
 
+        public Request.Builder putAllPathParams(String key, Iterable<String> values) {
+            mutablePathParams().putAll(key, values);
+            return this;
+        }
+
         public Request.Builder putAllPathParams(Map<String, ? extends String> entries) {
+            entries.forEach(mutablePathParams()::put);
+            return this;
+        }
+
+        public Request.Builder putAllPathParams(Multimap<String, ? extends String> entries) {
             mutablePathParams().putAll(entries);
             return this;
         }
@@ -279,10 +298,10 @@ public final class Request {
             return queryParams;
         }
 
-        private Map<String, String> mutablePathParams() {
+        private ListMultimap<String, String> mutablePathParams() {
             if (!isPathMutable()) {
                 setPathMutable();
-                pathParams = new HashMap<>(pathParams);
+                pathParams = ArrayListMultimap.create(pathParams);
             }
             return pathParams;
         }
@@ -295,8 +314,8 @@ public final class Request {
             return isQueryMutable() ? Multimaps.unmodifiableListMultimap(queryParams) : queryParams;
         }
 
-        private Map<String, String> unmodifiablePathParams() {
-            return isPathMutable() ? Collections.unmodifiableMap(pathParams) : pathParams;
+        private ListMultimap<String, String> unmodifiablePathParams() {
+            return isPathMutable() ? Multimaps.unmodifiableListMultimap(pathParams) : pathParams;
         }
 
         public Request build() {
