@@ -20,11 +20,15 @@ import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Iterables;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.common.streams.KeyedStream;
+import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.annotations.Request;
+import com.palantir.dialogue.annotations.processor.data.AnnotationReflector;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
+import com.palantir.dialogue.annotations.processor.data.ImmutableAnnotationReflector;
 import com.palantir.dialogue.annotations.processor.data.ImmutableServiceDefinition;
 import com.palantir.dialogue.annotations.processor.data.ServiceDefinition;
 import com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator;
@@ -36,9 +40,13 @@ import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.JavaFile;
+import com.squareup.javapoet.TypeName;
 import com.squareup.javapoet.TypeSpec;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -54,6 +62,7 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
@@ -116,7 +125,42 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                     }
                 });
 
+        failOnFactoryCopyPasta(roundEnv);
+
         return false;
+    }
+
+    /**
+     * Detect if multiple interfaces point to the same factory. Only detects them when they're processed in the same
+     * compilation run, so won't catch anything in case of e.g. incremental compilation where each interface is compiled
+     * separately.
+     */
+    private void failOnFactoryCopyPasta(RoundEnvironment roundEnv) {
+        Map<String, Set<Element>> elementsWithFactory = new HashMap<>();
+        KeyedStream.of(roundEnv.getElementsAnnotatedWith(DialogueService.class))
+                .map(e -> (Element) e)
+                .mapKeys(Element::getAnnotationMirrors)
+                .forEach((annotations, element) -> {
+                    AnnotationReflector annotationReflector = Iterables.getOnlyElement(annotations.stream()
+                            .map(ImmutableAnnotationReflector::of)
+                            .filter(reflector -> reflector.isAnnotation(DialogueService.class))
+                            .collect(Collectors.toList()));
+
+                    annotationReflector.getValueFieldMaybe(TypeMirror.class).ifPresent(valueField -> {
+                        elementsWithFactory
+                                .computeIfAbsent(TypeName.get(valueField).toString(), _key -> new HashSet<>())
+                                .add(element);
+                    });
+                });
+
+        elementsWithFactory.forEach((name, namedElements) -> {
+            if (namedElements.size() > 1) {
+                namedElements.forEach(element -> {
+                    messager.printMessage(
+                            Kind.ERROR, "Multiple interfaces point at the same factory: " + name, element);
+                });
+            }
+        });
     }
 
     private JavaFile generateDialogueServiceFactory(Element annotatedInterface, Collection<Element> annotatedMethods) {
