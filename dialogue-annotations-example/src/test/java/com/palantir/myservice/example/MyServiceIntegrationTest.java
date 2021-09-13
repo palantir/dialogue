@@ -375,9 +375,9 @@ public final class MyServiceIntegrationTest {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.GET);
             // The encoder is splitting on : & producing path segments for each part
-            exchange.assertPath("/multipath-strings/a//b");
+            exchange.assertPath("/multipath-strings/a//b%2Fc");
         };
-        myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a::b");
+        myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a::b/c");
     }
 
     private void testCustomResponse(int code) {
