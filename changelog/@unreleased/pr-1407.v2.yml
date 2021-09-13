@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Add custom list encoder support for path parameters
+  links:
+  - https://github.com/palantir/dialogue/pull/1407
