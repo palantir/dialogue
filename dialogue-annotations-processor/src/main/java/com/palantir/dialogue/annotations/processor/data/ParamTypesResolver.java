@@ -176,7 +176,9 @@ public final class ParamTypesResolver {
                 .map(TypeName::get);
 
         if (encoderTypeName.isPresent() && listEncoderTypeName.isPresent()) {
-            throw new SafeRuntimeException("Only one of encoder and listEncoder can be set for " + endpointName.get());
+            context.reportError("Only one of encoder and listEncoder can be set", variableElement);
+
+            return Optional.empty();
         }
 
         if (encoderTypeName.isPresent()) {
