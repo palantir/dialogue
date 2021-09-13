@@ -86,6 +86,8 @@ public @interface Request {
     @Target(ElementType.PARAMETER)
     @interface PathParam {
         Class<? extends ParamEncoder<?>> encoder() default DefaultParamEncoder.class;
+
+        Class<? extends ListParamEncoder<?>> listEncoder() default UnsetListParamEncoder.class;
     }
 
     @Retention(RetentionPolicy.SOURCE)

@@ -128,8 +128,12 @@ public final class ParamTypesResolver {
                     getParameterEncoder(
                             endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.LIST)));
         } else if (annotationReflector.isAnnotation(Request.PathParam.class)) {
-            return Optional.of(ParameterTypes.path(getParameterEncoder(
-                    endpointName, variableElement, annotationReflector, EncoderTypeAndMethod.PARAM)));
+            return Optional.of(ParameterTypes.path(getPathParameterEncoder(
+                    endpointName,
+                    variableElement,
+                    annotationReflector,
+                    EncoderTypeAndMethod.PARAM,
+                    EncoderTypeAndMethod.LIST)));
         } else if (annotationReflector.isAnnotation(Request.QueryParam.class)) {
             return Optional.of(ParameterTypes.query(
                     annotationReflector.getValueStrict(String.class),
@@ -158,23 +162,53 @@ public final class ParamTypesResolver {
                 .build();
     }
 
+    private Optional<ParameterEncoderType> getPathParameterEncoder(
+            EndpointName endpointName,
+            VariableElement variableElement,
+            AnnotationReflector annotationReflector,
+            EncoderTypeAndMethod encoderTypeAndMethod,
+            EncoderTypeAndMethod listEncoderTypeAndMethod) {
+        Optional<TypeName> encoderTypeName =
+                annotationReflector.getFieldMaybe("encoder", TypeMirror.class).map(TypeName::get);
+
+        Optional<TypeName> listEncoderTypeName = annotationReflector
+                .getFieldMaybe("listEncoder", TypeMirror.class)
+                .map(TypeName::get);
+
+        if (encoderTypeName.isPresent() && listEncoderTypeName.isPresent()) {
+            throw new SafeRuntimeException("Only one of encoder and listEncoder can be set for " + endpointName.get());
+        }
+
+        if (encoderTypeName.isPresent()) {
+            return getParameterEncoder(endpointName, variableElement, encoderTypeName, encoderTypeAndMethod);
+        }
+        return getParameterEncoder(endpointName, variableElement, listEncoderTypeName, listEncoderTypeAndMethod);
+    }
+
     private Optional<ParameterEncoderType> getParameterEncoder(
             EndpointName endpointName,
             VariableElement variableElement,
             AnnotationReflector annotationReflector,
             EncoderTypeAndMethod encoderTypeAndMethod) {
-        return annotationReflector
-                .getFieldMaybe("encoder", TypeMirror.class)
-                .map(TypeName::get)
-                .map(encoderJavaType -> ImmutableParameterEncoderType.builder()
-                        .type(encoderTypeAndMethod.encoderType)
-                        .encoderJavaType(encoderJavaType)
-                        .encoderFieldName(InstanceVariables.joinCamelCase(
-                                endpointName.get(),
-                                variableElement.getSimpleName().toString(),
-                                "Encoder"))
-                        .encoderMethodName(encoderTypeAndMethod.method)
-                        .build());
+        return getParameterEncoder(
+                endpointName,
+                variableElement,
+                annotationReflector.getFieldMaybe("encoder", TypeMirror.class).map(TypeName::get),
+                encoderTypeAndMethod);
+    }
+
+    private Optional<ParameterEncoderType> getParameterEncoder(
+            EndpointName endpointName,
+            VariableElement variableElement,
+            Optional<TypeName> typeName,
+            EncoderTypeAndMethod encoderTypeAndMethod) {
+        return typeName.map(encoderJavaType -> ImmutableParameterEncoderType.builder()
+                .type(encoderTypeAndMethod.encoderType)
+                .encoderJavaType(encoderJavaType)
+                .encoderFieldName(InstanceVariables.joinCamelCase(
+                        endpointName.get(), variableElement.getSimpleName().toString(), "Encoder"))
+                .encoderMethodName(encoderTypeAndMethod.method)
+                .build());
     }
 
     @SuppressWarnings("ImmutableEnumChecker")
