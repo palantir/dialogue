@@ -105,4 +105,8 @@ public interface MyService {
 
     @Request(method = HttpMethod.GET, path = "/multipath-strings/{pathSegments}")
     void multipleStringPathSegments(@Request.PathParam List<String> pathSegments);
+
+    @Request(method = HttpMethod.GET, path = "/multipath-strings/{pathSegments}")
+    void multipleStringPathSegmentsUsingCustomEncoder(
+            @Request.PathParam(listEncoder = MyCustomPathSegmentEncoder.class) String pathSegments);
 }

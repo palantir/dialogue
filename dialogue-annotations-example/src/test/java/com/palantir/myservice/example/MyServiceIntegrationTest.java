@@ -351,6 +351,35 @@ public final class MyServiceIntegrationTest {
         myServiceDialogue.multipleStringPathSegments(ImmutableList.of(first, second));
     }
 
+    @Test
+    void testMultiplePathParams_customEncoder() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            // The encoder is splitting on : & producing path segments for each part
+            exchange.assertPath("/multipath-strings/a/b/c/d");
+        };
+        myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a:b:c:d");
+    }
+
+    @Test
+    void testMultiplePathParams_customEncoder_empty() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/multipath-strings/");
+        };
+        myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("");
+    }
+
+    @Test
+    void testMultiplePathParams_customEncoder_odd() {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            // The encoder is splitting on : & producing path segments for each part
+            exchange.assertPath("/multipath-strings/a//b%2Fc");
+        };
+        myServiceDialogue.multipleStringPathSegmentsUsingCustomEncoder("a::b/c");
+    }
+
     private void testCustomResponse(int code) {
         undertowHandler = exchange -> {
             exchange.assertMethod(HttpMethod.PUT);
