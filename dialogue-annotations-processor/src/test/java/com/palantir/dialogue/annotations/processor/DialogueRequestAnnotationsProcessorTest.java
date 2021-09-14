@@ -30,6 +30,7 @@ import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
 import com.palantir.myservice.service.UnparseableHttpPath;
+import com.palantir.myservice.service.WrongFactoryAnnotation;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
@@ -66,6 +67,15 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 .inFile(compilation.sourceFiles().get(0))
                 .onLineContaining("String greet(@Request.PathParam @Request.Body String greeting)");
         assertThat(compilation).hadErrorCount(2);
+    }
+
+    @Test
+    public void testWrongFactoryAnnotation() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, WrongFactoryAnnotation.class);
+        assertThat(compilation)
+                .hadErrorContaining("@DialogueService annotation references an invalid DialogueServiceFactory")
+                .inFile(compilation.sourceFiles().get(0));
+        assertThat(compilation).hadErrorCount(1);
     }
 
     @Test

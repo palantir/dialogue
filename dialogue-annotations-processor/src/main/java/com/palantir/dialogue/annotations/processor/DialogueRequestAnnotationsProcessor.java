@@ -16,12 +16,15 @@
 
 package com.palantir.dialogue.annotations.processor;
 
+import com.google.auto.common.AnnotationMirrors;
 import com.google.auto.common.MoreElements;
 import com.google.common.base.Predicates;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableSet;
 import com.google.errorprone.annotations.CompileTimeConstant;
 import com.palantir.common.streams.KeyedStream;
+import com.palantir.dialogue.DialogueService;
+import com.palantir.dialogue.DialogueServiceFactory;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinitions;
@@ -54,7 +57,10 @@ import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeMirror;
 import javax.lang.model.util.Elements;
+import javax.lang.model.util.SimpleAnnotationValueVisitor9;
 import javax.lang.model.util.Types;
 import javax.tools.Diagnostic.Kind;
 
@@ -160,6 +166,41 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
         TypeSpec withOriginatingElement = generatedClass.toBuilder()
                 .addOriginatingElement(annotatedInterface)
                 .build();
+
+        MoreElements.getAnnotationMirror(annotatedInterface, DialogueService.class)
+                .toJavaUtil()
+                .map(mirror -> AnnotationMirrors.getAnnotationValue(mirror, "value"))
+                .ifPresent(value -> value.accept(
+                        new SimpleAnnotationValueVisitor9<Void, Void>() {
+                            @Override
+                            public Void visitType(TypeMirror type, Void _unused) {
+                                // Quick check, the generated type is expected, however a hand-written
+                                // type may be used instead. This avoids a class of problems involving
+                                // dependencies between processor rounds.
+                                String typeName = type.toString();
+                                String expectedGenerated = serviceInterface.packageName() + '.' + generatedClass.name;
+                                if (typeName.equals(expectedGenerated)) {
+                                    return null;
+                                }
+                                TypeElement factoryElement =
+                                        elements.getTypeElement(DialogueServiceFactory.class.getName());
+                                if (factoryElement == null) {
+                                    return null;
+                                }
+                                DeclaredType expectedType = types.getDeclaredType(
+                                        factoryElement, types.getWildcardType(annotatedInterface.asType(), null));
+                                if (!types.isAssignable(type, expectedType)) {
+                                    messager.printMessage(
+                                            Kind.ERROR,
+                                            "@DialogueService annotation references an "
+                                                    + "invalid DialogueServiceFactory type",
+                                            annotatedInterface);
+                                }
+                                return null;
+                            }
+                        },
+                        null));
+
         return JavaFile.builder(serviceInterface.packageName(), withOriginatingElement)
                 .build();
     }
