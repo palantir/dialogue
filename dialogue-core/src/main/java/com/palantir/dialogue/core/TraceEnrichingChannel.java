@@ -77,25 +77,14 @@ final class TraceEnrichingChannel implements Channel {
 
     private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
         TraceMetadata metadata = Tracer.maybeGetTraceMetadata().get();
-
-        Request.Builder tracedRequest = Request.builder()
-                .from(request)
-                .putHeaderParams(TraceHttpHeaders.TRACE_ID, metadata.getTraceId())
-                .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
-                .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0");
-
-        if (metadata.getParentSpanId().isPresent()) {
-            tracedRequest.putHeaderParams(
-                    TraceHttpHeaders.PARENT_SPAN_ID, metadata.getParentSpanId().get());
-        }
-
-        if (metadata.getOriginatingSpanId().isPresent()) {
-            tracedRequest.putHeaderParams(
-                    TraceHttpHeaders.ORIGINATING_SPAN_ID,
-                    metadata.getOriginatingSpanId().get());
-        }
-
-        return delegate.execute(endpoint, tracedRequest.build());
+        return delegate.execute(
+                endpoint,
+                Request.builder()
+                        .from(request)
+                        .putHeaderParams(TraceHttpHeaders.TRACE_ID, metadata.getTraceId())
+                        .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
+                        .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0")
+                        .build());
     }
 
     @Override
