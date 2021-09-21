@@ -48,7 +48,7 @@ final class ChannelToEndpointChannel implements Channel {
      * Constant {@link Endpoint endpoints} may be safely used as cache keys, as opposed to dynamically created
      * {@link Endpoint} objects which would result in a memory leak.
      */
-    private static boolean isConstant(Endpoint endpoint) {
+    static boolean isConstant(Endpoint endpoint) {
         // The conjure generator creates endpoints as enum values, which can safely be cached because they aren't
         // dynamically created.
         return endpoint instanceof Enum;
