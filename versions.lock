@@ -29,7 +29,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:7.14.0 (2 c
 com.palantir.conjure.java.runtime:keystores:7.14.0 (2 constraints: 5b19eedc)
 com.palantir.goethe:goethe:0.2.0 (1 constraints: 0405f135)
 com.palantir.refreshable:refreshable:2.1.0 (2 constraints: e91897b1)
-com.palantir.ri:resource-identifier:2.0.0 (2 constraints: ed14f8b5)
+com.palantir.ri:resource-identifier:2.1.0 (2 constraints: ee1429b6)
 com.palantir.safe-logging:logger:1.19.0 (8 constraints: 0d7beb0a)
 com.palantir.safe-logging:logger-slf4j:1.19.0 (1 constraints: 360e9650)
 com.palantir.safe-logging:logger-spi:1.19.0 (2 constraints: 7b1e42b1)
