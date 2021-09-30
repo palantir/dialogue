@@ -73,16 +73,11 @@ Instrumentation for the ROUND_ROBIN node selection strategy (currently implement
 ### executor
 Executor metrics.
 - `executor.submitted` tagged `executor` (meter): A meter of the number of submitted tasks.
-- `executor.running` tagged `executor` (counter): A gauge of the number of running tasks.
-- `executor.completed` tagged `executor` (meter): A meter of the number of completed tasks.
+- `executor.running` tagged `executor` (counter): The number of running tasks.
 - `executor.duration` tagged `executor` (timer): A timer of the time it took to run a task.
 - `executor.queued-duration` tagged `executor` (timer): A timer of the time it took a task to start running after it was submitted.
-- `executor.scheduled.once` tagged `executor` (meter): A meter of the number of one-shot scheduled tasks. Applies only to scheduled executors.
-- `executor.scheduled.repetitively` tagged `executor` (meter): A meter of the number of repetitive scheduled tasks. Applies only to scheduled executors.
 - `executor.scheduled.overrun` tagged `executor` (counter): A gauge of the number of fixed-rate scheduled tasks that overran the scheduled rate. Applies only to scheduled executors.
-- `executor.scheduled.percent-of-period` tagged `executor` (histogram): A histogram of the time it took to run a fixed-rate scheduled task as a percentage of the scheduled rate. Applies only to scheduled executors.
 - `executor.threads.created` tagged `executor` (meter): Rate that new threads are created for this executor.
-- `executor.threads.terminated` tagged `executor` (meter): Rate that executor threads are terminated.
 - `executor.threads.running` tagged `executor` (counter): Number of live threads created by this executor.
 
 ### jvm.gc
