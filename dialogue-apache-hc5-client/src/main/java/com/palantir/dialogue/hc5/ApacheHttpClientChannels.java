@@ -17,10 +17,8 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
-import com.google.common.net.HostAndPort;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
@@ -47,6 +45,7 @@ import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.Proxy;
 import java.net.Socket;
+import java.net.URI;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -477,7 +476,7 @@ public final class ApacheHttpClientChannels {
 
             Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
 
-            InetSocketAddress socksProxyAddress = getSocksProxyAddress();
+            InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory =
                     new SSLConnectionSocketFactory(
@@ -583,13 +582,31 @@ public final class ApacheHttpClientChannels {
     }
 
     @Nullable
-    private static InetSocketAddress getSocksProxyAddress() {
-        String rawValue = System.getProperty("dialogue.experimental.socks5.proxy");
-        if (Strings.isNullOrEmpty(rawValue)) {
+    private static InetSocketAddress getSocksProxyAddress(ClientConfiguration clientConfiguration) {
+        // This is a roundabout way to extract proxy information. SOCKS proxies are configured at
+        // a different stage from HTTP proxies, so we must search for any socks proxy that the
+        // ProxySelector can provide. 'selector.select(null)' could work to validate no real work
+        // is being done, but I think the 127.0.0.1 lookup should be safer.
+        // Ideally we could pass along the original ServiceConfigurationBlock (if it exists) which
+        // provides a more precise description of this data.
+        try {
+            InetSocketAddress address = clientConfiguration.proxy().select(URI.create("127.0.0.1")).stream()
+                    .filter(proxy -> proxy.type() == Proxy.Type.SOCKS)
+                    .map(Proxy::address)
+                    .filter(InetSocketAddress.class::isInstance)
+                    .map(InetSocketAddress.class::cast)
+                    .findFirst()
+                    .orElse(null);
+            if (address != null) {
+                log.debug("Found SOCKS proxy address", UnsafeArg.of("address", address));
+            } else {
+                log.debug("No SOCKS proxy found");
+            }
+            return address;
+        } catch (RuntimeException e) {
+            log.debug("Failed to find a SOCKS proxy", e);
             return null;
         }
-        HostAndPort hostAndPort = HostAndPort.fromString(rawValue);
-        return InetSocketAddress.createUnresolved(hostAndPort.getHost(), hostAndPort.getPort());
     }
 
     private static Timeout getSocketTimeout(ClientConfiguration conf, String clientName) {

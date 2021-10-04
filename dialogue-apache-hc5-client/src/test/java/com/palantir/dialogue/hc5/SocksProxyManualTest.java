@@ -19,7 +19,10 @@ package com.palantir.dialogue.hc5;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Request;
@@ -39,16 +42,16 @@ import javax.net.ssl.SSLContext;
  */
 final class SocksProxyManualTest {
 
+    @org.junit.jupiter.api.Test
     void testTls() throws Exception {
         // ssh -D 8081 -v -N localhost
-        System.setProperty("dialogue.experimental.socks5.proxy", "127.0.0.1:8081");
         SSLContext context = SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG);
         Undertow undertow = Undertow.builder()
                 .addHttpsListener(8080, null, context, new ResponseCodeHandler(204))
                 .build();
         undertow.start();
         try {
-            ClientConfiguration configuration = TestConfigurations.create("https://localhost:" + 8080);
+            ClientConfiguration configuration = withSocks("https://localhost:" + 8080, "127.0.0.1:8081");
             Channel channel = ApacheHttpClientChannels.create(configuration, "test");
             ListenableFuture<Response> future =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
@@ -60,15 +63,15 @@ final class SocksProxyManualTest {
         }
     }
 
+    @org.junit.jupiter.api.Test
     void testPlain() throws Exception {
         // ssh -D 8081 -v -N localhost
-        System.setProperty("dialogue.experimental.socks5.proxy", "127.0.0.1:8081");
         Undertow undertow = Undertow.builder()
                 .addHttpListener(8080, null, new ResponseCodeHandler(204))
                 .build();
         undertow.start();
         try {
-            ClientConfiguration configuration = TestConfigurations.create("http://localhost:" + 8080);
+            ClientConfiguration configuration = withSocks("http://localhost:" + 8080, "127.0.0.1:8081");
             Channel channel = ApacheHttpClientChannels.create(configuration, "test");
             ListenableFuture<Response> future =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
@@ -78,5 +81,17 @@ final class SocksProxyManualTest {
         } finally {
             undertow.stop();
         }
+    }
+
+    private static ClientConfiguration withSocks(String target, String socksAddress) {
+        return ClientConfiguration.builder()
+                .from(ClientConfigurations.of(ServiceConfiguration.builder()
+                        .addUris(target)
+                        .security(TestConfigurations.SSL_CONFIG)
+                        .maxNumRetries(0)
+                        .proxy(ProxyConfiguration.socks(socksAddress))
+                        .build()))
+                .userAgent(TestConfigurations.AGENT)
+                .build();
     }
 }
