@@ -42,7 +42,7 @@ import javax.net.ssl.SSLContext;
  */
 final class SocksProxyManualTest {
 
-    @org.junit.jupiter.api.Test
+    //    @org.junit.jupiter.api.Test
     void testTls() throws Exception {
         // ssh -D 8081 -v -N localhost
         SSLContext context = SslSocketFactories.createSslContext(TestConfigurations.SSL_CONFIG);
@@ -63,7 +63,7 @@ final class SocksProxyManualTest {
         }
     }
 
-    @org.junit.jupiter.api.Test
+    //    @org.junit.jupiter.api.Test
     void testPlain() throws Exception {
         // ssh -D 8081 -v -N localhost
         Undertow undertow = Undertow.builder()
