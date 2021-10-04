@@ -17,6 +17,7 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.net.HostAndPort;
@@ -44,13 +45,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
+import java.net.Proxy;
+import java.net.Socket;
 import java.net.URL;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -76,10 +78,12 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
 import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
+import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
+import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
+import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -473,43 +477,60 @@ public final class ApacheHttpClientChannels {
 
             Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
 
+            InetSocketAddress socksProxyAddress = getSocksProxyAddress();
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            SSLConnectionSocketFactory sslSocketFactory = new SSLConnectionSocketFactory(
-                    MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
-                    TlsProtocols.enabledFor(name),
-                    supportedCipherSuites(
-                            conf.enableGcmCipherSuites()
-                                    ? CipherSuites.allCipherSuites()
-                                    : CipherSuites.fastCipherSuites(),
-                            rawSocketFactory,
-                            name),
-                    new DefaultHostnameVerifier());
+            SSLConnectionSocketFactory sslSocketFactory =
+                    new SSLConnectionSocketFactory(
+                            MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
+                            TlsProtocols.enabledFor(name),
+                            supportedCipherSuites(
+                                    conf.enableGcmCipherSuites()
+                                            ? CipherSuites.allCipherSuites()
+                                            : CipherSuites.fastCipherSuites(),
+                                    rawSocketFactory,
+                                    name),
+                            new DefaultHostnameVerifier()) {
+                        @Override
+                        public Socket createSocket(final HttpContext context) throws IOException {
+                            return socksProxyAddress == null
+                                    ? super.createSocket(context)
+                                    : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+                        }
+                    };
 
-            PoolingHttpClientConnectionManager connectionManager = PoolingHttpClientConnectionManagerBuilder.create()
-                    .setSSLSocketFactory(sslSocketFactory)
-                    .setPoolConcurrencyPolicy(PoolConcurrencyPolicy.LAX)
+            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
+                    RegistryBuilder.<ConnectionSocketFactory>create()
+                            .register(URIScheme.HTTP.id, new PlainConnectionSocketFactory() {
+                                @Override
+                                public Socket createSocket(final HttpContext context) throws IOException {
+                                    return socksProxyAddress == null
+                                            ? super.createSocket(context)
+                                            : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+                                }
+                            })
+                            .register(URIScheme.HTTPS.id, sslSocketFactory)
+                            .build(),
+                    PoolConcurrencyPolicy.LAX,
                     // Allow unnecessary connections to time out reducing system load.
-                    .setConnPoolPolicy(PoolReusePolicy.LIFO)
-                    .setDefaultSocketConfig(SocketConfig.custom()
-                            .setSoKeepAlive(true)
-                            // The default socket configuration socket timeout only applies prior to request execution.
-                            // By using a more specific timeout here, we bound the handshake in addition to the
-                            // socket.connect call.
-                            .setSoTimeout(handshakeTimeout)
-                            .setSocksProxyAddress(
-                                    Optional.ofNullable(System.getProperty("dialogue.experimental.socks5.proxy"))
-                                            .map(HostAndPort::fromString)
-                                            .map(hostAndPort -> InetSocketAddress.createUnresolved(
-                                                    hostAndPort.getHost(), hostAndPort.getPort()))
-                                            .orElse(null))
-                            .build())
-                    .setMaxConnPerRoute(Integer.MAX_VALUE)
-                    .setMaxConnTotal(Integer.MAX_VALUE)
-                    .setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK)
-                    .setDnsResolver(new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE))
-                    .setConnectionFactory(new InstrumentedManagedHttpConnectionFactory(
-                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name))
-                    .build();
+                    PoolReusePolicy.LIFO,
+                    // No maximum time to live
+                    TimeValue.NEG_ONE_MILLISECOND,
+                    null,
+                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE),
+                    new InstrumentedManagedHttpConnectionFactory(
+                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
+            connectionManager.setDefaultSocketConfig(SocketConfig.custom()
+                    .setSoKeepAlive(true)
+                    // The default socket configuration socket timeout only applies prior to request execution.
+                    // By using a more specific timeout here, we bound the handshake in addition to the
+                    // socket.connect call.
+                    .setSoTimeout(handshakeTimeout)
+                    // Doesn't appear to do anything in this release
+                    .setSocksProxyAddress(socksProxyAddress)
+                    .build());
+            connectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
+            connectionManager.setMaxTotal(Integer.MAX_VALUE);
+            connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
 
             setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
 
@@ -559,6 +580,16 @@ public final class ApacheHttpClientChannels {
                     ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
             return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
         }
+    }
+
+    @Nullable
+    private static InetSocketAddress getSocksProxyAddress() {
+        String rawValue = System.getProperty("dialogue.experimental.socks5.proxy");
+        if (Strings.isNullOrEmpty(rawValue)) {
+            return null;
+        }
+        HostAndPort hostAndPort = HostAndPort.fromString(rawValue);
+        return InetSocketAddress.createUnresolved(hostAndPort.getHost(), hostAndPort.getPort());
     }
 
     private static Timeout getSocketTimeout(ClientConfiguration conf, String clientName) {
