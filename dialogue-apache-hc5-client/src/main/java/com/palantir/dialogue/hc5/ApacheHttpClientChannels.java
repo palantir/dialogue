@@ -19,6 +19,7 @@ import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
+import com.google.common.net.HostAndPort;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
@@ -41,6 +42,7 @@ import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.Closeable;
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.time.Duration;
@@ -48,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -493,6 +496,12 @@ public final class ApacheHttpClientChannels {
                             // By using a more specific timeout here, we bound the handshake in addition to the
                             // socket.connect call.
                             .setSoTimeout(handshakeTimeout)
+                            .setSocksProxyAddress(
+                                    Optional.ofNullable(System.getProperty("dialogue.experimental.socks5.proxy"))
+                                            .map(str -> HostAndPort.fromString(str))
+                                            .map(hostAndPort -> InetSocketAddress.createUnresolved(
+                                                    hostAndPort.getHost(), hostAndPort.getPort()))
+                                            .orElse(null))
                             .build())
                     .setMaxConnPerRoute(Integer.MAX_VALUE)
                     .setMaxConnTotal(Integer.MAX_VALUE)
