@@ -498,7 +498,7 @@ public final class ApacheHttpClientChannels {
                             .setSoTimeout(handshakeTimeout)
                             .setSocksProxyAddress(
                                     Optional.ofNullable(System.getProperty("dialogue.experimental.socks5.proxy"))
-                                            .map(str -> HostAndPort.fromString(str))
+                                            .map(HostAndPort::fromString)
                                             .map(hostAndPort -> InetSocketAddress.createUnresolved(
                                                     hostAndPort.getHost(), hostAndPort.getPort()))
                                             .orElse(null))
