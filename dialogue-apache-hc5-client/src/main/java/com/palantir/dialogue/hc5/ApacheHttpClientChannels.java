@@ -616,7 +616,7 @@ public final class ApacheHttpClientChannels {
     @VisibleForTesting
     static Timeout getHandshakeTimeout(Timeout connectTimeout, Timeout socketTimeout, String clientName) {
         if (connectTimeout.isEnabled()) {
-            // Use the connect timeout when values are sufficiently high, with a lower boundj
+            // Use the connect timeout when values are sufficiently high, with a lower bound
             if (connectTimeout.toMilliseconds() >= DEFAULT_HANDSHAKE_TIMEOUT.toMilliseconds()) {
                 return connectTimeout;
             }
