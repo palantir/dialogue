@@ -30,6 +30,18 @@ public enum TestEndpoint implements Endpoint {
         public HttpMethod httpMethod() {
             return HttpMethod.POST;
         }
+    },
+    PUT {
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.PUT;
+        }
+    },
+    DELETE {
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.DELETE;
+        }
     };
 
     @Override

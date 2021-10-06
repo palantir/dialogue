@@ -405,10 +405,9 @@ final class RetryingChannel implements EndpointChannel {
             case GET:
             case HEAD:
             case OPTIONS:
-                return true;
             case PUT:
             case DELETE:
-                // in theory PUT and DELETE should be fine to retry too, we're just being conservative for now.
+                return true;
             case POST:
             case PATCH:
                 return false;

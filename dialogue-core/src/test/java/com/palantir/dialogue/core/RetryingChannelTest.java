@@ -282,6 +282,46 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retries_500s_for_put() throws Exception {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.PUT,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(REQUEST);
+    }
+
+    @Test
+    public void retries_500s_for_delete() throws Exception {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(500)))
+                .thenReturn(Futures.immediateFuture(new TestResponse().code(200)));
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.DELETE,
+                "my-channel",
+                3,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get().code()).isEqualTo(200);
+        verify(channel, times(2)).execute(REQUEST);
+    }
+
+    @Test
     public void doesnt_retry_500s_for_post() throws Exception {
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(new TestResponse().code(500)));
 
