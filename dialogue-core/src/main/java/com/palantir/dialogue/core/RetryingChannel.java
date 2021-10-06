@@ -50,7 +50,6 @@ import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -74,7 +73,7 @@ final class RetryingChannel implements EndpointChannel {
      */
     @SuppressWarnings("deprecation") // Singleton registry for a singleton executor
     static final Supplier<ScheduledExecutorService> sharedScheduler =
-            Suppliers.memoize(() -> Executors.newSingleThreadScheduledExecutor(MetricRegistries.instrument(
+            Suppliers.memoize(() -> DialogueExecutors.newSharedSingleThreadScheduler(MetricRegistries.instrument(
                     SharedTaggedMetricRegistries.getSingleton(),
                     new ThreadFactoryBuilder()
                             .setNameFormat(SCHEDULER_NAME + "-%d")
