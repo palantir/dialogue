@@ -73,6 +73,7 @@ import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
+import org.apache.hc.client5.http.impl.auth.KerberosSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -568,12 +569,21 @@ public final class ApacheHttpClientChannels {
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(
                             RegistryBuilder.<AuthSchemeFactory>create().build());
-            conf.proxyCredentials().ifPresent(credentials -> builder.setDefaultCredentialsProvider(
-                            new SingleCredentialsProvider(credentials))
-                    .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
-                    .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
-                            .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
-                            .build()));
+            conf.proxyCredentials().ifPresent(credentials -> {
+                if (credentials.username().equals(StandardAuthScheme.KERBEROS)
+                        && credentials.password().equals(StandardAuthScheme.KERBEROS)) {
+                    builder.setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                            .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
+                                    .register(StandardAuthScheme.KERBEROS, KerberosSchemeFactory.DEFAULT)
+                                    .build());
+                } else {
+                    builder.setDefaultCredentialsProvider(new SingleCredentialsProvider(credentials))
+                            .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
+                            .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
+                                    .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
+                                    .build());
+                }
+            });
 
             CloseableHttpClient apacheClient = builder.build();
             ScheduledFuture<?> connectionEvictorFuture =
