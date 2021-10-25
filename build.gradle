@@ -40,6 +40,12 @@ plugins {
 apply plugin: 'com.palantir.external-publish'
 apply plugin: 'com.palantir.baseline'
 apply plugin: 'com.palantir.git-version'
+apply plugin: 'com.palantir.baseline-java-versions'
+
+javaVersions {
+    libraryTarget = 11
+    runtime = 15
+}
 
 version System.env.CIRCLE_TAG ?: gitVersion()
 
@@ -57,8 +63,6 @@ allprojects {
 subprojects {
     apply plugin: 'java-library'
     apply plugin: 'org.inferred.processors'
-
-    sourceCompatibility = 11
 
     tasks.withType(JavaCompile) {
         options.compilerArgs += ['-Werror']
