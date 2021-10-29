@@ -22,7 +22,7 @@ org.derive4j:* = 1.1.1
 org.glassfish.jersey.core:jersey-common = 2.31
 org.immutables:* = 2.8.8
 org.slf4j:* = 1.7.32
-com.palantir.goethe:* = 0.2.0
+com.palantir.goethe:* = 0.3.0
 com.github.ben-manes.caffeine:caffeine = 3.0.4
 
 # test deps
