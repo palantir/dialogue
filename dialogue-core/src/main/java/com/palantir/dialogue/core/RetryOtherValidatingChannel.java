@@ -33,6 +33,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.time.Duration;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -41,7 +42,7 @@ import javax.annotation.CheckForNull;
 final class RetryOtherValidatingChannel implements Channel {
 
     private static final SafeLogger log = SafeLoggerFactory.get(RetryOtherValidatingChannel.class);
-    private static final RateLimiter VALIDATION_FAILED_LOGGING_LIMITER = RateLimiter.create(1);
+    private static final RateLimiter VALIDATION_FAILED_LOGGING_LIMITER = RateLimiter.create(1, Duration.ZERO);
 
     private final Channel delegate;
     private final Set<String> hosts;

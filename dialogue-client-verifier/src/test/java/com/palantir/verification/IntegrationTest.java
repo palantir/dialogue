@@ -201,7 +201,7 @@ public class IntegrationTest {
     @Test
     public void concurrency_limiters_can_effectively_infer_server_side_ratelimits() throws Exception {
         int permitsPerSecond = 300;
-        RateLimiter rateLimiter = RateLimiter.create(permitsPerSecond);
+        RateLimiter rateLimiter = RateLimiter.create(permitsPerSecond, Duration.ZERO);
 
         undertowHandler = exchange -> {
             // These thread.sleep times are taken from a prod instance of internal-ski-product.
