@@ -163,7 +163,7 @@ public interface Channel {
 }
 ```
 
-For example, the [TraceEnrichingChannel](https://github.com/palantir/dialogue/blob/develop/dialogue-core/src/main/java/com/palantir/dialogue/core/TraceEnrichingChannel.java) just augments the request with a zipkin-style tracing headers and then calls a delegate.
+For example, the [TraceEnrichingChannel](dialogue-core/src/main/java/com/palantir/dialogue/core/TraceEnrichingChannel.java) just augments the request with a zipkin-style tracing headers and then calls a delegate.
 
 _This API is influenced by gRPC's [Java library](https://github.com/grpc/grpc-java), which has a similar [Channel](https://github.com/grpc/grpc-java/blob/master/api/src/main/java/io/grpc/Channel.java) concept._
 
