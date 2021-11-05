@@ -20,7 +20,6 @@ import com.google.common.util.concurrent.RateLimiter;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
-import java.time.Duration;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,7 +49,7 @@ final class InactivityValidationAwareConnectionKeepAliveStrategy implements Conn
     private final PoolingHttpClientConnectionManager connectionManager;
     private final String clientName;
     private final TimeValue defaultValidateAfterInactivity;
-    private final RateLimiter loggingRateLimiter = RateLimiter.create(2, Duration.ZERO);
+    private final RateLimiter loggingRateLimiter = RateLimiter.create(2);
     /**
      * This field is used for observability. It's possible, though unlikely, that the value can get out of sync
      * with the connection manager in some scenarios.

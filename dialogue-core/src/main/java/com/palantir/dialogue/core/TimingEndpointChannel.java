@@ -31,13 +31,12 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.concurrent.TimeUnit;
 
 final class TimingEndpointChannel implements EndpointChannel {
 
     private static final SafeLogger log = SafeLoggerFactory.get(TimingEndpointChannel.class);
-    private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1, Duration.ZERO);
+    private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1);
 
     private final EndpointChannel delegate;
     private final Timer successTimer;
