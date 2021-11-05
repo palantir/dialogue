@@ -27,10 +27,10 @@ import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
 import com.palantir.tracing.TagTranslator;
-import com.palantir.tracing.TraceMetadata;
 import com.palantir.tracing.Tracer;
+import com.palantir.tracing.Tracers;
+import com.palantir.tracing.TracingHeadersEnrichingFunction;
 import com.palantir.tracing.api.SpanType;
-import com.palantir.tracing.api.TraceHttpHeaders;
 
 /** A channel that adds Zipkin compatible tracing headers. */
 final class TraceEnrichingChannel implements Channel {
@@ -76,19 +76,22 @@ final class TraceEnrichingChannel implements Channel {
     }
 
     private ListenableFuture<Response> executeInternal(Endpoint endpoint, Request request) {
-        TraceMetadata metadata = Tracer.maybeGetTraceMetadata().get();
-        return delegate.execute(
-                endpoint,
-                Request.builder()
-                        .from(request)
-                        .putHeaderParams(TraceHttpHeaders.TRACE_ID, metadata.getTraceId())
-                        .putHeaderParams(TraceHttpHeaders.SPAN_ID, metadata.getSpanId())
-                        .putHeaderParams(TraceHttpHeaders.IS_SAMPLED, Tracer.isTraceObservable() ? "1" : "0")
-                        .build());
+        Request.Builder requestBuilder = Request.builder().from(request);
+        Tracers.addTracingHeaders(requestBuilder, RequestTracingHeadersEnrichingFunction.INSTANCE);
+        return delegate.execute(endpoint, requestBuilder.build());
     }
 
     @Override
     public String toString() {
         return "TracedRequestChannel{" + delegate + '}';
+    }
+
+    private enum RequestTracingHeadersEnrichingFunction implements TracingHeadersEnrichingFunction<Request.Builder> {
+        INSTANCE;
+
+        @Override
+        public void addHeader(String headerName, String headerValue, Request.Builder state) {
+            state.putHeaderParams(headerName, headerValue);
+        }
     }
 }
