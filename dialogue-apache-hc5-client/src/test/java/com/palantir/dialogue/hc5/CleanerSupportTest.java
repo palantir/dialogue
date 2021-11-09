@@ -40,7 +40,7 @@ class CleanerSupportTest {
     private static void attemptToGarbageCollect() {
         // Create some garbage to entice the collector
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        while (baos.toString().length() < 4096) {
+        while (baos.toString(StandardCharsets.UTF_8).length() < 4096) {
             byte[] buf = "Hello, World!".getBytes(StandardCharsets.UTF_8);
             baos.write(buf, 0, buf.length);
         }
