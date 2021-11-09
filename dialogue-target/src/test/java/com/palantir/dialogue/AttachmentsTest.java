@@ -64,7 +64,7 @@ public final class AttachmentsTest {
         AttachmentKey<Long> key = null;
         assertThatLoggableExceptionThrownBy(() -> attachments.put(key, 1L))
                 .isExactlyInstanceOf(SafeNullPointerException.class)
-                .hasExactlyArgs()
+                .hasNoArgs()
                 .hasMessage("key");
     }
 
@@ -72,7 +72,7 @@ public final class AttachmentsTest {
     public void testCannotPutNullValue() {
         assertThatLoggableExceptionThrownBy(() -> attachments.put(KEY1, null))
                 .isExactlyInstanceOf(SafeNullPointerException.class)
-                .hasExactlyArgs()
+                .hasNoArgs()
                 .hasMessage("value");
     }
 
