@@ -1,0 +1,7 @@
+type: fix
+fix:
+  description: Downgrade httpcomponents-client while debugging a connection pool leak
+    described in [HTTPCLIENT-2184](https://issues.apache.org/jira/browse/HTTPCLIENT-2184).
+  links:
+  - https://github.com/palantir/dialogue/pull/1471
+  - https://issues.apache.org/jira/browse/HTTPCLIENT-2184
