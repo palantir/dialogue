@@ -39,6 +39,7 @@ import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
 import org.immutables.value.Value;
 
@@ -193,7 +194,14 @@ final class ChannelCache {
         return "ChannelCache{"
                 + "instanceNumber=" + instanceNumber
                 + ", apacheCache.size=" + apacheCache.size()
+                // Channel names are safe-loggable
+                + ", apacheCache=" + apacheCache.keySet()
                 + ", channelCache.size=" + channelCache.estimatedSize() + "/" + MAX_CACHED_CHANNELS
+                + ", channelCache="
+                // Channel names are safe-loggable
+                + channelCache.asMap().keySet().stream()
+                        .map(ChannelCacheKey::channelName)
+                        .collect(Collectors.joining(", ", "[", "]"))
                 + '}';
     }
 
