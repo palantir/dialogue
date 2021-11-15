@@ -17,8 +17,10 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
+import com.google.common.net.HostAndPort;
 import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
@@ -582,6 +584,16 @@ public final class ApacheHttpClientChannels {
     }
 
     @Nullable
+    private static InetSocketAddress getSocksProxyAddress() {
+        String rawValue = System.getProperty("dialogue.experimental.socks5.proxy");
+        if (Strings.isNullOrEmpty(rawValue)) {
+            return null;
+        }
+        HostAndPort hostAndPort = HostAndPort.fromString(rawValue);
+        return InetSocketAddress.createUnresolved(hostAndPort.getHost(), hostAndPort.getPort());
+    }
+
+    @Nullable
     private static InetSocketAddress getSocksProxyAddress(ClientConfiguration clientConfiguration) {
         // This is a roundabout way to extract proxy information. SOCKS proxies are configured at
         // a different stage from HTTP proxies, so we must search for any socks proxy that the
@@ -596,7 +608,7 @@ public final class ApacheHttpClientChannels {
                     .filter(InetSocketAddress.class::isInstance)
                     .map(InetSocketAddress.class::cast)
                     .findFirst()
-                    .orElse(null);
+                    .orElseGet(ApacheHttpClientChannels::getSocksProxyAddress);
             if (address != null) {
                 log.debug("Found SOCKS proxy address", UnsafeArg.of("address", address));
             } else {
