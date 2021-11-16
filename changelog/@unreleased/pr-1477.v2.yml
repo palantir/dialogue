@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Upgrade httpclient5 to 5.1.2 including HTTPCLIENT-2184 fix
+  links:
+  - https://github.com/palantir/dialogue/pull/1477
