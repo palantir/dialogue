@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Failing to find a SOCKS proxy address no longer logs at an error level.
+  links:
+  - https://github.com/palantir/dialogue/pull/1480
