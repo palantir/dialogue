@@ -616,7 +616,7 @@ public final class ApacheHttpClientChannels {
             }
             return address;
         } catch (RuntimeException e) {
-            log.error("Failed to find a SOCKS proxy", e);
+            log.debug("Failed to find a SOCKS proxy", e);
             return null;
         }
     }
