@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: LeakDetector retains the creation-point traceId to ease the process
+    of debugging resource leaks
+  links:
+  - https://github.com/palantir/dialogue/pull/1482
