@@ -483,7 +483,7 @@ public final class ApacheHttpClientChannels {
             SSLConnectionSocketFactory sslSocketFactory =
                     new SSLConnectionSocketFactory(
                             MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
-                            TlsProtocols.enabledFor(name),
+                            TlsProtocols.get(),
                             supportedCipherSuites(
                                     conf.enableGcmCipherSuites()
                                             ? CipherSuites.allCipherSuites()
