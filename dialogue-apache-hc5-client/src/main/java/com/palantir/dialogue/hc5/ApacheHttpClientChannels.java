@@ -602,7 +602,7 @@ public final class ApacheHttpClientChannels {
         // Ideally we could pass along the original ServiceConfigurationBlock (if it exists) which
         // provides a more precise description of this data.
         try {
-            InetSocketAddress address = clientConfiguration.proxy().select(URI.create("127.0.0.1")).stream()
+            InetSocketAddress address = clientConfiguration.proxy().select(URI.create("https://127.0.0.1")).stream()
                     .filter(proxy -> proxy.type() == Proxy.Type.SOCKS)
                     .map(Proxy::address)
                     .filter(InetSocketAddress.class::isInstance)
