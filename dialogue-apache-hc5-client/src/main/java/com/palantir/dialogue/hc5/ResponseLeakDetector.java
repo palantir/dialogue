@@ -24,6 +24,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.tracing.Tracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -71,6 +72,9 @@ final class ResponseLeakDetector {
         private final DialogueClientMetrics metrics;
 
         @Nullable
+        private final String creationTraceId;
+
+        @Nullable
         private final Throwable creationTrace;
 
         private boolean armed = true;
@@ -80,6 +84,7 @@ final class ResponseLeakDetector {
             this.endpoint = endpoint;
             this.clientName = clientName;
             this.metrics = metrics;
+            this.creationTraceId = Tracer.hasTraceId() ? Tracer.getTraceId() : null;
             this.creationTrace = log.isTraceEnabled() ? new SafeRuntimeException("created here") : null;
         }
 
@@ -98,17 +103,19 @@ final class ResponseLeakDetector {
                         .mark();
                 if (creationTrace == null) {
                     log.warn(
-                            "Detected a leaked response from service {} endpoint {} on channel {}. Enable trace "
-                                    + "logging to record stack traces.",
-                            SafeArg.of("service", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()),
-                            SafeArg.of("client", clientName));
-                } else {
-                    log.warn(
-                            "Detected a leaked response from service {} endpoint {} on channel {}",
+                            "Detected a leaked response from service {} endpoint {} on channel {} with traceId {}. "
+                                    + "Enable trace logging to record stack traces.",
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName()),
                             SafeArg.of("client", clientName),
+                            SafeArg.of("creationTraceId", creationTraceId));
+                } else {
+                    log.warn(
+                            "Detected a leaked response from service {} endpoint {} on channel {} with traceId {}",
+                            SafeArg.of("service", endpoint.serviceName()),
+                            SafeArg.of("endpoint", endpoint.endpointName()),
+                            SafeArg.of("client", clientName),
+                            SafeArg.of("creationTraceId", creationTraceId),
                             creationTrace);
                 }
                 response.close();
