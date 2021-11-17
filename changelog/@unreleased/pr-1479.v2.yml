@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix SOCKS detection error logging
+  links:
+  - https://github.com/palantir/dialogue/pull/1479
