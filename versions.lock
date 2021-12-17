@@ -1,6 +1,6 @@
 # Run ./gradlew --write-locks to regenerate this file
-com.fasterxml.jackson:jackson-bom:2.12.5 (14 constraints: a5329b6e)
-com.fasterxml.jackson.core:jackson-annotations:2.12.5 (13 constraints: d8eca193)
+com.fasterxml.jackson:jackson-bom:2.12.5 (15 constraints: 39423ade)
+com.fasterxml.jackson.core:jackson-annotations:2.12.5 (13 constraints: dbec2194)
 com.fasterxml.jackson.core:jackson-core:2.12.5 (17 constraints: 3b5ba890)
 com.fasterxml.jackson.core:jackson-databind:2.12.5 (19 constraints: a377180e)
 com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:2.12.5 (6 constraints: f27e43b2)
@@ -29,7 +29,7 @@ com.palantir.conjure.java.runtime:conjure-java-jackson-serialization:7.22.0 (3 c
 com.palantir.conjure.java.runtime:keystores:7.22.0 (3 constraints: 7b295314)
 com.palantir.goethe:goethe:0.5.0 (6 constraints: 9a523e62)
 com.palantir.refreshable:refreshable:2.1.0 (6 constraints: 2a740fbb)
-com.palantir.ri:resource-identifier:2.1.0 (6 constraints: 2a740fbb)
+com.palantir.ri:resource-identifier:2.2.0 (6 constraints: 2b7446bc)
 com.palantir.safe-logging:logger:1.20.0 (15 constraints: 8b0260c3)
 com.palantir.safe-logging:logger-slf4j:1.20.0 (13 constraints: b2e819ba)
 com.palantir.safe-logging:logger-spi:1.20.0 (14 constraints: eff8ac98)
