@@ -21,7 +21,7 @@ import com.google.common.net.HttpHeaders;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 import javax.net.ssl.SSLSession;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.ClassicHttpRequest;
@@ -111,7 +111,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
             // the client. Theres's not a great way to measure the difference in that case
             // so values may not be recorded.
             if (serverNanos >= 0 && deltaNanos >= 0) {
-                serverTimingOverhead.update(deltaNanos, TimeUnit.NANOSECONDS);
+                serverTimingOverhead.update(Duration.ofNanos(deltaNanos));
             }
         }
     }

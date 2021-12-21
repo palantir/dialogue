@@ -25,7 +25,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
-import java.util.concurrent.TimeUnit;
+import java.time.Duration;
 
 final class BenchmarkTimingEndpointChannel implements EndpointChannel {
 
@@ -55,8 +55,8 @@ final class BenchmarkTimingEndpointChannel implements EndpointChannel {
         long beforeNanos = ticker.read();
         return DialogueFutures.addDirectListener(delegate.execute(request), () -> {
             long duration = ticker.read() - beforeNanos;
-            globalResponseTimer.update(duration, TimeUnit.NANOSECONDS);
-            perEndpointChannelTimer.update(duration, TimeUnit.NANOSECONDS);
+            globalResponseTimer.update(Duration.ofNanos(duration));
+            perEndpointChannelTimer.update(Duration.ofNanos(duration));
             simulation.metricsReporter().report();
         });
     }
