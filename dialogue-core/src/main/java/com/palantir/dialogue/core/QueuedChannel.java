@@ -36,11 +36,11 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
-import java.time.Duration;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import org.immutables.value.Value;
@@ -132,6 +132,7 @@ final class QueuedChannel implements Channel {
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @VisibleForTesting
+    @SuppressWarnings("PreferJavaTimeOverload")
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.
@@ -143,7 +144,7 @@ final class QueuedChannel implements Channel {
                 DialogueFutures.addDirectListener(result, this::onCompletion);
                 // While the queue was avoid, this is equivalent to spending zero time on the queue.
                 if (shouldRecordQueueMetrics) {
-                    queuedTime.update(Duration.ofNanos(0));
+                    queuedTime.update(0, TimeUnit.NANOSECONDS);
                 }
                 return maybeResult;
             }

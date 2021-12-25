@@ -21,7 +21,7 @@ import com.google.common.net.HttpHeaders;
 import java.io.IOException;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import javax.net.ssl.SSLSession;
 import org.apache.hc.client5.http.io.ManagedHttpClientConnection;
 import org.apache.hc.core5.http.ClassicHttpRequest;
@@ -100,6 +100,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
     // Report metrics describing the difference between client and server request time.
     // This wraps the client as closely to the wire as possible in order to account for every
     // millisecond we reasonably can.
+    @SuppressWarnings("PreferJavaTimeOverload")
     private void recordTimingDelta(ClassicHttpResponse httpClientResponse, long startTimeNanos) {
         Header serverTimingValue = httpClientResponse.getFirstHeader(HttpHeaders.SERVER_TIMING);
         if (serverTimingValue != null) {
@@ -111,7 +112,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
             // the client. Theres's not a great way to measure the difference in that case
             // so values may not be recorded.
             if (serverNanos >= 0 && deltaNanos >= 0) {
-                serverTimingOverhead.update(Duration.ofNanos(deltaNanos));
+                serverTimingOverhead.update(deltaNanos, TimeUnit.NANOSECONDS);
             }
         }
     }

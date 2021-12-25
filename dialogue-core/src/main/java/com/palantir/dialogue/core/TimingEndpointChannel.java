@@ -31,7 +31,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 final class TimingEndpointChannel implements EndpointChannel {
 
@@ -78,6 +78,7 @@ final class TimingEndpointChannel implements EndpointChannel {
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
+            @SuppressWarnings("PreferJavaTimeOverload")
             public void onSuccess(Response response) {
                 if (Responses.isSuccess(response)) {
                     updateTimer(successTimer);
@@ -101,7 +102,7 @@ final class TimingEndpointChannel implements EndpointChannel {
             }
 
             private void updateTimer(Timer timer) {
-                timer.update(Duration.ofNanos(ticker.read() - beforeNanos));
+                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
     }
