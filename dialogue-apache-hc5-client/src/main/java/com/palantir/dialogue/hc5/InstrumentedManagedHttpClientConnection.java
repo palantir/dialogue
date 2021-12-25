@@ -100,6 +100,7 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
     // Report metrics describing the difference between client and server request time.
     // This wraps the client as closely to the wire as possible in order to account for every
     // millisecond we reasonably can.
+    @SuppressWarnings("PreferJavaTimeOverload")
     private void recordTimingDelta(ClassicHttpResponse httpClientResponse, long startTimeNanos) {
         Header serverTimingValue = httpClientResponse.getFirstHeader(HttpHeaders.SERVER_TIMING);
         if (serverTimingValue != null) {

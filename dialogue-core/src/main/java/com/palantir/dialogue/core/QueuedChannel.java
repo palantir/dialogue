@@ -132,6 +132,7 @@ final class QueuedChannel implements Channel {
      * Enqueues and tries to schedule as many queued tasks as possible.
      */
     @VisibleForTesting
+    @SuppressWarnings("PreferJavaTimeOverload")
     Optional<ListenableFuture<Response>> maybeExecute(Endpoint endpoint, Request request) {
         // Optimistically avoid the queue in the fast path.
         // Queuing adds contention between threads and should be avoided unless we need to shed load.

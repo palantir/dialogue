@@ -78,6 +78,7 @@ final class TimingEndpointChannel implements EndpointChannel {
 
         return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
             @Override
+            @SuppressWarnings("PreferJavaTimeOverload")
             public void onSuccess(Response response) {
                 if (Responses.isSuccess(response)) {
                     updateTimer(successTimer);
