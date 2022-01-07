@@ -24,6 +24,7 @@ import com.google.common.collect.Multimaps;
 import com.palantir.logsafe.Preconditions;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -293,7 +294,7 @@ public final class Request {
         private ListMultimap<String, String> mutableQueryParams() {
             if (!isQueryMutable()) {
                 setQueryMutable();
-                queryParams = ArrayListMultimap.create(queryParams);
+                queryParams = Multimaps.newListMultimap(new LinkedHashMap<>(), MAP_VALUE_FACTORY);
             }
             return queryParams;
         }

@@ -20,8 +20,9 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
-import com.google.common.collect.ArrayListMultimap;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.net.InetAddresses;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
@@ -35,6 +36,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 /** Convenience utility around {@link UrlBuilder}. */
@@ -69,11 +71,14 @@ public final class BaseUrl {
         private static final Joiner PATH_JOINER = Joiner.on('/');
         private static final Joiner.MapJoiner QUERY_JOINER = Joiner.on('&').withKeyValueSeparator('=');
 
+        @SuppressWarnings("UnnecessaryLambda") // Avoid unnecessary allocation
+        private static final com.google.common.base.Supplier<List<String>> MAP_VALUE_FACTORY = () -> new ArrayList<>(1);
+
         private final String protocol;
         private final String host;
         private final int port;
-        private List<String> pathSegments = new ArrayList<>();
-        private Multimap<String, String> queryNamesAndValues = ArrayListMultimap.create();
+        private final List<String> pathSegments;
+        private final Multimap<String, String> queryNamesAndValues;
 
         static DefaultUrlBuilder from(URL baseUrl) {
             // Sanitize path syntax and strip all irrelevant URL components
@@ -99,6 +104,8 @@ public final class BaseUrl {
             this.protocol = url.getProtocol();
             this.host = url.getHost();
             this.port = url.getPort();
+            this.pathSegments = new ArrayList<>();
+            this.queryNamesAndValues = createQueryParameterMap();
             Preconditions.checkArgument(
                     port >= -1 && port <= 65535, "port must be in range [0, 65535] or default [-1]");
             String strippedBasePath = stripSlashes(url.getPath());
@@ -116,7 +123,12 @@ public final class BaseUrl {
             this.host = builder.host;
             this.port = builder.port;
             this.pathSegments = new ArrayList<>(builder.pathSegments);
-            this.queryNamesAndValues = ArrayListMultimap.create(builder.queryNamesAndValues);
+            this.queryNamesAndValues = createQueryParameterMap();
+            queryNamesAndValues.putAll(builder.queryNamesAndValues);
+        }
+
+        private static ListMultimap<String, String> createQueryParameterMap() {
+            return Multimaps.newListMultimap(new LinkedHashMap<>(), MAP_VALUE_FACTORY);
         }
 
         /**
