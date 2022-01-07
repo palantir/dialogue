@@ -101,6 +101,7 @@ final class TimingEndpointChannel implements EndpointChannel {
                 }
             }
 
+            @SuppressWarnings("PreferJavaTimeOverload") // performance sensitive
             private void updateTimer(Timer timer) {
                 timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
