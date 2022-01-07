@@ -19,8 +19,11 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.palantir.dialogue.Request;
+import com.palantir.dialogue.TestEndpoint;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 public final class UrlBuilderTest {
@@ -138,7 +141,7 @@ public final class UrlBuilderTest {
                         .queryParam("question", "answer")
                         .build()
                         .toString())
-                .isEqualTo("https://host:80/foo/bar?question=answer&boom=baz");
+                .isEqualTo("https://host:80/foo/bar?boom=baz&question=answer");
     }
 
     @Test
@@ -183,6 +186,60 @@ public final class UrlBuilderTest {
         BaseUrl.DefaultUrlBuilder copy = original.newBuilder();
         original.pathSegment("foo-new").queryParam("name-new", "value-new");
         assertThat(copy.build().toString()).isEqualTo("http://foo:42/foo?name=value");
+    }
+
+    @Test
+    public void testQueryParamOrder_urlBuilder() throws Exception {
+        String key1 = UUID.randomUUID().toString();
+        String value1 = UUID.randomUUID().toString();
+        String key2 = UUID.randomUUID().toString();
+        String value2 = UUID.randomUUID().toString();
+        String key3 = UUID.randomUUID().toString();
+        String value3 = UUID.randomUUID().toString();
+        String key4 = UUID.randomUUID().toString();
+        String value4 = UUID.randomUUID().toString();
+        String key5 = UUID.randomUUID().toString();
+        String value5 = UUID.randomUUID().toString();
+        String target = BaseUrl.DefaultUrlBuilder.from(new URL("http://foo:42"))
+                .pathSegment("bar")
+                .queryParam(key1, value1)
+                .queryParam(key2, value2)
+                .queryParam(key3, value3)
+                .queryParam(key4, value4)
+                .queryParam(key5, value5)
+                .build()
+                .toString();
+        assertThat(target)
+                .isEqualTo(String.format(
+                        "http://foo:42/bar?%s=%s&%s=%s&%s=%s&%s=%s&%s=%s",
+                        key1, value1, key2, value2, key3, value3, key4, value4, key5, value5));
+    }
+
+    @Test
+    public void testQueryParamOrder_requestRendering() throws Exception {
+        String key1 = UUID.randomUUID().toString();
+        String value1 = UUID.randomUUID().toString();
+        String key2 = UUID.randomUUID().toString();
+        String value2 = UUID.randomUUID().toString();
+        String key3 = UUID.randomUUID().toString();
+        String value3 = UUID.randomUUID().toString();
+        String key4 = UUID.randomUUID().toString();
+        String value4 = UUID.randomUUID().toString();
+        String key5 = UUID.randomUUID().toString();
+        String value5 = UUID.randomUUID().toString();
+        Request request = Request.builder()
+                .putQueryParams(key1, value1)
+                .putQueryParams(key2, value2)
+                .putQueryParams(key3, value3)
+                .putQueryParams(key4, value4)
+                .putQueryParams(key5, value5)
+                .build();
+        BaseUrl baseUrl = BaseUrl.of(new URL("http://foo:42/bar"));
+        String target = baseUrl.render(TestEndpoint.GET, request).toString();
+        assertThat(target)
+                .isEqualTo(String.format(
+                        "http://foo:42/bar?%s=%s&%s=%s&%s=%s&%s=%s&%s=%s",
+                        key1, value1, key2, value2, key3, value3, key4, value4, key5, value5));
     }
 
     private static BaseUrl.DefaultUrlBuilder minimalUrl() throws MalformedURLException {
