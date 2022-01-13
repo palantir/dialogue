@@ -60,7 +60,7 @@ org.glassfish.jersey.core:jersey-common:2.34 (9 constraints: 369e7acd)
 org.hdrhistogram:HdrHistogram:2.1.12 (9 constraints: 90ae9877)
 org.immutables:value:2.8.8 (13 constraints: 0cde36cd)
 org.mpierce.metrics.reservoir:hdrhistogram-metrics-reservoir:1.1.3 (9 constraints: d7aca085)
-org.slf4j:slf4j-api:1.7.32 (17 constraints: fa2c837d)
+org.slf4j:slf4j-api:1.7.33 (17 constraints: fa2c837d)
 
 [Test dependencies]
 com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:2.12.5 (3 constraints: 1124abd4)
