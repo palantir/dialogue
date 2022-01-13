@@ -42,6 +42,7 @@ import javax.lang.model.type.TypeMirror;
 
 public final class ArgumentTypesResolver {
 
+    @SuppressWarnings("DangerousIdentityKey")
     @VisibleForTesting
     static final ImmutableMap<TypeName, String> PARAMETER_SERIALIZER_TYPES =
             ImmutableMap.copyOf(KeyedStream.stream(new ImmutableMap.Builder<Class<?>, String>()

@@ -24,6 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.Nullable;
 
 final class Attachments {
+    @SuppressWarnings("DangerousIdentityKey")
     private final Map<AttachmentKey<?>, Object> attachments = new ConcurrentHashMap<>(0);
 
     private Attachments() {}
