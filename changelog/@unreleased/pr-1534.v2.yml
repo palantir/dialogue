@@ -1,0 +1,14 @@
+type: fix
+fix:
+  description: |-
+    Fix Sticky2 early queued response handling.
+
+    Previously the initial response future was mishandled in a way
+    that caused cancellation to 'leak' between queued futures, this
+    meant that pending responses could be dropped on the floor rather
+    than being deserialized as expected.
+    Secondly, this fixes an issue in which certain sticky2 requests
+    could be retried in error if they fail with an exception after the
+    initial request completed with a valid response.
+  links:
+  - https://github.com/palantir/dialogue/pull/1534
