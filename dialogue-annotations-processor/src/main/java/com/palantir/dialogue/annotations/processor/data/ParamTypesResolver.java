@@ -17,6 +17,7 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.auto.common.MoreElements;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.dialogue.RequestBody;
@@ -42,7 +43,7 @@ import javax.lang.model.type.TypeMirror;
 
 public final class ParamTypesResolver {
 
-    private static final ImmutableSet<Class<?>> PARAM_ANNOTATION_CLASSES = ImmutableSet.of(
+    private static final ImmutableList<Class<?>> PARAM_ANNOTATION_CLASSES = ImmutableList.of(
             Request.Body.class,
             Request.PathParam.class,
             Request.QueryParam.class,
