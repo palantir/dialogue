@@ -26,6 +26,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -195,7 +196,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     successfulCall(response);
                 } catch (Throwable t) {
                     response.close();
-                    throw new IllegalStateException("Failed to update state with successful call", t);
+                    throw new SafeIllegalStateException("Failed to update state with successful call", t);
                 }
                 return response;
             }
