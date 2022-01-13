@@ -26,6 +26,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -159,11 +160,29 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     result = DialogueFutures.transform(
                             executeWithStickyToken(request, endpointChannel), successTransformer);
                     result = DialogueFutures.catchingAllAsync(result, failureTransformer);
-                    callInFlight = Futures.nonCancellationPropagating(result);
+                    callInFlight = result;
                 } else {
-                    result = callInFlightSnapshot;
-                    result = DialogueFutures.transformAsync(result, _input -> execute(request, endpointChannel));
-                    result = DialogueFutures.catchingAllAsync(result, _throwable -> execute(request, endpointChannel));
+                    // Each subsequent (parallel) call may be independently cancelled, that cancellation
+                    // must not leak to other pending calls.
+                    result = Futures.nonCancellationPropagating(callInFlightSnapshot);
+                    // State must be tracked to prevent duplicate requests when the original in-flight request
+                    // completes, triggering waiting requests, which may fail via an exception and get
+                    // unintentionally retried by 'catchingAllAsync'.
+                    AtomicBoolean handled = new AtomicBoolean();
+                    result = DialogueFutures.transformAsync(result, response -> {
+                        if (!handled.getAndSet(true)) {
+                            return execute(request, endpointChannel);
+                        } else {
+                            return Futures.immediateFuture(response);
+                        }
+                    });
+                    result = DialogueFutures.catchingAllAsync(result, throwable -> {
+                        if (!handled.getAndSet(true)) {
+                            return execute(request, endpointChannel);
+                        } else {
+                            return Futures.immediateFailedFuture(throwable);
+                        }
+                    });
                 }
                 return result;
             }
@@ -172,7 +191,12 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
         private final class InFlightCallSuccessTransformer implements Function<Response, Response> {
             @Override
             public Response apply(Response response) {
-                successfulCall(response);
+                try {
+                    successfulCall(response);
+                } catch (Throwable t) {
+                    response.close();
+                    throw new IllegalStateException("Failed to update state with successful call", t);
+                }
                 return response;
             }
         }

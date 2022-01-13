@@ -40,6 +40,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import org.junit.jupiter.api.BeforeEach;
@@ -145,6 +146,41 @@ public final class StickyEndpointChannels2Test {
         request1.assertNotDone();
     }
 
+    @Test
+    public void cancel_queued_request_does_not_cancel_second_queued() {
+        Channel channel = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        TestHarness request2 = new TestHarness(channel).execute().assertNotDone();
+
+        TestHarness request3 = new TestHarness(channel).execute().assertNotDone();
+
+        request2.cancelResponse().assertDoneCancelled();
+
+        request1.assertNotDone();
+
+        request3.assertNotDone();
+    }
+
+    @Test
+    public void queued_request_only_attempted_once() {
+        Channel channel = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        TestHarness request2 = new TestHarness(channel)
+                .expectStickyRequest(request1, 1)
+                .execute()
+                .assertNotDone();
+
+        request1.setResponse();
+        request2.setException();
+        request2.assertDoneFailed();
+    }
+
     private final class TestHarness {
         Channel channel;
         Request request = Request.builder().build();
@@ -174,10 +210,12 @@ public final class StickyEndpointChannels2Test {
             return this;
         }
 
-        TestHarness expectStickyRequest(TestHarness responseTestHarness) {
+        TestHarness expectStickyRequest(TestHarness responseTestHarness, int maxTimes) {
+            AtomicInteger count = new AtomicInteger();
             when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
                 Request actualRequest = invocation.getArgument(0);
                 assertThat(actualRequest).isEqualTo(request);
+                assertThat(count.incrementAndGet()).isLessThanOrEqualTo(maxTimes);
                 assertThat(responseTestHarness.responseListenableFuture).isDone();
                 assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
                                 .attachments()
@@ -185,6 +223,11 @@ public final class StickyEndpointChannels2Test {
                         .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
                 return responseSettableFuture;
             });
+            return this;
+        }
+
+        TestHarness expectStickyRequest(TestHarness responseTestHarness) {
+            expectStickyRequest(responseTestHarness, 1);
             return this;
         }
 
