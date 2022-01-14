@@ -29,6 +29,11 @@ public interface BinaryRequestBody extends Closeable {
     /** Invoked to write data to the request stream. */
     void write(OutputStream requestBody) throws IOException;
 
+    /** Returns <pre>true</pre> if {@link #write(OutputStream)} may be invoked multiple times. */
+    default boolean repeatable() {
+        return false;
+    }
+
     /** This method may be overridden to return resources. */
     @Override
     default void close() throws IOException {
@@ -45,6 +50,12 @@ public interface BinaryRequestBody extends Closeable {
                 Preconditions.checkState(!invoked, "Write has already been called");
                 invoked = true;
                 ByteStreams.copy(inputStream, requestBody);
+            }
+
+            @Override
+            public boolean repeatable() {
+                // The stream is exhausted as it is read, thus this is not repeatable.
+                return false;
             }
 
             @Override
