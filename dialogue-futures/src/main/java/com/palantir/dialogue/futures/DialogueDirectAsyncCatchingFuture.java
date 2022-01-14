@@ -40,16 +40,22 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>,
     private final ListenableFuture<T> output;
 
     DialogueDirectAsyncCatchingFuture(ListenableFuture<T> input, AsyncFunction<? super Throwable, T> function) {
+        this(input, function, _ignored -> Futures.immediateCancelledFuture());
+    }
+
+    DialogueDirectAsyncCatchingFuture(
+            ListenableFuture<T> input,
+            AsyncFunction<? super Throwable, T> function,
+            AsyncFunction<? super Throwable, T> onCancellationFunction) {
         this.currentFuture = input;
         this.output = Futures.catchingAsync(
                 input,
                 Throwable.class,
                 throwable -> {
                     // throwable may be a CancellationException
-                    if (input.isCancelled()) {
-                        return Futures.immediateCancelledFuture();
-                    }
-                    ListenableFuture<T> future = function.apply(throwable);
+                    AsyncFunction<? super Throwable, T> selectedFunction =
+                            input.isCancelled() ? onCancellationFunction : function;
+                    ListenableFuture<T> future = selectedFunction.apply(throwable);
                     currentFuture = future;
                     return future;
                 },
@@ -70,8 +76,7 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>,
 
     @Override
     public boolean isCancelled() {
-        ListenableFuture<?> snapshot = currentFuture;
-        return snapshot.isCancelled();
+        return output.isCancelled();
     }
 
     @Override

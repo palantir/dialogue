@@ -24,8 +24,11 @@ import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 import java.util.concurrent.CancellationException;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import org.junit.jupiter.api.Test;
@@ -265,6 +268,105 @@ class DialogueFuturesTest {
         DialogueFutures.addDirectListener(future, listener);
         future.set("value");
         assertThat(invocations).hasValue(2);
+    }
+
+    @Test
+    void testTransformAsyncCancelWhileSettingFuture() throws Exception {
+        CountDownLatch transformationEnteredLatch = new CountDownLatch(1);
+        CountDownLatch transformationCompletionLatch = new CountDownLatch(1);
+
+        SettableFuture<String> input = SettableFuture.create();
+        ListenableFuture<Integer> output = DialogueFutures.transformAsync(input, result -> {
+            transformationEnteredLatch.countDown();
+            transformationCompletionLatch.await();
+            return Futures.immediateFuture(result.length());
+        });
+        Thread thread = new Thread(() -> input.set(""));
+        thread.start();
+        transformationEnteredLatch.await();
+        assertThat(output.cancel(true)).isFalse();
+        assertThat(output.isDone()).isFalse();
+
+        transformationCompletionLatch.countDown();
+
+        assertThat(output.get(1, TimeUnit.SECONDS)).isEqualTo(0);
+        thread.join();
+    }
+
+    @Test
+    void testCatchAllAsyncCancelWhileSettingFuture() throws Exception {
+        CountDownLatch transformationEnteredLatch = new CountDownLatch(1);
+        CountDownLatch transformationCompletionLatch = new CountDownLatch(1);
+
+        SettableFuture<String> input = SettableFuture.create();
+        ListenableFuture<String> output = DialogueFutures.catchingAllAsync(input, _result -> {
+            transformationEnteredLatch.countDown();
+            transformationCompletionLatch.await();
+            return Futures.immediateFuture("value");
+        });
+        Thread thread = new Thread(() -> input.setException(new RuntimeException()));
+        thread.start();
+        transformationEnteredLatch.await();
+        assertThat(output.cancel(true)).isFalse();
+        assertThat(output.isCancelled()).isFalse();
+        assertThat(output.isDone()).isFalse();
+
+        transformationCompletionLatch.countDown();
+
+        assertThat(output.get(1, TimeUnit.SECONDS)).isEqualTo("value");
+        thread.join();
+    }
+
+    @Test
+    void testCatchCancelAsyncCancelWhileSettingFuture() throws Exception {
+        CountDownLatch transformationEnteredLatch = new CountDownLatch(1);
+        CountDownLatch transformationCompletionLatch = new CountDownLatch(1);
+
+        SettableFuture<String> input = SettableFuture.create();
+        ListenableFuture<String> output = DialogueFutures.catchingAllAsync(
+                input, _ignored -> Futures.immediateFailedFuture(new RuntimeException()), _ignored2 -> {
+                    transformationEnteredLatch.countDown();
+                    Uninterruptibles.awaitUninterruptibly(transformationCompletionLatch);
+                    return Futures.immediateFuture("value");
+                });
+        Thread thread = new Thread(() -> input.cancel(true));
+        thread.start();
+        transformationEnteredLatch.await();
+        assertThat(output.cancel(true)).isFalse();
+        assertThat(output.isCancelled()).isFalse();
+        assertThat(output.isDone()).isFalse();
+
+        transformationCompletionLatch.countDown();
+
+        assertThat(output.get(1, TimeUnit.SECONDS)).isEqualTo("value");
+        thread.join();
+    }
+
+    @Test
+    void testCatchCancelAsyncCancelWhileSettingFuture_cancel() throws Exception {
+        CountDownLatch transformationEnteredLatch = new CountDownLatch(1);
+        CountDownLatch transformationCompletionLatch = new CountDownLatch(1);
+
+        SettableFuture<String> input = SettableFuture.create();
+        ListenableFuture<String> output = DialogueFutures.catchingAllAsync(
+                input, _ignored -> Futures.immediateFailedFuture(new RuntimeException()), _ignored2 -> {
+                    transformationEnteredLatch.countDown();
+                    Uninterruptibles.awaitUninterruptibly(transformationCompletionLatch);
+                    return Futures.immediateCancelledFuture();
+                });
+        Thread thread = new Thread(() -> input.cancel(true));
+        thread.start();
+        transformationEnteredLatch.await();
+        assertThat(output.cancel(true)).isFalse();
+        assertThat(output.isCancelled()).isFalse();
+        assertThat(output.isDone()).isFalse();
+
+        transformationCompletionLatch.countDown();
+
+        assertThatThrownBy(output::get).isInstanceOf(CancellationException.class);
+        assertThat(output.isCancelled()).isTrue();
+        assertThat(output.isDone()).isTrue();
+        thread.join();
     }
 
     public enum Transformer {

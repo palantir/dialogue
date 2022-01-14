@@ -17,8 +17,10 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.AsyncFunction;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -27,7 +29,6 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -134,6 +135,10 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
         private final InFlightCallSuccessTransformer successTransformer = new InFlightCallSuccessTransformer();
         private final InFlightCallFailureTransformer failureTransformer = new InFlightCallFailureTransformer();
+        private final AsyncFunction<Throwable, Response> cancellationTransformer = _input -> {
+            failed();
+            return Futures.immediateCancelledFuture();
+        };
 
         @Nullable
         private volatile Consumer<Request> stickyTarget;
@@ -160,30 +165,35 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     // the first call.
                     result = DialogueFutures.transform(
                             executeWithStickyToken(request, endpointChannel), successTransformer);
-                    result = DialogueFutures.catchingAllAsync(result, failureTransformer);
+                    result = DialogueFutures.catchingAllAsync(result, failureTransformer, cancellationTransformer);
                     callInFlight = result;
                 } else {
                     // Each subsequent (parallel) call may be independently cancelled, that cancellation
                     // must not leak to other pending calls.
-                    result = Futures.nonCancellationPropagating(callInFlightSnapshot);
-                    // State must be tracked to prevent duplicate requests when the original in-flight request
-                    // completes, triggering waiting requests, which may fail via an exception and get
-                    // unintentionally retried by 'catchingAllAsync'.
-                    AtomicBoolean handled = new AtomicBoolean();
-                    result = DialogueFutures.transformAsync(result, response -> {
-                        if (!handled.getAndSet(true)) {
-                            return execute(request, endpointChannel);
-                        } else {
-                            return Futures.immediateFuture(response);
-                        }
+                    SettableFuture<Response> response = SettableFuture.create();
+                    DialogueFutures.addDirectListener(callInFlightSnapshot, () -> {
+                        ListenableFuture<Response> queuedRequestResponse = execute(request, endpointChannel);
+                        DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
+                            @Override
+                            public void onSuccess(Response result) {
+                                if (!response.set(result)) {
+                                    result.close();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                response.setException(throwable);
+                            }
+                        });
+                        // If the returned future is cancelled, this request should be as well.
+                        DialogueFutures.addDirectListener(response, () -> {
+                            if (queuedRequestResponse.isCancelled()) {
+                                queuedRequestResponse.cancel(false);
+                            }
+                        });
                     });
-                    result = DialogueFutures.catchingAllAsync(result, throwable -> {
-                        if (!handled.getAndSet(true)) {
-                            return execute(request, endpointChannel);
-                        } else {
-                            return Futures.immediateFailedFuture(throwable);
-                        }
-                    });
+                    return response;
                 }
                 return result;
             }

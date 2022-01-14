@@ -181,6 +181,21 @@ public final class StickyEndpointChannels2Test {
         request2.assertDoneFailed();
     }
 
+    @Test
+    public void cancel_in_flight_request_does_not_cancel_queued() {
+        Channel channel = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        TestHarness request2 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        request1.cancelResponse().assertDoneCancelled();
+
+        request2.assertNotDone();
+    }
+
     private final class TestHarness {
         Channel channel;
         Request request = Request.builder().build();
