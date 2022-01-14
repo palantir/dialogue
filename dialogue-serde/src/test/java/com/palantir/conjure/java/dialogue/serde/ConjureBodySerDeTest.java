@@ -27,6 +27,7 @@ import com.palantir.conjure.java.api.errors.ErrorType;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.ServiceException;
+import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.TestResponse;
@@ -35,6 +36,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -244,6 +246,43 @@ public class ConjureBodySerDeTest {
         BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
         List result = serde.deserializer(new TypeMarker<List>() {}).deserialize(new TestResponse().code(204));
         assertThat(result).isEmpty();
+    }
+
+    @Test
+    public void testRepeatableBinaryRequestBodyProducesRepeatableRequest() {
+        BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+        RequestBody requestBody = serde.serialize(new BinaryRequestBody() {
+            @Override
+            public void write(OutputStream _requestBody) {}
+
+            @Override
+            public boolean repeatable() {
+                return true;
+            }
+        });
+        assertThat(requestBody.repeatable()).isTrue();
+    }
+
+    @Test
+    public void testNonRepeatableBinaryRequestBodyProducesNonRepeatableRequest() {
+        BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+        RequestBody requestBody = serde.serialize(new BinaryRequestBody() {
+            @Override
+            public void write(OutputStream _requestBody) {}
+
+            @Override
+            public boolean repeatable() {
+                return false;
+            }
+        });
+        assertThat(requestBody.repeatable()).isFalse();
+    }
+
+    @Test
+    public void testDefaultBinaryRequestBodyProducesNonRepeatableRequestBody() {
+        BodySerDe serde = DefaultConjureRuntime.builder().build().bodySerDe();
+        RequestBody requestBody = serde.serialize(_requestBody -> {});
+        assertThat(requestBody.repeatable()).isFalse();
     }
 
     /** Deserializes requests as the configured content type. */

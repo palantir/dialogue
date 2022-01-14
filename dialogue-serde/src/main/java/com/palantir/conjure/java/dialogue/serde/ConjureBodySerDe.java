@@ -141,9 +141,7 @@ final class ConjureBodySerDe implements BodySerDe {
 
             @Override
             public boolean repeatable() {
-                // BinaryRequestBody values are not currently repeatable. If a need arises we may
-                // consider adding a 'boolean repeatable()' default method.
-                return false;
+                return value.repeatable();
             }
 
             @Override
