@@ -16,9 +16,7 @@
 
 package com.palantir.dialogue.core;
 
-import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.FutureCallback;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
 import com.palantir.dialogue.Channel;
@@ -28,9 +26,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -133,11 +129,16 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
     @ThreadSafe
     private static final class StickyRouter {
 
-        private final InFlightCallSuccessTransformer successTransformer = new InFlightCallSuccessTransformer();
-        private final InFlightCallFailureTransformer failureTransformer = new InFlightCallFailureTransformer();
-        private final AsyncFunction<Throwable, Response> cancellationTransformer = _input -> {
-            failed();
-            return Futures.immediateCancelledFuture();
+        private final FutureCallback<Response> initialRequestCallback = new FutureCallback<>() {
+            @Override
+            public void onSuccess(Response response) {
+                successfulCall(response);
+            }
+
+            @Override
+            public void onFailure(Throwable _throwable) {
+                failed();
+            }
         };
 
         @Nullable
@@ -158,65 +159,43 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                 }
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
-                ListenableFuture<Response> result;
                 if (callInFlightSnapshot == null) {
-                    // Cannot use DialogueFutures#addDirectCallback because we want ordering of listeners:
-                    // we want the success/failure callbacks to run BEFORE the queued requests inspect the result of
-                    // the first call.
-                    result = DialogueFutures.transform(
-                            executeWithStickyToken(request, endpointChannel), successTransformer);
-                    result = DialogueFutures.catchingAllAsync(result, failureTransformer, cancellationTransformer);
+                    ListenableFuture<Response> result = executeWithStickyToken(request, endpointChannel);
+                    // callInFlight must be updated prior to adding the callback, otherwise a quick completion
+                    // may unset 'callInFlight' before it has been set in the first place!
                     callInFlight = result;
+                    DialogueFutures.addDirectCallback(result, initialRequestCallback);
+                    return result;
                 } else {
                     // Each subsequent (parallel) call may be independently cancelled, that cancellation
                     // must not leak to other pending calls.
-                    SettableFuture<Response> response = SettableFuture.create();
+                    SettableFuture<Response> result = SettableFuture.create();
                     DialogueFutures.addDirectListener(callInFlightSnapshot, () -> {
-                        ListenableFuture<Response> queuedRequestResponse = execute(request, endpointChannel);
-                        DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
-                            @Override
-                            public void onSuccess(Response result) {
-                                if (!response.set(result)) {
-                                    result.close();
+                        if (!result.isDone()) {
+                            ListenableFuture<Response> queuedRequestResponse = execute(request, endpointChannel);
+                            DialogueFutures.addDirectCallback(queuedRequestResponse, new FutureCallback<>() {
+                                @Override
+                                public void onSuccess(Response response) {
+                                    if (!result.set(response)) {
+                                        response.close();
+                                    }
                                 }
-                            }
 
-                            @Override
-                            public void onFailure(Throwable throwable) {
-                                response.setException(throwable);
-                            }
-                        });
-                        // If the returned future is cancelled, this request should be as well.
-                        DialogueFutures.addDirectListener(response, () -> {
-                            if (queuedRequestResponse.isCancelled()) {
-                                queuedRequestResponse.cancel(false);
-                            }
-                        });
+                                @Override
+                                public void onFailure(Throwable throwable) {
+                                    result.setException(throwable);
+                                }
+                            });
+                            // If the returned future is cancelled, this request should be as well.
+                            DialogueFutures.addDirectListener(result, () -> {
+                                if (queuedRequestResponse.isCancelled()) {
+                                    queuedRequestResponse.cancel(false);
+                                }
+                            });
+                        }
                     });
-                    return response;
+                    return result;
                 }
-                return result;
-            }
-        }
-
-        private final class InFlightCallSuccessTransformer implements Function<Response, Response> {
-            @Override
-            public Response apply(Response response) {
-                try {
-                    successfulCall(response);
-                } catch (Throwable t) {
-                    response.close();
-                    throw new SafeIllegalStateException("Failed to update state with successful call", t);
-                }
-                return response;
-            }
-        }
-
-        private final class InFlightCallFailureTransformer implements AsyncFunction<Throwable, Response> {
-            @Override
-            public ListenableFuture<Response> apply(Throwable input) throws Exception {
-                failed();
-                return Futures.immediateFailedFuture(input);
             }
         }
 
