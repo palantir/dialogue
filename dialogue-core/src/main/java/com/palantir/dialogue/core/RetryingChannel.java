@@ -19,11 +19,12 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListenableScheduledFuture;
 import com.google.common.util.concurrent.ListeningScheduledExecutorService;
 import com.google.common.util.concurrent.MoreExecutors;
+import com.google.common.util.concurrent.SettableFuture;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
@@ -305,21 +306,55 @@ final class RetryingChannel implements EndpointChannel {
             return Futures.immediateFuture(response);
         }
 
-        @SuppressWarnings("FutureReturnValueIgnored") // error-prone bug
+        @SuppressWarnings({"FutureReturnValueIgnored", "CheckReturnValue"})
         private ListenableFuture<Response> scheduleRetry(Meter meter, long backoffNanoseconds) {
             meter.mark();
             if (backoffNanoseconds <= 0) {
                 return wrap(delegate.execute(request));
             }
             DetachedSpan backoffSpan = span.childDetachedSpan("retry-backoff");
-            ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
+            // Code beyond this line implements the following without risking leaking responses:
+            // ListenableScheduledFuture<ListenableFuture<Response>> scheduled = scheduler.schedule(
+            //     () -> {
+            //         backoffSpan.complete(RetryingCallbackTranslator.INSTANCE, this);
+            //         return delegate.execute(request);
+            //     }, backoffNanoseconds, TimeUnit.NANOSECONDS);
+            // return wrap(DialogueFutures.transformAsync(scheduled, input -> input));
+            SettableFuture<Response> responseFuture = SettableFuture.create();
+            // Scheduler future must not be cancelled, otherwise responses will leak.
+            scheduler.schedule(
                     () -> {
                         backoffSpan.complete(RetryingCallbackTranslator.INSTANCE, this);
-                        return delegate.execute(request);
+                        if (responseFuture.isDone()) {
+                            return;
+                        }
+                        ListenableFuture<Response> delegateResult = delegate.execute(request);
+                        DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<Response>() {
+                            @Override
+                            public void onSuccess(Response result) {
+                                if (!responseFuture.set(result)) {
+                                    result.close();
+                                }
+                            }
+
+                            @Override
+                            public void onFailure(Throwable throwable) {
+                                if (delegateResult.isCancelled()) {
+                                    responseFuture.cancel(false);
+                                } else if (!responseFuture.setException(throwable)) {
+                                    log.info("Response future completed before delegate threw", throwable);
+                                }
+                            }
+                        });
+                        DialogueFutures.addDirectListener(responseFuture, () -> {
+                            if (responseFuture.isCancelled()) {
+                                delegateResult.cancel(false);
+                            }
+                        });
                     },
                     backoffNanoseconds,
                     TimeUnit.NANOSECONDS);
-            return wrap(DialogueFutures.transformAsync(scheduled, input -> input));
+            return wrap(responseFuture);
         }
 
         private long getBackoffNanoseconds() {
