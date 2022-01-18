@@ -50,15 +50,8 @@ public final class DialogueFutures {
     }
 
     public static <T> ListenableFuture<T> catchingAllAsync(
-            ListenableFuture<T> input, AsyncFunction<Throwable, T> onException) {
-        return new DialogueDirectAsyncCatchingFuture<>(input, onException);
-    }
-
-    public static <T> ListenableFuture<T> catchingAllAsync(
-            ListenableFuture<T> input,
-            AsyncFunction<Throwable, T> onException,
-            AsyncFunction<Throwable, T> onCancellation) {
-        return new DialogueDirectAsyncCatchingFuture<>(input, onException, onCancellation);
+            ListenableFuture<T> input, AsyncFunction<Throwable, T> function) {
+        return new DialogueDirectAsyncCatchingFuture<T>(input, function);
     }
 
     @CanIgnoreReturnValue
