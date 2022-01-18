@@ -319,7 +319,7 @@ final class RetryingChannel implements EndpointChannel {
                     },
                     backoffNanoseconds,
                     TimeUnit.NANOSECONDS);
-            return wrap(Futures.transformAsync(scheduled, input -> input, DialogueFutures.safeDirectExecutor()));
+            return wrap(DialogueFutures.transformAsync(scheduled, input -> input));
         }
 
         private long getBackoffNanoseconds() {
