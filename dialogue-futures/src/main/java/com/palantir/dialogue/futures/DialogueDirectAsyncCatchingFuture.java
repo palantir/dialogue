@@ -70,8 +70,7 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>,
 
     @Override
     public boolean isCancelled() {
-        ListenableFuture<?> snapshot = currentFuture;
-        return snapshot.isCancelled();
+        return output.isCancelled();
     }
 
     @Override
