@@ -19,6 +19,7 @@ package com.palantir.dialogue.futures;
 import com.google.common.util.concurrent.AsyncFunction;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import java.io.Closeable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -35,7 +36,7 @@ import java.util.concurrent.TimeoutException;
  * Note that this means it's possible for a cancel invocation to return false and fail to terminate the future,
  * which allows dialogue to close responses properly without leaking resources.
  */
-final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>, Runnable {
+final class DialogueDirectAsyncCatchingFuture<T> implements DialogueListenableFuture<T>, Runnable {
     private volatile ListenableFuture<T> currentFuture;
     private final ListenableFuture<T> output;
 
@@ -94,4 +95,7 @@ final class DialogueDirectAsyncCatchingFuture<T> implements ListenableFuture<T>,
     public void run() {
         this.currentFuture = output;
     }
+
+    @Override
+    public void failureCallback(Runnable onFailure) {}
 }

@@ -21,9 +21,13 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import javax.annotation.Nullable;
 
 /**
  * Internal utility functionality used by Dialogue modules.
@@ -39,9 +43,14 @@ public final class DialogueFutures {
      *
      * @see DialogueDirectTransformationFuture
      */
-    public static <I, O> ListenableFuture<O> transform(
+    public static <I, O> DialogueListenableFuture<O> transform(
             ListenableFuture<I> input, Function<? super I, ? extends O> function) {
-        return new DialogueDirectTransformationFuture<>(input, function);
+        // I don't want to touch all the code in this PR, so just going to do instanceof.
+        if (input instanceof DialogueListenableFuture) {
+            return new DialogueDirectTransformationFuture<>((DialogueListenableFuture<I>) input, function);
+        } else {
+            return new DialogueDirectTransformationFuture<>(wrap(input), function);
+        }
     }
 
     public static <I, O> ListenableFuture<O> transformAsync(
@@ -82,5 +91,83 @@ public final class DialogueFutures {
         };
     }
 
+    public static <V> DialogueListenableFuture<V> immediateFuture(V value) {
+        return wrap(Futures.immediateFuture(value));
+    }
+
+    public static <V> DialogueListenableFuture<V> immediateFailedFuture(Throwable throwable) {
+        return wrap(Futures.immediateFailedFuture(throwable));
+    }
+
     private DialogueFutures() {}
+
+    private static <V> DialogueListenableFuture<V> wrap(ListenableFuture<V> input) {
+        return new BaseDialogueListenableFuture<>(input);
+    }
+
+    private static class BaseDialogueListenableFuture<V> implements DialogueListenableFuture<V>, Runnable {
+
+        @Nullable
+        private ListenableFuture<V> input;
+
+        private final ResourceContext ctx;
+
+        private BaseDialogueListenableFuture(ListenableFuture<V> input) {
+            ctx = ResourceContext.createEmpty();
+            this.input = Futures.catchingAsync(
+                    input,
+                    Throwable.class,
+                    throwable -> {
+                        try {
+                            ctx.close();
+                            return input;
+                        } catch (RuntimeException e) {
+                            throwable.addSuppressed(e);
+                            return Futures.immediateFailedFuture(throwable);
+                        }
+                    },
+                    DialogueFutures.safeDirectExecutor());
+            input.addListener(this, DialogueFutures.safeDirectExecutor());
+        }
+
+        @Override
+        public void failureCallback(Runnable onFailure) {
+            ctx.onClose(onFailure);
+        }
+
+        @Override
+        public void addListener(Runnable listener, Executor executor) {
+            input.addListener(listener, executor);
+        }
+
+        @Override
+        public boolean cancel(boolean mayInterruptIfRunning) {
+            return input.cancel(mayInterruptIfRunning);
+        }
+
+        @Override
+        public boolean isCancelled() {
+            return input.isCancelled();
+        }
+
+        @Override
+        public boolean isDone() {
+            return input.isDone();
+        }
+
+        @Override
+        public V get() throws InterruptedException, ExecutionException {
+            return input.get();
+        }
+
+        @Override
+        public V get(long timeout, TimeUnit unit) throws InterruptedException, ExecutionException, TimeoutException {
+            return input.get(timeout, unit);
+        }
+
+        @Override
+        public void run() {
+            this.input = null;
+        }
+    }
 }

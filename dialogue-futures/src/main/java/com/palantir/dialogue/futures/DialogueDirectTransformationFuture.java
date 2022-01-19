@@ -37,17 +37,17 @@ import javax.annotation.Nullable;
  * Note that this means it's possible for a cancel invocation to return false and fail to terminate the future,
  * which allows dialogue to close responses properly without leaking resources.
  */
-final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture<O>, FutureCallback<I> {
+final class DialogueDirectTransformationFuture<I, O> implements DialogueListenableFuture<O>, FutureCallback<I> {
     /** Freed upon completion to allow inputs to be garbage collected. */
     @Nullable
-    private ListenableFuture<I> input;
+    private DialogueListenableFuture<I> input;
 
     @Nullable
     private Function<? super I, ? extends O> function;
 
     private final SettableFuture<O> output;
 
-    DialogueDirectTransformationFuture(ListenableFuture<I> input, Function<? super I, ? extends O> function) {
+    DialogueDirectTransformationFuture(DialogueListenableFuture<I> input, Function<? super I, ? extends O> function) {
         this.input = input;
         this.function = function;
         this.output = SettableFuture.create();
@@ -119,5 +119,11 @@ final class DialogueDirectTransformationFuture<I, O> implements ListenableFuture
         }
         input = null;
         function = null;
+    }
+
+    @Override
+    public void failureCallback(Runnable onFailure) {
+        // If null, needs to run immediately?
+        input.failureCallback(onFailure);
     }
 }
