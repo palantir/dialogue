@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Fix cancellation race resulting in a leaked response on retry
+  links:
+  - https://github.com/palantir/dialogue/pull/1542
