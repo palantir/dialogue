@@ -329,7 +329,7 @@ final class RetryingChannel implements EndpointChannel {
                             return;
                         }
                         ListenableFuture<Response> delegateResult = delegate.execute(request);
-                        DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<Response>() {
+                        DialogueFutures.addDirectCallback(delegateResult, new FutureCallback<>() {
                             @Override
                             public void onSuccess(Response result) {
                                 if (!responseFuture.set(result)) {
