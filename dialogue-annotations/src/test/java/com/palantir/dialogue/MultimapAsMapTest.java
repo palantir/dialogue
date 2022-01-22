@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -48,7 +47,7 @@ class MultimapAsMapTest {
                 .build();
         Map<String, String> map = MultimapAsMap.of(multimap);
         assertThat(map).hasSize(2);
-        assertThat(map.keySet()).isEqualTo(ImmutableSet.of("a", "c"));
+        assertThat(map.keySet()).containsExactlyInAnyOrder("a", "c");
         assertThat(map.get("a")).isEqualTo("b");
         assertThatThrownBy(() -> map.get("c")).isInstanceOf(SafeIllegalStateException.class);
     }
