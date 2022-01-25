@@ -22,19 +22,19 @@ buildscript {
 
     dependencies {
         classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.10.0'
-        classpath 'com.palantir.gradle.revapi:gradle-revapi:1.5.0'
+        classpath 'com.palantir.gradle.revapi:gradle-revapi:1.6.0'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.16.0'
         classpath 'com.palantir.baseline:gradle-baseline-java:4.64.0'
-        classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.12.3'
+        classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.13.0'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.6.0'
-        classpath 'com.palantir.metricschema:gradle-metric-schema:0.10.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.19.0'
+        classpath 'com.palantir.metricschema:gradle-metric-schema:0.12.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.20.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.0.0'
     }
 }
 
 plugins {
-    id 'com.palantir.consistent-versions' version '2.5.0'
+    id 'com.palantir.consistent-versions' version '2.6.0'
 }
 
 apply plugin: 'com.palantir.external-publish'
