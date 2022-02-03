@@ -129,18 +129,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
     @ThreadSafe
     private static final class StickyRouter {
 
-        private final FutureCallback<Response> initialRequestCallback = new FutureCallback<>() {
-            @Override
-            public void onSuccess(Response response) {
-                successfulCall(response);
-            }
-
-            @Override
-            public void onFailure(Throwable _throwable) {
-                failed();
-            }
-        };
-
         @Nullable
         private volatile Consumer<Request> stickyTarget;
 
