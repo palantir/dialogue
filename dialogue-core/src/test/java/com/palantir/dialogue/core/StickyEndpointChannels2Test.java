@@ -224,6 +224,18 @@ public final class StickyEndpointChannels2Test {
     public void request_arrives_whilst_internal_state_cleaned_does_not_stack_overflow() {
         Channel channel = sticky.get();
 
+        // The code here tests a very specific bug: when a future completes, it sets its value immediately (so that
+        // {@link Future#isDone() is starts returning true) and then starts executing listeners in order they have been
+        // stored in its internal linked list.
+        // The blocking listener below will run and block any other listeners from running (including the internal
+        // listener in StickyEndpointChannels2 that is supposed to update it's internal state).
+        // IFF whilst all this is nicely blocked, a request arrives and tries to execute, it will see:
+        // stickyTarget is not set and there is a call in flight: therefore it will dutifully add a listener.
+        // This listener, as per ListenableFutures contract, will start executing immediately (because {@link
+        // Future#isDone() is true), which will recurse into StickyRouter#execute, see that stickyTarget is not set and
+        // there is a call in flight: therefore it will dutifully add a listener...
+        // Until it stackoverflows :)
+
         CountDownLatch inBlockingListener = new CountDownLatch(1);
         CountDownLatch requestQueued = new CountDownLatch(1);
         Runnable blockingListener = () -> {
