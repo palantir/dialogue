@@ -160,11 +160,33 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
                 if (callInFlightSnapshot == null) {
-                    ListenableFuture<Response> result = executeWithStickyToken(request, endpointChannel);
+                    ListenableFuture<Response> executeWithStickyTokenResult =
+                            executeWithStickyToken(request, endpointChannel);
                     // callInFlight must be updated prior to adding the callback, otherwise a quick completion
                     // may unset 'callInFlight' before it has been set in the first place!
+                    SettableFuture<Response> result = SettableFuture.create();
                     callInFlight = result;
-                    DialogueFutures.addDirectCallback(result, initialRequestCallback);
+                    DialogueFutures.addDirectCallback(executeWithStickyTokenResult, new FutureCallback<>() {
+                        @Override
+                        public void onSuccess(Response response) {
+                            successfulCall(response);
+                            if (!result.set(response)) {
+                                response.close();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Throwable throwable) {
+                            failed();
+                            result.setException(throwable);
+                        }
+                    });
+                    // If the returned future is cancelled, this request should be as well.
+                    DialogueFutures.addDirectListener(result, () -> {
+                        if (result.isCancelled()) {
+                            executeWithStickyTokenResult.cancel(false);
+                        }
+                    });
                     return result;
                 } else {
                     // Each subsequent (parallel) call may be independently cancelled, that cancellation

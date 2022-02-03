@@ -105,8 +105,8 @@ public final class StickyEndpointChannels2Test {
         TestHarness request2 =
                 new TestHarness(channel2).expectAddStickyTokenRequest().execute();
 
-        assertThat(QueueAttachments.getQueueOverride(request1.request))
-                .isNotEqualTo(QueueAttachments.getQueueOverride(request2.request));
+        assertThat(QueueAttachments.getQueueOverride(request1.rawRequest))
+                .isNotEqualTo(QueueAttachments.getQueueOverride(request2.rawRequest));
     }
 
     @Test
@@ -238,6 +238,7 @@ public final class StickyEndpointChannels2Test {
 
         CountDownLatch inBlockingListener = new CountDownLatch(1);
         CountDownLatch requestQueued = new CountDownLatch(1);
+        CountDownLatch responseSet = new CountDownLatch(1);
         Runnable blockingListener = () -> {
             inBlockingListener.countDown();
             try {
@@ -257,14 +258,21 @@ public final class StickyEndpointChannels2Test {
         try {
             executor.submit(() -> {
                 request1.setResponse();
+                responseSet.countDown();
             });
 
             Uninterruptibles.awaitUninterruptibly(inBlockingListener);
 
             TestHarness request2 = new TestHarness(channel);
-            request2.expectAddStickyTokenRequest();
+            request2.expectStickyRequest(request1);
             request2.execute();
-            request2.setResponse().assertDoneSuccessful();
+
+            requestQueued.countDown();
+
+            Uninterruptibles.awaitUninterruptibly(responseSet);
+
+            request2.setResponse();
+            request2.assertDoneSuccessful();
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
                     .isTrue();
@@ -273,7 +281,7 @@ public final class StickyEndpointChannels2Test {
 
     private final class TestHarness {
         Channel channel;
-        Request request = Request.builder().build();
+        Request rawRequest = Request.builder().build();
         TestResponse response = TestResponse.withBody(null);
         RuntimeException runtimeException = new RuntimeException();
 
@@ -291,12 +299,14 @@ public final class StickyEndpointChannels2Test {
         }
 
         TestHarness expectAddStickyTokenRequest(Optional<Runnable> maybeAdditionalListener) {
-            when(endpointChannel.execute(Mockito.same(request)))
+            when(endpointChannel.execute(Mockito.same(rawRequest)))
                     .thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
                         Request actualRequest = invocation.getArgument(0);
-                        assertThat(actualRequest).isSameAs(request);
                         LimitedChannel stickyTarget = mock(LimitedChannel.class);
-                        when(stickyTarget.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                        when(stickyTarget.maybeExecute(
+                                        Mockito.eq(endpoint),
+                                        Mockito.same(rawRequest),
+                                        Mockito.eq(LimitEnforcement.DEFAULT_ENABLED)))
                                 .thenReturn(Optional.of(responseSettableFuture));
 
                         ListenableFuture<Response> returnFuture = StickyAttachments.maybeAddStickyToken(
@@ -311,17 +321,16 @@ public final class StickyEndpointChannels2Test {
 
         TestHarness expectStickyRequest(TestHarness responseTestHarness, int maxTimes) {
             AtomicInteger count = new AtomicInteger();
-            when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
-                Request actualRequest = invocation.getArgument(0);
-                assertThat(actualRequest).isEqualTo(request);
-                assertThat(count.incrementAndGet()).isLessThanOrEqualTo(maxTimes);
-                assertThat(responseTestHarness.responseListenableFuture).isDone();
-                assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
-                                .attachments()
-                                .getOrDefault(StickyAttachments.STICKY_TOKEN, null))
-                        .isEqualTo(request.attachments().getOrDefault(StickyAttachments.STICKY, null));
-                return responseSettableFuture;
-            });
+            when(endpointChannel.execute(Mockito.same(rawRequest)))
+                    .thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+                        assertThat(count.incrementAndGet()).isLessThanOrEqualTo(maxTimes);
+                        assertThat(responseTestHarness.responseListenableFuture).isDone();
+                        assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
+                                        .attachments()
+                                        .getOrDefault(StickyAttachments.STICKY_TOKEN, null))
+                                .isEqualTo(rawRequest.attachments().getOrDefault(StickyAttachments.STICKY, null));
+                        return responseSettableFuture;
+                    });
             return this;
         }
 
@@ -331,12 +340,12 @@ public final class StickyEndpointChannels2Test {
         }
 
         TestHarness expectNoRequest() {
-            lenient().when(endpointChannel.execute(request)).thenThrow(new RuntimeException());
+            lenient().when(endpointChannel.execute(Mockito.same(rawRequest))).thenThrow(new RuntimeException());
             return this;
         }
 
         TestHarness execute() {
-            responseListenableFuture = channel.execute(endpoint, request);
+            responseListenableFuture = channel.execute(endpoint, rawRequest);
             return this;
         }
 
