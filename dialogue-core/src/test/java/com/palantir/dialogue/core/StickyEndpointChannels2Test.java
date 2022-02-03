@@ -221,6 +221,7 @@ public final class StickyEndpointChannels2Test {
     }
 
     @Test
+    @SuppressWarnings({"FutureReturnValueIgnored", "ExecutorSubmitRunnableFutureIgnored"})
     public void request_arrives_whilst_internal_state_cleaned_does_not_stack_overflow() {
         Channel channel = sticky.get();
 
@@ -322,7 +323,7 @@ public final class StickyEndpointChannels2Test {
         TestHarness expectStickyRequest(TestHarness responseTestHarness, int maxTimes) {
             AtomicInteger count = new AtomicInteger();
             when(endpointChannel.execute(Mockito.same(rawRequest)))
-                    .thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+                    .thenAnswer((Answer<ListenableFuture<Response>>) _invocation -> {
                         assertThat(count.incrementAndGet()).isLessThanOrEqualTo(maxTimes);
                         assertThat(responseTestHarness.responseListenableFuture).isDone();
                         assertThat(Futures.getDone(responseTestHarness.responseListenableFuture)
