@@ -25,7 +25,9 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.SettableFuture;
+import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -36,10 +38,15 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
+import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
@@ -47,6 +54,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 
@@ -212,6 +220,45 @@ public final class StickyEndpointChannels2Test {
         request2.cancelResponse().assertDoneCancelled().assertResponseFutureCancelled();
     }
 
+    @Test
+    public void request_arrives_whilst_internal_state_cleaned_does_not_stack_overflow() {
+        Channel channel = sticky.get();
+
+        CountDownLatch inBlockingListener = new CountDownLatch(1);
+        CountDownLatch requestQueued = new CountDownLatch(1);
+        Runnable blockingListener = () -> {
+            inBlockingListener.countDown();
+            try {
+                requestQueued.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                // It's ok
+            }
+        };
+
+        TestHarness request1 = new TestHarness(channel)
+                .expectAddStickyTokenRequest(Optional.of(blockingListener))
+                .execute()
+                .assertNotDone();
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        try {
+            executor.submit(() -> {
+                request1.setResponse();
+            });
+
+            Uninterruptibles.awaitUninterruptibly(inBlockingListener);
+
+            TestHarness request2 = new TestHarness(channel);
+            request2.expectAddStickyTokenRequest();
+            request2.execute();
+            request2.setResponse().assertDoneSuccessful();
+        } finally {
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executor, Duration.ofSeconds(5)))
+                    .isTrue();
+        }
+    }
+
     private final class TestHarness {
         Channel channel;
         Request request = Request.builder().build();
@@ -228,16 +275,25 @@ public final class StickyEndpointChannels2Test {
         }
 
         TestHarness expectAddStickyTokenRequest() {
-            when(endpointChannel.execute(request)).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
-                Request actualRequest = invocation.getArgument(0);
-                assertThat(actualRequest).isEqualTo(request);
-                LimitedChannel stickyTarget = mock(LimitedChannel.class);
-                when(stickyTarget.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
-                        .thenReturn(Optional.of(responseSettableFuture));
-                return StickyAttachments.maybeAddStickyToken(
-                                stickyTarget, endpoint, actualRequest, LimitEnforcement.DEFAULT_ENABLED)
-                        .get();
-            });
+            return expectAddStickyTokenRequest(Optional.empty());
+        }
+
+        TestHarness expectAddStickyTokenRequest(Optional<Runnable> maybeAdditionalListener) {
+            when(endpointChannel.execute(Mockito.same(request)))
+                    .thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+                        Request actualRequest = invocation.getArgument(0);
+                        assertThat(actualRequest).isSameAs(request);
+                        LimitedChannel stickyTarget = mock(LimitedChannel.class);
+                        when(stickyTarget.maybeExecute(endpoint, request, LimitEnforcement.DEFAULT_ENABLED))
+                                .thenReturn(Optional.of(responseSettableFuture));
+
+                        ListenableFuture<Response> returnFuture = StickyAttachments.maybeAddStickyToken(
+                                        stickyTarget, endpoint, actualRequest, LimitEnforcement.DEFAULT_ENABLED)
+                                .get();
+                        maybeAdditionalListener.ifPresent(additionalListener ->
+                                DialogueFutures.addDirectListener(returnFuture, additionalListener));
+                        return returnFuture;
+                    });
             return this;
         }
 
