@@ -129,18 +129,6 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
     @ThreadSafe
     private static final class StickyRouter {
 
-        private final FutureCallback<Response> initialRequestCallback = new FutureCallback<>() {
-            @Override
-            public void onSuccess(Response response) {
-                successfulCall(response);
-            }
-
-            @Override
-            public void onFailure(Throwable _throwable) {
-                failed();
-            }
-        };
-
         @Nullable
         private volatile Consumer<Request> stickyTarget;
 
@@ -160,11 +148,36 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
                 ListenableFuture<Response> callInFlightSnapshot = callInFlight;
                 if (callInFlightSnapshot == null) {
-                    ListenableFuture<Response> result = executeWithStickyToken(request, endpointChannel);
+                    ListenableFuture<Response> executeWithStickyTokenResult =
+                            executeWithStickyToken(request, endpointChannel);
                     // callInFlight must be updated prior to adding the callback, otherwise a quick completion
                     // may unset 'callInFlight' before it has been set in the first place!
+                    SettableFuture<Response> result = SettableFuture.create();
                     callInFlight = result;
-                    DialogueFutures.addDirectCallback(result, initialRequestCallback);
+                    // The reason for this additional indirect future is that our internal state needs to be updated
+                    // BEFORE listeners waiting on this future are allowed to be notified. If we do not do that,
+                    // those listeners will StackOverflow.
+                    DialogueFutures.addDirectCallback(executeWithStickyTokenResult, new FutureCallback<>() {
+                        @Override
+                        public void onSuccess(Response response) {
+                            successfulCall(response);
+                            if (!result.set(response)) {
+                                response.close();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Throwable throwable) {
+                            failed();
+                            result.setException(throwable);
+                        }
+                    });
+                    // If the returned future is cancelled, this request should be as well.
+                    DialogueFutures.addDirectListener(result, () -> {
+                        if (result.isCancelled()) {
+                            executeWithStickyTokenResult.cancel(false);
+                        }
+                    });
                     return result;
                 } else {
                     // Each subsequent (parallel) call may be independently cancelled, that cancellation
@@ -188,7 +201,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                             });
                             // If the returned future is cancelled, this request should be as well.
                             DialogueFutures.addDirectListener(result, () -> {
-                                if (queuedRequestResponse.isCancelled()) {
+                                if (result.isCancelled()) {
                                     queuedRequestResponse.cancel(false);
                                 }
                             });
