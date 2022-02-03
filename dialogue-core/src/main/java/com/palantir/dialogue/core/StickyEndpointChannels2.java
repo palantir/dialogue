@@ -188,7 +188,7 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                             });
                             // If the returned future is cancelled, this request should be as well.
                             DialogueFutures.addDirectListener(result, () -> {
-                                if (queuedRequestResponse.isCancelled()) {
+                                if (result.isCancelled()) {
                                     queuedRequestResponse.cancel(false);
                                 }
                             });

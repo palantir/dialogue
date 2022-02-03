@@ -191,9 +191,25 @@ public final class StickyEndpointChannels2Test {
         TestHarness request2 =
                 new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
 
-        request1.cancelResponse().assertDoneCancelled();
+        request1.cancelResponse().assertDoneCancelled().assertResponseFutureCancelled();
 
         request2.assertNotDone();
+    }
+
+    @Test
+    public void cancel_queued_cancels_underlying_future() {
+        Channel channel = sticky.get();
+
+        TestHarness request1 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        TestHarness request2 =
+                new TestHarness(channel).expectAddStickyTokenRequest().execute().assertNotDone();
+
+        request1.cancelResponse().assertDoneCancelled();
+        request2.assertNotDone();
+
+        request2.cancelResponse().assertDoneCancelled().assertResponseFutureCancelled();
     }
 
     private final class TestHarness {
@@ -293,6 +309,11 @@ public final class StickyEndpointChannels2Test {
 
         TestHarness setException() {
             responseSettableFuture.setException(runtimeException);
+            return this;
+        }
+
+        TestHarness assertResponseFutureCancelled() {
+            assertThat(responseSettableFuture).isCancelled();
             return this;
         }
 
