@@ -154,6 +154,9 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
                     // may unset 'callInFlight' before it has been set in the first place!
                     SettableFuture<Response> result = SettableFuture.create();
                     callInFlight = result;
+                    // The reason for this additional indirect future is that our internal state needs to be updated
+                    // BEFORE listeners waiting on this future are allowed to be notified. If we do not do that,
+                    // those listeners will StackOverflow.
                     DialogueFutures.addDirectCallback(executeWithStickyTokenResult, new FutureCallback<>() {
                         @Override
                         public void onSuccess(Response response) {
