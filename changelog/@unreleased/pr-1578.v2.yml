@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Check before allocating args for debug logging
+  links:
+  - https://github.com/palantir/dialogue/pull/1578

@@ -69,7 +69,9 @@ final class Reflection {
         try {
             return Optional.of(dialogueInterface.getMethod("of", Channel.class, ConjureRuntime.class));
         } catch (NoSuchMethodException e) {
-            log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
+            if (log.isDebugEnabled()) {
+                log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
+            }
             return Optional.empty();
         }
     }
@@ -78,7 +80,9 @@ final class Reflection {
         try {
             return Optional.of(dialogueInterface.getMethod("of", EndpointChannelFactory.class, ConjureRuntime.class));
         } catch (NoSuchMethodException e) {
-            log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
+            if (log.isDebugEnabled()) {
+                log.debug("Failed to get static 'of' method", SafeArg.of("interface", dialogueInterface), e);
+            }
             return Optional.empty();
         }
     }

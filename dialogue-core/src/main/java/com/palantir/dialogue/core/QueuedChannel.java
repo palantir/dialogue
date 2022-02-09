@@ -278,11 +278,13 @@ final class QueuedChannel implements Channel {
                             SafeArg.of("channel", channelName),
                             SafeArg.of("service", endpoint.serviceName()),
                             SafeArg.of("endpoint", endpoint.endpointName())))) {
-                        log.debug(
-                                "Queued response has already been completed",
-                                SafeArg.of("channel", channelName),
-                                SafeArg.of("service", endpoint.serviceName()),
-                                SafeArg.of("endpoint", endpoint.endpointName()));
+                        if (log.isDebugEnabled()) {
+                            log.debug(
+                                    "Queued response has already been completed",
+                                    SafeArg.of("channel", channelName),
+                                    SafeArg.of("service", endpoint.serviceName()),
+                                    SafeArg.of("endpoint", endpoint.endpointName()));
+                        }
                     }
                 }
                 return false;
