@@ -76,17 +76,21 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
             if (parameter.isPresent()) {
                 return invokeStaticFactoryMethod(method, parameter.get());
             } else {
-                log.debug(
-                        "Found a @JsonCreator, but couldn't construct the parameter",
-                        SafeArg.of("type", type),
-                        SafeArg.of("parameter", parameter));
+                if (log.isDebugEnabled()) {
+                    log.debug(
+                            "Found a @JsonCreator, but couldn't construct the parameter",
+                            SafeArg.of("type", type),
+                            SafeArg.of("parameter", parameter));
+                }
                 return Optional.empty();
             }
         }
 
-        log.debug(
-                "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator",
-                SafeArg.of("type", type));
+        if (log.isDebugEnabled()) {
+            log.debug(
+                    "Jackson couldn't instantiate an empty instance and also couldn't find a usable @JsonCreator",
+                    SafeArg.of("type", type));
+        }
         return Optional.empty();
     }
 
@@ -150,7 +154,9 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         try {
             return Optional.ofNullable(method.invoke(null, parameter));
         } catch (IllegalAccessException | InvocationTargetException e) {
-            log.debug("Reflection instantiation failed", e);
+            if (log.isDebugEnabled()) {
+                log.debug("Reflection instantiation failed", e);
+            }
             return Optional.empty();
         }
     }

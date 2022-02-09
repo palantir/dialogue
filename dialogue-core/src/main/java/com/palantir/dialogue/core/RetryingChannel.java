@@ -113,10 +113,12 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         if (cf.mesh() == MeshMode.USE_EXTERNAL_MESH) {
-            log.debug(
-                    "Disabling retrying channel due to MeshMode",
-                    SafeArg.of("channel", cf.channelName()),
-                    SafeArg.of("ignoredMaxNumRetries", clientConf.maxNumRetries()));
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Disabling retrying channel due to MeshMode",
+                        SafeArg.of("channel", cf.channelName()),
+                        SafeArg.of("ignoredMaxNumRetries", clientConf.maxNumRetries()));
+            }
             return channel;
         }
 
@@ -281,12 +283,14 @@ final class RetryingChannel implements EndpointChannel {
                     return scheduleRetry(retryReason, backoffNanoseconds);
                 } else if (log.isDebugEnabled()) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
-                    log.debug(
-                            "Not attempting to retry failure. channel: {}, service: {}, endpoint: {}",
-                            SafeArg.of("channelName", channelName),
-                            SafeArg.of("serviceName", endpoint.serviceName()),
-                            SafeArg.of("endpoint", endpoint.endpointName()),
-                            clientSideThrowable);
+                    if (log.isDebugEnabled()) {
+                        log.debug(
+                                "Not attempting to retry failure. channel: {}, service: {}, endpoint: {}",
+                                SafeArg.of("channelName", channelName),
+                                SafeArg.of("serviceName", endpoint.serviceName()),
+                                SafeArg.of("endpoint", endpoint.endpointName()),
+                                clientSideThrowable);
+                    }
                 }
             }
             return Futures.immediateFailedFuture(clientSideThrowable);

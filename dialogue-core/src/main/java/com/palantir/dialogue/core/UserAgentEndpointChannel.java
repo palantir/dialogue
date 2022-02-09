@@ -69,12 +69,14 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         try {
             return baseAgent.addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion));
         } catch (IllegalArgumentException e) {
-            log.debug(
-                    "Failed to construct UserAgent for service {} version {}. "
-                            + "This information will not be included",
-                    SafeArg.of("service", endpointService),
-                    SafeArg.of("version", endpointVersion),
-                    e);
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Failed to construct UserAgent for service {} version {}. "
+                                + "This information will not be included",
+                        SafeArg.of("service", endpointService),
+                        SafeArg.of("version", endpointVersion),
+                        e);
+            }
             return baseAgent;
         }
     }
