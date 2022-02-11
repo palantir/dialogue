@@ -16,6 +16,8 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
@@ -47,12 +49,12 @@ final class ConjureBodySerDe implements BodySerDe {
 
     private static final SafeLogger log = SafeLoggerFactory.get(ConjureBodySerDe.class);
     private final List<Encoding> encodingsSortedByWeight;
-    private final ErrorDecoder errorDecoder;
     private final Encoding defaultEncoding;
-    private final EmptyContainerDeserializer emptyContainerDeserializer;
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
+    private final LoadingCache<TypeMarker<?>, Serializer<?>> serializers;
+    private final LoadingCache<TypeMarker<?>, Deserializer<?>> deserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -65,10 +67,8 @@ final class ConjureBodySerDe implements BodySerDe {
             EmptyContainerDeserializer emptyContainerDeserializer) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
-        this.errorDecoder = errorDecoder;
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
         this.defaultEncoding = encodings.get(0).encoding();
-        this.emptyContainerDeserializer = emptyContainerDeserializer;
         this.binaryInputStreamDeserializer = new EncodingDeserializerRegistry<>(
                 ImmutableList.of(BinaryEncoding.INSTANCE),
                 errorDecoder,
@@ -80,6 +80,13 @@ final class ConjureBodySerDe implements BodySerDe {
                 emptyContainerDeserializer,
                 BinaryEncoding.OPTIONAL_MARKER);
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
+        // Class unloading: Not supported, Jackson keeps strong references to the types
+        // it sees: https://github.com/FasterXML/jackson-databind/issues/489
+        this.serializers =
+                Caffeine.newBuilder().build(token -> new EncodingSerializerRegistry<>(defaultEncoding, token));
+        this.deserializers = Caffeine.newBuilder()
+                .build(token -> new EncodingDeserializerRegistry<>(
+                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token));
     }
 
     private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
@@ -99,14 +106,15 @@ final class ConjureBodySerDe implements BodySerDe {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Serializer<T> serializer(TypeMarker<T> token) {
-        return new EncodingSerializerRegistry<>(defaultEncoding, token);
+        return (Serializer<T>) serializers.get(token);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return new EncodingDeserializerRegistry<>(
-                encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token);
+        return (Deserializer<T>) deserializers.get(token);
     }
 
     @Override
