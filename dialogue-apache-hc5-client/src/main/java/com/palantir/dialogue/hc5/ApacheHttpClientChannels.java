@@ -131,11 +131,8 @@ public final class ApacheHttpClientChannels {
     }
 
     public static Channel createSingleUri(DialogueChannelFactory.ChannelArgs args, CloseableClient client) {
-        UnknownHostCounter unknownHostCounter = UnknownHostCounter.of(
-                client.name(), client.clientConfiguration().taggedMetricRegistry());
-
         BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(
-                client, url(args.uri()), client.leakDetector(), unknownHostCounter, args.uriIndexForInstrumentation());
+                client, url(args.uri()), client.leakDetector(), args.uriIndexForInstrumentation());
         return client.executor() == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor());
@@ -520,7 +517,7 @@ public final class ApacheHttpClientChannels {
                     // No maximum time to live
                     TimeValue.NEG_ONE_MILLISECOND,
                     null,
-                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name),
+                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             connectionManager.setDefaultSocketConfig(SocketConfig.custom()

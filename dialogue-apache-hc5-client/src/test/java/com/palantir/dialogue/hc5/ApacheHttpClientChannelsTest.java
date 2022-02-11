@@ -19,10 +19,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
-import com.codahale.metrics.Counter;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Metric;
-import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MoreCollectors;
 import com.google.common.net.HttpHeaders;
@@ -46,8 +44,6 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import java.util.Set;
-import java.util.stream.Collectors;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.Test;
 
@@ -259,19 +255,9 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         return (long) value;
     }
 
-    @SuppressWarnings("JdkObsolete")
     private long unknownHostCount(TaggedMetricRegistry metrics, String clientName) {
-        Set<Metric> matchingCounters = metrics.getMetrics().entrySet().stream()
-                .filter(entry -> entry.getKey().safeName().equals("dialogue.client.connection.resolution.error"))
-                .filter(entry -> clientName.equals(entry.getKey().safeTags().get("client-name")))
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toSet());
-        if (matchingCounters.isEmpty()) {
-            return 0L;
-        }
-
-        Metric counter = Iterables.getOnlyElement(matchingCounters);
-        assertThat(counter).isInstanceOf(Counter.class);
-        return ((Counter) counter).getCount();
+        return DialogueClientMetrics.of(metrics)
+                .connectionResolutionError(clientName)
+                .getCount();
     }
 }

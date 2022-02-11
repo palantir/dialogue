@@ -41,6 +41,6 @@ namespaces:
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
       connection.resolution.error:
-        type: counter
+        type: meter
         tags: [client-name]
-        docs: Number of connections that failed due to host resolution failures.
+        docs: Rate that connections have failed due to host resolution.

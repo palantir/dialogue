@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -68,19 +67,16 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
     private final ResponseLeakDetector responseLeakDetector;
-    private final UnknownHostCounter unknownHostCounter;
     private final OptionalInt uriIndexForInstrumentation;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client,
             URL baseUrl,
             ResponseLeakDetector responseLeakDetector,
-            UnknownHostCounter unknownHostCounter,
             OptionalInt uriIndexForInstrumentation) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
         this.responseLeakDetector = responseLeakDetector;
-        this.unknownHostCounter = unknownHostCounter;
         this.uriIndexForInstrumentation = uriIndexForInstrumentation;
     }
 
@@ -144,24 +140,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 throw e;
             }
             throw new SafeSocketTimeoutException("Received a NoHttpResponseException", e, diagnosticArgs);
-        } catch (UnknownHostException unknownHostException) {
-            unknownHostCounter.reportUnknownHostException();
-
-            addDiagnosticInformation(endpoint, request, startTime, unknownHostException);
-            throw unknownHostException;
         } catch (Throwable t) {
-            addDiagnosticInformation(endpoint, request, startTime, t);
+            // We can't wrap all potential exception types, that would cause the failure to lose some amount of type
+            // information. Instead, we add a suppressed throwable with no stack trace which acts as a courier
+            // for our diagnostic information, ensuring it can be recorded in the logs.
+            t.addSuppressed(new Diagnostic(failureDiagnosticArgs(endpoint, request, startTime)));
             throw t;
         }
-    }
-
-    /**
-     * We can't wrap all potential exception types, that would cause the failure to lose some amount of type
-     * information. Instead, we add a suppressed throwable with no stack trace which acts as a courier
-     * for our diagnostic information, ensuring it can be recorded in the logs.
-     */
-    private void addDiagnosticInformation(Endpoint endpoint, Request request, long startTime, Throwable throwable) {
-        throwable.addSuppressed(new Diagnostic(failureDiagnosticArgs(endpoint, request, startTime)));
     }
 
     private Arg<?>[] failureDiagnosticArgs(Endpoint endpoint, Request request, long startTimeNanos) {
