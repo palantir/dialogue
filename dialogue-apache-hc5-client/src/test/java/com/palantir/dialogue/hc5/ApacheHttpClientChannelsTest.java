@@ -134,7 +134,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
 
-            assertThat(unknownHostCount(metrics, "testClient")).isZero();
+            assertThat(DialogueClientMetrics.of(metrics)
+                            .connectionResolutionError("testClient")
+                            .getCount())
+                    .isZero();
 
             Channel channel =
                     ApacheHttpClientChannels.createSingleUri("http://unknown-host-for-testing.unused", client);
@@ -147,7 +150,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 // No-op, this is expected
             }
 
-            assertThat(unknownHostCount(metrics, "testClient")).isEqualTo(1L);
+            assertThat(DialogueClientMetrics.of(metrics)
+                            .connectionResolutionError("testClient")
+                            .getCount())
+                    .isEqualTo(1L);
         }
     }
 
@@ -253,11 +259,5 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         Object value = ((Gauge<?>) gauge).getValue();
         assertThat(value).isInstanceOf(Long.class);
         return (long) value;
-    }
-
-    private long unknownHostCount(TaggedMetricRegistry metrics, String clientName) {
-        return DialogueClientMetrics.of(metrics)
-                .connectionResolutionError(clientName)
-                .getCount();
     }
 }
