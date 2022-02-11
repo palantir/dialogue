@@ -131,7 +131,7 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 int uriIndex,
                 CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
                 TaggedMetricRegistry taggedMetrics) {
-            if (uriIndex == 1) {
+            if (uriIndex == -1) {
                 throw new SafeIllegalArgumentException(
                         "uriIndex must be specified", SafeArg.of("channel-name", channelName));
             }
