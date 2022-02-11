@@ -39,3 +39,8 @@ namespaces:
         type: timer
         tags: [client-name, client-type]
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
+
+      connection.resolution.error:
+        type: counter
+        tags: [client-name]
+        docs: Number of connections that failed due to host resolution failures.
