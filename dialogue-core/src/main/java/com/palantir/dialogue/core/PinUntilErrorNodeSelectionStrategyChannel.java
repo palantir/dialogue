@@ -26,7 +26,6 @@ import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -74,14 +73,14 @@ final class PinUntilErrorNodeSelectionStrategyChannel implements LimitedChannel 
         this.nodeList = nodeList;
         this.currentPin = new AtomicInteger(initialPin);
         this.instrumentation = new Instrumentation(nodeList.size(), metrics, channelName);
-        Preconditions.checkArgument(
-                nodeList.size() >= 2,
-                "PinUntilError is pointless if you have zero or 1 channels."
-                        + " Use an always throwing channel or just pick the only channel in the list.");
-        Preconditions.checkArgument(
-                0 <= initialPin && initialPin < nodeList.size(),
-                "initialHost must be a valid index into nodeList",
-                SafeArg.of("initialHost", initialPin));
+        if (nodeList.size() < 2) {
+            throw new SafeIllegalArgumentException("PinUntilError is pointless if you have zero or 1 channels."
+                    + " Use an always throwing channel or just pick the only channel in the list.");
+        }
+        if (0 > initialPin || initialPin >= nodeList.size()) {
+            throw new SafeIllegalArgumentException(
+                    "initialHost must be a valid index into nodeList", SafeArg.of("initialHost", initialPin));
+        }
     }
 
     static PinUntilErrorNodeSelectionStrategyChannel of(

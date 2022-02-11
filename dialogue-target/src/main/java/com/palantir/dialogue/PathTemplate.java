@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.Immutable;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -60,10 +61,12 @@ public final class PathTemplate {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
             } else {
-                String variableSegment = Preconditions.checkNotNull(
-                        parameters.get(segment.variable),
-                        "Provided parameter map does not contain segment variable name",
-                        SafeArg.of("variable", segment.variable));
+                String variableSegment = parameters.get(segment.variable);
+                if (variableSegment == null) {
+                    throw new SafeNullPointerException(
+                            "Provided parameter map does not contain segment variable name",
+                            SafeArg.of("variable", segment.variable));
+                }
                 url.pathSegment(variableSegment);
                 numVariableSegments += 1;
             }

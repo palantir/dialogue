@@ -16,8 +16,8 @@
 
 package com.palantir.dialogue.core;
 
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 
 enum MeshMode {
@@ -37,19 +37,21 @@ enum MeshMode {
         if (meshUris == 0) {
             return MeshMode.DEFAULT_NO_MESH;
         } else {
-            Preconditions.checkState(
-                    meshUris == 1,
-                    "Not expecting multiple 'mesh-' prefixed uris - please double-check the uris",
-                    SafeArg.of("meshUris", meshUris),
-                    SafeArg.of("normalUris", normalUris),
-                    channelName);
-            Preconditions.checkState(
-                    normalUris == 0,
-                    "When a 'mesh-' prefixed uri is present, there should not be any normal uris - please double "
-                            + "check the uris",
-                    SafeArg.of("meshUris", meshUris),
-                    SafeArg.of("normalUris", normalUris),
-                    channelName);
+            if (meshUris != 1) {
+                throw new SafeIllegalStateException(
+                        "Not expecting multiple 'mesh-' prefixed uris - please double-check the uris",
+                        SafeArg.of("meshUris", meshUris),
+                        SafeArg.of("normalUris", normalUris),
+                        channelName);
+            }
+            if (normalUris != 0) {
+                throw new SafeIllegalStateException(
+                        "When a 'mesh-' prefixed uri is present, there should not be any normal uris - please double "
+                                + "check the uris",
+                        SafeArg.of("meshUris", meshUris),
+                        SafeArg.of("normalUris", normalUris),
+                        channelName);
+            }
 
             return MeshMode.USE_EXTERNAL_MESH;
         }

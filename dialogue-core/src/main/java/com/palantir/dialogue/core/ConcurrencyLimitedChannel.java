@@ -23,8 +23,8 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.Behavior;
 import com.palantir.dialogue.futures.DialogueFutures;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -131,8 +131,10 @@ final class ConcurrencyLimitedChannel implements LimitedChannel {
                 int uriIndex,
                 CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter,
                 TaggedMetricRegistry taggedMetrics) {
-            Preconditions.checkArgument(
-                    uriIndex != -1, "uriIndex must be specified", SafeArg.of("channel-name", channelName));
+            if (uriIndex == 1) {
+                throw new SafeIllegalArgumentException(
+                        "uriIndex must be specified", SafeArg.of("channel-name", channelName));
+            }
             channelNameForLogging = channelName + "{uriIndex=" + uriIndex + "}";
             DialogueConcurrencylimiterMetrics metrics = DialogueConcurrencylimiterMetrics.of(taggedMetrics);
             DialogueInternalWeakReducingGauge.getOrCreateDouble(
