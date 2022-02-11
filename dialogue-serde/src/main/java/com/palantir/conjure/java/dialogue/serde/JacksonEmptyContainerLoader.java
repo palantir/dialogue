@@ -19,8 +19,8 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.palantir.dialogue.TypeMarker;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
@@ -29,12 +29,12 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import javax.annotation.Nullable;
 
 final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     private static final SafeLogger log = SafeLoggerFactory.get(JacksonEmptyContainerLoader.class);
@@ -51,7 +51,6 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     }
 
     private Optional<Object> constructEmptyInstance(Type type, TypeMarker<?> originalType, int maxRecursion) {
-
         // handle Map, List, Set
         Optional<Object> collection = coerceCollections(type);
         if (collection.isPresent()) {
@@ -65,9 +64,8 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
         }
 
         // fallback to manual reflection to handle aliases of optionals (and aliases of aliases of optionals)
-        Optional<Method> jsonCreator = getJsonCreatorStaticMethod(type);
-        if (jsonCreator.isPresent()) {
-            Method method = jsonCreator.get();
+        Method method = getJsonCreatorStaticMethod(type);
+        if (method != null) {
             Type parameterType = method.getParameters()[0].getParameterizedType();
             // Class<?> parameterType = method.getParameters()[0].getType();
             Optional<Object> parameter =
@@ -95,10 +93,11 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     }
 
     private static int decrement(int maxRecursion, TypeMarker<?> originalType) {
-        Preconditions.checkState(
-                maxRecursion > 0,
-                "Unable to construct an empty instance as @JsonCreator requires too much recursion",
-                SafeArg.of("type", originalType));
+        if (maxRecursion <= 0) {
+            throw new SafeIllegalStateException(
+                    "Unable to construct an empty instance as @JsonCreator requires too much recursion",
+                    SafeArg.of("type", originalType));
+        }
         return maxRecursion - 1;
     }
 
@@ -138,16 +137,19 @@ final class JacksonEmptyContainerLoader implements EmptyContainerDeserializer {
     }
 
     // doesn't attempt to handle multiple @JsonCreator methods on one class
-    private static Optional<Method> getJsonCreatorStaticMethod(Type type) {
+    @Nullable
+    private static Method getJsonCreatorStaticMethod(Type type) {
         if (type instanceof Class) {
             Class<?> clazz = (Class<?>) type;
-            return Arrays.stream(clazz.getMethods())
-                    .filter(method -> Modifier.isStatic(method.getModifiers())
-                            && method.getParameterCount() == 1
-                            && method.getAnnotation(JsonCreator.class) != null)
-                    .findFirst();
+            for (Method method : clazz.getMethods()) {
+                if (Modifier.isStatic(method.getModifiers())
+                        && method.getParameterCount() == 1
+                        && method.getAnnotation(JsonCreator.class) != null) {
+                    return method;
+                }
+            }
         }
-        return Optional.empty();
+        return null;
     }
 
     private static Optional<Object> invokeStaticFactoryMethod(Method method, Object parameter) {

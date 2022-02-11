@@ -82,21 +82,22 @@ public final class BaseUrl {
 
         static DefaultUrlBuilder from(URL baseUrl) {
             // Sanitize path syntax and strip all irrelevant URL components
-            Preconditions.checkArgument(
-                    baseUrl.getProtocol().equals("http")
-                            || baseUrl.getProtocol().equals("https"),
-                    "unsupported protocol",
-                    SafeArg.of("protocol", baseUrl.getProtocol()));
-            Preconditions.checkArgument(
-                    null == Strings.emptyToNull(baseUrl.getQuery()),
-                    "baseUrl query must be empty",
-                    UnsafeArg.of("query", baseUrl.getQuery()));
-            Preconditions.checkArgument(
-                    null == Strings.emptyToNull(baseUrl.getRef()),
-                    "baseUrl ref must be empty",
-                    UnsafeArg.of("ref", baseUrl.getRef()));
-            Preconditions.checkArgument(
-                    null == Strings.emptyToNull(baseUrl.getUserInfo()), "baseUrl user info must be empty");
+            if (!baseUrl.getProtocol().equals("http") && !baseUrl.getProtocol().equals("https")) {
+                throw new SafeIllegalArgumentException(
+                        "unsupported protocol", SafeArg.of("protocol", baseUrl.getProtocol()));
+            }
+            if (Strings.emptyToNull(baseUrl.getQuery()) != null) {
+                throw new SafeIllegalArgumentException(
+                        "baseUrl query must be empty", UnsafeArg.of("query", baseUrl.getQuery()));
+            }
+            if (Strings.emptyToNull(baseUrl.getRef()) != null) {
+                throw new SafeIllegalArgumentException(
+                        "baseUrl ref must be empty", UnsafeArg.of("ref", baseUrl.getRef()));
+            }
+            if (Strings.emptyToNull(baseUrl.getUserInfo()) != null) {
+                // the value of baseUrl.getUserInfo() may contain credential information and mustn't be logged
+                throw new SafeIllegalArgumentException("baseUrl user info must be empty");
+            }
             return new DefaultUrlBuilder(baseUrl);
         }
 
@@ -138,10 +139,10 @@ public final class BaseUrl {
          * {@code foo//bar//baz} (note the empty segments).
          */
         DefaultUrlBuilder encodedPathSegments(String segments) {
-            Preconditions.checkArgument(
-                    UrlEncoder.isPath(segments),
-                    "invalid characters in encoded path segments",
-                    UnsafeArg.of("segments", segments));
+            if (!UrlEncoder.isPath(segments)) {
+                throw new SafeIllegalArgumentException(
+                        "invalid characters in encoded path segments", UnsafeArg.of("segments", segments));
+            }
             this.pathSegments.add(segments);
             return this;
         }
