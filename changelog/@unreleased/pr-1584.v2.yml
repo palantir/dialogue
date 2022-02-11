@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Reduce unnecessary `Arg` creation in the expected case
+  links:
+  - https://github.com/palantir/dialogue/pull/1584
