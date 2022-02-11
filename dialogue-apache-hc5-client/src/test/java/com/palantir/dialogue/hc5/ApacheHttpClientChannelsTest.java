@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MoreCollectors;
@@ -132,12 +133,10 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
         try (ApacheHttpClientChannels.CloseableClient client =
                 ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
 
-            TaggedMetricRegistry metrics = conf.taggedMetricRegistry();
+            Meter connectionResolutionError =
+                    DialogueClientMetrics.of(conf.taggedMetricRegistry()).connectionResolutionError("testClient");
 
-            assertThat(DialogueClientMetrics.of(metrics)
-                            .connectionResolutionError("testClient")
-                            .getCount())
-                    .isZero();
+            assertThat(connectionResolutionError.getCount()).isZero();
 
             Channel channel =
                     ApacheHttpClientChannels.createSingleUri("http://unknown-host-for-testing.unused", client);
@@ -145,15 +144,12 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                     channel.execute(TestEndpoint.GET, Request.builder().build());
 
             try (Response response = Futures.getChecked(future, UnknownHostException.class)) {
-                fail("This request should have failed with an unknown host exception!", response.code());
+                fail("This request should have failed with an unknown host exception! (code: %d)", response.code());
             } catch (UnknownHostException _exception) {
                 // No-op, this is expected
             }
 
-            assertThat(DialogueClientMetrics.of(metrics)
-                            .connectionResolutionError("testClient")
-                            .getCount())
-                    .isEqualTo(1L);
+            assertThat(connectionResolutionError.getCount()).isEqualTo(1L);
         }
     }
 
