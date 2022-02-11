@@ -30,9 +30,11 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedDnsResolver.class);
     private final DnsResolver delegate;
+    private final String clientName;
 
-    InstrumentedDnsResolver(DnsResolver delegate) {
+    InstrumentedDnsResolver(DnsResolver delegate, String clientName) {
         this.delegate = delegate;
+        this.clientName = clientName;
     }
 
     @Override
@@ -46,8 +48,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
-                        "DnsResolver.resolve({}) produced '{}' ({} results) after {} ns",
+                        "DnsResolver.resolve({}) on client {} produced '{}' ({} results) after {} ns",
                         UnsafeArg.of("host", host),
+                        SafeArg.of("client", clientName),
                         resolved == null ? SafeArg.of("resolved", "null") : UnsafeArg.of("resolved", resolved),
                         SafeArg.of("numResolved", resolved == null ? 0 : resolved.length),
                         SafeArg.of("durationNanos", durationNanos));
@@ -57,8 +60,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
-                        "DnsResolver.resolve({}) failed after {} ns",
+                        "DnsResolver.resolve({}) on client {} failed after {} ns",
                         UnsafeArg.of("host", host),
+                        SafeArg.of("client", clientName),
                         SafeArg.of("durationNanos", durationNanos),
                         t);
             }
@@ -77,8 +81,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
-                        "DnsResolver.resolveCanonicalHostname({}) produced '{}' after {} ns",
+                        "DnsResolver.resolveCanonicalHostname({}) on client {} produced '{}' after {} ns",
                         UnsafeArg.of("host", host),
+                        SafeArg.of("client", clientName),
                         UnsafeArg.of("resolved", resolved),
                         SafeArg.of("durationNanos", durationNanos));
             }
@@ -87,8 +92,9 @@ final class InstrumentedDnsResolver implements DnsResolver {
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
-                        "DnsResolver.resolveCanonicalHostname({}) failed after {} ns",
+                        "DnsResolver.resolveCanonicalHostname({}) on client {} failed after {} ns",
                         UnsafeArg.of("host", host),
+                        SafeArg.of("client", clientName),
                         SafeArg.of("durationNanos", durationNanos),
                         t);
             }
