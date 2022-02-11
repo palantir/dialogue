@@ -40,6 +40,11 @@ namespaces:
         tags: [client-name, client-type]
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
+      connection.create.error:
+        type: meter
+        tags: [client-name, client-type, cause]
+        docs: Rate that connections have failed to be created (e.g. connection timeout, no route to host).
+
       connection.resolution.error:
         type: meter
         tags: [client-name]

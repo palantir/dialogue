@@ -18,6 +18,9 @@ package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
@@ -38,7 +41,12 @@ import org.apache.hc.core5.util.Timeout;
 final class InstrumentedPoolingHttpClientConnectionManager
         implements HttpClientConnectionManager, ConnPoolControl<HttpRoute> {
 
+    private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedPoolingHttpClientConnectionManager.class);
+
     private final PoolingHttpClientConnectionManager manager;
+    private final TaggedMetricRegistry registry;
+    private final String clientName;
+    private final String clientType;
     private final Timer connectTimer;
 
     InstrumentedPoolingHttpClientConnectionManager(
@@ -47,6 +55,9 @@ final class InstrumentedPoolingHttpClientConnectionManager
             String clientName,
             String clientType) {
         this.manager = manager;
+        this.registry = registry;
+        this.clientName = clientName;
+        this.clientType = clientType;
         this.connectTimer = DialogueClientMetrics.of(registry)
                 .connectionCreate()
                 .clientName(clientName)
@@ -79,6 +90,24 @@ final class InstrumentedPoolingHttpClientConnectionManager
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect");
                 Context timer = connectTimer.time()) {
             manager.connect(endpoint, connectTimeout, context);
+        } catch (Throwable throwable) {
+            DialogueClientMetrics.of(registry)
+                    .connectionCreateError()
+                    .clientName(clientName)
+                    .clientType(clientType)
+                    .cause(throwable.getClass().getSimpleName())
+                    .build()
+                    .mark();
+
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "Failed to connect to endpoint",
+                        SafeArg.of("clientName", clientName),
+                        SafeArg.of("clientType", clientType),
+                        throwable);
+            }
+
+            throw throwable;
         }
     }
 

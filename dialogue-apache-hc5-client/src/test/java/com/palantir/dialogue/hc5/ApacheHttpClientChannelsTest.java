@@ -27,6 +27,7 @@ import com.google.common.collect.MoreCollectors;
 import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractChannelTest;
 import com.palantir.dialogue.Channel;
@@ -42,6 +43,7 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.UnknownHostException;
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -143,13 +145,47 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             ListenableFuture<Response> future =
                     channel.execute(TestEndpoint.GET, Request.builder().build());
 
-            try (Response response = Futures.getChecked(future, UnknownHostException.class)) {
+            try (Response response = Futures.getUnchecked(future)) {
                 fail("This request should have failed with an unknown host exception! (code: %d)", response.code());
-            } catch (UnknownHostException _exception) {
-                // No-op, this is expected
+            } catch (UncheckedExecutionException exception) {
+                assertThat(exception.getCause()).isInstanceOf(UnknownHostException.class);
             }
 
             assertThat(connectionResolutionError.getCount()).isEqualTo(1L);
+        }
+    }
+
+    @Test
+    public void countsConnectErrors() throws Exception {
+        ClientConfiguration conf = ClientConfiguration.builder()
+                .from(TestConfigurations.create("http://unused"))
+                .connectTimeout(Duration.ofMillis(1))
+                .build();
+
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
+
+            Meter connectionCreateError = DialogueClientMetrics.of(conf.taggedMetricRegistry())
+                    .connectionCreateError()
+                    .clientName("testClient")
+                    .clientType("apache-hc5")
+                    .cause("ConnectTimeoutException")
+                    .build();
+
+            assertThat(connectionCreateError.getCount()).isZero();
+
+            // 203.0.113.0/24 is a test network that should never exist
+            Channel channel = ApacheHttpClientChannels.createSingleUri("http://203.0.113.23", client);
+            ListenableFuture<Response> future =
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
+
+            try (Response response = Futures.getUnchecked(future)) {
+                fail("This request should have failed with an connection timeout! (code: %d)", response.code());
+            } catch (UncheckedExecutionException exception) {
+                assertThat(exception.getCause()).isInstanceOf(SafeConnectTimeoutException.class);
+            }
+
+            assertThat(connectionCreateError.getCount()).isEqualTo(1L);
         }
     }
 

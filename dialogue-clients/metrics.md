@@ -11,6 +11,7 @@ Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 - `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 - `dialogue.client.connection.create` tagged `client-name`, `client-type` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
+- `dialogue.client.connection.create.error` tagged `client-name`, `client-type`, `cause` (meter): Rate that connections have failed to be created (e.g. connection timeout, no route to host).
 - `dialogue.client.connection.resolution.error` tagged `client-name` (meter): Rate that connections have failed due to host resolution.
 
 ### dialogue.client.pool
