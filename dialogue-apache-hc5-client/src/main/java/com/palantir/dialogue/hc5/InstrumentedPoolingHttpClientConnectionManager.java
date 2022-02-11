@@ -16,11 +16,13 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.net.NoRouteToHostException;
 import java.util.Set;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
@@ -40,6 +42,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     private final PoolingHttpClientConnectionManager manager;
     private final Timer connectTimer;
+    private final Meter noRouteToHost;
 
     InstrumentedPoolingHttpClientConnectionManager(
             PoolingHttpClientConnectionManager manager,
@@ -52,6 +55,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
                 .clientName(clientName)
                 .clientType(clientType)
                 .build();
+        this.noRouteToHost = DialogueClientMetrics.of(registry).connectionRouteError(clientName);
     }
 
     @Override
@@ -79,6 +83,10 @@ final class InstrumentedPoolingHttpClientConnectionManager
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect");
                 Context timer = connectTimer.time()) {
             manager.connect(endpoint, connectTimeout, context);
+        } catch (NoRouteToHostException exception) {
+            noRouteToHost.mark();
+
+            throw exception;
         }
     }
 
