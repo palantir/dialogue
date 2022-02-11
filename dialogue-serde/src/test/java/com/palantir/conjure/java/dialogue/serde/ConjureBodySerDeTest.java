@@ -75,7 +75,8 @@ public class ConjureBodySerDeTest {
                         .map(c -> WeightedEncoding.of(new StubEncoding(c)))
                         .collect(ImmutableList.toImmutableList()),
                 errorDecoder,
-                Encodings.emptyContainerDeserializer());
+                Encodings.emptyContainerDeserializer(),
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
     }
 
     @Test
@@ -113,7 +114,8 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(plain, .5), WeightedEncoding.of(json, 1)),
                 ErrorDecoder.INSTANCE,
-                Encodings.emptyContainerDeserializer());
+                Encodings.emptyContainerDeserializer(),
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         // first encoding is default
         RequestBody body = serializers.serializer(TYPE).serialize("test");
         assertThat(body.contentType()).isEqualTo(plain.getContentType());
@@ -173,7 +175,8 @@ public class ConjureBodySerDeTest {
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)),
                 ErrorDecoder.INSTANCE,
-                Encodings.emptyContainerDeserializer());
+                Encodings.emptyContainerDeserializer(),
+                DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))
                 .isInstanceOf(SafeRuntimeException.class)
                 .hasMessage("brokenEncoding is broken");

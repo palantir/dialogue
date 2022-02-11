@@ -17,6 +17,7 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
@@ -64,7 +65,8 @@ final class ConjureBodySerDe implements BodySerDe {
     ConjureBodySerDe(
             List<WeightedEncoding> rawEncodings,
             ErrorDecoder errorDecoder,
-            EmptyContainerDeserializer emptyContainerDeserializer) {
+            EmptyContainerDeserializer emptyContainerDeserializer,
+            CaffeineSpec cacheSpec) {
         List<WeightedEncoding> encodings = decorateEncodings(rawEncodings);
         this.encodingsSortedByWeight = sortByWeight(encodings);
         Preconditions.checkArgument(encodings.size() > 0, "At least one Encoding is required");
@@ -83,8 +85,8 @@ final class ConjureBodySerDe implements BodySerDe {
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
         this.serializers =
-                Caffeine.newBuilder().build(token -> new EncodingSerializerRegistry<>(defaultEncoding, token));
-        this.deserializers = Caffeine.newBuilder()
+                Caffeine.from(cacheSpec).build(token -> new EncodingSerializerRegistry<>(defaultEncoding, token));
+        this.deserializers = Caffeine.from(cacheSpec)
                 .build(token -> new EncodingDeserializerRegistry<>(
                         encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token));
     }
