@@ -517,7 +517,7 @@ public final class ApacheHttpClientChannels {
                     // No maximum time to live
                     TimeValue.NEG_ONE_MILLISECOND,
                     null,
-                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name),
+                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             connectionManager.setDefaultSocketConfig(SocketConfig.custom()

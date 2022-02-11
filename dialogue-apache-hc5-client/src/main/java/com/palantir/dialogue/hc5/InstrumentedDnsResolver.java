@@ -16,11 +16,13 @@
 
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Meter;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import org.apache.hc.client5.http.DnsResolver;
@@ -30,11 +32,13 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedDnsResolver.class);
     private final DnsResolver delegate;
+    private final Meter errorMeter;
     private final String clientName;
 
-    InstrumentedDnsResolver(DnsResolver delegate, String clientName) {
+    InstrumentedDnsResolver(DnsResolver delegate, String clientName, TaggedMetricRegistry metricRegistry) {
         this.delegate = delegate;
         this.clientName = clientName;
+        this.errorMeter = DialogueClientMetrics.of(metricRegistry).connectionResolutionError(clientName);
     }
 
     @Override
@@ -57,6 +61,8 @@ final class InstrumentedDnsResolver implements DnsResolver {
             }
             return resolved;
         } catch (Throwable t) {
+            recordFailure();
+
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
@@ -89,6 +95,8 @@ final class InstrumentedDnsResolver implements DnsResolver {
             }
             return resolved;
         } catch (Throwable t) {
+            recordFailure();
+
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
@@ -100,6 +108,10 @@ final class InstrumentedDnsResolver implements DnsResolver {
             }
             throw t;
         }
+    }
+
+    private void recordFailure() {
+        errorMeter.mark();
     }
 
     @Override

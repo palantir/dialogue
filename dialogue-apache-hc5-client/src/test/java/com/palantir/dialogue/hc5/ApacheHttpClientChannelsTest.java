@@ -17,8 +17,10 @@ package com.palantir.dialogue.hc5;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.fail;
 
 import com.codahale.metrics.Gauge;
+import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MoreCollectors;
@@ -121,6 +123,33 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             assertThat(poolGaugeValue(metrics, "testClient", "leased"))
                     .describedAs("leased after response closed")
                     .isZero();
+        }
+    }
+
+    @Test
+    public void countsUnknownHostExceptions() throws Exception {
+        ClientConfiguration conf = TestConfigurations.create("http://unused");
+
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
+
+            Meter connectionResolutionError =
+                    DialogueClientMetrics.of(conf.taggedMetricRegistry()).connectionResolutionError("testClient");
+
+            assertThat(connectionResolutionError.getCount()).isZero();
+
+            Channel channel =
+                    ApacheHttpClientChannels.createSingleUri("http://unknown-host-for-testing.unused", client);
+            ListenableFuture<Response> future =
+                    channel.execute(TestEndpoint.GET, Request.builder().build());
+
+            try (Response response = Futures.getChecked(future, UnknownHostException.class)) {
+                fail("This request should have failed with an unknown host exception! (code: %d)", response.code());
+            } catch (UnknownHostException _exception) {
+                // No-op, this is expected
+            }
+
+            assertThat(connectionResolutionError.getCount()).isEqualTo(1L);
         }
     }
 
