@@ -77,7 +77,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         private Builder() {}
 
         /**
-         * Configure
+         * Specify the serializer and deserializer cache configuration.
          */
         @CanIgnoreReturnValue
         public Builder serializerCacheSpecification(String specification) {
