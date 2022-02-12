@@ -79,7 +79,10 @@ public final class DefaultClientsTest {
 
     private Response response = new TestResponse();
     private BodySerDe bodySerde = new ConjureBodySerDe(
-            DefaultConjureRuntime.DEFAULT_ENCODINGS, ErrorDecoder.INSTANCE, Encodings.emptyContainerDeserializer());
+            DefaultConjureRuntime.DEFAULT_ENCODINGS,
+            ErrorDecoder.INSTANCE,
+            Encodings.emptyContainerDeserializer(),
+            DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
     private final SettableFuture<Response> responseFuture = SettableFuture.create();
     private final ListeningExecutorService executor =
             MoreExecutors.listeningDecorator(Executors.newSingleThreadExecutor());

@@ -16,6 +16,8 @@
 
 package com.palantir.conjure.java.dialogue.serde;
 
+import com.github.benmanes.caffeine.cache.CaffeineSpec;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import com.palantir.dialogue.BodySerDe;
@@ -29,6 +31,8 @@ import java.util.List;
  * {@link DefaultConjureRuntime} provides functionality required by generated handlers.
  */
 public final class DefaultConjureRuntime implements ConjureRuntime {
+    @VisibleForTesting
+    static final CaffeineSpec DEFAULT_SERDE_CACHE_SPEC = CaffeineSpec.parse("maximumSize=1000,expireAfterAccess=1m");
 
     static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
             WeightedEncoding.of(Encodings.json(), .9),
@@ -41,7 +45,8 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
                 ErrorDecoder.INSTANCE,
-                Encodings.emptyContainerDeserializer());
+                Encodings.emptyContainerDeserializer(),
+                builder.cacheSpec);
     }
 
     public static Builder builder() {
@@ -67,7 +72,18 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
         private final List<WeightedEncoding> encodings = new ArrayList<>();
 
+        private CaffeineSpec cacheSpec = DEFAULT_SERDE_CACHE_SPEC;
+
         private Builder() {}
+
+        /**
+         * Specify the serializer and deserializer cache configuration.
+         */
+        @CanIgnoreReturnValue
+        public Builder serializerCacheSpecification(String specification) {
+            cacheSpec = CaffeineSpec.parse(specification);
+            return this;
+        }
 
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value) {
