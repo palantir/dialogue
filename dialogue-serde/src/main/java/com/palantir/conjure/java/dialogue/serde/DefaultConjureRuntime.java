@@ -47,7 +47,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
                 ErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer(),
-                builder.cacheSpec);
+                DEFAULT_SERDE_CACHE_SPEC);
     }
 
     public static Builder builder() {
@@ -73,18 +73,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
 
         private final List<WeightedEncoding> encodings = new ArrayList<>();
 
-        private CaffeineSpec cacheSpec = DEFAULT_SERDE_CACHE_SPEC;
-
         private Builder() {}
-
-        /**
-         * Specify the serializer and deserializer cache configuration.
-         */
-        @CanIgnoreReturnValue
-        public Builder serializerCacheSpecification(String specification) {
-            cacheSpec = CaffeineSpec.parse(specification);
-            return this;
-        }
 
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value) {
