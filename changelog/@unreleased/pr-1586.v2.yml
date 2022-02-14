@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue request and response serializers are cached, reducing the
+    cost of sticky sessions which frequently re-create client interfaces
+  links:
+  - https://github.com/palantir/dialogue/pull/1586

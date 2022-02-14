@@ -50,6 +50,23 @@ public abstract class TypeMarker<T> {
     }
 
     @Override
+    public final boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other instanceof TypeMarker) {
+            TypeMarker<?> that = (TypeMarker<?>) other;
+            return type.equals(that.type);
+        }
+        return false;
+    }
+
+    @Override
+    public final int hashCode() {
+        return type.hashCode();
+    }
+
+    @Override
     public final String toString() {
         return "TypeMarker{type=" + type + '}';
     }
