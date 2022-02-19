@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue now clients now respect the Retry-After header in 429 and
+    503 responses.
+  links:
+  - https://github.com/palantir/dialogue/pull/1595
