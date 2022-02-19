@@ -24,6 +24,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -39,6 +40,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -150,6 +152,34 @@ public class RetryingChannelTest {
     }
 
     @Test
+    public void retries_429s_retryAfter() throws Exception {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(429);
+        when(mockResponse.getFirstHeader(HttpHeaders.RETRY_AFTER)).thenReturn(Optional.of("0"));
+        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        long startTime = System.nanoTime();
+        Duration backoffSlotSize = Duration.ofSeconds(10);
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                backoffSlotSize,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 429 response should be returned")
+                .isSameAs(mockResponse);
+        verify(channel, times(4)).execute(REQUEST);
+        assertThat(Duration.ofNanos(System.nanoTime() - startTime))
+                .as("429 responses should respect Retry-After header")
+                .isLessThan(backoffSlotSize);
+    }
+
+    @Test
     public void retries_503s() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(503);
@@ -169,6 +199,34 @@ public class RetryingChannelTest {
                 .as("After retries are exhausted the 503 response should be returned")
                 .isSameAs(mockResponse);
         verify(channel, times(4)).execute(REQUEST);
+    }
+
+    @Test
+    public void retries_503s_retryAfter() throws Exception {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(503);
+        when(mockResponse.getFirstHeader(HttpHeaders.RETRY_AFTER)).thenReturn(Optional.of("0"));
+        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+
+        long startTime = System.nanoTime();
+        Duration backoffSlotSize = Duration.ofSeconds(10);
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                backoffSlotSize,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get())
+                .as("After retries are exhausted the 503 response should be returned")
+                .isSameAs(mockResponse);
+        verify(channel, times(4)).execute(REQUEST);
+        assertThat(Duration.ofNanos(System.nanoTime() - startTime))
+                .as("503 responses should respect Retry-After header")
+                .isLessThan(backoffSlotSize);
     }
 
     @Test

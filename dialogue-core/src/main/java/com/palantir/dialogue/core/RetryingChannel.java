@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
+import com.google.common.net.HttpHeaders;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -301,7 +302,7 @@ final class RetryingChannel implements EndpointChannel {
             if (++failures <= maxRetries) {
                 response.close();
                 Throwable throwableToLog = log.isTraceEnabled() ? failureSupplier.apply(endpoint, response) : null;
-                long backoffNanos = Responses.isRetryOther(response) ? 0 : getBackoffNanoseconds();
+                long backoffNanos = getBackoffNanoseconds(response);
                 infoLogRetry(backoffNanos, OptionalInt.of(response.code()), throwableToLog);
                 return scheduleRetry(meter, backoffNanos);
             }
@@ -367,6 +368,28 @@ final class RetryingChannel implements EndpointChannel {
             }
             int upperBound = (int) Math.pow(2, failures - 1);
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
+        }
+
+        private long getBackoffNanoseconds(Response response) {
+            if (Responses.isRetryOther(response)) {
+                return 0L;
+            }
+
+            if (Responses.isTooManyRequests(response) || Responses.isUnavailable(response)) {
+                Optional<String> retryAfter = response.getFirstHeader(HttpHeaders.RETRY_AFTER);
+                if (retryAfter.isPresent()) {
+                    try {
+                        return TimeUnit.SECONDS.toNanos(Long.parseLong(retryAfter.get()));
+                    } catch (NumberFormatException nfe) {
+                        log.debug(
+                                "Failed to parse Retry-After header '{}'",
+                                SafeArg.of(HttpHeaders.RETRY_AFTER, retryAfter.get()),
+                                nfe);
+                    }
+                }
+            }
+
+            return getBackoffNanoseconds();
         }
 
         private boolean isRetryableQosStatus(Response response) {
