@@ -21,7 +21,7 @@ buildscript {
     }
 
     dependencies {
-        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.10.0'
+        classpath 'com.palantir.gradle.externalpublish:gradle-external-publish-plugin:1.11.0'
         classpath 'com.palantir.gradle.revapi:gradle-revapi:1.6.0'
         classpath 'com.palantir.javaformat:gradle-palantir-java-format:2.17.0'
         classpath 'com.palantir.baseline:gradle-baseline-java:4.70.0'
@@ -34,7 +34,7 @@ buildscript {
 }
 
 plugins {
-    id 'com.palantir.consistent-versions' version '2.7.0'
+    id 'com.palantir.consistent-versions' version '2.8.0'
 }
 
 apply plugin: 'com.palantir.external-publish'
