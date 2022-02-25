@@ -20,47 +20,39 @@ import com.google.common.collect.ImmutableMap;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Response;
 import com.palantir.tracing.TagTranslator;
-import com.palantir.tracing.TagTranslator.TagAdapter;
 import com.palantir.tracing.api.TraceTags;
-import java.util.Map;
 
 /** Internal utility functionality to support tracing dialogue requests. */
 final class DialogueTracing {
 
-    enum EndpointTagTranslator implements TagTranslator<Endpoint> {
-        INSTANCE;
-
-        @Override
-        public <T> void translate(TagAdapter<T> adapter, T target, Endpoint endpoint) {
-            adapter.tag(target, "endpointService", endpoint.serviceName());
-            adapter.tag(target, "endpointName", endpoint.endpointName());
-            adapter.tag(target, TraceTags.HTTP_METHOD, endpoint.httpMethod().toString());
-        }
-    }
-
     static ImmutableMap<String, String> tracingTags(Endpoint endpoint) {
-        // Might as well delegate to the EndpointTagTranslator to ensure all implementations
-        // stay in sync.
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        EndpointTagTranslator.INSTANCE.translate(ImmutableMapTagAdapter.INSTANCE, builder, endpoint);
-        return builder.build();
+        return ImmutableMap.of(
+                "endpointService",
+                endpoint.serviceName(),
+                "endpointName",
+                endpoint.endpointName(),
+                TraceTags.HTTP_METHOD,
+                endpoint.httpMethod().toString());
     }
 
     static ImmutableMap<String, String> tracingTags(Config cf) {
         return ImmutableMap.of(
-                "channel", cf.channelName(), "mesh", Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH));
+                "channel", cf.channelName(),
+                "mesh", Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH));
     }
 
     static ImmutableMap<String, String> tracingTags(Config cf, int hostIndex) {
-        return ImmutableMap.<String, String>builder()
-                .putAll(tracingTags(cf))
-                .put("hostIndex", Integer.toString(hostIndex))
-                .build();
+        return ImmutableMap.of(
+                "channel",
+                cf.channelName(),
+                "mesh",
+                Boolean.toString(cf.mesh() == MeshMode.USE_EXTERNAL_MESH),
+                "hostIndex",
+                Integer.toString(hostIndex));
     }
 
     static TagTranslator<Response> responseTranslator(ImmutableMap<String, String> tags) {
-        return new TagTranslator<Response>() {
-
+        return new TagTranslator<>() {
             @Override
             public <T> void translate(TagAdapter<T> sink, T target, Response response) {
                 sink.tag(target, tags);
@@ -72,8 +64,7 @@ final class DialogueTracing {
     }
 
     static TagTranslator<Throwable> failureTranslator(ImmutableMap<String, String> tags) {
-        return new TagTranslator<Throwable>() {
-
+        return new TagTranslator<>() {
             @Override
             public <T> void translate(TagAdapter<T> sink, T target, Throwable response) {
                 sink.tag(target, tags);
@@ -84,18 +75,4 @@ final class DialogueTracing {
     }
 
     private DialogueTracing() {}
-
-    enum ImmutableMapTagAdapter implements TagAdapter<ImmutableMap.Builder<String, String>> {
-        INSTANCE;
-
-        @Override
-        public void tag(ImmutableMap.Builder<String, String> target, String key, String value) {
-            target.put(key, value);
-        }
-
-        @Override
-        public void tag(ImmutableMap.Builder<String, String> target, Map<String, String> tags) {
-            target.putAll(tags);
-        }
-    }
 }

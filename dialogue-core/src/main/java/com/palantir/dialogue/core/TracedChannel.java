@@ -53,9 +53,11 @@ final class TracedChannel implements EndpointChannel {
     }
 
     private static ImmutableMap<String, String> tracingTags(Config cf, Endpoint endpoint) {
-        return ImmutableMap.<String, String>builder()
-                .putAll(DialogueTracing.tracingTags(endpoint))
-                .putAll(DialogueTracing.tracingTags(cf))
+        ImmutableMap<String, String> endpointTags = DialogueTracing.tracingTags(endpoint);
+        ImmutableMap<String, String> configTags = DialogueTracing.tracingTags(cf);
+        return ImmutableMap.<String, String>builderWithExpectedSize(endpointTags.size() + configTags.size())
+                .putAll(endpointTags)
+                .putAll(configTags)
                 .build();
     }
 
