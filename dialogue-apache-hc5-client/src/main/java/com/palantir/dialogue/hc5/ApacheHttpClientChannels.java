@@ -96,7 +96,6 @@ import org.apache.hc.core5.util.Timeout;
 
 public final class ApacheHttpClientChannels {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientChannels.class);
-    private static final String CLIENT_TYPE = "apache-hc5";
     // Starting conservatively matching the default conjure connect timeout.
     // This value acts as a minimum timeout when a low connect timeout is configured
     // to prevent handshakes from causing retry storms that burn CPU.
@@ -209,10 +208,7 @@ public final class ApacheHttpClientChannels {
                         UnsafeArg.of("executor", executor));
             }
             Meter createMeter = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
-                    .create()
-                    .clientName(clientName)
-                    .clientType(CLIENT_TYPE)
-                    .build();
+                    .create(clientName);
             createMeter.mark();
             CloseableClient wrapper = new CloseableClientWrapper(newInstance);
             CleanerSupport.register(wrapper, newInstance::closeApacheClient);
@@ -308,10 +304,7 @@ public final class ApacheHttpClientChannels {
             closer.register(apacheClient);
             closer.register(pool);
             closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
-                    .close()
-                    .clientName(clientName)
-                    .clientType(CLIENT_TYPE)
-                    .build()::mark);
+                    .close(clientName)::mark);
         }
 
         @Override
@@ -484,13 +477,9 @@ public final class ApacheHttpClientChannels {
                     new SSLConnectionSocketFactory(
                             MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
                             TlsProtocols.get(),
-                            supportedCipherSuites(
-                                    conf.enableGcmCipherSuites()
-                                            ? CipherSuites.allCipherSuites()
-                                            : CipherSuites.fastCipherSuites(),
-                                    rawSocketFactory,
-                                    name),
-                            new DefaultHostnameVerifier()) {
+                            supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                            new InstrumentedHostnameVerifier(
+                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
                         @Override
                         public Socket createSocket(final HttpContext context) throws IOException {
                             return socksProxyAddress == null
@@ -555,7 +544,7 @@ public final class ApacheHttpClientChannels {
                     .setKeepAliveStrategy(
                             new InactivityValidationAwareConnectionKeepAliveStrategy(connectionManager, name))
                     .setConnectionManager(new InstrumentedPoolingHttpClientConnectionManager(
-                            connectionManager, conf.taggedMetricRegistry(), name, CLIENT_TYPE))
+                            connectionManager, conf.taggedMetricRegistry(), name))
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided

@@ -46,23 +46,14 @@ final class InstrumentedPoolingHttpClientConnectionManager
     private final PoolingHttpClientConnectionManager manager;
     private final TaggedMetricRegistry registry;
     private final String clientName;
-    private final String clientType;
     private final Timer connectTimer;
 
     InstrumentedPoolingHttpClientConnectionManager(
-            PoolingHttpClientConnectionManager manager,
-            TaggedMetricRegistry registry,
-            String clientName,
-            String clientType) {
+            PoolingHttpClientConnectionManager manager, TaggedMetricRegistry registry, String clientName) {
         this.manager = manager;
         this.registry = registry;
         this.clientName = clientName;
-        this.clientType = clientType;
-        this.connectTimer = DialogueClientMetrics.of(registry)
-                .connectionCreate()
-                .clientName(clientName)
-                .clientType(clientType)
-                .build();
+        this.connectTimer = DialogueClientMetrics.of(registry).connectionCreate(clientName);
     }
 
     @Override
@@ -94,17 +85,12 @@ final class InstrumentedPoolingHttpClientConnectionManager
             DialogueClientMetrics.of(registry)
                     .connectionCreateError()
                     .clientName(clientName)
-                    .clientType(clientType)
                     .cause(throwable.getClass().getSimpleName())
                     .build()
                     .mark();
 
             if (log.isDebugEnabled()) {
-                log.debug(
-                        "Failed to connect to endpoint",
-                        SafeArg.of("clientName", clientName),
-                        SafeArg.of("clientType", clientType),
-                        throwable);
+                log.debug("Failed to connect to endpoint", SafeArg.of("clientName", clientName), throwable);
             }
 
             throw throwable;

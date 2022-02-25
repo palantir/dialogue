@@ -168,7 +168,6 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             Meter connectionCreateError = DialogueClientMetrics.of(conf.taggedMetricRegistry())
                     .connectionCreateError()
                     .clientName("testClient")
-                    .clientType("apache-hc5")
                     .cause("ConnectTimeoutException")
                     .build();
 
