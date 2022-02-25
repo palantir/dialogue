@@ -459,8 +459,6 @@ public final class ApacheHttpClientChannels {
         public CloseableClient build() {
             ClientConfiguration conf =
                     Preconditions.checkNotNull(clientConfiguration, "ClientConfiguration is required");
-            DialogueClientMetrics dialogueClientMetrics =
-                    DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry());
             String name = Preconditions.checkNotNull(clientName, "Client name is required");
             Preconditions.checkArgument(
                     !conf.fallbackToCommonNameVerification(), "fallback-to-common-name-verification is not supported");
@@ -473,6 +471,7 @@ public final class ApacheHttpClientChannels {
 
             Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
 
+            DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(conf.taggedMetricRegistry());
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory =
