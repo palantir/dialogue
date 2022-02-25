@@ -16,36 +16,70 @@ namespaces:
     metrics:
       response.leak:
         type: meter
-        tags: [client-name, service-name, endpoint]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+          - name: service-name
+          - name: endpoint
         docs: Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
 
       server.timing.overhead:
         type: timer
-        tags: [client-name]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
         docs: Difference in request time reported by the client and by the server. This metric is only reported when
           the remote server provides a `Server-Timing` response header with a timing value for `server`.
 
       create:
         type: meter
-        tags: [client-name, client-type]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
         docs: Marked every time a new client is created.
 
       close:
         type: meter
-        tags: [client-name, client-type]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
         docs: Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 
       connection.create:
         type: timer
-        tags: [client-name, client-type]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
       connection.create.error:
         type: meter
-        tags: [client-name, client-type, cause]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+          - name: cause
         docs: Rate that connections have failed to be created (e.g. connection timeout, no route to host).
 
       connection.resolution.error:
         type: meter
-        tags: [client-name]
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
         docs: Rate that connections have failed due to host resolution.
+
+      connection.insecure.cipher:
+        type: meter
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+          - name: cipher
+            docs: The insecure cipher used to connect to this server
+        docs: Meter describing the use of insecure ciphers to connect to this server.
