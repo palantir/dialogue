@@ -6,13 +6,34 @@
 
 ### dialogue.client
 Dialogue client response metrics provided by the Apache client channel.
-- `dialogue.client.response.leak` tagged `client-name`, `service-name`, `endpoint` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
-- `dialogue.client.server.timing.overhead` tagged `client-name` (timer): Difference in request time reported by the client and by the server. This metric is only reported when the remote server provides a `Server-Timing` response header with a timing value for `server`.
-- `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
-- `dialogue.client.close` tagged `client-name`, `client-type` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
-- `dialogue.client.connection.create` tagged `client-name`, `client-type` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
-- `dialogue.client.connection.create.error` tagged `client-name`, `client-type`, `cause` (meter): Rate that connections have failed to be created (e.g. connection timeout, no route to host).
-- `dialogue.client.connection.resolution.error` tagged `client-name` (meter): Rate that connections have failed due to host resolution.
+- `dialogue.client.response.leak` (meter): Rate that responses are garbage collected without being closed. This should only occur in the case of a programming error.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+  - `service-name`
+  - `endpoint`
+- `dialogue.client.server.timing.overhead` (timer): Difference in request time reported by the client and by the server. This metric is only reported when the remote server provides a `Server-Timing` response header with a timing value for `server`.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+- `dialogue.client.create` (meter): Marked every time a new client is created.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+- `dialogue.client.close` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+- `dialogue.client.connection.create` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+- `dialogue.client.connection.create.error` (meter): Rate that connections have failed to be created (e.g. connection timeout, no route to host).
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+  - `cause`
+- `dialogue.client.connection.resolution.error` (meter): Rate that connections have failed due to host resolution.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+- `dialogue.client.connection.insecure.cipher` (meter): Meter describing the use of insecure ciphers to connect to this server.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+  - `cipher`: The insecure cipher used to connect to this server
 
 ### dialogue.client.pool
 Connection pool metrics from the dialogue Apache client.
