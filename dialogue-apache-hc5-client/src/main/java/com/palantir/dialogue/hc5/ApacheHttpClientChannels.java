@@ -471,38 +471,15 @@ public final class ApacheHttpClientChannels {
 
             Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
 
-            DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(conf.taggedMetricRegistry());
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
             SSLConnectionSocketFactory sslSocketFactory =
                     new SSLConnectionSocketFactory(
                             MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
                             TlsProtocols.get(),
-                            supportedCipherSuites(
-                                    conf.enableGcmCipherSuites()
-                                            ? CipherSuites.allCipherSuites()
-                                            : CipherSuites.fastCipherSuites(),
-                                    rawSocketFactory,
-                                    name),
-                            new SessionObservingHostnameVerifier(new DefaultHostnameVerifier(), session -> {
-                                String cipher = session.getCipherSuite();
-                                // TODO(ckozak): https://github.com/palantir/conjure-java-runtime/pull/2272
-                                if (ImmutableSet.of().contains(cipher)) {
-                                    dialogueClientMetrics
-                                            .connectionInsecureCipher()
-                                            .clientName(name)
-                                            .cipher(cipher)
-                                            .build()
-                                            .mark();
-                                }
-
-                                if (log.isDebugEnabled()) {
-                                    log.debug(
-                                            "Client {} negotiated cipher {}",
-                                            SafeArg.of("name", name),
-                                            SafeArg.of("cipher", cipher));
-                                }
-                            })) {
+                            supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                            new InstrumentedHostnameVerifier(
+                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
                         @Override
                         public Socket createSocket(final HttpContext context) throws IOException {
                             return socksProxyAddress == null
