@@ -44,8 +44,7 @@ interface Config {
         return ClientConfiguration.builder()
                 .from(rawConfig())
                 .uris(rawConfig().uris().stream().map(MeshMode::stripMeshPrefix).collect(Collectors.toList()))
-                .taggedMetricRegistry(
-                        VersionedTaggedMetricRegistry.create(rawConfig().taggedMetricRegistry()))
+                .taggedMetricRegistry(rawConfig().taggedMetricRegistry())
                 .build();
     }
 
