@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Delete the undocumented `dialogueVersion` metric tag used prior to
+    metric-schema `libraryVersion` tags
+  links:
+  - https://github.com/palantir/dialogue/pull/1609
