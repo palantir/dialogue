@@ -25,6 +25,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.QueuedChannel.QueuedChannelInstrumentation;
 import com.palantir.dialogue.futures.DialogueFutures;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -60,19 +61,25 @@ final class StickyEndpointChannels2 implements Supplier<Channel> {
 
     private static final class QueueOverrideSupplier implements Supplier<Channel> {
 
-        private final Config cf;
+        private final String channelName;
+        private final int maxQueueSize;
+        private final QueuedChannelInstrumentation queuedChannelInstrumentation;
         private final LimitedChannel nodeSelectionChannel;
 
         private QueueOverrideSupplier(Config cf, LimitedChannel nodeSelectionChannel) {
-            this.cf = cf;
+            this.channelName = cf.channelName();
+            this.maxQueueSize = cf.maxQueueSize();
+            this.queuedChannelInstrumentation = QueuedChannel.stickyInstrumentation(
+                    DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), channelName);
             this.nodeSelectionChannel = nodeSelectionChannel;
         }
 
         @Override
         public Channel get() {
             LimitedChannel stickyLimitedChannel =
-                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, cf.channelName());
-            return QueuedChannel.createForSticky(cf, stickyLimitedChannel);
+                    StickyConcurrencyLimitedChannel.create(nodeSelectionChannel, channelName);
+            return QueuedChannel.createForSticky(
+                    channelName, maxQueueSize, queuedChannelInstrumentation, stickyLimitedChannel);
         }
     }
 
