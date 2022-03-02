@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Sticky sessions reuse metric references for better performance
+  links:
+  - https://github.com/palantir/dialogue/pull/1619
