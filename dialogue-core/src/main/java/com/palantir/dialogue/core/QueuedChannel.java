@@ -93,13 +93,12 @@ final class QueuedChannel implements Channel {
     }
 
     // Metrics are global, even if max size is per queue.
-    static QueuedChannel createForSticky(Config cf, LimitedChannel delegate) {
-        return new QueuedChannel(
-                delegate,
-                cf.channelName(),
-                stickyInstrumentation(
-                        DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
-                cf.maxQueueSize());
+    static QueuedChannel createForSticky(
+            String channelName,
+            int maxQueueSize,
+            QueuedChannelInstrumentation queuedChannelInstrumentation,
+            LimitedChannel delegate) {
+        return new QueuedChannel(delegate, channelName, queuedChannelInstrumentation, maxQueueSize);
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
@@ -380,7 +379,9 @@ final class QueuedChannel implements Channel {
     }
 
     static QueuedChannelInstrumentation stickyInstrumentation(DialogueClientMetrics metrics, String channelName) {
-        return new QueuedChannelInstrumentation() {
+        // Sticky-session queue instrumentation is reused between sticky sessions, metric references are
+        // memoized in order to avoid unnecessary churn.
+        return new MemoizedQueuedChannelInstrumentation(new QueuedChannelInstrumentation() {
             @Override
             public Counter requestsQueued() {
                 return metrics.requestsStickyQueued(channelName);
@@ -390,7 +391,7 @@ final class QueuedChannel implements Channel {
             public Timer requestQueuedTime() {
                 return metrics.requestStickyQueuedTime(channelName);
             }
-        };
+        });
     }
 
     static QueuedChannelInstrumentation endpointInstrumentation(
@@ -414,5 +415,26 @@ final class QueuedChannel implements Channel {
                         .build();
             }
         };
+    }
+
+    private static final class MemoizedQueuedChannelInstrumentation implements QueuedChannelInstrumentation {
+
+        private final Supplier<Counter> requestsQueuedSupplier;
+        private final Supplier<Timer> requestQueuedTimeSupplier;
+
+        MemoizedQueuedChannelInstrumentation(QueuedChannelInstrumentation delegate) {
+            this.requestsQueuedSupplier = Suppliers.memoize(delegate::requestsQueued);
+            this.requestQueuedTimeSupplier = Suppliers.memoize(delegate::requestQueuedTime);
+        }
+
+        @Override
+        public Counter requestsQueued() {
+            return requestsQueuedSupplier.get();
+        }
+
+        @Override
+        public Timer requestQueuedTime() {
+            return requestQueuedTimeSupplier.get();
+        }
     }
 }
