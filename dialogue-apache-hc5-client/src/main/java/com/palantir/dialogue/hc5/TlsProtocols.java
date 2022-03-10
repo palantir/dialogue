@@ -16,14 +16,29 @@
 
 package com.palantir.dialogue.hc5;
 
+import java.lang.Runtime.Version;
+
 /** Internal utility functionality to slowly roll out new TLS protocol support. */
 final class TlsProtocols {
 
+    private static final boolean HAS_BUGGY_TLS_1_3 = hasKnownBuggyTls13();
     private static final String TLS_V1_2 = "TLSv1.2";
     private static final String TLS_V1_3 = "TLSv1.3";
 
     static String[] get() {
-        return new String[] {TLS_V1_3, TLS_V1_2};
+        if (HAS_BUGGY_TLS_1_3) {
+            return new String[] {TLS_V1_2};
+        } else {
+            return new String[] {TLS_V1_3, TLS_V1_2};
+        }
+    }
+
+    private static boolean hasKnownBuggyTls13() {
+        // https://webtide.com/openjdk-11-and-tls-1-3-issues/
+        // https://bugs.openjdk.java.net/browse/JDK-8213202
+        // backported to jdk11.0.3 in https://bugs.openjdk.java.net/browse/JDK-8218094
+        Version version = Runtime.version();
+        return version.feature() == 11 && version.interim() == 0 && version.update() < 3;
     }
 
     private TlsProtocols() {}
