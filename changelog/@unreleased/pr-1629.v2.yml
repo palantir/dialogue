@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Java 11 clients use TLSv1.3 in addition to TLSv1.2
+  links:
+  - https://github.com/palantir/dialogue/pull/1629
