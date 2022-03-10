@@ -16,26 +16,14 @@
 
 package com.palantir.dialogue.hc5;
 
-import com.google.common.primitives.Ints;
-
 /** Internal utility functionality to slowly roll out new TLS protocol support. */
 final class TlsProtocols {
 
-    private static final boolean JAVA_15_OR_LATER = isJava15OrLater();
     private static final String TLS_V1_2 = "TLSv1.2";
     private static final String TLS_V1_3 = "TLSv1.3";
 
     static String[] get() {
-        if (JAVA_15_OR_LATER) {
-            return new String[] {TLS_V1_3, TLS_V1_2};
-        } else {
-            return new String[] {TLS_V1_2};
-        }
-    }
-
-    private static boolean isJava15OrLater() {
-        Integer version = Ints.tryParse(System.getProperty("java.specification.version"));
-        return version != null && version >= 15;
+        return new String[] {TLS_V1_3, TLS_V1_2};
     }
 
     private TlsProtocols() {}
