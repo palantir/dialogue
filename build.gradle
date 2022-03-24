@@ -28,7 +28,7 @@ buildscript {
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.14.0'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.6.0'
         classpath 'com.palantir.metricschema:gradle-metric-schema:0.12.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.20.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.21.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.0.0'
     }
 }
