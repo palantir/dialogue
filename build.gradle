@@ -16,8 +16,8 @@
 
 buildscript {
     repositories {
-        gradlePluginPortal()
-        mavenCentral()
+        gradlePluginPortal() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
+        mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
 
     dependencies {
@@ -56,7 +56,7 @@ allprojects {
     version rootProject.version
 
     repositories {
-        mavenCentral()
+        mavenCentral() { metadataSources { mavenPom(); ignoreGradleMetadataRedirection() } }
     }
     configurations.all {
         resolutionStrategy.preferProjectModules()
