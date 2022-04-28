@@ -5,7 +5,7 @@ com.google.testing.compile:compile-testing = 0.19
 com.palantir.common:streams = 2.0.0
 com.palantir.conjure:conjure = 4.29.0
 com.palantir.conjure.java:* = 6.46.0
-com.palantir.conjure.java.api:* = 2.24.0
+com.palantir.conjure.java.api:* = 2.25.0
 com.palantir.conjure.java.runtime:* = 7.33.0
 com.palantir.refreshable:* = 2.2.0
 com.palantir.ri:resource-identifier = 2.4.0
@@ -24,7 +24,7 @@ org.glassfish.jersey.core:jersey-common = 2.31
 org.immutables:* = 2.8.8
 org.slf4j:* = 1.7.36
 com.palantir.goethe:* = 0.7.0
-com.github.ben-manes.caffeine:caffeine = 3.0.6
+com.github.ben-manes.caffeine:caffeine = 3.1.0
 
 # test deps
 junit:junit = 4.13.2
@@ -34,7 +34,7 @@ org.apache.logging.log4j:* = 2.17.2
 org.assertj:assertj-core = 3.22.0
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
-org.mockito:* = 4.5.0
+org.mockito:* = 4.5.1
 jakarta.ws.rs:jakarta.ws.rs-api = 2.1.6
 org.apache.commons:commons-lang3 = 3.12.0
 org.awaitility:awaitility = 4.2.0
