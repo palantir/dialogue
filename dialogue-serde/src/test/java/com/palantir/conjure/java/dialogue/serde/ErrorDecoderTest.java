@@ -79,7 +79,13 @@ public final class ErrorDecoderTest {
                                 + " ("
                                 + ErrorType.FAILED_PRECONDITION.name()
                                 + ") with instance ID "
-                                + SERVICE_EXCEPTION.getErrorInstanceId());
+                                + SERVICE_EXCEPTION.getErrorInstanceId() + ": {key=value}");
+                assertThat(exception.getLogMessage())
+                        .isEqualTo("RemoteException: "
+                                + ErrorType.FAILED_PRECONDITION.code().name()
+                                + " ("
+                                + ErrorType.FAILED_PRECONDITION.name()
+                                + ")");
             });
         }
     }
