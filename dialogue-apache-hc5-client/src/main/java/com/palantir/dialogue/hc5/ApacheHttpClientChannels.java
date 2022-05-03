@@ -21,7 +21,6 @@ import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.io.Closer;
 import com.google.common.net.HostAndPort;
-import com.google.common.primitives.Ints;
 import com.palantir.conjure.java.api.config.service.BasicCredentials;
 import com.palantir.conjure.java.client.config.CipherSuites;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -466,8 +465,8 @@ public final class ApacheHttpClientChannels {
 
             Timeout socketTimeout = getSocketTimeout(conf, name);
 
-            Timeout connectTimeout = Timeout.ofMilliseconds(
-                    Ints.checkedCast(conf.connectTimeout().toMillis()));
+            Timeout connectTimeout =
+                    Timeout.ofMilliseconds(conf.connectTimeout().toMillis());
 
             Timeout handshakeTimeout = getHandshakeTimeout(connectTimeout, socketTimeout, name);
 
