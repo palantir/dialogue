@@ -17,6 +17,7 @@
 package com.palantir.myservice.service;
 
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.MustBeClosed;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
@@ -58,7 +59,8 @@ public interface MyService {
     // method level annotations? e.g.
     // @Request.Header(name="Accept", value="text/plain")
     // This is the dialogue Response object
-    @Request(method = HttpMethod.PUT, path = "/custom/request1", accept = MyResponseDeserializer.class)
+    @MustBeClosed
+    @Request(method = HttpMethod.PUT, path = "/custom/request1")
     Response customResponse();
 
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")

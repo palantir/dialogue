@@ -16,11 +16,16 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
+import com.google.auto.common.MoreElements;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.MustBeClosed;
+import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.Json;
+import com.palantir.dialogue.annotations.ResponseDeserializer;
 import com.squareup.javapoet.TypeName;
 import java.util.Optional;
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.type.TypeMirror;
 
@@ -36,22 +41,54 @@ public final class ReturnTypesResolver {
             EndpointName endpointName, ExecutableElement element, AnnotationReflector requestAnnotation) {
         TypeMirror returnType = element.getReturnType();
 
+        boolean hasMustBeClosed =
+                MoreElements.getAnnotationMirror(element, MustBeClosed.class).isPresent();
+
         Optional<TypeMirror> maybeListenableFutureInnerType = getListenableFutureInnerType(returnType);
         // TODO(12345): Validate deserializer types match
         Optional<TypeMirror> maybeAcceptDeserializerFactory =
                 requestAnnotation.getFieldMaybe("accept", TypeMirror.class);
         Optional<TypeMirror> maybeErrorDecoder = requestAnnotation.getFieldMaybe("errorDecoder", TypeMirror.class);
+
+        Optional<TypeName> maybeDeserializerFactory = maybeAcceptDeserializerFactory
+                .map(TypeName::get)
+                .or(() -> orDefaultDeserializerFactory(
+                        hasMustBeClosed, element, returnType, maybeListenableFutureInnerType));
+
+        if (maybeDeserializerFactory.isEmpty()) {
+            return Optional.empty();
+        }
+
         return Optional.of(ImmutableReturnType.builder()
                 .returnType(TypeName.get(returnType))
-                .deserializerFactory(maybeAcceptDeserializerFactory
-                        .map(TypeName::get)
-                        .orElseGet(() -> context.getTypeName(Json.class)))
+                .deserializerFactory(maybeDeserializerFactory.get())
                 .errorDecoder(maybeErrorDecoder
                         .map(TypeName::get)
                         .orElseGet(() -> context.getTypeName(ConjureErrorDecoder.class)))
                 .deserializerFieldName(InstanceVariables.joinCamelCase(endpointName.get(), "Deserializer"))
                 .asyncInnerType(maybeListenableFutureInnerType.map(TypeName::get))
                 .build());
+    }
+
+    private Optional<TypeName> orDefaultDeserializerFactory(
+            boolean hasMustBeClosed,
+            Element element,
+            TypeMirror returnType,
+            Optional<TypeMirror> maybeListenableFutureInnerType) {
+        boolean isReturnResponseType = isResponseType(returnType);
+        if (isReturnResponseType
+                || maybeListenableFutureInnerType.map(this::isResponseType).orElse(false)) {
+            if (isReturnResponseType && !hasMustBeClosed) {
+                context.reportError("When returning raw Response, remember to add @MustBeClosed annotation", element);
+                return Optional.empty();
+            }
+            return Optional.of(context.getTypeName(ResponseDeserializer.class));
+        }
+        return Optional.of(context.getTypeName(Json.class));
+    }
+
+    private boolean isResponseType(TypeMirror type) {
+        return context.isSameTypes(type, Response.class);
     }
 
     private Optional<TypeMirror> getListenableFutureInnerType(TypeMirror typeName) {
