@@ -480,9 +480,9 @@ public final class ApacheHttpClientChannels {
                             new InstrumentedHostnameVerifier(
                                     new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
                         @Override
-                        public Socket createSocket(final HttpContext context) throws IOException {
+                        public Socket createSocket(final HttpContext _context) {
                             return socksProxyAddress == null
-                                    ? super.createSocket(context)
+                                    ? new Socket(Proxy.NO_PROXY)
                                     : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
                         }
                     };
@@ -491,9 +491,9 @@ public final class ApacheHttpClientChannels {
                     RegistryBuilder.<ConnectionSocketFactory>create()
                             .register(URIScheme.HTTP.id, new PlainConnectionSocketFactory() {
                                 @Override
-                                public Socket createSocket(final HttpContext context) throws IOException {
+                                public Socket createSocket(final HttpContext _context) {
                                     return socksProxyAddress == null
-                                            ? super.createSocket(context)
+                                            ? new Socket(Proxy.NO_PROXY)
                                             : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
                                 }
                             })
