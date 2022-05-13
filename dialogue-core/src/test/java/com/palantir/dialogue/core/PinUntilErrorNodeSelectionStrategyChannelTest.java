@@ -272,6 +272,7 @@ public class PinUntilErrorNodeSelectionStrategyChannelTest {
     }
 
     private static Response response(int status) {
-        return TestResponse.withBody(null).code(status);
+        TestResponse result = TestResponse.withBody(null).code(status);
+        return status == 308 ? result.withHeader("Location", "https://localhost") : result;
     }
 }

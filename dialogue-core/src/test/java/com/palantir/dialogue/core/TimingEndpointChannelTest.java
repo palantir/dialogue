@@ -18,24 +18,30 @@ package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.collect.ListMultimap;
+import com.google.common.collect.MultimapBuilder;
 import com.google.common.util.concurrent.Futures;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.ConnectException;
 import java.net.UnknownHostException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
 import javax.net.ssl.SSLHandshakeException;
@@ -68,7 +74,10 @@ public final class TimingEndpointChannelTest {
 
     @Test
     public void addsMetricsForQosResponses() {
-        testThat().successfulResponseWithCode(308).isCountedAsFailure();
+        testThat()
+                .successfulResponseWithCode(308)
+                .withHeader("Location", "https://localhost")
+                .isCountedAsFailure();
         testThat().successfulResponseWithCode(429).isCountedAsFailure();
         testThat().successfulResponseWithCode(503).isCountedAsFailure();
     }
@@ -117,9 +126,17 @@ public final class TimingEndpointChannelTest {
         private OptionalInt maybeCode = OptionalInt.empty();
         private Optional<Throwable> maybeThrowable = Optional.empty();
 
+        private Map<String, String> headers = new HashMap<>();
+
         @CheckReturnValue
         TestCase successfulResponseWithCode(int code) {
             this.maybeCode = OptionalInt.of(code);
+            return this;
+        }
+
+        @CheckReturnValue
+        TestCase withHeader(String headerName, String headerValue) {
+            headers.put(headerName, headerValue);
             return this;
         }
 
@@ -151,8 +168,37 @@ public final class TimingEndpointChannelTest {
             Preconditions.checkState(
                     maybeCode.isPresent() ^ maybeThrowable.isPresent(), "Either code of throwable need to be present");
             maybeCode.ifPresent(code -> {
-                Response response = mock(Response.class);
-                when(response.code()).thenReturn(code);
+                Response response = new Response() {
+                    final ResponseAttachments attachments = ResponseAttachments.create();
+
+                    @Override
+                    public InputStream body() {
+                        return new ByteArrayInputStream(new byte[0]);
+                    }
+
+                    @Override
+                    public int code() {
+                        return code;
+                    }
+
+                    @Override
+                    public ListMultimap<String, String> headers() {
+                        ListMultimap<String, String> tmpHeaders = MultimapBuilder.treeKeys(
+                                        String.CASE_INSENSITIVE_ORDER)
+                                .arrayListValues()
+                                .build();
+                        headers.forEach(tmpHeaders::put);
+                        return tmpHeaders;
+                    }
+
+                    @Override
+                    public ResponseAttachments attachments() {
+                        return attachments;
+                    }
+
+                    @Override
+                    public void close() {}
+                };
                 when(delegate.execute(any())).thenReturn(Futures.immediateFuture(response));
             });
             maybeThrowable.ifPresent(throwable -> {

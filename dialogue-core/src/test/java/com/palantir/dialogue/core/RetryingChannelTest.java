@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -39,6 +40,7 @@ import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -175,6 +177,7 @@ public class RetryingChannelTest {
     public void retries_308s() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(308);
+        when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         long startTime = System.nanoTime();
@@ -202,6 +205,7 @@ public class RetryingChannelTest {
     public void retries_308s_when_429_and_503_are_propagated() throws Exception {
         Response mockResponse = mock(Response.class);
         when(mockResponse.code()).thenReturn(308);
+        when(mockResponse.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
         when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
 
         EndpointChannel retryer = new RetryingChannel(
@@ -219,6 +223,25 @@ public class RetryingChannelTest {
                 .as("After retries are exhausted the 308 response should be returned")
                 .isSameAs(mockResponse);
         verify(channel, times(4)).execute(REQUEST);
+    }
+
+    @Test
+    public void does_not_retry_308_without_location() throws Exception {
+        Response mockResponse = mock(Response.class);
+        when(mockResponse.code()).thenReturn(308);
+        when(channel.execute(any())).thenReturn(Futures.immediateFuture(mockResponse));
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                3,
+                Duration.ofSeconds(1),
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response).isDone();
+        assertThat(response.get()).isSameAs(mockResponse);
+        verify(channel, times(1)).execute(REQUEST);
     }
 
     @Test

@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -185,16 +186,39 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
     }
 
     @Test
-    public void onSuccess_dropsIfResponseIndicatesQosOrError_host() {
+    public void onSuccess_dropsIfResponseIndicatesQosOrError_host_308() {
         CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
-        for (int code : new int[] {308, 503}) {
-            Response response = mock(Response.class);
-            when(response.code()).thenReturn(code);
+        Response response = mock(Response.class);
+        when(response.getFirstHeader(eq("Location"))).thenReturn(Optional.of("https://localhost"));
+        when(response.code()).thenReturn(308);
 
-            double max = limiter.getLimit();
-            limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
-            assertThat(limiter.getLimit()).as("For status %d", code).isCloseTo(max * 0.9, Percentage.withPercentage(5));
-        }
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For status %d", 308).isCloseTo(max * 0.9, Percentage.withPercentage(5));
+    }
+
+    @Test
+    public void onSuccess_successIfResponseIndicatesNonQos308() {
+        // This represents google chunked-upload APIs which respond '308 Resume Incomplete' to indicate
+        // a successful chunk upload request.
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(308);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).isEqualTo(max);
+    }
+
+    @Test
+    public void onSuccess_dropsIfResponseIndicatesQosOrError_host_503() {
+        CautiousIncreaseAggressiveDecreaseConcurrencyLimiter limiter = limiter(Behavior.HOST_LEVEL);
+        Response response = mock(Response.class);
+        when(response.code()).thenReturn(503);
+
+        double max = limiter.getLimit();
+        limiter.acquire(LimitEnforcement.DEFAULT_ENABLED).get().onSuccess(response);
+        assertThat(limiter.getLimit()).as("For status %d", 503).isCloseTo(max * 0.9, Percentage.withPercentage(5));
     }
 
     @Test

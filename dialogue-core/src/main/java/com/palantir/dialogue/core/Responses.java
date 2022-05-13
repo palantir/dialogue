@@ -15,13 +15,18 @@
  */
 package com.palantir.dialogue.core;
 
+import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Response;
 
 /** Utility functionality for {@link Response} handling. */
 final class Responses {
 
     static boolean isRetryOther(Response response) {
-        return response.code() == 308;
+        // Note that a 308 status may be a non-retryable signal, for instance google sometimes
+        // uses a '308 Resume Incomplete', so we must verify the presence of a Location header
+        // to differentiate the two.
+        return response.code() == 308
+                && response.getFirstHeader(HttpHeaders.LOCATION).isPresent();
     }
 
     static boolean isTooManyRequests(Response response) {
