@@ -21,6 +21,7 @@ import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
+import com.palantir.dialogue.annotations.ResponseDeserializer;
 import com.palantir.dialogue.annotations.ToStringParamEncoder;
 import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
@@ -66,7 +67,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     endpointChannelFactory.endpoint(Endpoints.customResponse);
 
             private final Deserializer<Response> customResponseDeserializer = new ErrorHandlingDeserializerFactory(
-                            new MyResponseDeserializer(), new ConjureErrorDecoder())
+                            new ResponseDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<Response>() {});
 
             private final MyCustomParamTypeParameterEncoder paramsQuery1Encoder =

@@ -18,6 +18,7 @@ package com.palantir.myservice.example;
 
 import com.google.common.collect.Multimap;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.MustBeClosed;
 import com.palantir.dialogue.DialogueService;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.RequestBody;
@@ -52,18 +53,15 @@ public interface MyService {
     @Request(method = HttpMethod.PUT, path = "/custom/request")
     void customRequest(RequestBody requestBody);
 
-    // No decoders allowed (Response is raw)
+    // No decoders allowed (Response is raw); Must be annotated with @MustBeClosed
     // Unclear: If the response status is non-200, do we throw?
     // No encoders allowed (no body)
     // Should we support custom static request headers via
     // method level annotations? e.g.
     // @Request.Header(name="Accept", value="text/plain")
     // This is the dialogue Response object
-    @Request(
-            method = HttpMethod.PUT,
-            path = "/custom/request1",
-            accept = MyResponseDeserializer.class,
-            errorDecoder = ErrorDecoder.None.class)
+    @MustBeClosed
+    @Request(method = HttpMethod.PUT, path = "/custom/request1", errorDecoder = ErrorDecoder.None.class)
     Response customResponse();
 
     @Request(method = HttpMethod.PUT, path = "/custom/request2", errorDecoder = AlwaysThrowErrorDecoder.class)

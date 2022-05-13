@@ -1,5 +1,5 @@
 /*
- * (c) Copyright 2021 Palantir Technologies Inc. All rights reserved.
+ * (c) Copyright 2022 Palantir Technologies Inc. All rights reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,14 +14,13 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.dialogue.annotations;
 
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.annotations.StdDeserializer;
 
-public final class MyResponseDeserializer extends StdDeserializer<Response> {
+public final class ResponseDeserializer extends StdDeserializer<Response> {
 
-    public MyResponseDeserializer() {
+    public ResponseDeserializer() {
         super("*/*");
     }
 
@@ -32,6 +31,6 @@ public final class MyResponseDeserializer extends StdDeserializer<Response> {
 
     @Override
     public String toString() {
-        return "MyResponseDeserializer{}";
+        return "ResponseDeserializer{}";
     }
 }

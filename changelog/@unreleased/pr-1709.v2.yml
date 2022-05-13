@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Handle raw Response out of the box.
+  links:
+  - https://github.com/palantir/dialogue/pull/1709
