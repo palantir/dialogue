@@ -129,6 +129,7 @@ class ContentEncodingChannelTest {
                 return "1.2.3";
             }
 
+            @Override
             public Set<String> tags() {
                 return ImmutableSet.of("compress-request");
             }
