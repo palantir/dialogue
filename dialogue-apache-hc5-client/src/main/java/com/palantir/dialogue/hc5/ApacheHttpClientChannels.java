@@ -56,6 +56,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import javax.annotation.Nullable;
 import javax.net.ssl.SSLSocketFactory;
@@ -472,32 +473,33 @@ public final class ApacheHttpClientChannels {
 
             InetSocketAddress socksProxyAddress = getSocksProxyAddress(conf);
             SSLSocketFactory rawSocketFactory = conf.sslSocketFactory();
-            SSLConnectionSocketFactory sslSocketFactory =
-                    new SSLConnectionSocketFactory(
-                            MetricRegistries.instrument(conf.taggedMetricRegistry(), rawSocketFactory, name),
-                            TlsProtocols.get(),
-                            supportedCipherSuites(CipherSuites.allCipherSuites(), rawSocketFactory, name),
-                            new InstrumentedHostnameVerifier(
-                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
-                        @Override
-                        public Socket createSocket(final HttpContext context) throws IOException {
-                            return socksProxyAddress == null
-                                    ? super.createSocket(context)
-                                    : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
-                        }
-                    };
+            Supplier<Socket> simpleSocketCreator = socksProxyAddress == null
+                    ? () -> new Socket(Proxy.NO_PROXY)
+                    : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
 
             PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
                     RegistryBuilder.<ConnectionSocketFactory>create()
                             .register(URIScheme.HTTP.id, new PlainConnectionSocketFactory() {
                                 @Override
-                                public Socket createSocket(final HttpContext context) throws IOException {
-                                    return socksProxyAddress == null
-                                            ? super.createSocket(context)
-                                            : new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
+                                public Socket createSocket(HttpContext _context) {
+                                    return simpleSocketCreator.get();
                                 }
                             })
-                            .register(URIScheme.HTTPS.id, sslSocketFactory)
+                            .register(
+                                    URIScheme.HTTPS.id,
+                                    new SSLConnectionSocketFactory(
+                                            MetricRegistries.instrument(
+                                                    conf.taggedMetricRegistry(), rawSocketFactory, name),
+                                            TlsProtocols.get(),
+                                            supportedCipherSuites(
+                                                    CipherSuites.allCipherSuites(), rawSocketFactory, name),
+                                            new InstrumentedHostnameVerifier(
+                                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
+                                        @Override
+                                        public Socket createSocket(HttpContext _context) {
+                                            return simpleSocketCreator.get();
+                                        }
+                                    })
                             .build(),
                     PoolConcurrencyPolicy.LAX,
                     // Allow unnecessary connections to time out reducing system load.
