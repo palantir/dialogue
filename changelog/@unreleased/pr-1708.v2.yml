@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Support request compression using the `compress-request` endpoint tag
+  links:
+  - https://github.com/palantir/dialogue/pull/1708
