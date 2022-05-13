@@ -126,6 +126,7 @@ final class ContentEncodingChannel implements EndpointChannel {
      * Specialized implementation of {@link GZIPOutputStream} which uses {@link Deflater#BEST_SPEED} to reduce
      * CPU utilization with a slight cost to compression ratio.
      */
+    @SuppressWarnings("FilterOutputStreamSlowMultibyteWrite") // false positive
     private static final class BestSpeedGzipOutputStream extends GZIPOutputStream {
 
         BestSpeedGzipOutputStream(OutputStream out) throws IOException {
