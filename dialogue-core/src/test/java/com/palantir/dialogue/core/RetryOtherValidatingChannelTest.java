@@ -72,6 +72,12 @@ public final class RetryOtherValidatingChannelTest {
         verifyNoInteractions(failureReporter);
     }
 
+    @Test
+    public void testDoesNotReportMissingLocation() {
+        execute(null);
+        verifyNoInteractions(failureReporter);
+    }
+
     private void execute(@Nullable String retryOtherUri) {
         RetryOtherValidatingChannel channel = new RetryOtherValidatingChannel(
                 delegate,

@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Retryer differentiates 308 status QoSException and non-QosException
+  links:
+  - https://github.com/palantir/dialogue/pull/1714
