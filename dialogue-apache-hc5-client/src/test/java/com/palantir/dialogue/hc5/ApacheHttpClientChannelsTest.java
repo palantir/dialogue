@@ -121,7 +121,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
 
             assertThat(poolGaugeValue(metrics, "testClient", "idle"))
                     .describedAs("available after response closed")
-                    .isZero();
+                    .isOne();
             assertThat(poolGaugeValue(metrics, "testClient", "leased"))
                     .describedAs("leased after response closed")
                     .isZero();
