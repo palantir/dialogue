@@ -145,7 +145,9 @@ public final class LargeResponseTest {
                     closeType.close(responseStream, resp);
                     Duration closeDuration = Duration.ofNanos(System.nanoTime() - beforeClose);
                     assertThat(closeDuration).isLessThan(Duration.ofSeconds(2));
-                    assertThat(closedConns.getCount()).isZero();
+                    assertThat(closedConns.getCount())
+                            .as("Small responses below the threshold should not trigger closure")
+                            .isZero();
                 }
             }
         } finally {
