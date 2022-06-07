@@ -18,6 +18,7 @@ package com.palantir.dialogue.hc5;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Multimaps;
+import com.google.common.io.ByteStreams;
 import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.HttpMethod;
@@ -53,7 +54,9 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
+import org.apache.hc.client5.http.classic.ExecRuntime;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
@@ -63,6 +66,12 @@ import org.apache.hc.core5.http.message.BasicHeader;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientBlockingChannel.class);
+    /**
+     * Threshold beyond which connections are closed rather than attempting to exhaust the response content for reuse.
+     * Should be small enough that it's quick to load and check, but large enough that we don't cause unnecessary
+     * connection/handshake churn.
+     */
+    private static final int REMAINING_CONTENT_CONNECTION_DISCARD_THRESHOLD = 64 * 1024;
 
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
@@ -104,12 +113,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
         long startTime = System.nanoTime();
         try {
-            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build());
+            HttpClientContext context = HttpClientContext.create();
+            CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build(), context);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.
             boolean close = true;
             try {
-                Response dialogueResponse = new HttpClientResponse(client, httpClientResponse);
+                Response dialogueResponse = new HttpClientResponse(client, httpClientResponse, context);
                 Response leakDetectingResponse = responseLeakDetector.wrap(dialogueResponse, endpoint);
                 close = false;
                 return leakDetectingResponse;
@@ -243,6 +253,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final class HttpClientResponse implements Response {
 
         private final CloseableHttpResponse response;
+        private final HttpClientContext context;
 
         private final ResponseAttachments attachments = ResponseAttachments.create();
 
@@ -253,9 +264,13 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         @Nullable
         private ListMultimap<String, String> headers;
 
-        HttpClientResponse(ApacheHttpClientChannels.CloseableClient client, CloseableHttpResponse response) {
+        HttpClientResponse(
+                ApacheHttpClientChannels.CloseableClient client,
+                CloseableHttpResponse response,
+                HttpClientContext context) {
             this.client = client;
             this.response = response;
+            this.context = context;
         }
 
         @Override
@@ -263,7 +278,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
                 try {
-                    return new ResponseInputStream(client, entity.getContent());
+                    return new ResponseInputStream(client, entity.getContent(), this);
                 } catch (IOException e) {
                     throw new SafeRuntimeException("Failed to get response stream", e);
                 }
@@ -307,17 +322,58 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public void close() {
+            ApacheHttpClientChannels.CloseableClient clientSnapshot = client;
             client = null;
-            try {
-                response.close();
-            } catch (IOException | RuntimeException e) {
-                log.warn("Failed to close response", e);
+            // Avoid attempting to close a response that has already been closed.
+            if (clientSnapshot != null) {
+                try {
+                    // Check if the response has been fully drained. If not, we close the connection rather than
+                    // potentially
+                    if (hasSubstantialRemainingData(response)) {
+                        ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
+                        if (runtime != null) {
+                            runtime.discardEndpoint();
+                            // Constructing the new metrics component in the unexpected case is more efficient than
+                            // creating the meter for hundreds of services which never hit this case.
+                            DialogueClientMetrics.of(
+                                            clientSnapshot.clientConfiguration().taggedMetricRegistry())
+                                    .connectionClosedPartiallyConsumedResponse(clientSnapshot.name())
+                                    .mark();
+                        }
+                    }
+                    response.close();
+                } catch (IOException | RuntimeException e) {
+                    log.warn("Failed to close response", e);
+                }
             }
         }
 
         @Override
         public String toString() {
             return "HttpClientResponse{response=" + response + ", client=" + client + '}';
+        }
+    }
+
+    /**
+     * Checks if there is remaining data in the stream, note that this is a
+     * destructive operation which should only occur in order to close the stream.
+     */
+    private static boolean hasSubstantialRemainingData(CloseableHttpResponse response) {
+        try {
+            HttpEntity entity = response.getEntity();
+            if (entity == null || !entity.isStreaming()) {
+                return false;
+            }
+            InputStream stream = entity.getContent();
+            // Fast check: The stream has been fully exhausted in hte expected case,
+            // no need to create buffers for drainage unless we know there's data to drain.
+            if (stream.read() == -1) {
+                return false;
+            }
+            return REMAINING_CONTENT_CONNECTION_DISCARD_THRESHOLD
+                    == ByteStreams.exhaust(ByteStreams.limit(stream, REMAINING_CONTENT_CONNECTION_DISCARD_THRESHOLD));
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -403,15 +459,28 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         @Nullable
         private ApacheHttpClientChannels.CloseableClient client;
 
-        ResponseInputStream(@Nullable ApacheHttpClientChannels.CloseableClient client, InputStream stream) {
+        private final HttpClientResponse response;
+
+        ResponseInputStream(
+                @Nullable ApacheHttpClientChannels.CloseableClient client,
+                InputStream stream,
+                HttpClientResponse response) {
             super(stream);
             this.client = client;
+            this.response = response;
         }
 
         @Override
         public void close() throws IOException {
-            client = null;
-            super.close();
+            try {
+                try {
+                    response.close();
+                } finally {
+                    super.close();
+                }
+            } finally {
+                client = null;
+            }
         }
 
         @Override

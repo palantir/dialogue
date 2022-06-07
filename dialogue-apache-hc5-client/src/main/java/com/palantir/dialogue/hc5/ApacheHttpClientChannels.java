@@ -557,6 +557,9 @@ public final class ApacheHttpClientChannels {
                     .setDefaultCredentialsProvider(NullCredentialsProvider.INSTANCE)
                     .setTargetAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
                     .setProxyAuthenticationStrategy(NullAuthenticationStrategy.INSTANCE)
+                    .addExecInterceptorFirst(
+                            "HttpClientExecRuntimeAttributeInterceptor",
+                            HttpClientExecRuntimeAttributeInterceptor.INSTANCE)
                     .setDefaultAuthSchemeRegistry(
                             RegistryBuilder.<AuthSchemeFactory>create().build());
             conf.proxyCredentials().ifPresent(credentials -> builder.setDefaultCredentialsProvider(
