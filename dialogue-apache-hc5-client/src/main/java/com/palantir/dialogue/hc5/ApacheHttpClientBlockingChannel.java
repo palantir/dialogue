@@ -328,7 +328,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             if (clientSnapshot != null) {
                 try {
                     // Check if the response has been fully drained. If not, we close the connection rather than
-                    // potentially
+                    // potentially reading massive data unnecessarily.
                     if (hasSubstantialRemainingData(response)) {
                         ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
                         if (runtime != null) {
