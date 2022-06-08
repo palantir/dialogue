@@ -57,6 +57,16 @@ namespaces:
             values: [ apache-hc5 ]
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
+      connection.closed.partially-consumed-response:
+        type: meter
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+        docs: Reports the rate that connections are closed due to response closure prior to response data being fully
+          exhausted. When this occurs, subsequent requests must create new handshakes, incurring latency and CPU
+          overhead due to handshakes.
+
       connection.create.error:
         type: meter
         tags:

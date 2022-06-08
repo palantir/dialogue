@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Closing a response drains at most 64k of data (was unlimited)
+  links:
+  - https://github.com/palantir/dialogue/pull/1735
