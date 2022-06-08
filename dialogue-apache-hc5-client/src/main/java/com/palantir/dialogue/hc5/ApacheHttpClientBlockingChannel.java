@@ -365,7 +365,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 return false;
             }
             InputStream stream = entity.getContent();
-            // Fast check: The stream has been fully exhausted in hte expected case,
+            // Fast check: The stream has been fully exhausted in the expected case,
             // no need to create buffers for drainage unless we know there's data to drain.
             if (stream.read() == -1) {
                 return false;
