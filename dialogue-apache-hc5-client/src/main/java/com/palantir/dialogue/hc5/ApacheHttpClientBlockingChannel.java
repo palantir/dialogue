@@ -352,8 +352,8 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                                             clientSnapshot.clientConfiguration().taggedMetricRegistry())
                                     .connectionClosedPartiallyConsumedResponse(clientSnapshot.name())
                                     .mark();
-                            // Important not to call response.close which still has access to the underlying
-                            // socket channel, which may be in use by another exchange.
+                            // Do not call response.close which internally attempts to drain the response
+                            // because the underlying resources have already been closed.
                             return;
                         }
                     }
