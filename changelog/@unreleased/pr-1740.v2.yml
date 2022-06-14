@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Dialogue response body stream safety improvements to prevent accidental
+    stream reuse and confusing warnings.
+  links:
+  - https://github.com/palantir/dialogue/pull/1740
