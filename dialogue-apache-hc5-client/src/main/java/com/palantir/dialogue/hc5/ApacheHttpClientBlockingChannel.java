@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.hc5;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
 import com.google.common.collect.Multimaps;
@@ -264,6 +265,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         @Nullable
         private ListMultimap<String, String> headers;
 
+        @Nullable
+        private InputStream responseBody;
+
         HttpClientResponse(
                 ApacheHttpClientChannels.CloseableClient client,
                 CloseableHttpResponse response,
@@ -275,10 +279,19 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public InputStream body() {
+            InputStream snapshot = this.responseBody;
+            if (snapshot == null) {
+                snapshot = createResponseBody();
+                this.responseBody = snapshot;
+            }
+            return snapshot;
+        }
+
+        private InputStream createResponseBody() {
             HttpEntity entity = response.getEntity();
             if (entity != null) {
                 try {
-                    return new ResponseInputStream(client, entity.getContent(), this);
+                    return new ResponseInputStream(entity.getContent(), this);
                 } catch (IOException e) {
                     throw new SafeRuntimeException("Failed to get response stream", e);
                 }
@@ -339,6 +352,9 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                                             clientSnapshot.clientConfiguration().taggedMetricRegistry())
                                     .connectionClosedPartiallyConsumedResponse(clientSnapshot.name())
                                     .mark();
+                            // Do not call response.close which internally attempts to drain the response
+                            // because the underlying resources have already been closed.
+                            return;
                         }
                     }
                     response.close();
@@ -346,6 +362,10 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     log.warn("Failed to close response", e);
                 }
             }
+        }
+
+        boolean isOpen() {
+            return client != null;
         }
 
         @Override
@@ -455,37 +475,73 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private static final class ResponseInputStream extends FilterInputStream {
 
-        // Client reference is used to prevent premature termination
-        @Nullable
-        private ApacheHttpClientChannels.CloseableClient client;
-
         private final HttpClientResponse response;
 
-        ResponseInputStream(
-                @Nullable ApacheHttpClientChannels.CloseableClient client,
-                InputStream stream,
-                HttpClientResponse response) {
+        ResponseInputStream(InputStream stream, HttpClientResponse response) {
             super(stream);
-            this.client = client;
             this.response = response;
         }
 
         @Override
-        public void close() throws IOException {
-            try {
-                try {
-                    response.close();
-                } finally {
-                    super.close();
-                }
-            } finally {
-                client = null;
+        public int read() throws IOException {
+            checkOpen();
+            return super.read();
+        }
+
+        @Override
+        public int read(byte[] buffer) throws IOException {
+            checkOpen();
+            return super.read(buffer);
+        }
+
+        @Override
+        public int read(byte[] buffer, int off, int len) throws IOException {
+            checkOpen();
+            return super.read(buffer, off, len);
+        }
+
+        @Override
+        public long skip(long num) throws IOException {
+            checkOpen();
+            return super.skip(num);
+        }
+
+        @Override
+        public void close() {
+            if (response.isOpen()) {
+                response.close();
+                // no need to close the delegate stream itself, closing the response is sufficient
+                // to release resources.
+            }
+        }
+
+        private void checkOpen() throws IOException {
+            if (!response.isOpen()) {
+                throw new DialogueStreamClosedException();
             }
         }
 
         @Override
         public String toString() {
-            return "ResponseInputStream{client=" + client + ", in=" + in + '}';
+            return "ResponseInputStream{" + in + '}';
+        }
+    }
+
+    private static final class DialogueStreamClosedException extends IOException implements SafeLoggable {
+        private static final String MESSAGE = "Response has already been closed";
+
+        DialogueStreamClosedException() {
+            super(MESSAGE);
+        }
+
+        @Override
+        public String getLogMessage() {
+            return MESSAGE;
+        }
+
+        @Override
+        public List<Arg<?>> getArgs() {
+            return ImmutableList.of();
         }
     }
 }
