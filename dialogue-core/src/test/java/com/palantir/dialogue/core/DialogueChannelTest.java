@@ -393,8 +393,6 @@ public final class DialogueChannelTest {
                 })
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
-
-        // only when we access things do we allow exceptions
         ListMultimap<String, String> reflectedRequestHeaders =
                 Futures.getUnchecked(future).headers();
         String acceptEncoding = Iterables.getOnlyElement(reflectedRequestHeaders.get("Accept-Encoding"));
@@ -415,12 +413,35 @@ public final class DialogueChannelTest {
         ListenableFuture<Response> future = channel.execute(
                 endpoint,
                 Request.builder().putHeaderParams("Range", "bytes 1-3").build());
-
-        // only when we access things do we allow exceptions
         ListMultimap<String, String> reflectedRequestHeaders =
                 Futures.getUnchecked(future).headers();
         String acceptEncoding = Iterables.getOnlyElement(reflectedRequestHeaders.get("Accept-Encoding"));
         assertThat(acceptEncoding).isEqualTo("identity");
+        String requestRange = Iterables.getOnlyElement(reflectedRequestHeaders.get("Range"));
+        assertThat(requestRange).isEqualTo("bytes 1-3");
+    }
+
+    @Test
+    public void test_allows_custom_accept_with_range_request() {
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .factory(_args -> (_endpoint, req) -> {
+                    // Reflect request headers to the response for easy verification
+                    when(response.headers()).thenReturn(req.headerParams());
+                    return Futures.immediateFuture(response);
+                })
+                .build();
+        ListenableFuture<Response> future = channel.execute(
+                endpoint,
+                Request.builder()
+                        .putHeaderParams("Range", "bytes 1-3")
+                        .putHeaderParams("Accept-Encoding", "foo")
+                        .build());
+        ListMultimap<String, String> reflectedRequestHeaders =
+                Futures.getUnchecked(future).headers();
+        String acceptEncoding = Iterables.getOnlyElement(reflectedRequestHeaders.get("Accept-Encoding"));
+        assertThat(acceptEncoding).isEqualTo("foo");
         String requestRange = Iterables.getOnlyElement(reflectedRequestHeaders.get("Range"));
         assertThat(requestRange).isEqualTo("bytes 1-3");
     }
