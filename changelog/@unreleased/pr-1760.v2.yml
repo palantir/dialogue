@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialouge doesn't allow response compression on range requests
+  links:
+  - https://github.com/palantir/dialogue/pull/1760
