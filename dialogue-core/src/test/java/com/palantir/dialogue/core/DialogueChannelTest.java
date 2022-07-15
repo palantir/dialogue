@@ -26,6 +26,8 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.ListMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
@@ -377,5 +379,49 @@ public final class DialogueChannelTest {
         try (Response response = channel.execute(endpoint, request).get()) {
             assertThat(response.code()).isEqualTo(200);
         }
+    }
+
+    @Test
+    public void test_request_gzip_by_default() {
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .factory(_args -> (_endpoint, req) -> {
+                    // Reflect request headers to the response for easy verification
+                    when(response.headers()).thenReturn(req.headerParams());
+                    return Futures.immediateFuture(response);
+                })
+                .build();
+        ListenableFuture<Response> future = channel.execute(endpoint, request);
+
+        // only when we access things do we allow exceptions
+        ListMultimap<String, String> reflectedRequestHeaders =
+                Futures.getUnchecked(future).headers();
+        String acceptEncoding = Iterables.getOnlyElement(reflectedRequestHeaders.get("Accept-Encoding"));
+        assertThat(acceptEncoding).isEqualTo("gzip");
+    }
+
+    @Test
+    public void test_accepts_identity_with_range() {
+        channel = DialogueChannel.builder()
+                .channelName("my-channel")
+                .clientConfiguration(stubConfig)
+                .factory(_args -> (_endpoint, req) -> {
+                    // Reflect request headers to the response for easy verification
+                    when(response.headers()).thenReturn(req.headerParams());
+                    return Futures.immediateFuture(response);
+                })
+                .build();
+        ListenableFuture<Response> future = channel.execute(
+                endpoint,
+                Request.builder().putHeaderParams("Range", "bytes 1-3").build());
+
+        // only when we access things do we allow exceptions
+        ListMultimap<String, String> reflectedRequestHeaders =
+                Futures.getUnchecked(future).headers();
+        String acceptEncoding = Iterables.getOnlyElement(reflectedRequestHeaders.get("Accept-Encoding"));
+        assertThat(acceptEncoding).isEqualTo("identity");
+        String requestRange = Iterables.getOnlyElement(reflectedRequestHeaders.get("Range"));
+        assertThat(requestRange).isEqualTo("bytes 1-3");
     }
 }
