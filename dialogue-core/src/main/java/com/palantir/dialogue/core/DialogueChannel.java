@@ -182,6 +182,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         channel, endpoint, cf.clientConf().userAgent().get());
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = new ContentDecodingChannel(channel);
+                channel = new RangeAcceptsIdentityEncodingChannel(channel);
                 channel = ContentEncodingChannel.of(channel, endpoint);
                 channel = TracedChannel.create(cf, channel, endpoint);
                 if (ChannelToEndpointChannel.isConstant(endpoint)) {
