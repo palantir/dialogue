@@ -30,13 +30,13 @@ buildscript {
         classpath 'com.palantir.gradle.gitversion:gradle-git-version:0.15.0'
         classpath 'gradle.plugin.org.inferred:gradle-processors:3.6.0'
         classpath 'com.palantir.metricschema:gradle-metric-schema:0.16.0'
-        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.28.0'
+        classpath 'com.palantir.gradle.conjure:gradle-conjure:5.30.0'
         classpath 'org.unbroken-dome.gradle-plugins:gradle-testsets-plugin:4.0.0'
     }
 }
 
 plugins {
-    id 'com.palantir.consistent-versions' version '2.11.0'
+ id 'com.palantir.consistent-versions' version '2.11.0'
 }
 
 apply plugin: 'com.palantir.external-publish'
