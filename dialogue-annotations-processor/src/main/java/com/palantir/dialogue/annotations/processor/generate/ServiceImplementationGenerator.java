@@ -166,7 +166,7 @@ public final class ServiceImplementationGenerator {
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
         CodeBlock realDeserializer = CodeBlock.of(
-                "new $T(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
                 ErrorHandlingDeserializerFactory.class,
                 deserializerFactoryType,
                 errorDecoderType,
