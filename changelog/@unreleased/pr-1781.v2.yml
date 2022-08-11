@@ -1,0 +1,5 @@
+type: fix
+fix:
+  description: Bump undertow to 2.2.19.Final
+  links:
+  - https://github.com/palantir/dialogue/pull/1781
