@@ -178,14 +178,18 @@ public final class ParamTypesResolver {
 
         if (encoderTypeName.isPresent() && listEncoderTypeName.isPresent()) {
             context.reportError("Only one of encoder and listEncoder can be set", variableElement);
-
             return Optional.empty();
         }
 
         if (encoderTypeName.isPresent()) {
             return getParameterEncoder(endpointName, variableElement, encoderTypeName, encoderTypeAndMethod);
         }
-        return getParameterEncoder(endpointName, variableElement, listEncoderTypeName, listEncoderTypeAndMethod);
+
+        if (listEncoderTypeName.isPresent()) {
+            return getParameterEncoder(endpointName, variableElement, listEncoderTypeName, listEncoderTypeAndMethod);
+        }
+
+        return Optional.empty();
     }
 
     private Optional<ParameterEncoderType> getParameterEncoder(

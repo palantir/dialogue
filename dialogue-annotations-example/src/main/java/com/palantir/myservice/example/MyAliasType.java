@@ -14,17 +14,12 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.service;
+package com.palantir.myservice.example;
 
-public final class MyCustomParamType {
+import org.immutables.value.Value;
 
-    private final String value;
-
-    public MyCustomParamType(String value) {
-        this.value = value;
-    }
-
-    public String value() {
-        return value;
-    }
+@Value.Immutable
+public interface MyAliasType {
+    @Value.Parameter
+    String get();
 }

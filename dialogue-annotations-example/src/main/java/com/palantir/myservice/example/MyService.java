@@ -30,7 +30,6 @@ import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.UUID;
 
 @DialogueService(MyServiceDialogueServiceFactory.class)
@@ -67,19 +66,23 @@ public interface MyService {
     @Request(method = HttpMethod.PUT, path = "/custom/request2", errorDecoder = AlwaysThrowErrorDecoder.class)
     void customVoidErrorDecoder();
 
-    @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
+    @SuppressWarnings("TooManyArguments")
+    @Request(method = HttpMethod.POST, path = "/params/{path1}/{path2}")
     void params(
-            @Request.QueryParam("q") String query,
+            @Request.QueryParam("q1") String query1,
             // Lists of primitive types are supported for @QueryParam and @Header
-            @Request.QueryParam("q1") List<String> query1,
+            @Request.QueryParam("q2") List<String> query2,
+            // Optionals of primitive types are supported for @QueryParam and @Header
+            @Request.QueryParam("q3") Optional<String> query3,
+            // Alias types are supported for @QueryParam and @Header
+            @Request.QueryParam("q4") MyAliasType query4,
             // Path parameter variable name must match the request path component
-            @Request.PathParam UUID myPathParam,
-            @Request.PathParam(encoder = MyCustomParamTypeEncoder.class) MyCustomParamType myPathParam2,
-            @Request.Header("Custom-Header") int requestHeaderValue,
-            // Headers can be optional
-            @Request.Header("Custom-Optional-Header") OptionalInt maybeRequestHeaderValue,
-            // Optional lists of primitives are supported too!
-            @Request.Header("Custom-Optional-Header1") Optional<List<Integer>> maybeRequestHeaderValue1,
+            @Request.PathParam UUID path1,
+            @Request.PathParam(encoder = MyCustomTypeParamEncoder.class) MyCustomType path2,
+            @Request.Header("h1") String header1,
+            @Request.Header("h2") List<String> header2,
+            @Request.Header("h3") Optional<String> header3,
+            @Request.Header("h4") MyAliasType header4,
             // Can supply a map to fill in arbitrary query values
             @Request.QueryMap(encoder = MapToMultimapParamEncoder.class) Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.
@@ -93,7 +96,7 @@ public interface MyService {
             // or you can supply a multimap directly
             @Request.QueryMap Multimap<String, String> multiQueryParams,
             // or you can supply a custom converter
-            @Request.QueryMap(encoder = MyCustomMultimapEncoder.class) MyCustomParamType myParamToMultimap);
+            @Request.QueryMap(encoder = MyCustomMultimapEncoder.class) MyCustomType myParamToMultimap);
 
     @Request(method = HttpMethod.POST, path = "/multipart")
     void multipart(@Request.Body(PutFileRequestSerializer.class) PutFileRequest request);

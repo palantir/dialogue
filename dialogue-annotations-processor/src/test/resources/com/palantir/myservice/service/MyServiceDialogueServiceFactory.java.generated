@@ -22,15 +22,15 @@ import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
-import com.palantir.dialogue.annotations.ToStringParamEncoder;
 import com.palantir.tokens.auth.AuthHeader;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import javax.annotation.processing.Generated;
@@ -70,23 +70,23 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                             new ResponseDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<Response>() {});
 
-            private final MyCustomParamTypeParameterEncoder paramsQuery1Encoder =
-                    new MyCustomParamTypeParameterEncoder();
+            private final MyCustomTypeParamEncoder paramsQuery8Encoder = new MyCustomTypeParamEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsQuery2Encoder =
-                    new MyCustomParamTypeParameterEncoder();
+            private final MyCustomTypeParamEncoder paramsQuery9Encoder = new MyCustomTypeParamEncoder();
 
-            private final MyCustomStringParameterEncoder paramsQuery3Encoder = new MyCustomStringParameterEncoder();
+            private final MyCustomStringParamEncoder paramsQuery10Encoder = new MyCustomStringParamEncoder();
 
-            private final MyCustomStringParameterEncoder paramsQuery4Encoder = new MyCustomStringParameterEncoder();
+            private final MyCustomStringParamEncoder paramsQuery11Encoder = new MyCustomStringParamEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsMyPathParam2Encoder =
-                    new MyCustomParamTypeParameterEncoder();
+            private final MyCustomTypeParamEncoder paramsPath2Encoder = new MyCustomTypeParamEncoder();
 
-            private final MyCustomParamTypeParameterEncoder paramsMaybeCustomOptionalHeader3ValueEncoder =
-                    new MyCustomParamTypeParameterEncoder();
+            private final MyCustomTypeParamEncoder paramsHeader8Encoder = new MyCustomTypeParamEncoder();
 
-            private final ToStringParamEncoder paramsBigIntegerEncoder = new ToStringParamEncoder();
+            private final MyCustomTypeParamEncoder paramsHeader9Encoder = new MyCustomTypeParamEncoder();
+
+            private final MyCustomStringParamEncoder paramsHeader10Encoder = new MyCustomStringParamEncoder();
+
+            private final MyCustomStringParamEncoder paramsHeader11Encoder = new MyCustomStringParamEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
@@ -126,78 +126,88 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             @Override
             public void params(
-                    String query,
-                    MyCustomParamType query1,
-                    Optional<MyCustomParamType> query2,
-                    String query3,
-                    Optional<String> query4,
-                    List<String> query5,
-                    Optional<List<String>> query6,
-                    UUID myPathParam,
-                    MyCustomParamType myPathParam2,
-                    int requestHeaderValue,
-                    Optional<String> maybeCustomOptionalHeader1Value,
-                    OptionalInt maybeCustomOptionalHeader2Value,
-                    Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
-                    List<String> customListHeader,
-                    Optional<List<String>> customOptionalListHeader,
-                    BigInteger bigInteger,
+                    String query1,
+                    Optional<String> query2,
+                    OptionalInt query3,
+                    OptionalLong query4,
+                    OptionalDouble query5,
+                    List<String> query6,
+                    MyAliasType query7,
+                    MyCustomType query8,
+                    Optional<MyCustomType> query9,
+                    String query10,
+                    Optional<String> query11,
+                    UUID path1,
+                    MyCustomType path2,
+                    String header1,
+                    Optional<String> header2,
+                    OptionalInt header3,
+                    OptionalLong header4,
+                    OptionalDouble header5,
+                    List<String> header6,
+                    MyAliasType header7,
+                    MyCustomType header8,
+                    Optional<MyCustomType> header9,
+                    String header10,
+                    Optional<String> header11,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
-                _request.putQueryParams("q", _parameterSerializer.serializeString(query));
-                _request.putAllQueryParams("q1", paramsQuery1Encoder.toParamValues(query1));
+                _request.putQueryParams("q1", _parameterSerializer.serializeString(query1));
                 if (query2.isPresent()) {
-                    _request.putAllQueryParams("q2", paramsQuery2Encoder.toParamValues(query2.get()));
+                    _request.putQueryParams("q2", _parameterSerializer.serializeString(query2.get()));
                 }
-                _request.putAllQueryParams("q3", paramsQuery3Encoder.toParamValues(query3));
+                if (query3.isPresent()) {
+                    _request.putQueryParams("q3", _parameterSerializer.serializeInteger(query3.getAsInt()));
+                }
                 if (query4.isPresent()) {
-                    _request.putAllQueryParams("q4", paramsQuery4Encoder.toParamValues(query4.get()));
+                    _request.putQueryParams("q4", _parameterSerializer.serializeLong(query4.getAsLong()));
+                }
+                if (query5.isPresent()) {
+                    _request.putQueryParams("q5", _parameterSerializer.serializeDouble(query5.getAsDouble()));
                 }
                 _request.putAllQueryParams(
-                        "q5",
-                        query5.stream()
+                        "q6",
+                        query6.stream()
                                 .map(_parameterSerializer::serializeString)
                                 .collect(Collectors.toList()));
-                if (query6.isPresent()) {
-                    _request.putAllQueryParams(
-                            "q6",
-                            query6.get().stream()
-                                    .map(_parameterSerializer::serializeString)
-                                    .collect(Collectors.toList()));
+                _request.putQueryParams("q7", _parameterSerializer.serializeString(query7.get()));
+                _request.putAllQueryParams("q8", paramsQuery8Encoder.toParamValues(query8));
+                if (query9.isPresent()) {
+                    _request.putAllQueryParams("q9", paramsQuery9Encoder.toParamValues(query9.get()));
                 }
-                _request.putPathParams("myPathParam", _parameterSerializer.serializeUuid(myPathParam));
-                _request.putPathParams("myPathParam2", paramsMyPathParam2Encoder.toParamValue(myPathParam2));
-                _request.putHeaderParams("Custom-Header", _parameterSerializer.serializeInteger(requestHeaderValue));
-                if (maybeCustomOptionalHeader1Value.isPresent()) {
-                    _request.putHeaderParams(
-                            "Custom-Optional-Header1",
-                            _parameterSerializer.serializeString(maybeCustomOptionalHeader1Value.get()));
+                _request.putAllQueryParams("q10", paramsQuery10Encoder.toParamValues(query10));
+                if (query11.isPresent()) {
+                    _request.putAllQueryParams("q11", paramsQuery11Encoder.toParamValues(query11.get()));
                 }
-                if (maybeCustomOptionalHeader2Value.isPresent()) {
-                    _request.putHeaderParams(
-                            "Custom-Optional-Header2",
-                            _parameterSerializer.serializeInteger(maybeCustomOptionalHeader2Value.getAsInt()));
+                _request.putPathParams("path1", _parameterSerializer.serializeUuid(path1));
+                _request.putPathParams("path2", paramsPath2Encoder.toParamValue(path2));
+                _request.putHeaderParams("h1", _parameterSerializer.serializeString(header1));
+                if (header2.isPresent()) {
+                    _request.putHeaderParams("h2", _parameterSerializer.serializeString(header2.get()));
                 }
-                if (maybeCustomOptionalHeader3Value.isPresent()) {
-                    _request.putAllHeaderParams(
-                            "Custom-Optional-Header3",
-                            paramsMaybeCustomOptionalHeader3ValueEncoder.toParamValues(
-                                    maybeCustomOptionalHeader3Value.get()));
+                if (header3.isPresent()) {
+                    _request.putHeaderParams("h3", _parameterSerializer.serializeInteger(header3.getAsInt()));
+                }
+                if (header4.isPresent()) {
+                    _request.putHeaderParams("h4", _parameterSerializer.serializeLong(header4.getAsLong()));
+                }
+                if (header5.isPresent()) {
+                    _request.putHeaderParams("h5", _parameterSerializer.serializeDouble(header5.getAsDouble()));
                 }
                 _request.putAllHeaderParams(
-                        "Custom-Header1",
-                        customListHeader.stream()
+                        "h6",
+                        header6.stream()
                                 .map(_parameterSerializer::serializeString)
                                 .collect(Collectors.toList()));
-                if (customOptionalListHeader.isPresent()) {
-                    _request.putAllHeaderParams(
-                            "Custom-Optional-Header3",
-                            customOptionalListHeader.get().stream()
-                                    .map(_parameterSerializer::serializeString)
-                                    .collect(Collectors.toList()));
+                _request.putHeaderParams("h7", _parameterSerializer.serializeString(header7.get()));
+                _request.putAllHeaderParams("h8", paramsHeader8Encoder.toParamValues(header8));
+                if (header9.isPresent()) {
+                    _request.putAllHeaderParams("h9", paramsHeader9Encoder.toParamValues(header9.get()));
                 }
-                _request.putAllHeaderParams(
-                        "Custom-To-String-Header", paramsBigIntegerEncoder.toParamValues(bigInteger));
+                _request.putAllHeaderParams("h10", paramsHeader10Encoder.toParamValues(header10));
+                if (header11.isPresent()) {
+                    _request.putAllHeaderParams("h11", paramsHeader11Encoder.toParamValues(header11.get()));
+                }
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
             }
@@ -328,8 +338,8 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
         params {
             private final PathTemplate pathTemplate = PathTemplate.builder()
                     .fixed("params")
-                    .variable("myPathParam")
-                    .variable("myPathParam2")
+                    .variable("path1")
+                    .variable("path2")
                     .build();
 
             @Override

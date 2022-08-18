@@ -28,7 +28,7 @@ public final class MySerializableTypeBodySerializer extends StdSerializer<MySeri
 
     private static final Serializer<MySerializableType> SERIALIZER = new Json(
                     new ObjectMapper().enable(SerializationFeature.INDENT_OUTPUT))
-            .serializerFor(new TypeMarker<MySerializableType>() {});
+            .serializerFor(new TypeMarker<>() {});
 
     @Override
     public RequestBody serialize(MySerializableType value) {

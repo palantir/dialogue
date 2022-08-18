@@ -14,15 +14,13 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.example;
+package com.palantir.myservice.service;
 
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
-import com.palantir.dialogue.annotations.MultimapParamEncoder;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import org.immutables.value.Value;
 
-public final class MyCustomMultimapEncoder implements MultimapParamEncoder<MyCustomType> {
-    @Override
-    public Multimap<String, String> toParamValues(MyCustomType value) {
-        return ImmutableMultimap.of("value-from-multimap", value.value());
-    }
+@Value.Immutable
+@JsonSerialize(as = ImmutableMySerializableType.class)
+public interface MyAliasType {
+    String get();
 }

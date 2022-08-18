@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.squareup.javapoet.TypeName;
-import java.util.Optional;
 import org.derive4j.Data;
 import org.immutables.value.Value;
 
@@ -25,13 +24,15 @@ import org.immutables.value.Value;
 public interface ArgumentType {
     interface Cases<R> {
         /** Should be handled by {@link com.palantir.dialogue.annotations.ParameterSerializer}. */
-        R primitive(TypeName javaTypeName, String parameterSerializerMethodName, Optional<TypeName> listInnerType);
+        R primitive(TypeName javaTypeName, String parameterSerializerMethodName);
 
-        R rawRequestBody(TypeName requestBodyType);
+        R list(TypeName javaTypeName, String parameterSerializerMethodName);
+
+        R alias(TypeName javaTypeName, String parameterSerializerMethodName);
 
         R optional(TypeName optionalJavaType, OptionalType optionalType);
 
-        R mapType(TypeName javaTypeName);
+        R rawRequestBody(TypeName requestBodyType);
 
         R customType(TypeName customTypeName);
     }
@@ -45,6 +46,6 @@ public interface ArgumentType {
 
         String valueGetMethodName();
 
-        ArgumentType underlyingType();
+        ArgumentType innerType();
     }
 }

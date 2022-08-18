@@ -18,12 +18,10 @@ package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Multimap;
+import com.google.common.collect.MoreCollectors;
 import com.palantir.common.streams.KeyedStream;
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.RequestBody;
-import com.palantir.dialogue.annotations.processor.data.ArgumentType.OptionalType;
-import com.palantir.logsafe.Preconditions;
 import com.palantir.ri.ResourceIdentifier;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
@@ -31,12 +29,15 @@ import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
 import java.time.OffsetDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.function.Function;
-import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
+import javax.lang.model.element.ExecutableElement;
+import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
 import javax.lang.model.type.TypeMirror;
 
@@ -66,87 +67,117 @@ public final class ArgumentTypesResolver {
 
     private final ResolverContext context;
 
-    private final ArgumentType integerArgumentType;
-
     public ArgumentTypesResolver(ResolverContext context) {
         this.context = context;
-        TypeName integerType = context.getTypeName(Integer.class);
-        this.integerArgumentType =
-                ArgumentTypes.primitive(integerType, planSerDeMethodName(integerType), Optional.empty());
     }
 
-    public Optional<ArgumentType> getArgumentType(VariableElement param) {
-        return getArgumentTypeImpl(param, param.asType());
+    public ArgumentType getArgumentType(VariableElement param) {
+        TypeMirror typeMirror = param.asType();
+
+        return getPrimitiveType(typeMirror)
+                .or(() -> getListType(typeMirror))
+                .or(() -> getOptionalType(typeMirror))
+                .or(() -> getRawRequestBodyType(typeMirror))
+                .or(() -> getAliasType(typeMirror))
+                .orElseGet(() -> ArgumentTypes.customType(TypeName.get(typeMirror)));
     }
 
-    @SuppressWarnings("CyclomaticComplexity")
-    private Optional<ArgumentType> getArgumentTypeImpl(Element paramContext, TypeMirror actualTypeMirror) {
-        TypeName typeName = TypeName.get(actualTypeMirror);
-        Optional<OptionalType> optionalType = getOptionalType(paramContext, actualTypeMirror);
-        Optional<TypeMirror> listType = getListType(actualTypeMirror);
-        Optional<ArgumentType> mapType = getMapType(actualTypeMirror, typeName);
-        if (isPrimitive(typeName)) {
-            return Optional.of(ArgumentTypes.primitive(typeName, planSerDeMethodName(typeName), Optional.empty()));
-        } else if (listType.map(innerType -> isPrimitive(TypeName.get(innerType)))
-                .orElse(false)) {
-            TypeName innerTypeName = TypeName.get(listType.get());
-            return Optional.of(
-                    ArgumentTypes.primitive(typeName, planSerDeMethodName(innerTypeName), Optional.of(innerTypeName)));
-        } else if (isRawRequestBody(actualTypeMirror)) {
-            return Optional.of(ArgumentTypes.rawRequestBody(TypeName.get(actualTypeMirror)));
-        } else if (optionalType.isPresent()) {
-            // TODO(12345): We only want to go one level down: don't allow Optional<Optional<Type>>.
-            return Optional.of(ArgumentTypes.optional(typeName, optionalType.get()));
-        } else if (mapType.isPresent()) {
-            return mapType;
-        } else {
-            return Optional.of(ArgumentTypes.customType(typeName));
-        }
+    private Optional<String> getPrimitiveSerializerMethodName(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
+
+        return Optional.ofNullable(PARAMETER_SERIALIZER_TYPES.get(typeName.box()));
     }
 
-    private boolean isPrimitive(TypeName in) {
-        return PARAMETER_SERIALIZER_TYPES.containsKey(in.box());
+    private Optional<ArgumentType> getPrimitiveType(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
+
+        return getPrimitiveSerializerMethodName(typeMirror)
+                .map(methodName -> ArgumentTypes.primitive(typeName, methodName));
     }
 
-    private Optional<TypeMirror> getListType(TypeMirror in) {
-        return context.getGenericInnerType(List.class, in);
+    private Optional<ArgumentType> getListType(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
+
+        return context.getGenericInnerType(List.class, typeMirror)
+                .flatMap(this::getPrimitiveSerializerMethodName)
+                .map(methodName -> ArgumentTypes.list(typeName, methodName));
     }
 
-    private Optional<ArgumentType> getMapType(TypeMirror in, TypeName typeName) {
-        return context.maybeAsDeclaredType(in).flatMap(declaredType -> {
-            if (context.isAssignableWithErasure(declaredType, Multimap.class)) {
-                return Optional.of(ArgumentTypes.mapType(typeName));
-            } else if (context.isAssignableWithErasure(declaredType, Map.class)) {
-                return Optional.of(ArgumentTypes.mapType(typeName));
-            }
-            return Optional.of(ArgumentTypes.customType(typeName));
-        });
-    }
+    private Optional<ArgumentType> getOptionalType(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
 
-    private String planSerDeMethodName(TypeName in) {
-        String typeName = PARAMETER_SERIALIZER_TYPES.get(in.box());
-        return Preconditions.checkNotNull(typeName, "Unknown type");
-    }
-
-    private boolean isRawRequestBody(TypeMirror in) {
-        return context.isAssignable(in, RequestBody.class);
-    }
-
-    private Optional<OptionalType> getOptionalType(Element paramContext, TypeMirror typeName) {
-        if (context.isSameTypes(typeName, OptionalInt.class)) {
-            return Optional.of(ImmutableOptionalType.builder()
-                    .isPresentMethodName("isPresent")
-                    .valueGetMethodName("getAsInt")
-                    .underlyingType(integerArgumentType)
-                    .build());
+        if (context.isSameTypes(typeMirror, OptionalInt.class)) {
+            return Optional.of(ArgumentTypes.optional(
+                    typeName,
+                    ImmutableOptionalType.builder()
+                            .isPresentMethodName("isPresent")
+                            .valueGetMethodName("getAsInt")
+                            .innerType(getPrimitiveType(context.getTypeMirror(Integer.class))
+                                    .get())
+                            .build()));
         }
 
-        return context.getGenericInnerType(Optional.class, typeName)
-                .flatMap(innerType -> getArgumentTypeImpl(paramContext, innerType)
-                        .map(argumentType -> ImmutableOptionalType.builder()
+        if (context.isSameTypes(typeMirror, OptionalLong.class)) {
+            return Optional.of(ArgumentTypes.optional(
+                    typeName,
+                    ImmutableOptionalType.builder()
+                            .isPresentMethodName("isPresent")
+                            .valueGetMethodName("getAsLong")
+                            .innerType(getPrimitiveType(context.getTypeMirror(Long.class))
+                                    .get())
+                            .build()));
+        }
+
+        if (context.isSameTypes(typeMirror, OptionalDouble.class)) {
+            return Optional.of(ArgumentTypes.optional(
+                    typeName,
+                    ImmutableOptionalType.builder()
+                            .isPresentMethodName("isPresent")
+                            .valueGetMethodName("getAsDouble")
+                            .innerType(getPrimitiveType(context.getTypeMirror(Double.class))
+                                    .get())
+                            .build()));
+        }
+
+        return context.getGenericInnerType(Optional.class, typeMirror)
+                .map(innerType -> getPrimitiveType(innerType)
+                        .or(() -> getAliasType(innerType))
+                        .orElseGet(() -> getCustomType(typeMirror)))
+                .map(innerType -> ArgumentTypes.optional(
+                        typeName,
+                        ImmutableOptionalType.builder()
                                 .isPresentMethodName("isPresent")
                                 .valueGetMethodName("get")
-                                .underlyingType(argumentType)
+                                .innerType(innerType)
                                 .build()));
+    }
+
+    private Optional<ArgumentType> getRawRequestBodyType(TypeMirror typeMirror) {
+        if (!context.isAssignable(typeMirror, RequestBody.class)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(ArgumentTypes.rawRequestBody(TypeName.get(typeMirror)));
+    }
+
+    private Optional<ArgumentType> getAliasType(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
+
+        return context.maybeAsDeclaredType(typeMirror).stream()
+                .flatMap(declaredType -> declaredType.asElement().getEnclosedElements().stream())
+                .filter(element -> element.getKind() == ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(element -> element.getSimpleName().contentEquals("get")
+                        && element.getModifiers().contains(Modifier.PUBLIC)
+                        && !element.getModifiers().contains(Modifier.STATIC)
+                        && element.getThrownTypes().isEmpty()
+                        && element.getParameters().isEmpty())
+                .collect(MoreCollectors.toOptional())
+                .flatMap(element -> getPrimitiveSerializerMethodName(element.getReturnType()))
+                .map(methodName -> ArgumentTypes.alias(typeName, methodName));
+    }
+
+    private ArgumentType getCustomType(TypeMirror typeMirror) {
+        return ArgumentTypes.customType(TypeName.get(typeMirror));
     }
 }
