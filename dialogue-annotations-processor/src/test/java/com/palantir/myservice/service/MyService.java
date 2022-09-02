@@ -21,12 +21,12 @@ import com.google.errorprone.annotations.MustBeClosed;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
-import com.palantir.dialogue.annotations.ToStringParamEncoder;
 import com.palantir.tokens.auth.AuthHeader;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalDouble;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 // Annotation processor is not invoked directly here.
@@ -63,33 +63,31 @@ public interface MyService {
     @Request(method = HttpMethod.PUT, path = "/custom/request1")
     Response customResponse();
 
-    @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}")
+    @Request(method = HttpMethod.POST, path = "/params/{path1}/{path2}")
     void params(
-            @Request.QueryParam("q") String query,
-            @Request.QueryParam(value = "q1", encoder = MyCustomParamTypeParameterEncoder.class)
-                    MyCustomParamType query1,
-            @Request.QueryParam(value = "q2", encoder = MyCustomParamTypeParameterEncoder.class)
-                    Optional<MyCustomParamType> query2,
-            @Request.QueryParam(value = "q3", encoder = MyCustomStringParameterEncoder.class) String query3,
-            @Request.QueryParam(value = "q4", encoder = MyCustomStringParameterEncoder.class) Optional<String> query4,
-            @Request.QueryParam(value = "q5") List<String> query5,
-            @Request.QueryParam(value = "q6") Optional<List<String>> query6,
-            // Path parameter variable name must match the request path component
-            @Request.PathParam UUID myPathParam,
-            @Request.PathParam(encoder = MyCustomParamTypeParameterEncoder.class) MyCustomParamType myPathParam2,
-            @Request.Header("Custom-Header") int requestHeaderValue,
-            // Headers can be optional
-            @Request.Header("Custom-Optional-Header1") Optional<String> maybeCustomOptionalHeader1Value,
-            @Request.Header("Custom-Optional-Header2") OptionalInt maybeCustomOptionalHeader2Value,
-            @Request.Header(value = "Custom-Optional-Header3", encoder = MyCustomParamTypeParameterEncoder.class)
-                    Optional<MyCustomParamType> maybeCustomOptionalHeader3Value,
-            @Request.Header("Custom-Header1") List<String> customListHeader,
-            @Request.Header("Custom-Optional-Header3") Optional<List<String>> customOptionalListHeader,
-            @Request.Header(value = "Custom-To-String-Header", encoder = ToStringParamEncoder.class)
-                    BigInteger bigInteger,
-            // Custom encoding classes may be provided for the request and response.
-            // JSON should be easiest (default?).
-            // By changing this to MySpecialJson.class you can have
-            // it's own object mapper; this is same as BodySerDe in dialogue
+            @Request.QueryParam("q1") String query1,
+            @Request.QueryParam("q2") Optional<String> query2,
+            @Request.QueryParam("q3") OptionalInt query3,
+            @Request.QueryParam("q4") OptionalLong query4,
+            @Request.QueryParam("q5") OptionalDouble query5,
+            @Request.QueryParam("q6") List<String> query6,
+            @Request.QueryParam("q7") MyAliasType query7,
+            @Request.QueryParam(value = "q8", encoder = MyCustomTypeParamEncoder.class) MyCustomType query8,
+            @Request.QueryParam(value = "q9", encoder = MyCustomTypeParamEncoder.class) Optional<MyCustomType> query9,
+            @Request.QueryParam(value = "q10", encoder = MyCustomStringParamEncoder.class) String query10,
+            @Request.QueryParam(value = "q11", encoder = MyCustomStringParamEncoder.class) Optional<String> query11,
+            @Request.PathParam UUID path1,
+            @Request.PathParam(encoder = MyCustomTypeParamEncoder.class) MyCustomType path2,
+            @Request.Header("h1") String header1,
+            @Request.Header("h2") Optional<String> header2,
+            @Request.Header("h3") OptionalInt header3,
+            @Request.Header("h4") OptionalLong header4,
+            @Request.Header("h5") OptionalDouble header5,
+            @Request.Header("h6") List<String> header6,
+            @Request.Header("h7") MyAliasType header7,
+            @Request.Header(value = "h8", encoder = MyCustomTypeParamEncoder.class) MyCustomType header8,
+            @Request.Header(value = "h9", encoder = MyCustomTypeParamEncoder.class) Optional<MyCustomType> header9,
+            @Request.Header(value = "h10", encoder = MyCustomStringParamEncoder.class) String header10,
+            @Request.Header(value = "h11", encoder = MyCustomStringParamEncoder.class) Optional<String> header11,
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 }

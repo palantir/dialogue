@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-package com.palantir.myservice.example;
+package com.palantir.myservice.service;
 
+import com.palantir.dialogue.annotations.ListParamEncoder;
 import com.palantir.dialogue.annotations.ParamEncoder;
+import java.util.Collections;
+import java.util.List;
 
-public final class MyCustomParamTypeEncoder implements ParamEncoder<MyCustomParamType> {
+public final class MyCustomStringParamEncoder implements ParamEncoder<String>, ListParamEncoder<String> {
     @Override
-    public String toParamValue(MyCustomParamType value) {
-        return value.value();
+    public String toParamValue(String value) {
+        return value;
+    }
+
+    @Override
+    public List<String> toParamValues(String value) {
+        return Collections.singletonList(value);
     }
 }

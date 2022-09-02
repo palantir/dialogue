@@ -16,13 +16,11 @@
 
 package com.palantir.myservice.example;
 
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.Multimap;
-import com.palantir.dialogue.annotations.MultimapParamEncoder;
+import com.palantir.dialogue.annotations.ParamEncoder;
 
-public final class MyCustomMultimapEncoder implements MultimapParamEncoder<MyCustomType> {
+public final class MyCustomTypeParamEncoder implements ParamEncoder<MyCustomType> {
     @Override
-    public Multimap<String, String> toParamValues(MyCustomType value) {
-        return ImmutableMultimap.of("value-from-multimap", value.value());
+    public String toParamValue(MyCustomType value) {
+        return value.value();
     }
 }

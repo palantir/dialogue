@@ -94,11 +94,11 @@ public final class ServiceImplementationGenerator {
         List<ParameterSpec> params = def.arguments().stream()
                 .map(arg -> ParameterSpec.builder(
                                 ArgumentTypes.caseOf(arg.argType())
-                                        .primitive(
-                                                (javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
+                                        .primitive((typeName, _parameterSerializerMethodName) -> typeName)
+                                        .list((typeName, _parameterSerializerMethodName) -> typeName)
+                                        .alias((typeName, _aliasType) -> typeName)
+                                        .optional((typeName, _optionalType) -> typeName)
                                         .rawRequestBody(typeName -> typeName)
-                                        .optional((optionalJavaType, _unused) -> optionalJavaType)
-                                        .mapType(typeName -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
                         .build())
@@ -145,8 +145,9 @@ public final class ServiceImplementationGenerator {
     private FieldSpec serializer(
             ArgumentDefinition argumentDefinition, TypeName serializerType, String serializerFieldName) {
         TypeName className = ArgumentTypes.caseOf(argumentDefinition.argType())
-                .primitive((javaTypeName, _parameterSerializerMethodName, _isList) -> javaTypeName)
-                .mapType(javaTypeName -> javaTypeName)
+                .primitive((typeName, _parameterSerializerMethodName) -> typeName)
+                .list((typeName, _parameterSerializerMethodName) -> typeName)
+                .alias((typeName, _parameterSerializerMethodName) -> typeName)
                 .customType(typeName -> typeName)
                 .otherwiseEmpty()
                 .get();
@@ -279,22 +280,8 @@ public final class ServiceImplementationGenerator {
             Optional<ParameterEncoderType> maybeParameterEncoderType) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
-            public CodeBlock primitive(
-                    TypeName _unused, String parameterSerializerMethodName, Optional<TypeName> innerListType) {
+            public CodeBlock primitive(TypeName _typeName, String parameterSerializerMethodName) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
-                    if (innerListType.isPresent()) {
-                        CodeBlock asList = CodeBlock.of(
-                                "$L.stream().map($L::$L).collect($T.toList())",
-                                argName,
-                                PARAMETER_SERIALIZER,
-                                parameterSerializerMethodName,
-                                Collectors.class);
-                        return CodeBlock.builder()
-                                .add("$L.$L($S,", REQUEST, multiValueMethod, key)
-                                .add(asList)
-                                .add(");")
-                                .build();
-                    }
                     return CodeBlock.of(
                             "$L.$L($S, $L.$L($L));",
                             REQUEST,
@@ -307,18 +294,44 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock rawRequestBody(TypeName _unused) {
-                throw new UnsupportedOperationException("This should not happen");
+            public CodeBlock list(TypeName _typeName, String parameterSerializerMethodName) {
+                return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
+                    CodeBlock asList = CodeBlock.of(
+                            "$L.stream().map($L::$L).collect($T.toList())",
+                            argName,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            Collectors.class);
+                    return CodeBlock.builder()
+                            .add("$L.$L($S,", REQUEST, multiValueMethod, key)
+                            .add(asList)
+                            .add(");")
+                            .build();
+                });
             }
 
             @Override
-            public CodeBlock optional(TypeName _unused, OptionalType optionalType) {
+            public CodeBlock alias(TypeName _typeName, String parameterSerializerMethodName) {
+                return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
+                    return CodeBlock.of(
+                            "$L.$L($S, $L.$L($L.get()));",
+                            REQUEST,
+                            singleValueMethod,
+                            key,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            argName);
+                });
+            }
+
+            @Override
+            public CodeBlock optional(TypeName _typeName, OptionalType optionalType) {
                 CodeBlock inner = generatePlainSerializer(
                         singleValueMethod,
                         multiValueMethod,
                         key,
                         CodeBlock.of("$L.$L()", argName, optionalType.valueGetMethodName()),
-                        optionalType.underlyingType(),
+                        optionalType.innerType(),
                         maybeParameterEncoderType);
                 return CodeBlock.builder()
                         .beginControlFlow("if ($L.$L())", argName, optionalType.isPresentMethodName())
@@ -328,11 +341,8 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock mapType(TypeName typeName) {
-                ParameterEncoderType parameterEncoderType =
-                        maybeParameterEncoderType.orElseThrow(() -> new IllegalArgumentException(
-                                "Parameter '" + key + "' with custom type '" + typeName + "' must declare an encoder"));
-                return parameterEncoderType(parameterEncoderType);
+            public CodeBlock rawRequestBody(TypeName _typeName) {
+                throw new UnsupportedOperationException("This should not happen");
             }
 
             @Override

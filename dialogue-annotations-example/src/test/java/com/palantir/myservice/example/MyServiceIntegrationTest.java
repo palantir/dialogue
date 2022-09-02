@@ -60,7 +60,6 @@ import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import org.assertj.core.api.AbstractStringAssert;
@@ -259,12 +258,47 @@ public final class MyServiceIntegrationTest {
 
     @Test
     public void testParamsWithCustomHeader() {
-        testParams(OptionalInt.of(3));
-    }
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.POST);
+            exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
 
-    @Test
-    public void testParamsNoCustomHeader() {
-        testParams(OptionalInt.empty());
+            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q1", "q2", "q3", "q4", "varq1");
+            assertThat(exchange.exchange.getQueryParameters().get("q1")).containsOnly("query1");
+            assertThat(exchange.exchange.getQueryParameters().get("q2")).containsOnly("query2-1", "query2-2");
+            assertThat(exchange.exchange.getQueryParameters().get("q3")).containsOnly("query3");
+            assertThat(exchange.exchange.getQueryParameters().get("q4")).containsOnly("query4");
+            assertThat(exchange.exchange.getQueryParameters().get("varq1")).containsOnly("varvar1");
+            exchange.assertAccept().isNull();
+            exchange.assertContentType().isEqualTo("application/json");
+            exchange.assertSingleValueHeader(HttpString.tryFromString("h1")).isEqualTo("header1");
+            exchange.assertMultiValueHeader("h2")
+                    .hasValueSatisfying(values -> assertThat(values).containsExactly("header2-1", "header2-2"));
+            exchange.assertSingleValueHeader(HttpString.tryFromString("h3")).isEqualTo("header3");
+            exchange.assertSingleValueHeader(HttpString.tryFromString("h4")).isEqualTo("header4");
+            exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
+
+            exchange.exchange.setStatusCode(200);
+            exchange.exchange
+                    .getResponseHeaders()
+                    .add(HttpString.tryFromString("My-Custom-Header"), "my-custom-header-value");
+            exchange.setContentType("text/csv");
+            exchange.writeStringBody("Custom Body");
+        };
+
+        UUID uuid = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
+        myServiceDialogue.params(
+                "query1",
+                Arrays.asList("query2-1", "query2-2"),
+                Optional.of("query3"),
+                ImmutableMyAliasType.of("query4"),
+                uuid,
+                new MyCustomType("my-custom-param-value"),
+                "header1",
+                Arrays.asList("header2-1", "header2-2"),
+                Optional.of("header3"),
+                ImmutableMyAliasType.of("header4"),
+                ImmutableMap.of("varq1", "varvar1"),
+                ImmutableMySerializableType.of("my-serializable-type-value"));
     }
 
     @Test
@@ -314,7 +348,7 @@ public final class MyServiceIntegrationTest {
                 ImmutableMultimap.<String, String>builder()
                         .putAll("q1", "var1", "var2")
                         .build(),
-                new MyCustomParamType("var3"));
+                new MyCustomType("var3"));
     }
 
     @Test
@@ -404,52 +438,6 @@ public final class MyServiceIntegrationTest {
         } catch (IOException e) {
             throw new SafeRuntimeException(e);
         }
-    }
-
-    private void testParams(OptionalInt customHeaderOptionalValue) {
-        undertowHandler = exchange -> {
-            exchange.assertMethod(HttpMethod.POST);
-            exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
-            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q", "q1", "varq1");
-            assertThat(exchange.exchange.getQueryParameters().get("q")).containsOnly("query");
-            assertThat(exchange.exchange.getQueryParameters().get("q1")).containsOnly("Query", "Params");
-            assertThat(exchange.exchange.getQueryParameters().get("varq1")).containsOnly("varvar1");
-            exchange.assertAccept().isNull();
-            exchange.assertContentType().isEqualTo("application/json");
-            exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Header"))
-                    .isEqualTo("2");
-            exchange.assertMultiValueHeader("Custom-Optional-Header1")
-                    .hasValueSatisfying(values -> assertThat(values).containsExactly("1", "2"));
-            if (customHeaderOptionalValue.isPresent()) {
-                exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Optional-Header"))
-                        .isEqualTo(Integer.toString(customHeaderOptionalValue.getAsInt()));
-            } else {
-                exchange.assertSingleValueHeader(HttpString.tryFromString("Custom-Optional-Header"))
-                        .isNull();
-            }
-            exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
-
-            exchange.exchange.setStatusCode(200);
-            exchange.exchange
-                    .getResponseHeaders()
-                    .add(HttpString.tryFromString("My-Custom-Header"), "my-custom-header-value");
-            exchange.setContentType("text/csv");
-            exchange.writeStringBody("Custom Body");
-        };
-
-        UUID uuid = UUID.fromString("90a8481a-2ef5-4c64-83fc-04a9b369e2b8");
-        myServiceDialogue.params(
-                "query",
-                Arrays.asList("Query", "Params"),
-                uuid,
-                new MyCustomParamType("my-custom-param-value"),
-                2,
-                customHeaderOptionalValue,
-                Optional.of(Arrays.asList(1, 2)),
-                ImmutableMap.of("varq1", "varvar1"),
-                ImmutableMySerializableType.builder()
-                        .value("my-serializable-type-value")
-                        .build());
     }
 
     private static final class TestExchange {

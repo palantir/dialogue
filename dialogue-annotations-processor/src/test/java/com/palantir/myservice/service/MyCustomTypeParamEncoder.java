@@ -21,15 +21,14 @@ import com.palantir.dialogue.annotations.ParamEncoder;
 import java.util.Collections;
 import java.util.List;
 
-public final class MyCustomParamTypeParameterEncoder
-        implements ParamEncoder<MyCustomParamType>, ListParamEncoder<MyCustomParamType> {
+public final class MyCustomTypeParamEncoder implements ParamEncoder<MyCustomType>, ListParamEncoder<MyCustomType> {
     @Override
-    public String toParamValue(MyCustomParamType value) {
+    public String toParamValue(MyCustomType value) {
         return value.value();
     }
 
     @Override
-    public List<String> toParamValues(MyCustomParamType value) {
+    public List<String> toParamValues(MyCustomType value) {
         return Collections.singletonList(value.value());
     }
 }

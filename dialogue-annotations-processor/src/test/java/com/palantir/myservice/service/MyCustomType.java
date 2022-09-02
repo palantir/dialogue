@@ -16,19 +16,15 @@
 
 package com.palantir.myservice.service;
 
-import com.palantir.dialogue.annotations.ListParamEncoder;
-import com.palantir.dialogue.annotations.ParamEncoder;
-import java.util.Collections;
-import java.util.List;
+public final class MyCustomType {
 
-public final class MyCustomStringParameterEncoder implements ParamEncoder<String>, ListParamEncoder<String> {
-    @Override
-    public String toParamValue(String value) {
-        return value;
+    private final String value;
+
+    public MyCustomType(String value) {
+        this.value = value;
     }
 
-    @Override
-    public List<String> toParamValues(String value) {
-        return Collections.singletonList(value);
+    public String value() {
+        return value;
     }
 }

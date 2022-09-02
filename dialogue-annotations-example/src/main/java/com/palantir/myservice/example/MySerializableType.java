@@ -22,5 +22,6 @@ import org.immutables.value.Value;
 @Value.Immutable
 @JsonSerialize(as = ImmutableMySerializableType.class)
 public interface MySerializableType {
+    @Value.Parameter
     String value();
 }

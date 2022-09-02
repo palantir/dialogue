@@ -16,11 +16,11 @@
 
 package com.palantir.myservice.example;
 
-public final class MyCustomParamType {
+public final class MyCustomType {
 
     private final String value;
 
-    public MyCustomParamType(String value) {
+    public MyCustomType(String value) {
         this.value = value;
     }
 
