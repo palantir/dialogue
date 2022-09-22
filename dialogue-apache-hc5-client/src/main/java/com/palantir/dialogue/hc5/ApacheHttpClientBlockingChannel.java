@@ -509,6 +509,11 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                 remaining -= toWrite;
             }
         }
+
+        @Override
+        public void write(int value) throws IOException {
+            out.write(value);
+        }
     }
 
     private static final class ResponseInputStream extends FilterInputStream {
