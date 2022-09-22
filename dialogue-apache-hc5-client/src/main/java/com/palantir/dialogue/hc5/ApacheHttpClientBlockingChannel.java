@@ -40,6 +40,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.api.TraceHttpHeaders;
 import java.io.ByteArrayInputStream;
 import java.io.FilterInputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -48,6 +49,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
@@ -449,7 +451,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public void writeTo(OutputStream outStream) throws IOException {
-            requestBody.writeTo(outStream);
+            requestBody.writeTo(new ModulatingOutputStream(outStream));
         }
 
         @Override
@@ -471,6 +473,42 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * {@link ModulatingOutputStream} limits the size of individual writes to the wrapped {@link OutputStream}
+     * in order to prevent degraded performance on large buffers as described in
+     * <a href="https://github.com/palantir/hadoop-crypto/pull/586">hadoop-crypto#586</a>.
+     */
+    static final class ModulatingOutputStream extends FilterOutputStream {
+
+        /**
+         * Block size of 16 KB is small enough to allow cipher implementations to become hot and optimize properly
+         * when given large inputs. Otherwise large array writes into a {@link javax.crypto.CipherOutputStream} fail to
+         * use intrinsified implementations. If 16 KB blocks aren't enough to produce hot methods, the I/O is small
+         * and infrequent enough that performance isn't relevant.
+         * For more information, see the details around {@code com.sun.crypto.provider.GHASH::processBlocks} in
+         * <a href="https://github.com/palantir/hadoop-crypto/pull/586#issuecomment-964394587">
+         * hadoop-crypto#586 (comment)</a>
+         */
+        private static final int BLOCK_SIZE = 16 * 1024;
+
+        ModulatingOutputStream(OutputStream delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public void write(byte[] buffer, int off, int len) throws IOException {
+            Objects.checkFromIndexSize(off, len, buffer.length);
+            int currentOffset = off;
+            int remaining = len;
+            while (remaining > 0) {
+                int toWrite = Math.min(remaining, BLOCK_SIZE);
+                out.write(buffer, currentOffset, toWrite);
+                currentOffset += toWrite;
+                remaining -= toWrite;
+            }
+        }
     }
 
     private static final class ResponseInputStream extends FilterInputStream {
