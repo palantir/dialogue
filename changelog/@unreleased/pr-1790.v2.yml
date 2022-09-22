@@ -1,0 +1,9 @@
+type: improvement
+improvement:
+  description: |-
+    Modulate response output writes to 16KiB blocks
+
+    Block size of 16 KB is small enough to allow cipher implementations to become hot and optimize properly when given large inputs. Otherwise large array writes into a javax.crypto.CipherOutputStream fail to use intrinsified implementations. If 16 KB blocks aren't enough to produce hot methods, the I/O is small and infrequent enough that performance isn't relevant.  For more information, see the details around com.sun.crypto.provider.GHASH::processBlocks in
+    https://github.com/palantir/hadoop-crypto/pull/586#issuecomment-964394587
+  links:
+  - https://github.com/palantir/dialogue/pull/1790
