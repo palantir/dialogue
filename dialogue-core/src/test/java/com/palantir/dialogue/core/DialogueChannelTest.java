@@ -73,6 +73,7 @@ import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.stubbing.Answer;
 
+@SuppressWarnings("DirectInvocationOnMock")
 @ExtendWith(MockitoExtension.class)
 public final class DialogueChannelTest {
 

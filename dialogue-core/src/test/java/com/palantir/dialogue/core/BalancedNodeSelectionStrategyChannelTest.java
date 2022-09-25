@@ -48,6 +48,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+@SuppressWarnings("DirectInvocationOnMock")
 @ExtendWith(MockitoExtension.class)
 class BalancedNodeSelectionStrategyChannelTest {
     private Random random = new Random(12388544234L);
