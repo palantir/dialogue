@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.service.UserAgent.Agent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -27,6 +28,8 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import java.util.List;
+import javax.annotation.Nullable;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
@@ -35,7 +38,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
  */
 final class UserAgentEndpointChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(UserAgentEndpointChannel.class);
-    static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
+    static final Agent DIALOGUE_AGENT = extractDialogueAgent();
 
     private final EndpointChannel delegate;
     private final String userAgent;
@@ -60,14 +63,23 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
-        return tryAddEndpointAgent(baseAgent, endpoint).addAgent(DIALOGUE_AGENT);
+        Agent endpointAgent = getEndpointAgent(endpoint);
+        try {
+            List<Agent> informationalAgents =
+                    (endpointAgent == null) ? List.of(DIALOGUE_AGENT) : List.of(endpointAgent, DIALOGUE_AGENT);
+            return UserAgent.of(baseAgent, informationalAgents);
+        } catch (RuntimeException e) {
+            log.error("Could not construct user agent", e);
+            return baseAgent;
+        }
     }
 
-    private static UserAgent tryAddEndpointAgent(UserAgent baseAgent, Endpoint endpoint) {
+    @Nullable
+    private static Agent getEndpointAgent(Endpoint endpoint) {
         String endpointService = endpoint.serviceName();
         String endpointVersion = getEndpointVersion(endpoint);
         try {
-            return baseAgent.addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion));
+            return Agent.of(endpoint.serviceName(), endpointVersion);
         } catch (IllegalArgumentException e) {
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -77,7 +89,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
                         SafeArg.of("version", endpointVersion),
                         e);
             }
-            return baseAgent;
+            return null;
         }
     }
 
@@ -85,7 +97,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         String endpointVersion = endpoint.version();
         // Until conjure-java 5.14.2, we mistakenly embedded 0.0.0 in everything. This fallback logic attempts
         // to work-around this and produce a more helpful user agent
-        if ("0.0.0".equals(endpointVersion)) {
+        if (Agent.DEFAULT_VERSION.equals(endpointVersion)) {
             String jarVersion = endpoint.getClass().getPackage().getImplementationVersion();
             if (jarVersion != null) {
                 return jarVersion;
@@ -94,14 +106,14 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         return endpointVersion;
     }
 
-    private static UserAgent.Agent extractDialogueAgent() {
+    private static Agent extractDialogueAgent() {
         String version = dialogueVersion();
-        return UserAgent.Agent.of("dialogue", version);
+        return Agent.of("dialogue", version);
     }
 
     static String dialogueVersion() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        return maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0";
+        return maybeDialogueVersion != null ? maybeDialogueVersion : Agent.DEFAULT_VERSION;
     }
 
     @Override
