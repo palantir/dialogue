@@ -48,7 +48,7 @@ public final class UserAgentEndpointChannelTest {
     @Captor
     private ArgumentCaptor<Request> requestCaptor;
 
-    private Request request = Request.builder()
+    private final Request request = Request.builder()
             .putHeaderParams("header", "value")
             .putQueryParams("query", "value")
             .putPathParams("path", "value")
@@ -64,7 +64,8 @@ public final class UserAgentEndpointChannelTest {
         channel.execute(request);
         verify(delegate).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
-                .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion);
+                .containsExactly("test-class/1.2.3 service/1.0.0 dialogue/" + dialogueVersion + " jdk/"
+                        + System.getProperty("java.version"));
     }
 
     @Test
@@ -102,6 +103,14 @@ public final class UserAgentEndpointChannelTest {
         channel.execute(request);
         verify(delegate).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
-                .containsExactly("test-class/1.2.3 dialogue/" + dialogueVersion);
+                .containsExactly(
+                        "test-class/1.2.3 dialogue/" + dialogueVersion + " jdk/" + System.getProperty("java.version"));
+    }
+
+    @Test
+    void extractsJdkVersionIntoAgent() {
+        assertThat(UserAgentEndpointChannel.extractJdkAgent().version())
+                .isNotEmpty()
+                .isNotEqualTo("0.0.0");
     }
 }

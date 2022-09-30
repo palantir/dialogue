@@ -36,6 +36,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 final class UserAgentEndpointChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(UserAgentEndpointChannel.class);
     static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
+    static final UserAgent.Agent JDK_AGENT = extractJdkAgent();
 
     private final EndpointChannel delegate;
     private final String userAgent;
@@ -60,7 +61,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
-        return tryAddEndpointAgent(baseAgent, endpoint).addAgent(DIALOGUE_AGENT);
+        return tryAddEndpointAgent(baseAgent, endpoint).addAgent(DIALOGUE_AGENT).addAgent(JDK_AGENT);
     }
 
     private static UserAgent tryAddEndpointAgent(UserAgent baseAgent, Endpoint endpoint) {
@@ -97,6 +98,10 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     private static UserAgent.Agent extractDialogueAgent() {
         String version = dialogueVersion();
         return UserAgent.Agent.of("dialogue", version);
+    }
+
+    static UserAgent.Agent extractJdkAgent() {
+        return UserAgent.Agent.of("jdk", System.getProperty("java.version", "0.0.0"));
     }
 
     static String dialogueVersion() {
