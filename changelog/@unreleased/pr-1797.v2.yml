@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Adds JDK version to the dialogue user agent string, e.g. jdk/17.0.4.1
+  links:
+  - https://github.com/palantir/dialogue/pull/1797
