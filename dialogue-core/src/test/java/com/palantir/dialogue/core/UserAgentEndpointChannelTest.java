@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.service.UserAgent.Agent;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
@@ -40,7 +41,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @SuppressWarnings("FutureReturnValueIgnored")
 public final class UserAgentEndpointChannelTest {
 
-    private static final UserAgent baseAgent = UserAgent.of(UserAgent.Agent.of("test-class", "1.2.3"));
+    private static final UserAgent baseAgent = UserAgent.of(Agent.of("test-class", "1.2.3"));
 
     @Mock
     private EndpointChannel delegate;
@@ -59,7 +60,7 @@ public final class UserAgentEndpointChannelTest {
         EndpointChannel channel = UserAgentEndpointChannel.create(delegate, TestEndpoint.POST, baseAgent);
         // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
-                .orElse("0.0.0");
+                .orElse(Agent.DEFAULT_VERSION);
 
         channel.execute(request);
         verify(delegate).execute(requestCaptor.capture());
@@ -99,7 +100,7 @@ public final class UserAgentEndpointChannelTest {
                 baseAgent);
         // Special case: In IDEs, tests are run against classes (not JARs) and thus don't carry versions.
         String dialogueVersion = Optional.ofNullable(Channel.class.getPackage().getImplementationVersion())
-                .orElse("0.0.0");
+                .orElse(Agent.DEFAULT_VERSION);
         channel.execute(request);
         verify(delegate).execute(requestCaptor.capture());
         assertThat(requestCaptor.getValue().headerParams().get("user-agent"))
@@ -111,6 +112,6 @@ public final class UserAgentEndpointChannelTest {
     void extractsJdkVersionIntoAgent() {
         assertThat(UserAgentEndpointChannel.extractJdkAgent().version())
                 .isNotEmpty()
-                .isNotEqualTo("0.0.0");
+                .isNotEqualTo(Agent.DEFAULT_VERSION);
     }
 }

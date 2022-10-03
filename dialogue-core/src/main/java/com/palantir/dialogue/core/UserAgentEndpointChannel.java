@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
+import com.palantir.conjure.java.api.config.service.UserAgent.Agent;
 import com.palantir.conjure.java.api.config.service.UserAgents;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
@@ -35,8 +36,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
  */
 final class UserAgentEndpointChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(UserAgentEndpointChannel.class);
-    static final UserAgent.Agent DIALOGUE_AGENT = extractDialogueAgent();
-    static final UserAgent.Agent JDK_AGENT = extractJdkAgent();
+    static final Agent DIALOGUE_AGENT = extractDialogueAgent();
+    static final Agent JDK_AGENT = extractJdkAgent();
 
     private final EndpointChannel delegate;
     private final String userAgent;
@@ -68,7 +69,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         String endpointService = endpoint.serviceName();
         String endpointVersion = getEndpointVersion(endpoint);
         try {
-            return baseAgent.addAgent(UserAgent.Agent.of(endpoint.serviceName(), endpointVersion));
+            return baseAgent.addAgent(Agent.of(endpoint.serviceName(), endpointVersion));
         } catch (IllegalArgumentException e) {
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -86,7 +87,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         String endpointVersion = endpoint.version();
         // Until conjure-java 5.14.2, we mistakenly embedded 0.0.0 in everything. This fallback logic attempts
         // to work-around this and produce a more helpful user agent
-        if ("0.0.0".equals(endpointVersion)) {
+        if (Agent.DEFAULT_VERSION.equals(endpointVersion)) {
             String jarVersion = endpoint.getClass().getPackage().getImplementationVersion();
             if (jarVersion != null) {
                 return jarVersion;
@@ -95,18 +96,18 @@ final class UserAgentEndpointChannel implements EndpointChannel {
         return endpointVersion;
     }
 
-    private static UserAgent.Agent extractDialogueAgent() {
+    private static Agent extractDialogueAgent() {
         String version = dialogueVersion();
-        return UserAgent.Agent.of("dialogue", version);
+        return Agent.of("dialogue", version);
     }
 
-    static UserAgent.Agent extractJdkAgent() {
-        return UserAgent.Agent.of("jdk", System.getProperty("java.version", "0.0.0"));
+    static Agent extractJdkAgent() {
+        return Agent.of("jdk", System.getProperty("java.version", Agent.DEFAULT_VERSION));
     }
 
     static String dialogueVersion() {
         String maybeDialogueVersion = Channel.class.getPackage().getImplementationVersion();
-        return maybeDialogueVersion != null ? maybeDialogueVersion : "0.0.0";
+        return maybeDialogueVersion != null ? maybeDialogueVersion : Agent.DEFAULT_VERSION;
     }
 
     @Override
