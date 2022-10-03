@@ -16,6 +16,8 @@
 
 package com.palantir.dialogue.core;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.api.config.service.UserAgent.Agent;
@@ -28,6 +30,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import javax.annotation.Nullable;
 
 /**
  * Adds a {@code user-agent} header that is the combination of the given base user agent, the version of the
@@ -37,7 +40,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 final class UserAgentEndpointChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(UserAgentEndpointChannel.class);
     static final Agent DIALOGUE_AGENT = extractDialogueAgent();
-    static final Agent JDK_AGENT = extractJdkAgent();
+    private static final ImmutableList<Agent> agents = ImmutableList.of(DIALOGUE_AGENT, extractJdkAgent());
 
     private final EndpointChannel delegate;
     private final String userAgent;
@@ -62,14 +65,24 @@ final class UserAgentEndpointChannel implements EndpointChannel {
     }
 
     private static UserAgent augmentUserAgent(UserAgent baseAgent, Endpoint endpoint) {
-        return tryAddEndpointAgent(baseAgent, endpoint).addAgent(DIALOGUE_AGENT).addAgent(JDK_AGENT);
+        Agent endpointAgent = getEndpointAgent(endpoint);
+        try {
+            if (endpointAgent == null) {
+                return UserAgent.of(baseAgent, agents);
+            }
+            return UserAgent.of(baseAgent, Iterables.concat(ImmutableList.of(endpointAgent), agents));
+        } catch (RuntimeException e) {
+            log.error("Could not construct user agent", e);
+            return baseAgent;
+        }
     }
 
-    private static UserAgent tryAddEndpointAgent(UserAgent baseAgent, Endpoint endpoint) {
+    @Nullable
+    private static Agent getEndpointAgent(Endpoint endpoint) {
         String endpointService = endpoint.serviceName();
         String endpointVersion = getEndpointVersion(endpoint);
         try {
-            return baseAgent.addAgent(Agent.of(endpoint.serviceName(), endpointVersion));
+            return Agent.of(endpoint.serviceName(), endpointVersion);
         } catch (IllegalArgumentException e) {
             if (log.isDebugEnabled()) {
                 log.debug(
@@ -79,7 +92,7 @@ final class UserAgentEndpointChannel implements EndpointChannel {
                         SafeArg.of("version", endpointVersion),
                         e);
             }
-            return baseAgent;
+            return null;
         }
     }
 
