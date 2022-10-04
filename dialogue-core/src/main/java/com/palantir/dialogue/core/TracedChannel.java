@@ -58,7 +58,7 @@ final class TracedChannel implements EndpointChannel {
         return ImmutableMap.<String, String>builderWithExpectedSize(endpointTags.size() + configTags.size())
                 .putAll(endpointTags)
                 .putAll(configTags)
-                .build();
+                .buildOrThrow();
     }
 
     @Override

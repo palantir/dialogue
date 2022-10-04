@@ -47,7 +47,7 @@ public final class ArgumentTypesResolverTest {
             builder.put(parameterType, method.getName());
         }
 
-        assertThat(builder.build())
+        assertThat(builder.buildOrThrow())
                 .as("the map in %s is missing some values", ArgumentTypesResolver.class)
                 .containsAllEntriesOf(ArgumentTypesResolver.PARAMETER_SERIALIZER_TYPES);
     }
