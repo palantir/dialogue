@@ -60,7 +60,7 @@ public final class ArgumentTypesResolver {
                             .put(SafeLong.class, "SafeLong")
                             .put(String.class, "String")
                             .put(UUID.class, "Uuid")
-                            .build())
+                            .buildOrThrow())
                     .mapKeys((Function<Class<?>, ClassName>) ClassName::get)
                     .map(value -> "serialize" + value)
                     .collectToMap());

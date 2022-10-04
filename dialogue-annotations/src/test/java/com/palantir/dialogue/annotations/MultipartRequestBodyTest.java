@@ -94,7 +94,7 @@ public final class MultipartRequestBodyTest {
                     .put("bucket", bucket)
                     .put("key", key)
                     .putAll(entry.keyValues())
-                    .build());
+                    .buildOrThrow());
 
             okhttp3.MediaType contentType = okhttp3.MediaType.parse(entry.contentType());
             RequestBody body = unknownLengthRequestBody(value.getBytes(CHARSET), contentType);
