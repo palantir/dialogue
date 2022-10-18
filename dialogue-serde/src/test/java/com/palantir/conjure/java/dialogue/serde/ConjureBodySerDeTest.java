@@ -50,7 +50,7 @@ public class ConjureBodySerDeTest {
     private static final TypeMarker<String> TYPE = new TypeMarker<String>() {};
     private static final TypeMarker<Optional<String>> OPTIONAL_TYPE = new TypeMarker<Optional<String>>() {};
 
-    private ErrorDecoder errorDecoder = ErrorDecoder.INSTANCE;
+    private ErrorDecoder errorDecoder = ConjureErrorDecoder.INSTANCE;
 
     @Test
     public void testRequestContentType() throws IOException {
@@ -113,7 +113,7 @@ public class ConjureBodySerDeTest {
 
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(plain, .5), WeightedEncoding.of(json, 1)),
-                ErrorDecoder.INSTANCE,
+                ConjureErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         // first encoding is default
@@ -174,7 +174,7 @@ public class ConjureBodySerDeTest {
         TestResponse response = new TestResponse().code(200).contentType("application/json");
         BodySerDe serializers = new ConjureBodySerDe(
                 ImmutableList.of(WeightedEncoding.of(BrokenEncoding.INSTANCE)),
-                ErrorDecoder.INSTANCE,
+                ConjureErrorDecoder.INSTANCE,
                 Encodings.emptyContainerDeserializer(),
                 DefaultConjureRuntime.DEFAULT_SERDE_CACHE_SPEC);
         assertThatThrownBy(() -> serializers.deserializer(TYPE).deserialize(response))

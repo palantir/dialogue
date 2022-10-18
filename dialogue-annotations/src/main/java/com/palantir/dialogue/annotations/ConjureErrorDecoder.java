@@ -22,11 +22,11 @@ public final class ConjureErrorDecoder implements ErrorDecoder {
 
     @Override
     public boolean isError(Response response) {
-        return com.palantir.conjure.java.dialogue.serde.ErrorDecoder.INSTANCE.isError(response);
+        return com.palantir.conjure.java.dialogue.serde.ConjureErrorDecoder.INSTANCE.isError(response);
     }
 
     @Override
     public RuntimeException decode(Response response) {
-        return com.palantir.conjure.java.dialogue.serde.ErrorDecoder.INSTANCE.decode(response);
+        return com.palantir.conjure.java.dialogue.serde.ConjureErrorDecoder.INSTANCE.decode(response);
     }
 }

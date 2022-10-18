@@ -45,7 +45,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     private DefaultConjureRuntime(Builder builder) {
         this.bodySerDe = new ConjureBodySerDe(
                 builder.encodings.isEmpty() ? DEFAULT_ENCODINGS : builder.encodings,
-                ErrorDecoder.INSTANCE,
+                builder.errorDecoder,
                 Encodings.emptyContainerDeserializer(),
                 DEFAULT_SERDE_CACHE_SPEC);
     }
@@ -72,6 +72,7 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
     public static final class Builder {
 
         private final List<WeightedEncoding> encodings = new ArrayList<>();
+        private ErrorDecoder errorDecoder = ConjureErrorDecoder.INSTANCE;
 
         private Builder() {}
 
@@ -88,6 +89,12 @@ public final class DefaultConjureRuntime implements ConjureRuntime {
         @CanIgnoreReturnValue
         public Builder encodings(Encoding value, double weight) {
             encodings.add(WeightedEncoding.of(value, weight));
+            return this;
+        }
+
+        @CanIgnoreReturnValue
+        public Builder errorDecoder(ErrorDecoder decoder) {
+            this.errorDecoder = decoder;
             return this;
         }
 

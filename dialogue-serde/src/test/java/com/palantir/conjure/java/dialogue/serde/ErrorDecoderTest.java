@@ -57,7 +57,7 @@ public final class ErrorDecoderTest {
         }
     }
 
-    private static final ErrorDecoder decoder = ErrorDecoder.INSTANCE;
+    private static final ErrorDecoder decoder = ConjureErrorDecoder.INSTANCE;
 
     @Test
     public void extractsRemoteExceptionForAllErrorCodes() {
