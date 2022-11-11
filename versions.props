@@ -28,8 +28,8 @@ com.github.ben-manes.caffeine:caffeine = 3.1.1
 
 # test deps
 junit:junit = 4.13.2
-org.junit.jupiter:* = 5.8.2
-org.junit.vintage:* = 5.8.2
+org.junit.jupiter:* = 5.9.1
+org.junit.vintage:* = 5.9.1
 org.apache.logging.log4j:* = 2.19.0
 org.assertj:assertj-core = 3.23.1
 org.assertj:assertj-guava = 3.3.0
