@@ -47,6 +47,7 @@ import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -356,6 +357,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
     }
 
+    @Unsafe
     private static final class EmptyInternalDialogueChannel implements InternalDialogueChannel {
         private final Supplier<? extends RuntimeException> exceptionSupplier;
 
@@ -368,6 +370,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             return Futures.immediateFailedFuture(exceptionSupplier.get());
         }
 
+        @Unsafe
         @Override
         public String toString() {
             return "EmptyInternalDialogueChannel{exceptionSupplier="
