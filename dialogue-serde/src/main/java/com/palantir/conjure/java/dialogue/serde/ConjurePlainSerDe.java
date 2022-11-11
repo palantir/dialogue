@@ -18,7 +18,6 @@ package com.palantir.conjure.java.dialogue.serde;
 
 import com.palantir.conjure.java.lib.SafeLong;
 import com.palantir.dialogue.PlainSerDe;
-import com.palantir.logsafe.DoNotLog;
 import com.palantir.ri.ResourceIdentifier;
 import com.palantir.tokens.auth.BearerToken;
 import java.time.OffsetDateTime;
@@ -28,7 +27,6 @@ import java.util.UUID;
 enum ConjurePlainSerDe implements PlainSerDe {
     INSTANCE;
 
-    @DoNotLog
     @Override
     public String serializeBearerToken(BearerToken in) {
         return in.toString();

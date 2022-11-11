@@ -17,7 +17,6 @@
 package com.palantir.dialogue.annotations;
 
 import com.palantir.conjure.java.lib.SafeLong;
-import com.palantir.logsafe.DoNotLog;
 import com.palantir.ri.ResourceIdentifier;
 import com.palantir.tokens.auth.AuthHeader;
 import com.palantir.tokens.auth.BearerToken;
@@ -57,13 +56,11 @@ public enum DefaultParameterSerializer implements ParameterSerializer {
         return Character.toString(in);
     }
 
-    @DoNotLog
     @Override
     public String serializeBearerToken(BearerToken in) {
         return in.toString();
     }
 
-    @DoNotLog
     @Override
     public String serializeAuthHeader(AuthHeader in) {
         return in.toString();
