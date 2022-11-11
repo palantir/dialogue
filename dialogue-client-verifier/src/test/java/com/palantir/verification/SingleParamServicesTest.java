@@ -16,6 +16,8 @@
 
 package com.palantir.verification;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableMap;
 import com.palantir.conjure.java.api.errors.RemoteException;
@@ -35,21 +37,20 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.IntStream;
 import org.apache.commons.lang3.ClassUtils;
-import org.junit.Assume;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class SingleParamServicesTest {
 
-    @ClassRule
-    public static final VerificationServerRule server = new VerificationServerRule();
+    @RegisterExtension
+    public static final VerificationServerExtension server = new VerificationServerExtension();
 
     private static final SafeLogger log = SafeLoggerFactory.get(SingleParamServicesTest.class);
     private static final ObjectMapper objectMapper = ObjectMappers.newClientObjectMapper();
-    private static ImmutableMap<String, Object> servicesMaps = ImmutableMap.of(
+    private static final ImmutableMap<String, Object> servicesMaps = ImmutableMap.of(
             "singlePathParamService",
             server.client(SinglePathParamServiceBlocking.class),
             "singleHeaderService",
@@ -57,48 +58,37 @@ public class SingleParamServicesTest {
             "singleQueryParamService",
             server.client(SingleQueryParamServiceBlocking.class));
 
-    @Parameterized.Parameter(0)
-    public String serviceName;
-
-    @Parameterized.Parameter(1)
-    public EndpointName endpointName;
-
-    @Parameterized.Parameter(2)
-    public int index;
-
-    @Parameterized.Parameter(3)
-    public String jsonString;
-
-    @Parameterized.Parameters(name = "{0}/{1}({3})")
-    public static Collection<Object[]> data() {
-        List<Object[]> objects = new ArrayList<>();
+    static Collection<Arguments> data() {
+        List<Arguments> objects = new ArrayList<>();
         Cases.TEST_CASES.getSingleHeaderService().forEach((endpointName, singleHeaderTestCases) -> {
             int size = singleHeaderTestCases.size();
             IntStream.range(0, size)
                     .forEach(i -> objects.add(
-                            new Object[] {"singleHeaderService", endpointName, i, singleHeaderTestCases.get(i)}));
+                            Arguments.of("singleHeaderService", endpointName, i, singleHeaderTestCases.get(i))));
         });
 
         Cases.TEST_CASES.getSinglePathParamService().forEach((endpointName, singleHeaderTestCases) -> {
             int size = singleHeaderTestCases.size();
             IntStream.range(0, size)
                     .forEach(i -> objects.add(
-                            new Object[] {"singlePathParamService", endpointName, i, singleHeaderTestCases.get(i)}));
+                            Arguments.of("singlePathParamService", endpointName, i, singleHeaderTestCases.get(i))));
         });
 
         Cases.TEST_CASES.getSingleQueryParamService().forEach((endpointName, singleQueryTestCases) -> {
             int size = singleQueryTestCases.size();
             IntStream.range(0, size)
                     .forEach(i -> objects.add(
-                            new Object[] {"singleQueryParamService", endpointName, i, singleQueryTestCases.get(i)}));
+                            Arguments.of("singleQueryParamService", endpointName, i, singleQueryTestCases.get(i))));
         });
 
         return objects;
     }
 
-    @Test
-    public void runTestCase() throws Exception {
-        Assume.assumeFalse(Cases.shouldIgnore(endpointName, jsonString));
+    @ParameterizedTest(name = "{0}/{1}({3})")
+    @MethodSource("data")
+    public void runTestCase(String serviceName, EndpointName endpointName, int index, String jsonString)
+            throws Exception {
+        Assumptions.assumeFalse(Cases.shouldIgnore(endpointName, jsonString));
 
         log.info(
                 "Invoking {} {}({})",
@@ -107,7 +97,8 @@ public class SingleParamServicesTest {
                 SafeArg.of("jsonString", jsonString));
 
         Object service = servicesMaps.get(serviceName);
-        for (Method method : servicesMaps.get(serviceName).getClass().getMethods()) {
+        assertThat(service).as("Invalid service: '%s'", serviceName).isNotNull();
+        for (Method method : service.getClass().getMethods()) {
             String name = method.getName();
             // Need to set accessible true work around dialogues anonymous class impl
             method.setAccessible(true);
