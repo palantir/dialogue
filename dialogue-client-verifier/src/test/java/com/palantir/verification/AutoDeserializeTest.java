@@ -30,17 +30,16 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.IntStream;
-import org.junit.Assume;
-import org.junit.ClassRule;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.junit.runners.Parameterized;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.extension.RegisterExtension;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
-@RunWith(Parameterized.class)
 public class AutoDeserializeTest {
 
-    @ClassRule
-    public static final VerificationServerRule server = new VerificationServerRule();
+    @RegisterExtension
+    public static final VerificationServerExtension server = new VerificationServerExtension();
 
     private static final SafeLogger log = SafeLoggerFactory.get(AutoDeserializeTest.class);
     private static final AutoDeserializeServiceBlocking testService =
@@ -48,61 +47,49 @@ public class AutoDeserializeTest {
     private static final AutoDeserializeConfirmServiceBlocking confirmService =
             server.client(AutoDeserializeConfirmServiceBlocking.class);
 
-    @Parameterized.Parameter(0)
-    public EndpointName endpointName;
-
-    @Parameterized.Parameter(1)
-    public int index;
-
-    @Parameterized.Parameter(2)
-    public boolean shouldSucceed;
-
-    @Parameterized.Parameter(3)
-    public String jsonString;
-
-    @Parameterized.Parameters(name = "{0}({3}) -> should succeed {2}")
-    public static Collection<Object[]> data() {
-        List<Object[]> objects = new ArrayList<>();
+    public static Collection<Arguments> data() {
+        List<Arguments> objects = new ArrayList<>();
         Cases.TEST_CASES.getAutoDeserialize().forEach((endpointName, positiveAndNegativeTestCases) -> {
             int positiveSize = positiveAndNegativeTestCases.getPositive().size();
             int negativeSize = positiveAndNegativeTestCases.getNegative().size();
 
             IntStream.range(0, positiveSize)
-                    .forEach(i -> objects.add(new Object[] {
-                        endpointName,
-                        i,
-                        true,
-                        positiveAndNegativeTestCases.getPositive().get(i)
-                    }));
+                    .forEach(i -> objects.add(Arguments.of(
+                            endpointName,
+                            i,
+                            true,
+                            positiveAndNegativeTestCases.getPositive().get(i))));
 
             IntStream.range(0, negativeSize)
-                    .forEach(i -> objects.add(new Object[] {
-                        endpointName,
-                        positiveSize + i,
-                        false,
-                        positiveAndNegativeTestCases.getNegative().get(i)
-                    }));
+                    .forEach(i -> objects.add(Arguments.of(
+                            endpointName,
+                            positiveSize + i,
+                            false,
+                            positiveAndNegativeTestCases.getNegative().get(i))));
         });
         return objects;
     }
 
-    @Test
+    @ParameterizedTest(name = "{0}({3}) -> should succeed {2}")
+    @MethodSource("data")
     @SuppressWarnings("IllegalThrows")
-    public void runTestCase() throws Error, NoSuchMethodException {
+    public void runTestCase(EndpointName endpointName, int index, boolean shouldSucceed, String jsonString)
+            throws Error, NoSuchMethodException {
         boolean shouldIgnore = Cases.shouldIgnore(endpointName, jsonString);
         Method method = testService.getClass().getMethod(endpointName.get(), int.class);
         // Need to set accessible true work around dialogues anonymous class impl
         method.setAccessible(true);
-        System.out.println(String.format(
-                "[%s%s test case %s]: %s(%s), expected client to %s",
+        System.out.printf(
+                "[%s%s test case %s]: %s(%s), expected client to %s%n",
                 shouldIgnore ? "ignored " : "",
                 shouldSucceed ? "positive" : "negative",
                 index,
                 endpointName,
                 jsonString,
-                shouldSucceed ? "succeed" : "fail"));
+                shouldSucceed ? "succeed" : "fail");
 
-        Optional<Error> expectationFailure = shouldSucceed ? expectSuccess(method) : expectFailure(method);
+        Optional<Error> expectationFailure =
+                shouldSucceed ? expectSuccess(method, endpointName, index) : expectFailure(method, index);
 
         if (shouldIgnore) {
             assertThat(expectationFailure)
@@ -111,14 +98,14 @@ public class AutoDeserializeTest {
                     .isNotEmpty();
         }
 
-        Assume.assumeFalse(shouldIgnore);
+        Assumptions.assumeFalse(shouldIgnore);
 
         if (expectationFailure.isPresent()) {
             throw expectationFailure.get();
         }
     }
 
-    private Optional<Error> expectSuccess(Method method) {
+    private Optional<Error> expectSuccess(Method method, EndpointName endpointName, int index) {
         try {
             Object resultFromServer = method.invoke(testService, index);
             log.info(
@@ -133,13 +120,13 @@ public class AutoDeserializeTest {
         }
     }
 
-    private Optional<Error> expectFailure(Method method) {
+    private Optional<Error> expectFailure(Method method, Object index) {
         try {
             Object result = method.invoke(testService, index);
             return Optional.of(new AssertionError(
                     String.format("Result should have caused an exception but deserialized to: %s", result)));
         } catch (Exception e) {
-            return Optional.empty(); // we expected the method to throw and it did, so this expectation was satisifed
+            return Optional.empty(); // we expected the method to throw, and it did, so this expectation was satisfied
         }
     }
 }
