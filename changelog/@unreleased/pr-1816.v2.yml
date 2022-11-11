@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: ./gradlew classes testClasses -PerrorProneApply=SafeLoggingPropagation
+  links:
+  - https://github.com/palantir/dialogue/pull/1816
