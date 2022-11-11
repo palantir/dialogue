@@ -47,10 +47,17 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
-import okhttp3.mockwebserver.RecordedRequest;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.internal.MockWebServerExtension;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(MockWebServerExtension.class)
 public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
+    ApacheHttpClientChannelsTest(MockWebServer server) {
+        super(server);
+    }
 
     @Override
     protected Channel createChannel(ClientConfiguration config) {

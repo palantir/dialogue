@@ -30,14 +30,14 @@ import java.net.SocketAddress;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Rule;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.internal.MockWebServerExtension;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-@EnableRuleMigrationSupport
+@ExtendWith(MockWebServerExtension.class)
 public abstract class AbstractProxyConfigTest {
 
     private static final Request request = Request.builder()
@@ -62,11 +62,14 @@ public abstract class AbstractProxyConfigTest {
             })
             .build();
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    private final MockWebServer server;
 
-    @Rule
-    public final MockWebServer proxyServer = new MockWebServer();
+    private final MockWebServer proxyServer;
+
+    protected AbstractProxyConfigTest(MockWebServer server, MockWebServer proxyServer) {
+        this.server = server;
+        this.proxyServer = proxyServer;
+    }
 
     protected abstract Channel create(ClientConfiguration config);
 
