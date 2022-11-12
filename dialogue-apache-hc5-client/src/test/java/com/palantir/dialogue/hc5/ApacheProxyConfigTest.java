@@ -18,8 +18,16 @@ package com.palantir.dialogue.hc5;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.AbstractProxyConfigTest;
 import com.palantir.dialogue.Channel;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.junit5.internal.MockWebServerExtension;
+import org.junit.jupiter.api.extension.ExtendWith;
 
+@ExtendWith(MockWebServerExtension.class)
 public final class ApacheProxyConfigTest extends AbstractProxyConfigTest {
+    ApacheProxyConfigTest(MockWebServer server, MockWebServer proxyServer) {
+        super(server, proxyServer);
+    }
+
     @Override
     protected Channel create(ClientConfiguration config) {
         return ApacheHttpClientChannels.create(config);

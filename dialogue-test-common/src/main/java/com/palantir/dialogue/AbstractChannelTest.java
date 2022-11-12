@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue;
 
-// CHECKSTYLE:OFF  // static import
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,21 +36,17 @@ import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
 import okhttp3.HttpUrl;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import okio.Buffer;
 import okio.GzipSink;
-import org.junit.Rule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 
-// CHECKSTYLE:ON
 @SuppressWarnings({"checkstyle:avoidstaticimport", "checkstyle:VisibilityModifier", "FutureReturnValueIgnored"})
-@EnableRuleMigrationSupport
 public abstract class AbstractChannelTest {
 
     protected static final byte[] CONTENT = "test".getBytes(StandardCharsets.UTF_8);
@@ -62,9 +56,6 @@ public abstract class AbstractChannelTest {
     private Channel createChannel(URL baseUrl) {
         return createChannel(TestConfigurations.create(baseUrl.toString()));
     }
-
-    @Rule
-    public final MockWebServer server = new MockWebServer();
 
     protected final RequestBody body = new RequestBody() {
         @Override
@@ -96,6 +87,12 @@ public abstract class AbstractChannelTest {
     protected FakeEndpoint endpoint;
 
     protected Channel channel;
+
+    protected final MockWebServer server;
+
+    protected AbstractChannelTest(MockWebServer server) {
+        this.server = server;
+    }
 
     @BeforeEach
     public void before() {

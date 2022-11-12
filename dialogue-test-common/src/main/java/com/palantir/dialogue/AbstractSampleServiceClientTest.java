@@ -16,8 +16,6 @@
 
 package com.palantir.dialogue;
 
-// CHECKSTYLE:OFF  // static import
-
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -37,18 +35,16 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.Rule;
+import mockwebserver3.MockResponse;
+import mockwebserver3.MockWebServer;
+import mockwebserver3.RecordedRequest;
+import mockwebserver3.junit5.internal.MockWebServerExtension;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
+import org.junit.jupiter.api.extension.ExtendWith;
 
-// CHECKSTYLE:ON
-
-@EnableRuleMigrationSupport
+@ExtendWith(MockWebServerExtension.class)
 public abstract class AbstractSampleServiceClientTest {
 
     abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
@@ -67,8 +63,11 @@ public abstract class AbstractSampleServiceClientTest {
     static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
             Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
 
-    @Rule
-    public final MockWebServer server = new MockWebServer();
+    private final MockWebServer server;
+
+    protected AbstractSampleServiceClientTest(MockWebServer server) {
+        this.server = server;
+    }
 
     private SampleServiceBlocking blockingClient;
     private SampleServiceAsync asyncClient;
@@ -107,7 +106,7 @@ public abstract class AbstractSampleServiceClientTest {
 
     @BeforeEach
     public void before() {
-        server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
+        server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG));
         blockingClient = createBlockingClient(server.url("").url(), Duration.ofSeconds(1));
         asyncClient = createAsyncClient(server.url("").url(), Duration.ofSeconds(1));
     }
