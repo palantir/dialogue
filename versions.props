@@ -32,7 +32,7 @@ org.apache.logging.log4j:* = 2.19.0
 org.assertj:assertj-core = 3.23.1
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
-org.mockito:* = 4.8.1
+org.mockito:* = 4.9.0
 jakarta.ws.rs:jakarta.ws.rs-api = 2.1.6
 org.apache.commons:commons-lang3 = 3.12.0
 org.awaitility:awaitility = 4.2.0
@@ -41,7 +41,7 @@ org.knowm.xchart:xchart = 3.6.1
 com.palantir.conjure.verification:* = 0.19.0
 io.undertow:undertow-core = 2.2.18.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
-org.openjdk.jmh:* = 1.35
+org.openjdk.jmh:* = 1.36
 
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
