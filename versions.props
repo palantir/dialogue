@@ -24,7 +24,7 @@ org.glassfish.jersey.core:jersey-common = 2.31
 org.immutables:* = 2.8.8
 org.slf4j:* = 1.7.36
 com.palantir.goethe:* = 0.9.0
-com.github.ben-manes.caffeine:caffeine = 3.1.1
+com.github.ben-manes.caffeine:caffeine = 3.1.2
 
 # test deps
 org.junit.jupiter:* = 5.9.1
