@@ -19,6 +19,7 @@ package com.palantir.conjure.java.dialogue.serde;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.CaffeineSpec;
 import com.github.benmanes.caffeine.cache.LoadingCache;
+import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import com.palantir.dialogue.BinaryRequestBody;
@@ -42,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import javax.ws.rs.core.HttpHeaders;
 
@@ -219,7 +221,7 @@ final class ConjureBodySerDe implements BodySerDe {
         private final ImmutableList<EncodingDeserializerContainer<T>> encodings;
         private final ErrorDecoder errorDecoder;
         private final Optional<String> acceptValue;
-        private final Optional<T> emptyInstance;
+        private final Supplier<Optional<T>> emptyInstance;
         private final TypeMarker<T> token;
 
         EncodingDeserializerRegistry(
@@ -232,7 +234,7 @@ final class ConjureBodySerDe implements BodySerDe {
                     .collect(ImmutableList.toImmutableList());
             this.errorDecoder = errorDecoder;
             this.token = token;
-            this.emptyInstance = empty.tryGetEmptyInstance(token);
+            this.emptyInstance = Suppliers.memoize(() -> empty.tryGetEmptyInstance(token));
             // Encodings are applied to the accept header in the order of preference based on the provided list.
             this.acceptValue =
                     Optional.of(encodings.stream().map(Encoding::getContentType).collect(Collectors.joining(", ")));
@@ -248,8 +250,9 @@ final class ConjureBodySerDe implements BodySerDe {
                     // TODO(dfox): what if we get a 204 for a non-optional type???
                     // TODO(dfox): support http200 & body=null
                     // TODO(dfox): what if we were expecting an empty list but got {}?
-                    if (emptyInstance.isPresent()) {
-                        return emptyInstance.get();
+                    Optional<T> maybeEmptyInstance = emptyInstance.get();
+                    if (maybeEmptyInstance.isPresent()) {
+                        return maybeEmptyInstance.get();
                     }
                     throw new SafeRuntimeException(
                             "Unable to deserialize non-optional response type from 204", SafeArg.of("type", token));
