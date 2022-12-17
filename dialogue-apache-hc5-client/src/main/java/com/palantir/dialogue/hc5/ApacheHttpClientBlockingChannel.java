@@ -389,7 +389,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
             InputStream stream = entity.getContent();
             // Fast check: The stream has been fully exhausted in the expected case,
             // no need to create buffers for drainage unless we know there's data to drain.
-            if (stream.read() == -1) {
+            if (stream.available() == 0 || stream.read() == -1) {
                 return false;
             }
             return REMAINING_CONTENT_CONNECTION_DISCARD_THRESHOLD
