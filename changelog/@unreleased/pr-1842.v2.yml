@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Warn against BinaryRequestBody footgun
+  links:
+  - https://github.com/palantir/dialogue/pull/1842

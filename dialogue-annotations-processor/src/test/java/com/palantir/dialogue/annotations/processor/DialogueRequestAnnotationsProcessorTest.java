@@ -30,6 +30,7 @@ import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
 import com.palantir.myservice.service.UnparseableHttpPath;
+import com.palantir.myservice.service.UsesBinaryRequestBody;
 import com.palantir.myservice.service.WrongFactoryAnnotation;
 import java.io.IOException;
 import java.io.InputStream;
@@ -88,6 +89,12 @@ public final class DialogueRequestAnnotationsProcessorTest {
                 .inFile(compilation.sourceFiles().get(0))
                 .onLineContaining("String greet(@Request.PathParam String greeting)");
         assertThat(compilation).hadErrorCount(2);
+    }
+
+    @Test
+    public void testCannotUseConjureRequestBody() {
+        Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UsesBinaryRequestBody.class);
+        assertThat(compilation).hadErrorContaining("prefer the more expressive RequestBody type");
     }
 
     private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
