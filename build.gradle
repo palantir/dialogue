@@ -91,6 +91,7 @@ subprojects {
             } else {
                 options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir')
             }
+            options.errorprone.warn('DefaultLocale')
         }
     })
 
