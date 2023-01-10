@@ -50,17 +50,15 @@ enum DialogueNodeSelectionStrategy {
      * which users can't normally configure.
      */
     private static DialogueNodeSelectionStrategy safeValueOf(String string) {
-        String uppercaseString = string.toUpperCase();
-
-        switch (uppercaseString) {
-            case "PIN_UNTIL_ERROR":
-                return PIN_UNTIL_ERROR;
-            case "PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE":
-                return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
-            case "BALANCED":
-                return BALANCED;
+        if ("PIN_UNTIL_ERROR".equalsIgnoreCase(string)) {
+            return PIN_UNTIL_ERROR;
         }
-
+        if ("PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE".equalsIgnoreCase(string)) {
+            return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+        }
+        if ("BALANCED".equalsIgnoreCase(string)) {
+            return BALANCED;
+        }
         log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));
         return UNKNOWN;
     }
