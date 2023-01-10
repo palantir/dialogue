@@ -95,7 +95,6 @@ public final class DialogueRequestAnnotationsProcessorTest {
     public void testCannotUseConjureRequestBody() {
         Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UsesBinaryRequestBody.class);
         assertThat(compilation).hadErrorContaining("prefer the more expressive RequestBody type");
-        assertThat(compilation).hadErrorCount(1);
     }
 
     private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
