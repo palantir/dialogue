@@ -20,6 +20,7 @@ import com.google.auto.common.MoreElements;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
+import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.annotations.DefaultMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Json;
@@ -119,10 +120,18 @@ public final class ParamTypesResolver {
             // default annotation param values are not available at annotation processing time
             String serializerName = InstanceVariables.joinCamelCase(endpointName.get(), "Serializer");
             Optional<TypeMirror> customSerializer = annotationReflector.getValueFieldMaybe(TypeMirror.class);
+            TypeMirror serializer = customSerializer.orElseGet(() -> context.getTypeMirror(Json.class));
+            if (context.isAssignable(variableElement.asType(), BinaryRequestBody.class)
+                    && context.isSameTypes(serializer, Json.class)) {
+                context.reportError(
+                        "BinaryRequestBody is not supported by default, prefer the more expressive RequestBody type",
+                        variableElement);
+                return Optional.empty();
+            }
+
             // TODO(12345): Check that custom serializer has no-arg constructor and implements the right types that
             //  match
-            return Optional.of(ParameterTypes.body(
-                    TypeName.get(customSerializer.orElseGet(() -> context.getTypeMirror(Json.class))), serializerName));
+            return Optional.of(ParameterTypes.body(TypeName.get(serializer), serializerName));
         } else if (annotationReflector.isAnnotation(Request.Header.class)) {
             return Optional.of(ParameterTypes.header(
                     annotationReflector.getStringValueField(),
