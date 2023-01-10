@@ -25,6 +25,7 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Supported node selection strategies which can either be user provided or received over the wire from servers.
@@ -50,7 +51,7 @@ enum DialogueNodeSelectionStrategy {
      * which users can't normally configure.
      */
     private static DialogueNodeSelectionStrategy safeValueOf(String string) {
-        String uppercaseString = string.toUpperCase();
+        String uppercaseString = string.toUpperCase(Locale.ROOT);
 
         switch (uppercaseString) {
             case "PIN_UNTIL_ERROR":
