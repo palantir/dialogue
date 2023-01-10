@@ -25,7 +25,6 @@ import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.util.List;
-import java.util.Locale;
 
 /**
  * Supported node selection strategies which can either be user provided or received over the wire from servers.
@@ -51,17 +50,15 @@ enum DialogueNodeSelectionStrategy {
      * which users can't normally configure.
      */
     private static DialogueNodeSelectionStrategy safeValueOf(String string) {
-        String uppercaseString = string.toUpperCase(Locale.ROOT);
-
-        switch (uppercaseString) {
-            case "PIN_UNTIL_ERROR":
-                return PIN_UNTIL_ERROR;
-            case "PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE":
-                return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
-            case "BALANCED":
-                return BALANCED;
+        if ("PIN_UNTIL_ERROR".equalsIgnoreCase(string)) {
+            return PIN_UNTIL_ERROR;
         }
-
+        if ("PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE".equalsIgnoreCase(string)) {
+            return PIN_UNTIL_ERROR_WITHOUT_RESHUFFLE;
+        }
+        if ("BALANCED".equalsIgnoreCase(string)) {
+            return BALANCED;
+        }
         log.info("Received unknown selection strategy {}", SafeArg.of("strategy", string));
         return UNKNOWN;
     }
