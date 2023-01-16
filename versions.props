@@ -29,7 +29,7 @@ com.github.ben-manes.caffeine:caffeine = 3.1.2
 # test deps
 org.junit.jupiter:* = 5.9.2
 org.apache.logging.log4j:* = 2.19.0
-org.assertj:assertj-core = 3.24.1
+org.assertj:assertj-core = 3.24.2
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
 org.mockito:* = 5.0.0
