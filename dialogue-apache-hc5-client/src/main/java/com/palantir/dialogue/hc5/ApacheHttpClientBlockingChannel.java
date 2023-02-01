@@ -59,6 +59,7 @@ import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.ExecRuntime;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
+import org.apache.hc.client5.http.io.ConnectionEndpoint;
 import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
@@ -66,6 +67,7 @@ import org.apache.hc.core5.http.HttpEntity;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
+import org.apache.hc.core5.util.Timeout;
 
 final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(ApacheHttpClientBlockingChannel.class);
@@ -336,6 +338,10 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         }
 
         @Override
+        // Asserts are the cleanest tool we have to ensure future hc bumps don't
+        // break our ability to set the socket timeout without risking failures
+        // in production code.
+        @SuppressWarnings("BadAssert")
         public void close() {
             ApacheHttpClientChannels.CloseableClient clientSnapshot = client;
             client = null;
@@ -347,6 +353,16 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
                     if (hasSubstantialRemainingData(response)) {
                         ExecRuntime runtime = HttpClientExecRuntimeAttributeInterceptor.get(context);
                         if (runtime != null) {
+                            // Attempt to set the smallest possible socket timeout before closing the connection.
+                            // In some degenerate cases, remote servers may not close connections, causing the client
+                            // to consume network resources and time in SSLSocketInputRecord.deplete.
+                            ConnectionEndpoint maybeEndpoint = ConnectionEndpointAccess.getConnectionEndpoint(runtime);
+                            assert maybeEndpoint != null || !runtime.isEndpointConnected()
+                                    : "Expected ConnectionEndpointAccess.getConnectionEndpoint "
+                                            + "to extract a ConnectionEndpoint";
+                            if (maybeEndpoint != null) {
+                                maybeEndpoint.setSocketTimeout(Timeout.ONE_MILLISECOND);
+                            }
                             runtime.discardEndpoint();
                             // Constructing the new metrics component in the unexpected case is more efficient than
                             // creating the meter for hundreds of services which never hit this case.
