@@ -18,6 +18,7 @@ package com.palantir.dialogue;
 
 import com.google.common.collect.ImmutableListMultimap;
 import com.google.common.collect.ListMultimap;
+import com.google.common.net.HttpHeaders;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
@@ -25,7 +26,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import javax.annotation.Nullable;
-import javax.ws.rs.core.HttpHeaders;
 
 public final class TestResponse implements Response {
 

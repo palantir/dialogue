@@ -24,7 +24,6 @@ dependencies {
     implementation 'com.palantir.conjure.java:conjure-lib'
     implementation 'com.palantir.safe-logging:logger'
     implementation 'com.palantir.safe-logging:safe-logging'
-    implementation 'javax.ws.rs:javax.ws.rs-api'
     implementation 'com.github.ben-manes.caffeine:caffeine'
 
     testImplementation project(':dialogue-test-common')
