@@ -22,6 +22,7 @@ import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.net.HttpHeaders;
 import com.palantir.dialogue.BinaryRequestBody;
 import com.palantir.dialogue.BodySerDe;
 import com.palantir.dialogue.Deserializer;
@@ -45,7 +46,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.ws.rs.core.HttpHeaders;
 
 /** Package private internal API. */
 final class ConjureBodySerDe implements BodySerDe {
