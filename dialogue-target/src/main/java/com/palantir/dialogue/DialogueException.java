@@ -20,12 +20,13 @@ import com.google.common.collect.ImmutableList;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import java.util.List;
+import javax.annotation.Nullable;
 
 /** Internal marker type for Dialogue network layer failures where no response is returned. */
 public final class DialogueException extends RuntimeException implements SafeLoggable {
     private static final String MESSAGE = "Network transport failure";
 
-    public DialogueException(Throwable cause) {
+    public DialogueException(@Nullable Throwable cause) {
         super(MESSAGE, cause);
     }
 
