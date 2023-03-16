@@ -26,9 +26,12 @@ import com.google.testing.compile.Compilation;
 import com.google.testing.compile.Compiler;
 import com.google.testing.compile.JavaFileObjects;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import com.palantir.myservice.service.MismatchedPathParam;
 import com.palantir.myservice.service.MultipleParamAnnotations;
 import com.palantir.myservice.service.MyService;
 import com.palantir.myservice.service.RequestAnnotatedClass;
+import com.palantir.myservice.service.UnmatchedPathParam;
+import com.palantir.myservice.service.UnmatchedPathTemplateParam;
 import com.palantir.myservice.service.UnparseableHttpPath;
 import com.palantir.myservice.service.UsesBinaryRequestBody;
 import com.palantir.myservice.service.WrongFactoryAnnotation;
@@ -95,6 +98,24 @@ public final class DialogueRequestAnnotationsProcessorTest {
     public void testCannotUseConjureRequestBody() {
         Compilation compilation = compileTestClass(TEST_CLASSES_BASE_DIR, UsesBinaryRequestBody.class);
         assertThat(compilation).hadErrorContaining("prefer the more expressive RequestBody type");
+    }
+
+    @Test
+    public void mismatchedPathParam() {
+        assertThat(compileTestClass(TEST_CLASSES_BASE_DIR, MismatchedPathParam.class))
+                .hadErrorContaining("Path template parameters do not match method path parameters");
+    }
+
+    @Test
+    public void unmatchedPathParam() {
+        assertThat(compileTestClass(TEST_CLASSES_BASE_DIR, UnmatchedPathParam.class))
+                .hadErrorContaining("Path template parameters do not match method path parameters");
+    }
+
+    @Test
+    public void unmatchedPathTemplateParam() {
+        assertThat(compileTestClass(TEST_CLASSES_BASE_DIR, UnmatchedPathTemplateParam.class))
+                .hadErrorContaining("Path template parameters do not match method path parameters");
     }
 
     private void assertTestFileCompileAndMatches(Path basePath, Class<?> clazz) {
