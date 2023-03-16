@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: '`dialogue-annotations-processor` now validates that the path template
+    parameters match the `@PathParam` method parameters.'
+  links:
+  - https://github.com/palantir/dialogue/pull/1886

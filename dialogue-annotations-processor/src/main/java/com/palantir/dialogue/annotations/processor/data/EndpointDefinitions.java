@@ -17,12 +17,13 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.auto.common.MoreElements;
-import com.google.common.base.Predicates;
 import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.dialogue.annotations.processor.ErrorContext;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.VariableElement;
@@ -31,10 +32,14 @@ import javax.lang.model.util.Types;
 
 public final class EndpointDefinitions {
 
+    private static final Function<ParameterType, Boolean> IS_PATH_PARAMETER =
+            ParameterTypes.cases().path_(true).otherwise_(false);
+
     private final ParamTypesResolver paramTypesResolver;
     private final HttpPathParser httpPathParser;
     private final ArgumentTypesResolver argumentTypesResolver;
     private final ReturnTypesResolver returnTypesResolver;
+    private final ErrorContext errorContext;
 
     public EndpointDefinitions(ErrorContext errorContext, Elements elements, Types types) {
         ResolverContext context = new ResolverContext(errorContext, elements, types);
@@ -42,6 +47,7 @@ public final class EndpointDefinitions {
         this.httpPathParser = new HttpPathParser(context);
         this.argumentTypesResolver = new ArgumentTypesResolver(context);
         this.returnTypesResolver = new ReturnTypesResolver(context);
+        this.errorContext = errorContext;
     }
 
     public Optional<EndpointDefinition> tryParseEndpointDefinition(ExecutableElement element) {
@@ -58,19 +64,30 @@ public final class EndpointDefinitions {
                 .get()
                 .getSimpleName()
                 .toString());
-        Optional<HttpPath> maybeHttpPath = httpPathParser.getHttpPath(element, requestAnnotationReflector);
-        Optional<ReturnType> maybeReturnType =
+        Optional<HttpPath> httpPath = httpPathParser.getHttpPath(element, requestAnnotationReflector);
+        Optional<ReturnType> returnType =
                 returnTypesResolver.getReturnType(endpointName, element, requestAnnotationReflector);
-        List<Optional<ArgumentDefinition>> args = element.getParameters().stream()
+        List<ArgumentDefinition> argumentDefinitions = element.getParameters().stream()
                 .map(arg -> getArgumentDefinition(endpointName, arg))
+                .flatMap(Optional::stream)
                 .collect(Collectors.toList());
 
-        if (!args.stream()
-                        .filter(Predicates.not(Optional::isPresent))
-                        .collect(Collectors.toList())
-                        .isEmpty()
-                || maybeHttpPath.isEmpty()
-                || maybeReturnType.isEmpty()) {
+        if (httpPath.isEmpty()
+                || returnType.isEmpty()
+                || argumentDefinitions.size() != element.getParameters().size()) {
+            return Optional.empty();
+        }
+
+        Set<String> expectedPathParams = httpPath.get().get().stream()
+                .map(HttpPathSegments::getVariableName)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+        Set<String> actualPathParams = argumentDefinitions.stream()
+                .filter(argument -> IS_PATH_PARAMETER.apply(argument.paramType()))
+                .map(argument -> argument.argName().get())
+                .collect(Collectors.toSet());
+        if (!actualPathParams.equals(expectedPathParams)) {
+            errorContext.reportError("Path template parameters do not match method path parameters", element);
             return Optional.empty();
         }
 
@@ -79,9 +96,9 @@ public final class EndpointDefinitions {
         return Optional.of(ImmutableEndpointDefinition.builder()
                 .endpointName(endpointName)
                 .httpMethod(method)
-                .httpPath(maybeHttpPath.get())
-                .returns(maybeReturnType.get())
-                .addAllArguments(args.stream().map(Optional::get).collect(Collectors.toList()))
+                .httpPath(httpPath.get())
+                .returns(returnType.get())
+                .addAllArguments(argumentDefinitions)
                 .build());
     }
 
