@@ -92,6 +92,14 @@ Instrumentation for the PIN_UNTIL_ERROR node selection strategy.
 Instrumentation for the ROUND_ROBIN node selection strategy (currently implemented by BalancedChannel).
 - `dialogue.roundrobin.success` tagged `channel-name`, `hostIndex` (meter): Meter of the requests that were successfully made, tagged by the index of the host. (Note if there are >10 nodes this metric will not be recorded).
 
+## Conjure Java Jackson Serialization
+
+`com.palantir.conjure.java.runtime:conjure-java-jackson-serialization`
+
+### json.parser
+Metrics produced instrumented Jackson components.
+- `json.parser.string.length` tagged `format` (histogram): Histogram describing the length of strings parsed from input.
+
 ## Tritium Metrics
 
 `com.palantir.tritium:tritium-metrics`
