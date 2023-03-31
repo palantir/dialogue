@@ -214,7 +214,7 @@ public final class MultipartRequestBodyTest {
         String detailsContentType = "application/json";
 
         MultipartBody.Builder multipartBodyBuilder = new MultipartBody.Builder(BOUNDARY);
-        multipartBodyBuilder.setType(okhttp3.MediaType.parse(javax.ws.rs.core.MediaType.MULTIPART_FORM_DATA));
+        multipartBodyBuilder.setType(okhttp3.MediaType.parse("multipart/form-data"));
         RequestBody body = unknownLengthRequestBody(httpMediaContent, okhttp3.MediaType.parse(httpMediaType));
         multipartBodyBuilder.addPart(MultipartBody.Part.createFormData(uploadField, httpMediaFileName, body));
         RequestBody detailsBody = unknownLengthRequestBody(detailsBytes, okhttp3.MediaType.parse(detailsContentType));
