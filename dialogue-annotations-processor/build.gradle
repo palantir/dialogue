@@ -15,8 +15,6 @@ dependencies {
     api 'com.google.auto:auto-common'
     api 'com.google.guava:guava'
     api 'com.squareup:javapoet'
-    // For HttpPath parsing
-    api 'org.glassfish.jersey.core:jersey-common'
 
     implementation 'com.google.errorprone:error_prone_annotations'
     implementation 'com.palantir.safe-logging:safe-logging'
