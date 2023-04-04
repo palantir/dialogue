@@ -17,13 +17,15 @@
 package com.palantir.dialogue.annotations.processor.data;
 
 import com.google.common.base.Splitter;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import javax.lang.model.element.Element;
-import org.glassfish.jersey.uri.internal.UriTemplateParser;
 
 public final class HttpPathParser {
+
+    private static final Splitter SPLITTER =
+            Splitter.on('/').omitEmptyStrings(); // omit empty segments; typically the first segment is empty
 
     private final ResolverContext context;
 
@@ -33,29 +35,24 @@ public final class HttpPathParser {
 
     public Optional<HttpPath> getHttpPath(Element element, AnnotationReflector requestAnnotation) {
         try {
-            UriTemplateParser uriTemplateParser = new UriTemplateParser(
-                    requestAnnotation.getFieldMaybe("path", String.class).orElseThrow());
+            String path = requestAnnotation.getFieldMaybe("path", String.class).orElseThrow();
 
-            Splitter splitter = Splitter.on('/');
-            Iterable<String> rawSegments = splitter.split(uriTemplateParser.getNormalizedTemplate());
-
-            List<HttpPathSegment> pathSegments = new ArrayList<>();
-            for (String segment : rawSegments) {
-                if (segment.isEmpty()) {
-                    continue; // avoid empty segments; typically the first segment is empty
-                }
-
-                if (segment.startsWith("{") && segment.endsWith("}")) {
-                    pathSegments.add(HttpPathSegments.variable(segment.substring(1, segment.length() - 1)));
-                } else {
-                    pathSegments.add(HttpPathSegments.fixed(segment));
-                }
-            }
+            List<HttpPathSegment> pathSegments = SPLITTER.splitToStream(path)
+                    .map(HttpPathParser::toHttpPathSegment)
+                    .collect(Collectors.toList());
 
             return Optional.of(ImmutableHttpPath.of(pathSegments));
         } catch (IllegalArgumentException e) {
             context.reportError("Failed to parse http path", element, e);
             return Optional.empty();
+        }
+    }
+
+    private static HttpPathSegment toHttpPathSegment(String pathSegment) {
+        if (pathSegment.startsWith("{") && pathSegment.endsWith("}")) {
+            return HttpPathSegments.variable(pathSegment.substring(1, pathSegment.length() - 1));
+        } else {
+            return HttpPathSegments.fixed(pathSegment);
         }
     }
 }
