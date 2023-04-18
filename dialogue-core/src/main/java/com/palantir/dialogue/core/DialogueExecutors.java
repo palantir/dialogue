@@ -17,6 +17,9 @@
 package com.palantir.dialogue.core;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Duration;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -50,6 +53,23 @@ public final class DialogueExecutors {
         // task has completed.
         executor.setRemoveOnCancelPolicy(true);
         return executor;
+    }
+
+    /**
+     * Create a new ThreadFactory which creates threads that do not retain a ContextClassLoader reference.
+     */
+    public static ThreadFactory newDaemonThreadFactory(String prefix) {
+        ThreadFactory delegate = new ThreadFactoryBuilder()
+                .setNameFormat(prefix + "-%d")
+                .setDaemon(true)
+                .build();
+        return runnable -> {
+            Thread thread = delegate.newThread(runnable);
+            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
+                thread.setContextClassLoader(null);
+                return thread;
+            });
+        };
     }
 
     private DialogueExecutors() {}
