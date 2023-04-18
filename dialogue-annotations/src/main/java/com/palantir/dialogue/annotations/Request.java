@@ -48,7 +48,7 @@ public @interface Request {
 
     /**
      * Response body {@link Deserializer}. By default this deserializer is only used for successful
-     * (i.e. {@code 300 <= response.code() <= 599}) responses.
+     * (i.e. {@code 200 <= response.code() < 300}) responses.
      *
      * @return class that implements a zero-arg constructor to be used to deserialize the response
      */
