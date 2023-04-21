@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: |-
+    <!-- User-facing outcomes this PR delivers -->
+    Fix annotation processing error in eclipse
+  links:
+  - https://github.com/palantir/dialogue/pull/1917

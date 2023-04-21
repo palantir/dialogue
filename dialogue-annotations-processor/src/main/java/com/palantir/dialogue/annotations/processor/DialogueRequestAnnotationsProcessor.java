@@ -182,6 +182,10 @@ public final class DialogueRequestAnnotationsProcessor extends AbstractProcessor
                                 if (typeName.equals(expectedGenerated)) {
                                     return null;
                                 }
+                                if (typeName.equals(generatedClass.name)) {
+                                    // Eclipse will give back the wrong type name in the initial round.
+                                    return null;
+                                }
                                 TypeElement factoryElement =
                                         elements.getTypeElement(DialogueServiceFactory.class.getName());
                                 if (factoryElement == null) {
