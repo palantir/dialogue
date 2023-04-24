@@ -22,6 +22,7 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -187,6 +188,7 @@ public final class Request {
         }
 
         public Request.Builder putHeaderParams(String key, String value) {
+            Preconditions.checkArgumentNotNull(key, "Header name must not be null");
             mutableHeaderParams().put(key, value);
             return this;
         }
@@ -197,26 +199,38 @@ public final class Request {
         }
 
         public Request.Builder putAllHeaderParams(String key, Iterable<String> values) {
+            Preconditions.checkArgumentNotNull(key, "Header name must not be null");
             mutableHeaderParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllHeaderParams(Multimap<String, ? extends String> entries) {
+            if (entries.containsKey(null)) {
+                throw new SafeIllegalArgumentException("Header name must not be null");
+            }
             mutableHeaderParams().putAll(entries);
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String... values) {
+            Preconditions.checkArgumentNotNull(key, "Query parameter name must not be null");
+            for (String value : values) {
+                Preconditions.checkArgumentNotNull(value, "Query parameter value must not be null");
+            }
             mutableQueryParams().putAll(key, Arrays.asList(values));
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String value) {
+            Preconditions.checkArgumentNotNull(key, "Query parameter name must not be null");
+            Preconditions.checkArgumentNotNull(value, "Query parameter value must not be null");
             mutableQueryParams().put(key, value);
             return this;
         }
 
         public Request.Builder putQueryParams(Map.Entry<String, ? extends String> entry) {
+            Preconditions.checkArgumentNotNull(entry.getKey(), "Query parameter name must not be null");
+            Preconditions.checkArgumentNotNull(entry.getValue(), "Query parameter value must not be null");
             mutableQueryParams().put(entry.getKey(), entry.getValue());
             return this;
         }
@@ -227,21 +241,33 @@ public final class Request {
         }
 
         public Request.Builder putAllQueryParams(String key, Iterable<String> values) {
+            Preconditions.checkArgumentNotNull(key, "Query parameter name must not be null");
+            for (String value : values) {
+                Preconditions.checkArgumentNotNull(value, "Query parameter value must not be null");
+            }
             mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllQueryParams(Multimap<String, ? extends String> entries) {
+            entries.forEach((key, value) -> {
+                Preconditions.checkArgumentNotNull(key, "Query parameter name must not be null");
+                Preconditions.checkArgumentNotNull(value, "Query parameter value must not be null");
+            });
             mutableQueryParams().putAll(entries);
             return this;
         }
 
         public Request.Builder putPathParams(String key, String value) {
+            Preconditions.checkArgumentNotNull(key, "Path parameter name must not be null");
+            Preconditions.checkArgumentNotNull(value, "Path parameter value must not be null");
             mutablePathParams().put(key, value);
             return this;
         }
 
         public Request.Builder putPathParams(Map.Entry<String, ? extends String> entry) {
+            Preconditions.checkArgumentNotNull(entry.getKey(), "Path parameter name must not be null");
+            Preconditions.checkArgumentNotNull(entry.getValue(), "Path parameter value must not be null");
             mutablePathParams().put(entry.getKey(), entry.getValue());
             return this;
         }
@@ -252,16 +278,28 @@ public final class Request {
         }
 
         public Request.Builder putAllPathParams(String key, Iterable<String> values) {
+            Preconditions.checkArgumentNotNull(key, "Path parameter name must not be null");
+            for (String value : values) {
+                Preconditions.checkArgumentNotNull(value, "Path parameter value must not be null");
+            }
             mutablePathParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllPathParams(Map<String, ? extends String> entries) {
+            entries.forEach((key, value) -> {
+                Preconditions.checkArgumentNotNull(key, "Path parameter name must not be null");
+                Preconditions.checkArgumentNotNull(value, "Path parameter value must not be null");
+            });
             entries.forEach(mutablePathParams()::put);
             return this;
         }
 
         public Request.Builder putAllPathParams(Multimap<String, ? extends String> entries) {
+            entries.forEach((key, value) -> {
+                Preconditions.checkArgumentNotNull(key, "Path parameter name must not be null");
+                Preconditions.checkArgumentNotNull(value, "Path parameter value must not be null");
+            });
             mutablePathParams().putAll(entries);
             return this;
         }
