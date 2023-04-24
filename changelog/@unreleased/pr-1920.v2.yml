@@ -1,0 +1,8 @@
+type: improvement
+improvement:
+  description: Eagerly throw on null request parameters (header names, query parameter
+    names and values, path parameter names and values) to provide helpful stack traces
+    into user code when null values are inserted into the Request builder instead
+    of stack traces that just point to Dialogue's async threads.
+  links:
+  - https://github.com/palantir/dialogue/pull/1920
