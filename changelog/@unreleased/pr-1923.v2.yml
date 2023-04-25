@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Use TrustContextFactory when building ClientConfiguration instead of
+    overwriting already performed SSL work.
+  links:
+  - https://github.com/palantir/dialogue/pull/1923
