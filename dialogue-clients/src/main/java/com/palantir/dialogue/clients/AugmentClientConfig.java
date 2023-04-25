@@ -66,7 +66,6 @@ interface AugmentClientConfig {
     Optional<HostEventsSink> hostEventsSink();
 
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
-        long start = System.currentTimeMillis();
         TrustContextFactory trustContextFactory = buildTrustContextFactory(augment);
         ClientConfiguration.Builder builder =
                 ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig, trustContextFactory));
@@ -89,10 +88,6 @@ interface AugmentClientConfig {
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
 
-        long end = System.currentTimeMillis();
-        long duration = end - start;
-        System.out.println(";; Time taken in optimized version " + duration);
-
         return builder.build();
     }
 
@@ -103,10 +98,10 @@ interface AugmentClientConfig {
 
             SSLContext sslContext;
             if (augment.securityProvider().isPresent()) {
-                sslContext = SslSocketFactories.createSslContext(trustManagers, keyManagers);
-            } else {
                 sslContext = SslSocketFactories.createSslContext(
                         trustManagers, keyManagers, augment.securityProvider().get());
+            } else {
+                sslContext = SslSocketFactories.createSslContext(trustManagers, keyManagers);
             }
 
             // Reduce the session cache size for clients. We expect TLS connections to be reused, thus the cache isn't
