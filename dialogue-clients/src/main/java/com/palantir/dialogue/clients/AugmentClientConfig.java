@@ -20,14 +20,18 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.conjure.java.client.config.ClientConfigurations.TrustContextFactory;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
+import com.palantir.conjure.java.config.ssl.TrustContext;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.security.Provider;
 import java.util.Optional;
+import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
 import org.immutables.value.Value;
 
 /**
@@ -62,16 +66,9 @@ interface AugmentClientConfig {
     Optional<HostEventsSink> hostEventsSink();
 
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
+        TrustContextFactory trustContextFactory = buildTrustContextFactory(augment);
         ClientConfiguration.Builder builder =
-                ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig));
-
-        SSLContext context = augment.securityProvider()
-                .map(provider -> SslSocketFactories.createSslContext(serviceConfig.security(), provider))
-                .orElseGet(() -> SslSocketFactories.createSslContext(serviceConfig.security()));
-        // Reduce the session cache size for clients. We expect TLS connections to be reused, thus the cache isn't
-        // terribly important.
-        context.getClientSessionContext().setSessionCacheSize(100);
-        builder.sslSocketFactory(context.getSocketFactory());
+                ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig, trustContextFactory));
 
         if (!serviceConfig.maxNumRetries().isPresent()) {
             augment.maxNumRetries().ifPresent(builder::maxNumRetries);
@@ -92,5 +89,27 @@ interface AugmentClientConfig {
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
 
         return builder.build();
+    }
+
+    private static TrustContextFactory buildTrustContextFactory(AugmentClientConfig augment) {
+        return sslConfiguration -> {
+            TrustManager[] trustManagers = SslSocketFactories.createTrustManagers(sslConfiguration);
+            KeyManager[] keyManagers = SslSocketFactories.createKeyManagers(sslConfiguration);
+
+            SSLContext sslContext;
+            if (augment.securityProvider().isPresent()) {
+                sslContext = SslSocketFactories.createSslContext(trustManagers, keyManagers);
+            } else {
+                sslContext = SslSocketFactories.createSslContext(
+                        trustManagers, keyManagers, augment.securityProvider().get());
+            }
+
+            // Reduce the session cache size for clients. We expect TLS connections to be reused, thus the cache isn't
+            // terribly important.
+            sslContext.getClientSessionContext().setSessionCacheSize(100);
+
+            return TrustContext.of(
+                    sslContext.getSocketFactory(), SslSocketFactories.getX509TrustManager(trustManagers));
+        };
     }
 }
