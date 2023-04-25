@@ -22,7 +22,6 @@ import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
@@ -205,18 +204,12 @@ public final class Request {
         }
 
         public Request.Builder putAllHeaderParams(Multimap<String, ? extends String> entries) {
-            if (entries.containsKey(null)) {
-                throw new SafeNullPointerException("Header name must not be null");
-            }
             mutableHeaderParams().putAll(entries);
             return this;
         }
 
         public Request.Builder putQueryParams(String key, String... values) {
             Preconditions.checkNotNull(key, "Query parameter name must not be null");
-            for (String value : values) {
-                Preconditions.checkNotNull(value, "Query parameter value must not be null");
-            }
             mutableQueryParams().putAll(key, Arrays.asList(values));
             return this;
         }
@@ -242,18 +235,11 @@ public final class Request {
 
         public Request.Builder putAllQueryParams(String key, Iterable<String> values) {
             Preconditions.checkNotNull(key, "Query parameter name must not be null");
-            for (String value : values) {
-                Preconditions.checkNotNull(value, "Query parameter value must not be null");
-            }
             mutableQueryParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllQueryParams(Multimap<String, ? extends String> entries) {
-            entries.forEach((key, value) -> {
-                Preconditions.checkNotNull(key, "Query parameter name must not be null");
-                Preconditions.checkNotNull(value, "Query parameter value must not be null");
-            });
             mutableQueryParams().putAll(entries);
             return this;
         }
@@ -279,27 +265,16 @@ public final class Request {
 
         public Request.Builder putAllPathParams(String key, Iterable<String> values) {
             Preconditions.checkArgumentNotNull(key, "Path parameter name must not be null");
-            for (String value : values) {
-                Preconditions.checkArgumentNotNull(value, "Path parameter value must not be null");
-            }
             mutablePathParams().putAll(key, values);
             return this;
         }
 
         public Request.Builder putAllPathParams(Map<String, ? extends String> entries) {
-            entries.forEach((key, value) -> {
-                Preconditions.checkNotNull(key, "Path parameter name must not be null");
-                Preconditions.checkNotNull(value, "Path parameter value must not be null");
-            });
             entries.forEach(mutablePathParams()::put);
             return this;
         }
 
         public Request.Builder putAllPathParams(Multimap<String, ? extends String> entries) {
-            entries.forEach((key, value) -> {
-                Preconditions.checkNotNull(key, "Path parameter name must not be null");
-                Preconditions.checkNotNull(value, "Path parameter value must not be null");
-            });
             mutablePathParams().putAll(entries);
             return this;
         }
