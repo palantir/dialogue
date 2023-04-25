@@ -66,11 +66,12 @@ interface AugmentClientConfig {
     Optional<HostEventsSink> hostEventsSink();
 
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
+        long start = System.currentTimeMillis();
         TrustContextFactory trustContextFactory = buildTrustContextFactory(augment);
         ClientConfiguration.Builder builder =
                 ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig, trustContextFactory));
 
-        if (!serviceConfig.maxNumRetries().isPresent()) {
+        if (serviceConfig.maxNumRetries().isEmpty()) {
             augment.maxNumRetries().ifPresent(builder::maxNumRetries);
         }
 
@@ -87,6 +88,10 @@ interface AugmentClientConfig {
         augment.serverQoS().ifPresent(builder::serverQoS);
         augment.retryOnTimeout().ifPresent(builder::retryOnTimeout);
         augment.hostEventsSink().ifPresent(builder::hostEventsSink);
+
+        long end = System.currentTimeMillis();
+        long duration = end - start;
+        System.out.println(";; Time taken in optimized version " + duration);
 
         return builder.build();
     }
