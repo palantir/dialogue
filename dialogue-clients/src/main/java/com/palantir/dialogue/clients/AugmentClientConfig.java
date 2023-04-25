@@ -66,7 +66,7 @@ interface AugmentClientConfig {
     Optional<HostEventsSink> hostEventsSink();
 
     static ClientConfiguration getClientConf(ServiceConfiguration serviceConfig, AugmentClientConfig augment) {
-        TrustContextFactory trustContextFactory = buildTrustContextFactory(augment);
+        TrustContextFactory trustContextFactory = buildTrustContextFactory(augment.securityProvider());
         ClientConfiguration.Builder builder =
                 ClientConfiguration.builder().from(ClientConfigurations.of(serviceConfig, trustContextFactory));
 
@@ -91,15 +91,14 @@ interface AugmentClientConfig {
         return builder.build();
     }
 
-    private static TrustContextFactory buildTrustContextFactory(AugmentClientConfig augment) {
+    private static TrustContextFactory buildTrustContextFactory(Optional<Provider> securityProvider) {
         return sslConfiguration -> {
             TrustManager[] trustManagers = SslSocketFactories.createTrustManagers(sslConfiguration);
             KeyManager[] keyManagers = SslSocketFactories.createKeyManagers(sslConfiguration);
 
             SSLContext sslContext;
-            if (augment.securityProvider().isPresent()) {
-                sslContext = SslSocketFactories.createSslContext(
-                        trustManagers, keyManagers, augment.securityProvider().get());
+            if (securityProvider.isPresent()) {
+                sslContext = SslSocketFactories.createSslContext(trustManagers, keyManagers, securityProvider.get());
             } else {
                 sslContext = SslSocketFactories.createSslContext(trustManagers, keyManagers);
             }
