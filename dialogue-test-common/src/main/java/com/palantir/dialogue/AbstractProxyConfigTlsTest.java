@@ -149,7 +149,7 @@ public abstract class AbstractProxyConfigTlsTest {
     }
 
     @Test
-    public void testAuthenticatedProxy() throws Exception {
+    public void testBasicAuthenticatedProxy() throws Exception {
         AtomicInteger requestIndex = new AtomicInteger();
         proxyHandler = exchange -> {
             HeaderMap requestHeaders = exchange.getRequestHeaders();
@@ -166,6 +166,49 @@ public abstract class AbstractProxyConfigTlsTest {
                 case 1:
                     assertThat(requestHeaders.get(Headers.PROXY_AUTHORIZATION))
                             .containsExactly("Basic ZmFrZVVzZXJAZmFrZS5jb206ZmFrZTpQYXNzd29yZA==");
+                    new ConnectHandler(ResponseCodeHandler.HANDLE_500).handleRequest(exchange);
+                    return;
+            }
+            throw new IllegalStateException("Expected exactly two requests");
+        };
+        serverHandler = new BlockingHandler(exchange -> {
+            String requestBody = new String(ByteStreams.toByteArray(exchange.getInputStream()), StandardCharsets.UTF_8);
+            assertThat(requestBody).isEqualTo(REQUEST_BODY);
+            exchange.getResponseSender().send("proxyServer");
+        });
+
+        ClientConfiguration proxiedConfig = ClientConfiguration.builder()
+                .from(TestConfigurations.create("https://localhost:" + serverPort))
+                .maxNumRetries(0)
+                .proxy(createProxySelector("localhost", proxyPort))
+                .proxyCredentials(BasicCredentials.of("fakeUser@fake.com", "fake:Password"))
+                .build();
+        Channel proxiedChannel = create(proxiedConfig);
+
+        try (Response response =
+                proxiedChannel.execute(TestEndpoint.POST, request).get()) {
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body()).hasContent("proxyServer");
+        }
+    }
+
+    @Test
+    public void testNtlmAuthenticatedProxy() throws Exception {
+        // Partial test which primarily validates that we've enabled httpclient ntlm support. This does not
+        // test the full challenge flow.
+        AtomicInteger requestIndex = new AtomicInteger();
+        proxyHandler = exchange -> {
+            HeaderMap requestHeaders = exchange.getRequestHeaders();
+            HeaderMap responseHeaders = exchange.getResponseHeaders();
+
+            switch (requestIndex.getAndIncrement()) {
+                case 0:
+                    responseHeaders.putAll(Headers.PROXY_AUTHENTICATE, ImmutableList.of("Negotiate", "NTLM"));
+                    exchange.setStatusCode(407); // indicates authenticated proxy
+                    return;
+                case 1:
+                    assertThat(requestHeaders.get(Headers.PROXY_AUTHORIZATION))
+                            .containsExactly("NTLM TlRMTVNTUAABAAAAAYIIogAAAAAoAAAAAAAAACgAAAAFASgKAAAADw==");
                     new ConnectHandler(ResponseCodeHandler.HANDLE_500).handleRequest(exchange);
                     return;
             }

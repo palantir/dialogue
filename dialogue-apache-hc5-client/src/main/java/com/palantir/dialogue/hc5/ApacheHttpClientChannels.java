@@ -69,11 +69,12 @@ import org.apache.hc.client5.http.auth.AuthScope;
 import org.apache.hc.client5.http.auth.ChallengeType;
 import org.apache.hc.client5.http.auth.Credentials;
 import org.apache.hc.client5.http.auth.CredentialsProvider;
+import org.apache.hc.client5.http.auth.NTCredentials;
 import org.apache.hc.client5.http.auth.StandardAuthScheme;
-import org.apache.hc.client5.http.auth.UsernamePasswordCredentials;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.DefaultAuthenticationStrategy;
 import org.apache.hc.client5.http.impl.auth.BasicSchemeFactory;
+import org.apache.hc.client5.http.impl.auth.NTLMSchemeFactory;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
@@ -567,6 +568,7 @@ public final class ApacheHttpClientChannels {
                     .setProxyAuthenticationStrategy(DefaultAuthenticationStrategy.INSTANCE)
                     .setDefaultAuthSchemeRegistry(RegistryBuilder.<AuthSchemeFactory>create()
                             .register(StandardAuthScheme.BASIC, BasicSchemeFactory.INSTANCE)
+                            .register(StandardAuthScheme.NTLM, NTLMSchemeFactory.INSTANCE)
                             .build()));
 
             CloseableHttpClient apacheClient = builder.build();
@@ -715,8 +717,8 @@ public final class ApacheHttpClientChannels {
         private final Credentials credentials;
 
         SingleCredentialsProvider(BasicCredentials basicCredentials) {
-            credentials = new UsernamePasswordCredentials(
-                    basicCredentials.username(), basicCredentials.password().toCharArray());
+            credentials = new NTCredentials(
+                    basicCredentials.username(), basicCredentials.password().toCharArray(), null, null);
         }
 
         @Override
