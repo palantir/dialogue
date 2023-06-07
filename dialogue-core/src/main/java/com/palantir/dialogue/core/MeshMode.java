@@ -20,7 +20,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.List;
 
-enum MeshMode {
+public enum MeshMode {
     DEFAULT_NO_MESH,
     USE_EXTERNAL_MESH;
 
