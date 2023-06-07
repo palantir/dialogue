@@ -1,0 +1,7 @@
+type: improvement
+improvement:
+  description: |-
+    <!-- User-facing outcomes this PR delivers -->
+    Provide more information for debugging when the @DialogueService annotation processor detects type mismatches.
+  links:
+  - https://github.com/palantir/dialogue/pull/1947
