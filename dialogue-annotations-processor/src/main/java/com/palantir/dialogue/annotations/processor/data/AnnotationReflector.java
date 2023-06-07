@@ -83,7 +83,14 @@ public interface AnnotationReflector {
                 SafeArg.of("fields", methods()));
         Optional<Object> maybeValue = Optional.ofNullable(values().get(fieldName));
         return maybeValue.map(value -> {
-            Preconditions.checkArgument(valueClazz.isInstance(value), "Value not of the right type");
+            Preconditions.checkArgument(
+                    valueClazz.isInstance(value),
+                    "Value not of the right type",
+                    SafeArg.of("fieldName", fieldName),
+                    SafeArg.of("type", annotationTypeElement()),
+                    SafeArg.of("fields", methods()),
+                    SafeArg.of("expected", valueClazz),
+                    SafeArg.of("actual", value.getClass()));
             return (T) value;
         });
     }
