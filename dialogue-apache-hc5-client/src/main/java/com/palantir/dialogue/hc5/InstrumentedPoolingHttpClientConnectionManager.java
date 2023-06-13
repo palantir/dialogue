@@ -84,11 +84,11 @@ final class InstrumentedPoolingHttpClientConnectionManager
     /**
      * This method is used to close the underlying connection manager, while the {@link #close()} methods are
      * overridden specifically not to do so in order to avoid unexpected closure in MainClientExec when
-     * an Error is encountered due to HTTPCLIENT-1924:
+     * an Error is encountered due to HTTPCLIENT-1924.
      * https://github.com/apache/httpcomponents-client/blob/5b61e132c3871ddfa967ab21b3af5d6d738bc6e8/
      * httpclient5/src/main/java/org/apache/hc/client5/http/impl/classic/MainClientExec.java#L161-L164
      * Note that MainClientExec pool self-closure will likely leak a connection each time it occurs, however
-     * dialogue bounds connections to Integer.MAX_VALUE, so this is preferable over
+     * dialogue bounds connections to Integer.MAX_VALUE, so this is preferable over.
      */
     void closeUnderlyingConnectionManager() {
         if (!closed) {
