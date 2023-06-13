@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue guards against HTTPCLIENT-1924 client self-closure
+  links:
+  - https://github.com/palantir/dialogue/pull/1951

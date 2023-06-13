@@ -19,6 +19,7 @@ package com.palantir.dialogue.hc5;
 import com.codahale.metrics.Timer;
 import com.codahale.metrics.Timer.Context;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
@@ -47,6 +48,7 @@ final class InstrumentedPoolingHttpClientConnectionManager
     private final TaggedMetricRegistry registry;
     private final String clientName;
     private final Timer connectTimer;
+    private volatile boolean closed;
 
     InstrumentedPoolingHttpClientConnectionManager(
             PoolingHttpClientConnectionManager manager, TaggedMetricRegistry registry, String clientName) {
@@ -58,12 +60,41 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public void close() {
-        manager.close();
+        if (!closed) {
+            log.warn(
+                    "Dialogue ConnectionManager close invoked unexpectedly and ignored",
+                    SafeArg.of("clientName", clientName),
+                    new SafeRuntimeException("stacktrace"));
+            // Note: manager.close is not invoked here, see closeUnderlyingConnectionManager.
+        }
     }
 
     @Override
     public void close(CloseMode closeMode) {
-        manager.close(closeMode);
+        if (!closed) {
+            log.warn(
+                    "Dialogue ConnectionManager close invoked unexpectedly and ignored",
+                    SafeArg.of("clientName", clientName),
+                    SafeArg.of("closeMode", closeMode),
+                    new SafeRuntimeException("stacktrace"));
+            // Note: manager.close is not invoked here, see closeUnderlyingConnectionManager.
+        }
+    }
+
+    /**
+     * This method is used to close the underlying connection manager, while the {@link #close()} methods are
+     * overridden specifically not to do so in order to avoid unexpected closure in MainClientExec when
+     * an Error is encountered due to HTTPCLIENT-1924.
+     * https://github.com/apache/httpcomponents-client/blob/5b61e132c3871ddfa967ab21b3af5d6d738bc6e8/
+     * httpclient5/src/main/java/org/apache/hc/client5/http/impl/classic/MainClientExec.java#L161-L164
+     * Note that MainClientExec pool self-closure will likely leak a connection each time it occurs, however
+     * dialogue bounds connections to Integer.MAX_VALUE, so this is preferable over.
+     */
+    void closeUnderlyingConnectionManager() {
+        if (!closed) {
+            closed = true;
+            manager.close();
+        }
     }
 
     @Override

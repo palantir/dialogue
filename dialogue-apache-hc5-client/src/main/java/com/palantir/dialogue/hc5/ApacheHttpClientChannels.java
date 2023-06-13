@@ -176,7 +176,7 @@ public final class ApacheHttpClientChannels {
         static CloseableClient wrap(
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
-                PoolingHttpClientConnectionManager pool,
+                InstrumentedPoolingHttpClientConnectionManager pool,
                 ScheduledFuture<?> connectionEvictorFuture,
                 ClientConfiguration clientConfiguration,
                 @Nullable ExecutorService executor) {
@@ -277,7 +277,7 @@ public final class ApacheHttpClientChannels {
 
         private final String clientName;
         private final CloseableHttpClient apacheClient;
-        private final PoolingHttpClientConnectionManager pool;
+        private final InstrumentedPoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
         private final ClientConfiguration clientConfiguration;
 
@@ -289,7 +289,7 @@ public final class ApacheHttpClientChannels {
         private CloseableClientImpl(
                 CloseableHttpClient apacheClient,
                 @Safe String clientName,
-                PoolingHttpClientConnectionManager pool,
+                InstrumentedPoolingHttpClientConnectionManager pool,
                 ScheduledFuture<?> connectionEvictorFuture,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor,
@@ -302,7 +302,7 @@ public final class ApacheHttpClientChannels {
             this.clientConfiguration = clientConfiguration;
             closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
-            closer.register(pool);
+            closer.register(pool::closeUnderlyingConnectionManager);
             closer.register(DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())
                     .close(clientName)::mark);
         }
@@ -477,7 +477,7 @@ public final class ApacheHttpClientChannels {
                     ? () -> new Socket(Proxy.NO_PROXY)
                     : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
 
-            PoolingHttpClientConnectionManager connectionManager = new PoolingHttpClientConnectionManager(
+            PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(
                     RegistryBuilder.<ConnectionSocketFactory>create()
                             .register(URIScheme.HTTP.id, new PlainConnectionSocketFactory() {
                                 @Override
@@ -510,7 +510,7 @@ public final class ApacheHttpClientChannels {
                     new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
-            connectionManager.setDefaultSocketConfig(SocketConfig.custom()
+            internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
                     .setSoKeepAlive(true)
                     // The default socket configuration socket timeout only applies prior to request execution.
                     // By using a more specific timeout here, we bound the handshake in addition to the
@@ -519,11 +519,15 @@ public final class ApacheHttpClientChannels {
                     // Doesn't appear to do anything in this release
                     .setSocksProxyAddress(socksProxyAddress)
                     .build());
-            connectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
-            connectionManager.setMaxTotal(Integer.MAX_VALUE);
-            connectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
+            internalConnectionManager.setValidateAfterInactivity(CONNECTION_INACTIVITY_CHECK);
+            internalConnectionManager.setMaxTotal(Integer.MAX_VALUE);
+            internalConnectionManager.setDefaultMaxPerRoute(Integer.MAX_VALUE);
 
-            setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, connectionManager);
+            setupConnectionPoolMetrics(conf.taggedMetricRegistry(), name, internalConnectionManager);
+
+            InstrumentedPoolingHttpClientConnectionManager connectionManager =
+                    new InstrumentedPoolingHttpClientConnectionManager(
+                            internalConnectionManager, conf.taggedMetricRegistry(), name);
 
             HttpClientBuilder builder = HttpClients.custom()
                     .setDefaultRequestConfig(RequestConfig.custom()
@@ -543,9 +547,8 @@ public final class ApacheHttpClientChannels {
                     // precise IdleConnectionEvictor.
                     .setConnectionManagerShared(true)
                     .setKeepAliveStrategy(
-                            new InactivityValidationAwareConnectionKeepAliveStrategy(connectionManager, name))
-                    .setConnectionManager(new InstrumentedPoolingHttpClientConnectionManager(
-                            connectionManager, conf.taggedMetricRegistry(), name))
+                            new InactivityValidationAwareConnectionKeepAliveStrategy(internalConnectionManager, name))
+                    .setConnectionManager(connectionManager)
                     .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
