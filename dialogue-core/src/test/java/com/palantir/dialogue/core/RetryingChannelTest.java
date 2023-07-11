@@ -38,6 +38,7 @@ import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.OutputStream;
+import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -54,6 +55,8 @@ public class RetryingChannelTest {
     private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
             Futures.immediateFailedFuture(new SafeIoException("FAILED"));
+    private static final ListenableFuture<Response> CONNECTION_FAILED =
+            Futures.immediateFailedFuture(new ConnectException("Couldn't connect"));
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
@@ -567,6 +570,46 @@ public class RetryingChannelTest {
                 .as("non-repeatable request bodies should not be retried")
                 .isEqualTo(FAILED);
         verify(channel, times(1)).execute(any());
+    }
+
+    @Test
+    public void nonRetryableRequestBodyRetriedWhenConnectionFails() throws ExecutionException, InterruptedException {
+        when(channel.execute(any()))
+                .thenReturn(CONNECTION_FAILED)
+                .thenReturn(CONNECTION_FAILED)
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(Request.builder()
+                .body(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream _output) {}
+
+                    @Override
+                    public String contentType() {
+                        return "application/octet-stream";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {}
+                })
+                .build());
+
+        assertThat(response).isDone();
+        assertThat(response.get()).as("todo").isEqualTo(EXPECTED_RESPONSE);
+        verify(channel, times(3)).execute(any());
     }
 
     private static Response mockResponse(int status) {

@@ -47,6 +47,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -197,18 +198,10 @@ final class RetryingChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        if (isRetryable(request)) {
-            Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
-                    ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
-                    : Optional.empty();
-            return new RetryingCallback(endpoint, request, debugStacktrace).execute();
-        }
-        return delegate.execute(request);
-    }
-
-    private static boolean isRetryable(Request request) {
-        Optional<RequestBody> maybeBody = request.body();
-        return !maybeBody.isPresent() || maybeBody.get().repeatable();
+        Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
+                ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
+                : Optional.empty();
+        return new RetryingCallback(endpoint, request, debugStacktrace).execute();
     }
 
     @Override
@@ -235,10 +228,13 @@ final class RetryingChannel implements EndpointChannel {
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
+        private Optional<RequestBodyWrapper> maybeWrappedRequestBody;
+
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
             this.request = request;
+            this.maybeWrappedRequestBody = request.body().map(RequestBodyWrapper::new);
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
@@ -262,11 +258,18 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (isRetryableQosStatus(response)) {
+            if (maybeWrappedRequestBody
+                            .map(RequestBodyWrapper::clientCanConsumeMessage)
+                            .orElse(true)
+                    && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
-            if (Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
+            if (maybeWrappedRequestBody
+                            .map(RequestBodyWrapper::clientCanConsumeMessage)
+                            .orElse(true)
+                    && Responses.isInternalServerError(response)
+                    && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
@@ -275,7 +278,10 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             if (++failures <= maxRetries) {
-                if (shouldAttemptToRetry(clientSideThrowable)) {
+                if (shouldAttemptToRetry(clientSideThrowable)
+                        && maybeWrappedRequestBody
+                                .map(RequestBodyWrapper::clientCanConsumeMessage)
+                                .orElse(true)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
                     long backoffNanoseconds = getBackoffNanoseconds();
@@ -430,6 +436,42 @@ final class RetryingChannel implements EndpointChannel {
 
         private String channelName() {
             return channelName;
+        }
+    }
+
+    private static final class RequestBodyWrapper implements RequestBody {
+        private final RequestBody delegate;
+        private boolean consumed;
+
+        RequestBodyWrapper(RequestBody delegate) {
+            this.delegate = delegate;
+            this.consumed = false;
+        }
+
+        @Override
+        public void writeTo(OutputStream output) throws IOException {
+            this.consumed = true;
+            delegate.writeTo(output);
+        }
+
+        @Override
+        public String contentType() {
+            return delegate.contentType();
+        }
+
+        @Override
+        public boolean repeatable() {
+            return delegate.repeatable();
+        }
+
+        @Override
+        public void close() {
+            this.consumed = true;
+            delegate.close();
+        }
+
+        public boolean clientCanConsumeMessage() {
+            return repeatable() || !consumed;
         }
     }
 
