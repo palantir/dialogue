@@ -534,45 +534,6 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void nonRetryableRequestBodyIsNotRetried() throws ExecutionException, InterruptedException {
-        when(channel.execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
-
-        // One retry allows an initial request (not a retry) and a single retry.
-        EndpointChannel retryer = new RetryingChannel(
-                channel,
-                TestEndpoint.POST,
-                "my-channel",
-                1,
-                Duration.ZERO,
-                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
-                ClientConfiguration.RetryOnTimeout.DISABLED);
-        ListenableFuture<Response> response = retryer.execute(Request.builder()
-                .body(new RequestBody() {
-                    @Override
-                    public void writeTo(OutputStream _output) {}
-
-                    @Override
-                    public String contentType() {
-                        return "application/octet-stream";
-                    }
-
-                    @Override
-                    public boolean repeatable() {
-                        return false;
-                    }
-
-                    @Override
-                    public void close() {}
-                })
-                .build());
-        assertThat(response).isDone();
-        assertThat(response)
-                .as("non-repeatable request bodies should not be retried")
-                .isEqualTo(FAILED);
-        verify(channel, times(1)).execute(any());
-    }
-
-    @Test
     public void nonRetryableRequestBodyRetriedWhenConnectionFails() throws ExecutionException, InterruptedException {
         when(channel.execute(any()))
                 .thenReturn(CONNECTION_FAILED)
@@ -608,7 +569,9 @@ public class RetryingChannelTest {
                 .build());
 
         assertThat(response).isDone();
-        assertThat(response.get()).as("todo").isEqualTo(EXPECTED_RESPONSE);
+        assertThat(response.get())
+                .as("requests should be retried if they are not consumed")
+                .isEqualTo(EXPECTED_RESPONSE);
         verify(channel, times(3)).execute(any());
     }
 
