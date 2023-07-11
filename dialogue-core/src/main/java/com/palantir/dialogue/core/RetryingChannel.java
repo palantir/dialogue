@@ -447,7 +447,7 @@ final class RetryingChannel implements EndpointChannel {
 
     private static final class ConsumptionTrackingRequestBody implements RequestBody {
         private final RequestBody delegate;
-        private boolean consumed;
+        private volatile boolean consumed;
 
         ConsumptionTrackingRequestBody(RequestBody delegate) {
             this.delegate = delegate;
