@@ -228,13 +228,13 @@ final class RetryingChannel implements EndpointChannel {
         private final DetachedSpan span = DetachedSpan.start("Dialogue-RetryingChannel");
         private int failures = 0;
 
-        private Optional<RequestBodyWrapper> maybeWrappedRequestBody;
-
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
-            this.request = request;
-            this.maybeWrappedRequestBody = request.body().map(RequestBodyWrapper::new);
+            this.request = Request.builder()
+                    .from(request)
+                    .body(request.body().map(ConsumptionTrackingRequestBody::new))
+                    .build();
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
@@ -250,6 +250,21 @@ final class RetryingChannel implements EndpointChannel {
             return result;
         }
 
+        private boolean requestCanBeRetried() {
+            return request.body()
+                    .map(body -> {
+                        if (body instanceof ConsumptionTrackingRequestBody) {
+                            return ((ConsumptionTrackingRequestBody) body).requestBodyCanBeRetried();
+                        } else {
+                            throw new SafeIllegalStateException(
+                                    "Expected a ConsumptionTrackingRequestBody but got an unexpected request body type",
+                                    SafeArg.of("bodyClassName", body.getClass()));
+                        }
+                    })
+                    // If the request body is empty, we can retry the request.
+                    .orElse(true);
+        }
+
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
             result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
@@ -258,18 +273,12 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (maybeWrappedRequestBody
-                            .map(RequestBodyWrapper::clientCanConsumeMessage)
-                            .orElse(true)
-                    && isRetryableQosStatus(response)) {
+            boolean canRetryRequest = requestCanBeRetried();
+            if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
-            if (maybeWrappedRequestBody
-                            .map(RequestBodyWrapper::clientCanConsumeMessage)
-                            .orElse(true)
-                    && Responses.isInternalServerError(response)
-                    && safeToRetry(endpoint.httpMethod())) {
+            if (canRetryRequest && Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
@@ -278,10 +287,7 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             if (++failures <= maxRetries) {
-                if (shouldAttemptToRetry(clientSideThrowable)
-                        && maybeWrappedRequestBody
-                                .map(RequestBodyWrapper::clientCanConsumeMessage)
-                                .orElse(true)) {
+                if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
                     long backoffNanoseconds = getBackoffNanoseconds();
@@ -439,11 +445,11 @@ final class RetryingChannel implements EndpointChannel {
         }
     }
 
-    private static final class RequestBodyWrapper implements RequestBody {
+    private static final class ConsumptionTrackingRequestBody implements RequestBody {
         private final RequestBody delegate;
         private boolean consumed;
 
-        RequestBodyWrapper(RequestBody delegate) {
+        ConsumptionTrackingRequestBody(RequestBody delegate) {
             this.delegate = delegate;
             this.consumed = false;
         }
@@ -466,12 +472,18 @@ final class RetryingChannel implements EndpointChannel {
 
         @Override
         public void close() {
+            // Closing the body returns all resources, and the body can be considered consumed.
             this.consumed = true;
             delegate.close();
         }
 
-        public boolean clientCanConsumeMessage() {
+        public boolean requestBodyCanBeRetried() {
             return repeatable() || !consumed;
+        }
+
+        @Override
+        public String toString() {
+            return "ConsumptionTrackingRequestBody{" + delegate + '}';
         }
     }
 
