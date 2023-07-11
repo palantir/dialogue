@@ -534,7 +534,8 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void nonRetryableRequestBodyRetriedWhenConnectionFails() throws ExecutionException, InterruptedException {
+    public void requestWithNonRepeatableBodyRetriedWhenConnectionFails()
+            throws ExecutionException, InterruptedException {
         when(channel.execute(any()))
                 .thenReturn(CONNECTION_FAILED)
                 .thenReturn(CONNECTION_FAILED)
