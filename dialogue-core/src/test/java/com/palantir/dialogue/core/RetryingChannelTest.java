@@ -39,7 +39,6 @@ import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
-import java.net.ConnectException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -57,8 +56,6 @@ public class RetryingChannelTest {
     private static final ListenableFuture<Response> SUCCESS = Futures.immediateFuture(EXPECTED_RESPONSE);
     private static final ListenableFuture<Response> FAILED =
             Futures.immediateFailedFuture(new SafeIoException("FAILED"));
-    private static final ListenableFuture<Response> CONNECTION_FAILED =
-            Futures.immediateFailedFuture(new ConnectException("Couldn't connect"));
     private static final Request REQUEST = Request.builder().build();
 
     @Mock
@@ -538,16 +535,14 @@ public class RetryingChannelTest {
     @Test
     public void requestWithNonRepeatableBodyRetriedWhenConnectionFails()
             throws ExecutionException, InterruptedException {
-        when(channel.execute(any()))
-                .thenReturn(CONNECTION_FAILED)
-                .thenReturn(CONNECTION_FAILED)
-                .thenReturn(SUCCESS);
+        when(channel.execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
+        // One retry allows an initial request (not a retry) and a single retry.
         EndpointChannel retryer = new RetryingChannel(
                 channel,
                 TestEndpoint.POST,
                 "my-channel",
-                2,
+                1,
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
@@ -575,16 +570,18 @@ public class RetryingChannelTest {
         assertThat(response.get())
                 .as("requests should be retried if they are not consumed")
                 .isEqualTo(EXPECTED_RESPONSE);
-        verify(channel, times(3)).execute(any());
+        verify(channel, times(2)).execute(any());
     }
 
     @Test
-    public void requestWithNonRepeatableBodyNotRetriedWhenBodyIsConsumed()
-            throws ExecutionException, InterruptedException {
+    public void requestWithNonRepeatableBodyNotRetriedWhenBodyIsConsumed() {
         when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
             Request request = invocation.getArgument(0);
+            assertThat(request.body()).isPresent();
+
+            // Consume the message.
             request.body().get().writeTo(new ByteArrayOutputStream());
-            return CONNECTION_FAILED;
+            return FAILED;
         });
 
         EndpointChannel retryer = new RetryingChannel(
@@ -618,8 +615,8 @@ public class RetryingChannelTest {
         assertThat(response).isDone();
         assertThatThrownBy(response::get)
                 .as("requests should not be retried if they are consumed")
-                .isInstanceOf(ExecutionException.class)
-                .hasMessage("java.net.ConnectException: Couldn't connect");
+                .hasRootCauseExactlyInstanceOf(SafeIoException.class)
+                .hasRootCauseMessage("FAILED");
         verify(channel, times(1)).execute(any());
     }
 
