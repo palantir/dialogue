@@ -493,7 +493,7 @@ final class RetryingChannel implements EndpointChannel {
         }
         return Request.builder()
                 .from(request)
-                .body(request.body().map(ConsumptionTrackingRequestBody::new))
+                .body(new ConsumptionTrackingRequestBody(request.body().get()))
                 .build();
     }
 
