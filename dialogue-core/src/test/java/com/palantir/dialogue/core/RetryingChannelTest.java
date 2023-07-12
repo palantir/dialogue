@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatException;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -37,6 +38,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.ConnectException;
 import java.net.SocketTimeoutException;
@@ -48,6 +50,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
 public class RetryingChannelTest {
@@ -574,6 +577,51 @@ public class RetryingChannelTest {
                 .as("requests should be retried if they are not consumed")
                 .isEqualTo(EXPECTED_RESPONSE);
         verify(channel, times(3)).execute(any());
+    }
+
+    @Test
+    public void requestWithNonRepeatableBodyNotRetriedWhenBodyIsConsumed()
+            throws ExecutionException, InterruptedException {
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            Request request = invocation.getArgument(0);
+            request.body().get().writeTo(new ByteArrayOutputStream());
+            return CONNECTION_FAILED;
+        });
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(Request.builder()
+                .body(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream _output) {}
+
+                    @Override
+                    public String contentType() {
+                        return "application/octet-stream";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {}
+                })
+                .build());
+
+        assertThat(response).isDone();
+        assertThatThrownBy(response::get)
+                .as("requests should not be retried if they are consumed")
+                .isInstanceOf(ExecutionException.class)
+                .hasMessage("java.net.ConnectException: Couldn't connect");
+        verify(channel, times(1)).execute(any());
     }
 
     private static Response mockResponse(int status) {

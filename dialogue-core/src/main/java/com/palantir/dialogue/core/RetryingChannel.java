@@ -52,6 +52,7 @@ import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -231,10 +232,7 @@ final class RetryingChannel implements EndpointChannel {
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
-            this.request = Request.builder()
-                    .from(request)
-                    .body(request.body().map(ConsumptionTrackingRequestBody::new))
-                    .build();
+            this.request = trackNonRepeatableBodyConsumption(request);
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
@@ -251,18 +249,16 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private boolean requestCanBeRetried() {
-            return request.body()
-                    .map(body -> {
-                        if (body instanceof ConsumptionTrackingRequestBody) {
-                            return ((ConsumptionTrackingRequestBody) body).requestBodyCanBeRetried();
-                        } else {
-                            throw new SafeIllegalStateException(
-                                    "Expected a ConsumptionTrackingRequestBody but got an unexpected request body type",
-                                    SafeArg.of("bodyClassName", body.getClass()));
-                        }
-                    })
-                    // If the request body is empty, we can retry the request.
-                    .orElse(true);
+            // If the request body is empty, we can retry the request.
+            if (request.body().isEmpty()) {
+                return true;
+            }
+
+            RequestBody body = request.body().get();
+            if (body instanceof ConsumptionTrackingRequestBody) {
+                return ((ConsumptionTrackingRequestBody) body).requestBodyCanBeRetried();
+            }
+            return body.repeatable();
         }
 
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
@@ -451,7 +447,6 @@ final class RetryingChannel implements EndpointChannel {
 
         ConsumptionTrackingRequestBody(RequestBody delegate) {
             this.delegate = delegate;
-            this.consumed = false;
         }
 
         @Override
@@ -466,6 +461,11 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         @Override
+        public OptionalLong contentLength() {
+            return delegate.contentLength();
+        }
+
+        @Override
         public boolean repeatable() {
             return delegate.repeatable();
         }
@@ -477,7 +477,7 @@ final class RetryingChannel implements EndpointChannel {
             delegate.close();
         }
 
-        public boolean requestBodyCanBeRetried() {
+        boolean requestBodyCanBeRetried() {
             return repeatable() || !consumed;
         }
 
@@ -485,6 +485,16 @@ final class RetryingChannel implements EndpointChannel {
         public String toString() {
             return "ConsumptionTrackingRequestBody{" + delegate + '}';
         }
+    }
+
+    private static Request trackNonRepeatableBodyConsumption(Request request) {
+        if (request.body().isEmpty() || request.body().get().repeatable()) {
+            return request;
+        }
+        return Request.builder()
+                .from(request)
+                .body(request.body().map(ConsumptionTrackingRequestBody::new))
+                .build();
     }
 
     /**
