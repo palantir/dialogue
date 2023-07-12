@@ -565,7 +565,6 @@ public class RetryingChannelTest {
                     public void close() {}
                 })
                 .build());
-
         assertThat(response).isDone();
         assertThat(response.get())
                 .as("requests should be retried if they are not consumed")
