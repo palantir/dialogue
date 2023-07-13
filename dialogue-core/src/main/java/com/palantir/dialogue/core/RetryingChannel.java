@@ -47,10 +47,12 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -197,18 +199,10 @@ final class RetryingChannel implements EndpointChannel {
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        if (isRetryable(request)) {
-            Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
-                    ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
-                    : Optional.empty();
-            return new RetryingCallback(endpoint, request, debugStacktrace).execute();
-        }
-        return delegate.execute(request);
-    }
-
-    private static boolean isRetryable(Request request) {
-        Optional<RequestBody> maybeBody = request.body();
-        return !maybeBody.isPresent() || maybeBody.get().repeatable();
+        Optional<SafeRuntimeException> debugStacktrace = log.isDebugEnabled()
+                ? Optional.of(new SafeRuntimeException("Exception for stacktrace"))
+                : Optional.empty();
+        return new RetryingCallback(endpoint, request, debugStacktrace).execute();
     }
 
     @Override
@@ -238,7 +232,7 @@ final class RetryingChannel implements EndpointChannel {
         private RetryingCallback(
                 Endpoint endpoint, Request request, Optional<SafeRuntimeException> callsiteStacktrace) {
             this.endpoint = endpoint;
-            this.request = request;
+            this.request = trackNonRepeatableBodyConsumption(request);
             this.callsiteStacktrace = callsiteStacktrace;
         }
 
@@ -254,6 +248,19 @@ final class RetryingChannel implements EndpointChannel {
             return result;
         }
 
+        private boolean requestCanBeRetried() {
+            // If the request body is empty, we can retry the request.
+            if (request.body().isEmpty()) {
+                return true;
+            }
+
+            RequestBody body = request.body().get();
+            if (body instanceof ConsumptionTrackingRequestBody) {
+                return ((ConsumptionTrackingRequestBody) body).requestBodyCanBeRetried();
+            }
+            return body.repeatable();
+        }
+
         private ListenableFuture<Response> wrap(ListenableFuture<Response> input) {
             ListenableFuture<Response> result = input;
             result = DialogueFutures.transformAsync(result, this::handleHttpResponse);
@@ -262,11 +269,12 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private ListenableFuture<Response> handleHttpResponse(Response response) {
-            if (isRetryableQosStatus(response)) {
+            boolean canRetryRequest = requestCanBeRetried();
+            if (canRetryRequest && isRetryableQosStatus(response)) {
                 return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
             }
 
-            if (Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
+            if (canRetryRequest && Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
                 return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
             }
 
@@ -275,7 +283,7 @@ final class RetryingChannel implements EndpointChannel {
 
         private ListenableFuture<Response> handleThrowable(Throwable clientSideThrowable) {
             if (++failures <= maxRetries) {
-                if (shouldAttemptToRetry(clientSideThrowable)) {
+                if (requestCanBeRetried() && shouldAttemptToRetry(clientSideThrowable)) {
                     callsiteStacktrace.ifPresent(clientSideThrowable::addSuppressed);
                     Meter retryReason = retryDueToThrowable.apply(clientSideThrowable);
                     long backoffNanoseconds = getBackoffNanoseconds();
@@ -431,6 +439,62 @@ final class RetryingChannel implements EndpointChannel {
         private String channelName() {
             return channelName;
         }
+    }
+
+    private static final class ConsumptionTrackingRequestBody implements RequestBody {
+        private final RequestBody delegate;
+        private volatile boolean consumed;
+
+        ConsumptionTrackingRequestBody(RequestBody delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void writeTo(OutputStream output) throws IOException {
+            this.consumed = true;
+            delegate.writeTo(output);
+        }
+
+        @Override
+        public String contentType() {
+            return delegate.contentType();
+        }
+
+        @Override
+        public OptionalLong contentLength() {
+            return delegate.contentLength();
+        }
+
+        @Override
+        public boolean repeatable() {
+            return delegate.repeatable();
+        }
+
+        @Override
+        public void close() {
+            // Closing the body returns all resources, and the body can be considered consumed.
+            this.consumed = true;
+            delegate.close();
+        }
+
+        boolean requestBodyCanBeRetried() {
+            return repeatable() || !consumed;
+        }
+
+        @Override
+        public String toString() {
+            return "ConsumptionTrackingRequestBody{" + delegate + '}';
+        }
+    }
+
+    private static Request trackNonRepeatableBodyConsumption(Request request) {
+        if (request.body().isEmpty() || request.body().get().repeatable()) {
+            return request;
+        }
+        return Request.builder()
+                .from(request)
+                .body(new ConsumptionTrackingRequestBody(request.body().get()))
+                .build();
     }
 
     /**

@@ -160,6 +160,60 @@ public final class ApacheHandshakeTimeoutTest {
     }
 
     @Test
+    public void testHandshakeTimeoutIsRetriedWithNonRetryableBody() throws Exception {
+        Request req = Request.builder()
+                .body(new RequestBody() {
+                    private boolean closed = false;
+                    private boolean consumed = false;
+
+                    @Override
+                    public void writeTo(OutputStream output) throws IOException {
+                        if (closed) {
+                            throw new IllegalStateException("non-repeatable body already closed");
+                        }
+                        if (consumed) {
+                            throw new IllegalStateException("non-repeatable body already consumed");
+                        }
+                        consumed = true;
+                        output.write("Hello, World".getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    @Override
+                    public String contentType() {
+                        return "text/plain";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {
+                        closed = true;
+                    }
+                })
+                .build();
+
+        int serverPort = getPort(server);
+        ClientConfiguration retryingConfig = ClientConfiguration.builder()
+                .from(TestConfigurations.create("https://localhost:" + serverPort))
+                .connectTimeout(Duration.ofMillis(500))
+                .readTimeout(Duration.ofMillis(500))
+                .writeTimeout(Duration.ofMillis(500))
+                .maxNumRetries(1)
+                .build();
+
+        Channel retryChannel = create(retryingConfig);
+        executor.delayNextTask(Duration.ofSeconds(1));
+        // The first request will fail because the timeout will be exceeded. There has to be a retry for the request to
+        // succeed.
+        try (Response response = retryChannel.execute(TestEndpoint.POST, req).get()) {
+            assertThat(response.code()).isEqualTo(200);
+        }
+    }
+
+    @Test
     public void testHandshakeLongerThanConnectDoesNotTimeout() throws Exception {
         int serverPort = getPort(server);
         ClientConfiguration config = ClientConfiguration.builder()

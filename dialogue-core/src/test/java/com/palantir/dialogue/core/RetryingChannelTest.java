@@ -37,6 +37,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
+import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
@@ -47,6 +48,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.stubbing.Answer;
 
 @ExtendWith(MockitoExtension.class)
 public class RetryingChannelTest {
@@ -531,7 +533,8 @@ public class RetryingChannelTest {
     }
 
     @Test
-    public void nonRetryableRequestBodyIsNotRetried() throws ExecutionException, InterruptedException {
+    public void requestWithNonRepeatableBodyRetriedWhenConnectionFails()
+            throws ExecutionException, InterruptedException {
         when(channel.execute(any())).thenReturn(FAILED).thenReturn(SUCCESS);
 
         // One retry allows an initial request (not a retry) and a single retry.
@@ -563,9 +566,56 @@ public class RetryingChannelTest {
                 })
                 .build());
         assertThat(response).isDone();
-        assertThat(response)
-                .as("non-repeatable request bodies should not be retried")
-                .isEqualTo(FAILED);
+        assertThat(response.get())
+                .as("requests should be retried if they are not consumed")
+                .isEqualTo(EXPECTED_RESPONSE);
+        verify(channel, times(2)).execute(any());
+    }
+
+    @Test
+    public void requestWithNonRepeatableBodyNotRetriedWhenBodyIsConsumed() {
+        when(channel.execute(any())).thenAnswer((Answer<ListenableFuture<Response>>) invocation -> {
+            Request request = invocation.getArgument(0);
+            assertThat(request.body()).isPresent();
+
+            // Consume the message.
+            request.body().get().writeTo(new ByteArrayOutputStream());
+            return FAILED;
+        });
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                2,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(Request.builder()
+                .body(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream _output) {}
+
+                    @Override
+                    public String contentType() {
+                        return "application/octet-stream";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return false;
+                    }
+
+                    @Override
+                    public void close() {}
+                })
+                .build());
+
+        assertThat(response).isDone();
+        assertThatThrownBy(response::get)
+                .as("requests should not be retried if they are consumed")
+                .hasRootCauseExactlyInstanceOf(SafeIoException.class)
+                .hasRootCauseMessage("FAILED");
         verify(channel, times(1)).execute(any());
     }
 
