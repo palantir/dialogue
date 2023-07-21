@@ -125,7 +125,7 @@ import java.util.UUID;
 public interface MyService {
 
     @Request(method = HttpMethod.POST, path = "/params/{myPathParam}/{myPathParam2}", accept=MyCustomResponseDeserializer.class)
-    ListenableFuture<MyCustomResponse> params(
+    MyCustomResponse params(
             @Request.QueryParam("q") String query,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID myPathParam,
