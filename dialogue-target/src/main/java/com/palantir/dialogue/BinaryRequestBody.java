@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue;
 
-import com.google.common.io.ByteStreams;
 import com.palantir.logsafe.Preconditions;
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,7 +48,7 @@ public interface BinaryRequestBody extends Closeable {
             public void write(OutputStream requestBody) throws IOException {
                 Preconditions.checkState(!invoked, "Write has already been called");
                 invoked = true;
-                ByteStreams.copy(inputStream, requestBody);
+                inputStream.transferTo(requestBody);
             }
 
             @Override

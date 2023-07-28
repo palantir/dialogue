@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.annotations;
 
-import com.google.common.io.ByteStreams;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -39,7 +38,7 @@ final class InputStreamContentBody implements ContentBody {
 
     @Override
     public void writeTo(OutputStream output) throws IOException {
-        ByteStreams.copy(inputStream, output);
+        inputStream.transferTo(output);
     }
 
     @Override
