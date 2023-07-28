@@ -144,8 +144,9 @@ public class IntegrationTest {
 
         undertowHandler = exchange -> {
             exchange.getResponseHeaders().put(Headers.CONTENT_TYPE, "application/octet-stream");
-            InputStream bigInputStream = repeat(sample, limit);
-            ByteStreams.copy(bigInputStream, exchange.getOutputStream());
+            try (InputStream bigInputStream = repeat(sample, limit)) {
+                bigInputStream.transferTo(exchange.getOutputStream());
+            }
         };
 
         Stopwatch sw = Stopwatch.createStarted();
