@@ -1,0 +1,19 @@
+type: improvement
+improvement:
+  description: |-
+    BinaryRequestBody and ContentBody use InputStream.transferToOutputStream
+
+    Allow for optimization when underlying input stream (such as `ByteArrayInputStream`, `ChannelInputStream`) overrides `transferTo(OutputStream)` to avoid extra array allocations and copy larger chunks at a time (e.g. allowing 16KiB chunks via `ApacheHttpClientBlockingChannel.ModulatingOutputStream` from #1790).
+
+    When running on JDK 21+, this also enables 16KiB byte chunk copies via `InputStream.transferTo(OutputStream)` per JDK-8299336, where as on JDK < 21 and when using Guava `ByteStreams.copy` 8KiB byte chunk copies are used.
+
+    References:
+    * https://github.com/palantir/hadoop-crypto/pull/586
+    * https://bugs.openjdk.org/browse/JDK-8299336
+    * https://bugs.openjdk.org/browse/JDK-8067661
+    * https://bugs.openjdk.org/browse/JDK-8265891
+    * https://bugs.openjdk.org/browse/JDK-8273038
+    * https://bugs.openjdk.org/browse/JDK-8279283
+    * https://bugs.openjdk.org/browse/JDK-8296431
+  links:
+  - https://github.com/palantir/dialogue/pull/1983
