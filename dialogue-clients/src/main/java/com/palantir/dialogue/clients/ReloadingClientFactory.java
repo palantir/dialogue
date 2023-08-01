@@ -234,7 +234,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public <T> T sticky(Class<T> clientInterface) {
-                return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
+                return session().sticky(clientInterface);
             }
 
             @Override
