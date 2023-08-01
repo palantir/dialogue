@@ -262,6 +262,14 @@ public class DialogueClientsIntegrationTest {
         testSticky(ReloadingFactory::getStickyChannels2, StickyChannelFactory2::sticky);
     }
 
+    @Test
+    public void test_sticky2_session_is_sticky() {
+        testSticky(
+                ReloadingFactory::getStickyChannels2,
+                (stickyChannelFactory2, sampleServiceAsyncClass) ->
+                        stickyChannelFactory2.session().sticky(sampleServiceAsyncClass));
+    }
+
     private <F> void testSticky(
             BiFunction<ReloadingFactory, String, F> factoryFactory,
             BiFunction<F, Class<SampleServiceAsync>, SampleServiceAsync> clientFactory) {

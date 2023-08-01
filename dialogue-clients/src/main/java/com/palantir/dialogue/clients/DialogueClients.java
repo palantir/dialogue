@@ -128,6 +128,26 @@ public final class DialogueClients {
         Channel getStickyChannel();
 
         <T> T sticky(Class<T> clientInterface);
+
+        /**
+         * Creates a new {@link StickyChannelSession} which can be used to create multiple
+         * clients bound to the same session.
+         */
+        StickyChannelSession session();
+    }
+
+    /**
+     * Represents a single session of {@link StickyChannelFactory2} where the underlying channel will not change.
+     * This is useful when multiple client interfaces must be bound to use the same host.
+     */
+    public interface StickyChannelSession {
+        /**
+         * Returns a channel which will route all requests to a single host, even if that host returns some 429s.
+         * Each successive call to this method may get a different channel (or it may return the same one).
+         */
+        Channel getStickyChannel();
+
+        <T> T sticky(Class<T> clientInterface);
     }
 
     public interface PerHostClientFactory {
