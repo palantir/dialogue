@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Follow 307 redirects in RetryOtherValidatingChannel
+  links:
+  - https://github.com/palantir/dialogue/pull/1987
