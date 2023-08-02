@@ -25,7 +25,7 @@ final class Responses {
         // Note that a 308 status may be a non-retryable signal, for instance google sometimes
         // uses a '308 Resume Incomplete', so we must verify the presence of a Location header
         // to differentiate the two.
-        return response.code() == 308
+        return (response.code() == 307 || response.code() == 308)
                 && response.getFirstHeader(HttpHeaders.LOCATION).isPresent();
     }
 

@@ -32,8 +32,9 @@ import java.time.Duration;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,39 +47,44 @@ public final class RetryOtherValidatingChannelTest {
     @Mock
     private Consumer<String> failureReporter;
 
-    @Test
-    public void testReportsUnparseableHost() {
+    @ParameterizedTest
+    @ValueSource(ints = {307, 308})
+    public void testReportsUnparseableHost(int statusCode) {
         String retryOtherUri = "not-a-uri";
-        execute(retryOtherUri);
+        execute(retryOtherUri, statusCode);
         verify(failureReporter).accept(retryOtherUri);
     }
 
-    @Test
-    public void testReportsUnknownHost() {
+    @ParameterizedTest
+    @ValueSource(ints = {307, 308})
+    public void testReportsUnknownHost(int statusCode) {
         String retryOtherUri = "https://host2.palantir.dev:9090/service/api";
-        execute(retryOtherUri);
+        execute(retryOtherUri, statusCode);
         verify(failureReporter).accept(retryOtherUri);
     }
 
-    @Test
-    public void testDoesNotReportCorrectHostButDifferentPath() {
-        execute("https://host1.palantir.dev:9090/service-1/api");
+    @ParameterizedTest
+    @ValueSource(ints = {307, 308})
+    public void testDoesNotReportCorrectHostButDifferentPath(int statusCode) {
+        execute("https://host1.palantir.dev:9090/service-1/api", statusCode);
         verifyNoInteractions(failureReporter);
     }
 
-    @Test
-    public void testDoesNotReportCorrectHostButDifferentPort() {
-        execute("https://host1.palantir.dev:9091/service/api");
+    @ParameterizedTest
+    @ValueSource(ints = {307, 308})
+    public void testDoesNotReportCorrectHostButDifferentPort(int statusCode) {
+        execute("https://host1.palantir.dev:9091/service/api", statusCode);
         verifyNoInteractions(failureReporter);
     }
 
-    @Test
-    public void testDoesNotReportMissingLocation() {
-        execute(null);
+    @ParameterizedTest
+    @ValueSource(ints = {307, 308})
+    public void testDoesNotReportMissingLocation(int statusCode) {
+        execute(null, statusCode);
         verifyNoInteractions(failureReporter);
     }
 
-    private void execute(@Nullable String retryOtherUri) {
+    private void execute(@Nullable String retryOtherUri, int statusCode) {
         RetryOtherValidatingChannel channel = new RetryOtherValidatingChannel(
                 delegate,
                 ImmutableSet.of(
@@ -90,7 +96,7 @@ public final class RetryOtherValidatingChannelTest {
                 failureReporter);
 
         Request request = Request.builder().build();
-        TestResponse response = TestResponse.withBody(null).code(308);
+        TestResponse response = TestResponse.withBody(null).code(statusCode);
         if (retryOtherUri != null) {
             response = response.withHeader(HttpHeaders.LOCATION, retryOtherUri);
         }
