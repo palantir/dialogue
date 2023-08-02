@@ -42,6 +42,7 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
+import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
@@ -233,7 +234,24 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             @Override
             public <T> T sticky(Class<T> clientInterface) {
-                return Reflection.callStaticFactoryMethod(clientInterface, getStickyChannel(), params.runtime());
+                return session().sticky(clientInterface);
+            }
+
+            @Override
+            public StickyChannelSession session() {
+                Supplier<Channel> channelSupplier = Suppliers.memoize(this::getStickyChannel);
+                return new StickyChannelSession() {
+                    @Override
+                    public Channel getStickyChannel() {
+                        return channelSupplier.get();
+                    }
+
+                    @Override
+                    public <T> T sticky(Class<T> clientInterface) {
+                        return Reflection.callStaticFactoryMethod(
+                                clientInterface, getStickyChannel(), params.runtime());
+                    }
+                };
             }
         };
     }
