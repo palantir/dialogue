@@ -15,7 +15,7 @@ com.palantir.tokens:auth-tokens = 3.18.0
 com.palantir.tracing:* = 6.18.0
 com.palantir.tritium:* = 0.71.0
 com.squareup:javapoet = 1.13.0
-com.uber.nullaway:nullaway = 0.10.11
+com.uber.nullaway:nullaway = 0.10.12
 io.dropwizard.metrics:metrics-core = 4.2.19
 org.apache.httpcomponents.client5:* = 5.2.1
 org.apache.httpcomponents.core5:* = 5.2.2
@@ -39,7 +39,7 @@ org.knowm.xchart:xchart = 3.6.1
 com.palantir.conjure.verification:* = 0.19.0
 io.undertow:* = 2.2.24.Final
 com.squareup.okhttp3:mockwebserver = 3.13.1
-org.openjdk.jmh:* = 1.36
+org.openjdk.jmh:* = 1.37
 
 # dependency-upgrader:OFF
 # Match conjure-java-runtime okhttp version
