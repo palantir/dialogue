@@ -55,19 +55,34 @@ final class ContentDecodingChannel implements EndpointChannel {
     private static final String GZIP = "gzip";
 
     private final EndpointChannel delegate;
+    private final boolean sendAcceptGzip;
 
-    ContentDecodingChannel(EndpointChannel delegate) {
+    private ContentDecodingChannel(EndpointChannel delegate, boolean sendAcceptGzip) {
         this.delegate = Preconditions.checkNotNull(delegate, "Channel is required");
+        this.sendAcceptGzip = sendAcceptGzip;
+    }
+
+    static EndpointChannel create(Config cf, EndpointChannel delegate) {
+        boolean sendAcceptGzip = shouldSendAcceptGzip(cf);
+        return new ContentDecodingChannel(delegate, sendAcceptGzip);
+    }
+
+    private static boolean shouldSendAcceptGzip(Config cf) {
+        // In mesh mode or environments which appear to be within an environment,
+        // prefer not to request compressed responses. This heuristic assumes response
+        // compression should not be used in a service mesh, nor when load balancing
+        // is handled by the client.
+        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.clientConf().uris().size() == 1;
     }
 
     @Override
     public ListenableFuture<Response> execute(Request request) {
-        Request augmentedRequest = acceptEncoding(request);
+        Request augmentedRequest = acceptEncoding(request, sendAcceptGzip);
         return DialogueFutures.transform(delegate.execute(augmentedRequest), ContentDecodingChannel::decompress);
     }
 
-    private static Request acceptEncoding(Request request) {
-        if (request.headerParams().containsKey(ACCEPT_ENCODING)) {
+    private static Request acceptEncoding(Request request, boolean sendAcceptGzip) {
+        if (!sendAcceptGzip || request.headerParams().containsKey(ACCEPT_ENCODING)) {
             // Do not replace existing accept-encoding values
             return request;
         }
