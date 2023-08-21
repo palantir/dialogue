@@ -78,6 +78,8 @@ final class ContentDecodingChannel implements EndpointChannel {
     @Override
     public ListenableFuture<Response> execute(Request request) {
         Request augmentedRequest = acceptEncoding(request, sendAcceptGzip);
+        // In cases where gzip is not expected, we continue to handle gzipped responses to avoid abrupt failures
+        // against servers which hard-code 'Content-Encoding: gzip' responses without checking request headers.
         return DialogueFutures.transform(delegate.execute(augmentedRequest), ContentDecodingChannel::decompress);
     }
 
