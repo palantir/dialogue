@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
@@ -53,6 +54,7 @@ final class ContentDecodingChannel implements EndpointChannel {
     private static final String CONTENT_ENCODING = "content-encoding";
     private static final String CONTENT_LENGTH = "content-length";
     private static final String GZIP = "gzip";
+    private static final String PREFER_COMPRESSED_RESPONSE_TAG = "prefer-compressed-response";
 
     private final EndpointChannel delegate;
     private final boolean sendAcceptGzip;
@@ -62,12 +64,16 @@ final class ContentDecodingChannel implements EndpointChannel {
         this.sendAcceptGzip = sendAcceptGzip;
     }
 
-    static EndpointChannel create(Config cf, EndpointChannel delegate) {
-        boolean sendAcceptGzip = shouldSendAcceptGzip(cf);
+    static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
+        boolean sendAcceptGzip = shouldSendAcceptGzip(cf, endpoint);
         return new ContentDecodingChannel(delegate, sendAcceptGzip);
     }
 
-    private static boolean shouldSendAcceptGzip(Config cf) {
+    private static boolean shouldSendAcceptGzip(Config cf, Endpoint endpoint) {
+        // If the override tag has been configured, always request gzipped responses.
+        if (endpoint.tags().contains(PREFER_COMPRESSED_RESPONSE_TAG)) {
+            return true;
+        }
         // In mesh mode or environments which appear to be within an environment,
         // prefer not to request compressed responses. This heuristic assumes response
         // compression should not be used in a service mesh, nor when load balancing

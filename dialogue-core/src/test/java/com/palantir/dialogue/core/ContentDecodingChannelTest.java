@@ -22,15 +22,20 @@ import static org.assertj.guava.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableListMultimap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Futures;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
+import com.palantir.dialogue.Endpoint;
+import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.X509TrustManager;
@@ -72,7 +77,8 @@ public final class ContentDecodingChannelTest {
                         standard,
                         _request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
-                                .withHeader("content-length", Integer.toString(out.size()))))
+                                .withHeader("content-length", Integer.toString(out.size()))),
+                        TestEndpoint.GET)
                 .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
@@ -94,7 +100,8 @@ public final class ContentDecodingChannelTest {
                         mesh,
                         _request -> Futures.immediateFuture(new TestResponse(out.toByteArray())
                                 .withHeader("content-encoding", "gzip")
-                                .withHeader("content-length", Integer.toString(out.size()))))
+                                .withHeader("content-length", Integer.toString(out.size()))),
+                        TestEndpoint.GET)
                 .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
@@ -108,7 +115,8 @@ public final class ContentDecodingChannelTest {
                         standard,
                         _request -> Futures.immediateFuture(
                                 // Will fail because it's not valid gzip content
-                                new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")))
+                                new TestResponse(new byte[] {1, 2, 3, 4}).withHeader("content-encoding", "gzip")),
+                        TestEndpoint.GET)
                 .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
@@ -121,7 +129,8 @@ public final class ContentDecodingChannelTest {
         Response response = ContentDecodingChannel.create(
                         standard,
                         _request -> Futures.immediateFuture(
-                                new TestResponse(content).withHeader("content-encoding", "unknown")))
+                                new TestResponse(content).withHeader("content-encoding", "unknown")),
+                        TestEndpoint.GET)
                 .execute(Request.builder().build())
                 .get();
         assertThat(response.headers()).containsAllEntriesOf(ImmutableListMultimap.of("content-encoding", "unknown"));
@@ -130,32 +139,54 @@ public final class ContentDecodingChannelTest {
 
     @Test
     public void testRequestHeader() throws Exception {
-        ContentDecodingChannel.create(standard, request -> {
-                    assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
-                    return Futures.immediateFuture(new TestResponse());
-                })
+        ContentDecodingChannel.create(
+                        standard,
+                        request -> {
+                            assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
+                            return Futures.immediateFuture(new TestResponse());
+                        },
+                        TestEndpoint.GET)
                 .execute(Request.builder().build())
                 .get();
     }
 
     @Test
     public void testRequestHeader_mesh() throws Exception {
-        ContentDecodingChannel.create(mesh, request -> {
-                    assertThat(request.headerParams().keySet()).doesNotContain("accept-encoding");
-                    return Futures.immediateFuture(new TestResponse());
-                })
+        ContentDecodingChannel.create(
+                        mesh,
+                        request -> {
+                            assertThat(request.headerParams().keySet()).doesNotContain("accept-encoding");
+                            return Futures.immediateFuture(new TestResponse());
+                        },
+                        TestEndpoint.GET)
+                .execute(Request.builder().build())
+                .get();
+    }
+
+    @Test
+    public void testRequestHeader_meshWithOverride() throws Exception {
+        ContentDecodingChannel.create(
+                        mesh,
+                        request -> {
+                            assertThat(request.headerParams()).contains(MapEntry.entry("accept-encoding", "gzip"));
+                            return Futures.immediateFuture(new TestResponse());
+                        },
+                        PreferCompressedResponseEndpoint.INSTANCE)
                 .execute(Request.builder().build())
                 .get();
     }
 
     @Test
     public void testRequestHeader_existingIsNotReplaced() throws Exception {
-        ContentDecodingChannel.create(standard, request -> {
-                    assertThat(request.headerParams())
-                            .as("The requested 'identity' encoding should not be replaced")
-                            .contains(MapEntry.entry("accept-encoding", "identity"));
-                    return Futures.immediateFuture(new TestResponse());
-                })
+        ContentDecodingChannel.create(
+                        standard,
+                        request -> {
+                            assertThat(request.headerParams())
+                                    .as("The requested 'identity' encoding should not be replaced")
+                                    .contains(MapEntry.entry("accept-encoding", "identity"));
+                            return Futures.immediateFuture(new TestResponse());
+                        },
+                        TestEndpoint.GET)
                 .execute(Request.builder()
                         .putHeaderParams("accept-encoding", "identity")
                         .build())
@@ -164,15 +195,47 @@ public final class ContentDecodingChannelTest {
 
     @Test
     public void testResponseHeaders() throws Exception {
-        ContentDecodingChannel.create(standard, request -> {
-                    assertThat(request.headerParams())
-                            .as("The requested 'identity' encoding should not be replaced")
-                            .contains(MapEntry.entry("accept-encoding", "identity"));
-                    return Futures.immediateFuture(new TestResponse());
-                })
+        ContentDecodingChannel.create(
+                        standard,
+                        request -> {
+                            assertThat(request.headerParams())
+                                    .as("The requested 'identity' encoding should not be replaced")
+                                    .contains(MapEntry.entry("accept-encoding", "identity"));
+                            return Futures.immediateFuture(new TestResponse());
+                        },
+                        TestEndpoint.GET)
                 .execute(Request.builder()
                         .putHeaderParams("accept-encoding", "identity")
                         .build())
                 .get();
+    }
+
+    private enum PreferCompressedResponseEndpoint implements Endpoint {
+        INSTANCE;
+
+        @Override
+        public HttpMethod httpMethod() {
+            return HttpMethod.GET;
+        }
+
+        @Override
+        public String serviceName() {
+            return "Test";
+        }
+
+        @Override
+        public String endpointName() {
+            return "test";
+        }
+
+        @Override
+        public String version() {
+            return "0.0.0";
+        }
+
+        @Override
+        public Set<String> tags() {
+            return ImmutableSet.of("prefer-compressed-response");
+        }
     }
 }
