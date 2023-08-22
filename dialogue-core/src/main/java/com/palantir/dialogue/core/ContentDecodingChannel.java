@@ -110,7 +110,7 @@ final class ContentDecodingChannel implements EndpointChannel {
 
     @Override
     public String toString() {
-        return "ContentDecodingChannel{" + delegate + '}';
+        return "ContentDecodingChannel{delegate=" + delegate + ", sendAcceptGzip=" + sendAcceptGzip + '}';
     }
 
     private static final class ContentDecodingResponse implements Response {
