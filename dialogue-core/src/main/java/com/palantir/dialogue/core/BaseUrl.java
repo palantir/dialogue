@@ -20,6 +20,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CharMatcher;
 import com.google.common.base.Joiner;
 import com.google.common.base.Strings;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -36,6 +37,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 
@@ -151,6 +153,12 @@ public final class BaseUrl {
         @Override
         public DefaultUrlBuilder pathSegment(String thePath) {
             this.pathSegments.add(BaseUrl.UrlEncoder.encodePathSegment(thePath));
+            return this;
+        }
+
+        @Override
+        public DefaultUrlBuilder pathSegments(Collection<String> paths) {
+            this.pathSegments.addAll(Collections2.transform(paths, BaseUrl.UrlEncoder::encodePathSegment));
             return this;
         }
 

@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.codahale.metrics.Meter;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.dialogue.Endpoint;
@@ -32,6 +33,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.function.Supplier;
 import org.immutables.value.Value;
 
 /**
@@ -73,19 +75,19 @@ final class DeprecationWarningChannel implements EndpointChannel {
     }
 
     private FutureCallback<Response> createCallback(String channelName, Endpoint endpoint) {
-        Meter meter = metrics.deprecations(endpoint.serviceName());
-
+        // lazily create meter metric name only if deprecated endpoint is accessed
+        Supplier<Meter> meterSupplier = Suppliers.memoize(() -> metrics.deprecations(endpoint.serviceName()));
         return DialogueFutures.onSuccess(response -> {
             if (response == null) {
                 return;
             }
 
             Optional<String> maybeHeader = response.getFirstHeader("deprecation");
-            if (!maybeHeader.isPresent()) {
+            if (maybeHeader.isEmpty()) {
                 return;
             }
 
-            meter.mark();
+            meterSupplier.get().mark();
             if (log.isWarnEnabled() && tryAcquire(channelName, endpoint)) {
                 log.warn(
                         "Using a deprecated endpoint when connecting to service",
