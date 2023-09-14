@@ -16,10 +16,17 @@
 
 package com.palantir.dialogue;
 
+import java.util.Collection;
+
 public interface UrlBuilder {
 
     /** URL-encodes the given path segment and adds it to the list of segments. */
     UrlBuilder pathSegment(String thePath);
+
+    default UrlBuilder pathSegments(Collection<String> paths) {
+        paths.forEach(this::pathSegment);
+        return this;
+    }
 
     /**
      * URL-encodes the given query parameter name and value and adds them to the list of query parameters. Note that

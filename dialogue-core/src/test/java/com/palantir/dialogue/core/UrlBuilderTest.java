@@ -23,6 +23,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.TestEndpoint;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -65,6 +66,8 @@ public final class UrlBuilderTest {
         assertThat(minimalUrl().pathSegment("foo").build().toString()).isEqualTo("http://host:80/foo");
         assertThat(minimalUrl().pathSegment("foo").pathSegment("bar").build().toString())
                 .isEqualTo("http://host:80/foo/bar");
+        assertThat(minimalUrl().pathSegments(List.of("foo", "bar")).build().toString())
+                .isEqualTo("http://host:80/foo/bar");
         assertThat(minimalUrl().pathSegment("foo/bar").build().toString()).isEqualTo("http://host:80/foo%2Fbar");
         assertThat(minimalUrl()
                         .pathSegment("!@#$%^&*()_+{}[]|\\|\"':;/?.>,<~`")
@@ -72,6 +75,12 @@ public final class UrlBuilderTest {
                         .toString())
                 .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
                         + "%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
+        assertThat(minimalUrl()
+                        .pathSegments(List.of("!@#$%^&*()_+{}", "[]|\\|\"':;/?.>,<~`"))
+                        .build()
+                        .toString())
+                .isEqualTo("http://host:80/%21%40%23%24%25%5E%26%2A%28%29_%2B%7B%7D"
+                        + "/%5B%5D%7C%5C%7C%22%27%3A%3B%2F%3F.%3E%2C%3C~%60");
     }
 
     @Test
@@ -79,6 +88,12 @@ public final class UrlBuilderTest {
         assertThat(minimalUrl()
                         .pathSegment("")
                         .pathSegment("")
+                        .pathSegment("bar")
+                        .build()
+                        .toString())
+                .isEqualTo("http://host:80///bar");
+        assertThat(minimalUrl()
+                        .pathSegments(List.of("", ""))
                         .pathSegment("bar")
                         .build()
                         .toString())

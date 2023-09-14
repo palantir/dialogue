@@ -80,7 +80,7 @@ public final class PathTemplate {
             if (segment.fixed != null) {
                 url.pathSegment(segment.fixed);
             } else {
-                parameters.get(segment.variable).forEach(url::pathSegment);
+                url.pathSegments(parameters.get(segment.variable));
             }
         }
     }
