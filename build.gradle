@@ -48,7 +48,7 @@ apply plugin: 'com.palantir.jdks.latest'
 
 javaVersions {
     libraryTarget = 11
-    runtime = 17
+    runtime = 21
 }
 
 version System.env.CIRCLE_TAG ?: gitVersion()
