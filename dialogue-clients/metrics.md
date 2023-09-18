@@ -112,8 +112,12 @@ Executor metrics.
 - `executor.duration` tagged `executor` (timer): A timer of the time it took to run a task.
 - `executor.queued-duration` tagged `executor` (timer): A timer of the time it took a task to start running after it was submitted.
 - `executor.scheduled.overrun` tagged `executor` (counter): A gauge of the number of fixed-rate scheduled tasks that overran the scheduled rate. Applies only to scheduled executors.
-- `executor.threads.created` tagged `executor` (meter): Rate that new threads are created for this executor.
-- `executor.threads.running` tagged `executor` (counter): Number of live threads created by this executor.
+- `executor.threads.created` (meter): Rate that new threads are created for this executor.
+  - `executor`
+  - `thread-type` values (`platform`,`virtual`)
+- `executor.threads.running` (counter): Number of live threads created by this executor.
+  - `executor`
+  - `thread-type` values (`platform`,`virtual`)
 
 ### jvm.gc
 Java virtual machine garbage collection metrics.
