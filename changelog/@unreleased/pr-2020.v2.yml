@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: dialogue.client.connection.create differentiates success and failure
+  links:
+  - https://github.com/palantir/dialogue/pull/2020

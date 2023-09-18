@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
-import com.codahale.metrics.Timer.Context;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -26,6 +25,7 @@ import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -47,7 +47,8 @@ final class InstrumentedPoolingHttpClientConnectionManager
     private final PoolingHttpClientConnectionManager manager;
     private final TaggedMetricRegistry registry;
     private final String clientName;
-    private final Timer connectTimer;
+    private final Timer connectTimerSuccess;
+    private final Timer connectTimerFailure;
     private volatile boolean closed;
 
     InstrumentedPoolingHttpClientConnectionManager(
@@ -55,7 +56,15 @@ final class InstrumentedPoolingHttpClientConnectionManager
         this.manager = manager;
         this.registry = registry;
         this.clientName = clientName;
-        this.connectTimer = DialogueClientMetrics.of(registry).connectionCreate(clientName);
+        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
+        this.connectTimerSuccess = metrics.connectionCreate()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionCreate_Result.SUCCESS)
+                .build();
+        this.connectTimerFailure = metrics.connectionCreate()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionCreate_Result.FAILURE)
+                .build();
     }
 
     @Override
@@ -109,10 +118,12 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
     @Override
     public void connect(ConnectionEndpoint endpoint, TimeValue connectTimeout, HttpContext context) throws IOException {
-        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect");
-                Context timer = connectTimer.time()) {
+        long beginNanos = System.nanoTime();
+        try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect")) {
             manager.connect(endpoint, connectTimeout, context);
+            connectTimerSuccess.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
         } catch (Throwable throwable) {
+            connectTimerFailure.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
             DialogueClientMetrics.of(registry)
                     .connectionCreateError()
                     .clientName(clientName)
