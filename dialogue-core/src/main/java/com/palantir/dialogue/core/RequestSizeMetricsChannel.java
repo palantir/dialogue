@@ -24,6 +24,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.FilterOutputStream;
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.io.OutputStream;
 import java.util.Optional;
 
 final class RequestSizeMetricsChannel implements EndpointChannel {
+    private static final SafeLogger log = SafeLoggerFactory.get(RequestSizeMetricsChannel.class);
     private final EndpointChannel delegate;
     private final Histogram requestSize;
 
@@ -102,7 +105,7 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             try {
                 out.close();
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                log.warn("Failed to close tracking output stream", e);
             }
             delegate.close();
         }
