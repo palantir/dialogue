@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Histogram;
+import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.Endpoint;
@@ -27,7 +28,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Optional;
@@ -35,21 +35,25 @@ import java.util.Optional;
 final class RequestSizeMetricsChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(RequestSizeMetricsChannel.class);
     private final EndpointChannel delegate;
-    private final Histogram requestSize;
+    private final Histogram retryableRequestSize;
+    private final Histogram nonretryableRequestSize;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
-        return new RequestSizeMetricsChannel(channel, endpoint, clientConf.taggedMetricRegistry());
+        return new RequestSizeMetricsChannel(channel, cf.channelName(), endpoint, clientConf.taggedMetricRegistry());
     }
 
-    RequestSizeMetricsChannel(EndpointChannel delegate, Endpoint endpoint, TaggedMetricRegistry registry) {
+    RequestSizeMetricsChannel(
+            EndpointChannel delegate, String channelName, Endpoint endpoint, TaggedMetricRegistry registry) {
         this.delegate = delegate;
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(registry);
-        this.requestSize = dialogueClientMetrics
+        DialogueClientMetrics.RequestsSizeBuilderRetryableStage requestSize = dialogueClientMetrics
                 .requestsSize()
+                .channelName(channelName)
                 .serviceName(endpoint.serviceName())
-                .endpoint(endpoint.endpointName())
-                .build();
+                .endpoint(endpoint.endpointName());
+        this.retryableRequestSize = requestSize.retryable("true").build();
+        this.nonretryableRequestSize = requestSize.retryable("false").build();
     }
 
     @Override
@@ -64,30 +68,29 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             // No need to record empty bodies
             return request;
         }
+        Histogram requestSizeHistogram =
+                body.get().repeatable() ? this.retryableRequestSize : this.nonretryableRequestSize;
 
         return Request.builder()
                 .from(request)
-                .body(new RequestSizeRecordingRequestBody(body.get(), this.requestSize))
+                .body(new RequestSizeRecordingRequestBody(body.get(), requestSizeHistogram))
                 .build();
     }
 
-    private class RequestSizeRecordingRequestBody implements RequestBody {
+    private static class RequestSizeRecordingRequestBody implements RequestBody {
         private final RequestBody delegate;
         private final Histogram size;
-        private SizeTrackingOutputStream out;
 
         RequestSizeRecordingRequestBody(RequestBody requestBody, Histogram size) {
             this.delegate = requestBody;
             this.size = size;
-            // we'll never actually write to this output stream, but is safe to perform all operations on in case a
-            // client closes without calling write.
-            this.out = new SizeTrackingOutputStream(OutputStream.nullOutputStream(), size);
         }
 
         @Override
         public void writeTo(OutputStream output) throws IOException {
-            out = new SizeTrackingOutputStream(output, size);
-            delegate.writeTo(out);
+            CountingOutputStream countingOut = new CountingOutputStream(output);
+            delegate.writeTo(countingOut);
+            size.update(countingOut.getCount());
         }
 
         @Override
@@ -102,43 +105,7 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
 
         @Override
         public void close() {
-            try {
-                out.close();
-            } catch (IOException e) {
-                log.warn("Failed to close tracking output stream", e);
-            }
             delegate.close();
-        }
-
-        /**
-         * {@link SizeTrackingOutputStream} records the total number of bytes written to the output stream.
-         */
-        private final class SizeTrackingOutputStream extends FilterOutputStream {
-            private final Histogram size;
-            private long writes = 0;
-
-            SizeTrackingOutputStream(OutputStream delegate, Histogram size) {
-                super(delegate);
-                this.size = size;
-            }
-
-            @Override
-            public void write(byte[] buffer, int off, int len) throws IOException {
-                writes += len;
-                out.write(buffer, off, len);
-            }
-
-            @Override
-            public void write(int value) throws IOException {
-                writes += 1;
-                out.write(value);
-            }
-
-            @Override
-            public void close() throws IOException {
-                this.size.update(writes);
-                super.close();
-            }
         }
     }
 }

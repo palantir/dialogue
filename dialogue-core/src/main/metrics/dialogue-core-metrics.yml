@@ -58,7 +58,7 @@ namespaces:
         docs: Time spent waiting in the sticky queue before execution attempt.
       requests.size:
         type: histogram
-        tags: [service-name, endpoint]
+        tags: [channel-name, service-name, endpoint, retryable]
         docs: Size of requests
       # Note: the 'dialogue.client.create' metric is also defined in the apache metrics.
       create:
