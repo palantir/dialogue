@@ -101,8 +101,10 @@ public class RequestSizeMetricsChannelTest {
         assertThat(response.get().code()).isEqualTo(200);
         Snapshot snapshot = DialogueClientMetrics.of(registry)
                 .requestsSize()
+                .channelName("channelName")
                 .serviceName("service")
                 .endpoint("endpoint")
+                .retryable("true")
                 .build()
                 .getSnapshot();
         assertThat(snapshot.size()).isEqualTo(1);

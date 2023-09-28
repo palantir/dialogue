@@ -47,13 +47,20 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             EndpointChannel delegate, String channelName, Endpoint endpoint, TaggedMetricRegistry registry) {
         this.delegate = delegate;
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(registry);
-        DialogueClientMetrics.RequestsSizeBuilderRetryableStage requestSize = dialogueClientMetrics
+        this.retryableRequestSize = dialogueClientMetrics
                 .requestsSize()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
-                .endpoint(endpoint.endpointName());
-        this.retryableRequestSize = requestSize.retryable("true").build();
-        this.nonretryableRequestSize = requestSize.retryable("false").build();
+                .endpoint(endpoint.endpointName())
+                .retryable("true")
+                .build();
+        this.nonretryableRequestSize = dialogueClientMetrics
+                .requestsSize()
+                .channelName(channelName)
+                .serviceName(endpoint.serviceName())
+                .endpoint(endpoint.endpointName())
+                .retryable("false")
+                .build();
     }
 
     @Override
