@@ -24,8 +24,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -121,9 +121,9 @@ final class InstrumentedPoolingHttpClientConnectionManager
         long beginNanos = System.nanoTime();
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect")) {
             manager.connect(endpoint, connectTimeout, context);
-            connectTimerSuccess.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
+            connectTimerSuccess.update(Duration.ofNanos(System.nanoTime() - beginNanos));
         } catch (Throwable throwable) {
-            connectTimerFailure.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
+            connectTimerFailure.update(Duration.ofNanos(System.nanoTime() - beginNanos));
             DialogueClientMetrics.of(registry)
                     .connectionCreateError()
                     .clientName(clientName)

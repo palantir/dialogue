@@ -23,6 +23,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
+import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -205,6 +206,7 @@ final class ChannelCache {
                 + '}';
     }
 
+    @DoNotLog
     @Value.Immutable
     interface ChannelCacheKey extends AugmentClientConfig {
         ServiceConfiguration serviceConf();
@@ -216,6 +218,7 @@ final class ChannelCache {
         OptionalInt overrideHostIndex();
     }
 
+    @DoNotLog
     @Value.Immutable
     interface ApacheClientRequest extends AugmentClientConfig {
         ServiceConfiguration serviceConf();
