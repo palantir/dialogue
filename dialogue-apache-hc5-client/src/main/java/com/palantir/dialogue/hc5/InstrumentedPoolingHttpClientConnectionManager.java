@@ -24,8 +24,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
-import java.time.Duration;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.apache.hc.client5.http.HttpRoute;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.io.ConnectionEndpoint;
@@ -39,6 +39,7 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 
 /** A simple wrapper around a {@link PoolingHttpClientConnectionManager} which provides instrumentation. */
+@SuppressWarnings("PreferJavaTimeOverload") // perf sensitive
 final class InstrumentedPoolingHttpClientConnectionManager
         implements HttpClientConnectionManager, ConnPoolControl<HttpRoute> {
 
@@ -121,9 +122,9 @@ final class InstrumentedPoolingHttpClientConnectionManager
         long beginNanos = System.nanoTime();
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect")) {
             manager.connect(endpoint, connectTimeout, context);
-            connectTimerSuccess.update(Duration.ofNanos(System.nanoTime() - beginNanos));
+            connectTimerSuccess.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
         } catch (Throwable throwable) {
-            connectTimerFailure.update(Duration.ofNanos(System.nanoTime() - beginNanos));
+            connectTimerFailure.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
             DialogueClientMetrics.of(registry)
                     .connectionCreateError()
                     .clientName(clientName)
