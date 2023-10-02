@@ -36,7 +36,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
@@ -46,10 +45,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class RequestSizeMetricsChannelTest {
-    private static final String JAVA_VERSION = System.getProperty("java.version", "unknown");
-    private static final String LIBRARY_VERSION =
-            Objects.requireNonNullElse(DialogueClientMetrics.class.getPackage().getImplementationVersion(), "unknown");
-
     @Mock
     DialogueChannelFactory factory;
 
@@ -88,10 +83,14 @@ public class RequestSizeMetricsChannelTest {
                 .build();
 
         EndpointChannel channel = RequestSizeMetricsChannel.create(
-                config(ClientConfiguration.builder()
-                        .from(TestConfigurations.create("https://foo:10001"))
-                        .taggedMetricRegistry(registry)
-                        .build()),
+                ImmutableConfig.builder()
+                        .channelName("channelName")
+                        .channelFactory(factory)
+                        .rawConfig(ClientConfiguration.builder()
+                                .from(TestConfigurations.create("https://foo:10001"))
+                                .taggedMetricRegistry(registry)
+                                .build())
+                        .build(),
                 r -> {
                     try {
                         RequestBody body = r.body().get();
@@ -152,10 +151,14 @@ public class RequestSizeMetricsChannelTest {
                 .build();
 
         EndpointChannel channel = RequestSizeMetricsChannel.create(
-                config(ClientConfiguration.builder()
-                        .from(TestConfigurations.create("https://foo:10001"))
-                        .taggedMetricRegistry(registry)
-                        .build()),
+                ImmutableConfig.builder()
+                        .channelName("smallRequestChannelName")
+                        .channelFactory(factory)
+                        .rawConfig(ClientConfiguration.builder()
+                                .from(TestConfigurations.create("https://foo:10001"))
+                                .taggedMetricRegistry(registry)
+                                .build())
+                        .build(),
                 r -> {
                     try {
                         RequestBody body = r.body().get();
@@ -170,24 +173,13 @@ public class RequestSizeMetricsChannelTest {
         ListenableFuture<Response> response = channel.execute(request);
 
         assertThat(response.get().code()).isEqualTo(200);
-        MetricName metricName = MetricName.builder()
-                .safeName("dialogue.client.requests.size")
-                .putSafeTags("channel-name", "channelName")
-                .putSafeTags("service-name", "service")
-                .putSafeTags("endpoint", "endpoint")
-                .putSafeTags("retryable", "true")
-                .putSafeTags("libraryName", "dialogue")
-                .putSafeTags("libraryVersion", LIBRARY_VERSION)
-                .putSafeTags("javaVersion", JAVA_VERSION)
-                .build();
+        MetricName metricName = DialogueClientMetrics.of(registry)
+                .requestsSize()
+                .channelName("smallRequestChannelName")
+                .serviceName("service")
+                .endpoint("endpoint")
+                .retryable("true")
+                .buildMetricName();
         assertThat(registry.remove(metricName)).isEmpty();
-    }
-
-    private ImmutableConfig config(ClientConfiguration rawConfig) {
-        return ImmutableConfig.builder()
-                .channelName("channelName")
-                .channelFactory(factory)
-                .rawConfig(rawConfig)
-                .build();
     }
 }
