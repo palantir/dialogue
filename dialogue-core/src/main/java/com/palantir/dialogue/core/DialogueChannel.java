@@ -92,6 +92,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
         /**
          * Please use {@link #factory(DialogueChannelFactory)}.
+         *
          * @deprecated prefer {@link #factory(DialogueChannelFactory)}
          */
         @Deprecated
@@ -185,6 +186,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new RangeAcceptsIdentityEncodingChannel(channel);
                 channel = ContentEncodingChannel.of(channel, endpoint);
                 channel = TracedChannel.create(cf, channel, endpoint);
+                channel = RequestSizeMetricsChannel.create(cf, channel, endpoint);
                 if (ChannelToEndpointChannel.isConstant(endpoint)) {
                     // Avoid producing metrics for non-constant endpoints which may produce
                     // high cardinality.
@@ -207,7 +209,9 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
-        /** Does *not* do any clever live-reloading. */
+        /**
+         * Does *not* do any clever live-reloading.
+         */
         @CheckReturnValue
         public Channel buildNonLiveReloading() {
             return build();

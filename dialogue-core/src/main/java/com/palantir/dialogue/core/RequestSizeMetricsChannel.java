@@ -17,6 +17,7 @@
 package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Histogram;
+import com.google.common.base.Suppliers;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -31,12 +32,15 @@ import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 final class RequestSizeMetricsChannel implements EndpointChannel {
     private static final SafeLogger log = SafeLoggerFactory.get(RequestSizeMetricsChannel.class);
+    // MIN_REPORTED_REQUEST_SIZE filters recording small requests to reduce metric cardinality
+    private static final long MIN_REPORTED_REQUEST_SIZE = 1 << 20;
     private final EndpointChannel delegate;
-    private final Histogram retryableRequestSize;
-    private final Histogram nonretryableRequestSize;
+    private final Supplier<Histogram> retryableRequestSize;
+    private final Supplier<Histogram> nonretryableRequestSize;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
@@ -47,20 +51,20 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             EndpointChannel delegate, String channelName, Endpoint endpoint, TaggedMetricRegistry registry) {
         this.delegate = delegate;
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(registry);
-        this.retryableRequestSize = dialogueClientMetrics
+        this.retryableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestsSize()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .retryable("true")
-                .build();
-        this.nonretryableRequestSize = dialogueClientMetrics
+                .build());
+        this.nonretryableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestsSize()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .retryable("false")
-                .build();
+                .build());
     }
 
     @Override
@@ -75,7 +79,7 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             // No need to record empty bodies
             return request;
         }
-        Histogram requestSizeHistogram =
+        Supplier<Histogram> requestSizeHistogram =
                 body.get().repeatable() ? this.retryableRequestSize : this.nonretryableRequestSize;
 
         return Request.builder()
@@ -86,9 +90,9 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
 
     private static class RequestSizeRecordingRequestBody implements RequestBody {
         private final RequestBody delegate;
-        private final Histogram size;
+        private final Supplier<Histogram> size;
 
-        RequestSizeRecordingRequestBody(RequestBody requestBody, Histogram size) {
+        RequestSizeRecordingRequestBody(RequestBody requestBody, Supplier<Histogram> size) {
             this.delegate = requestBody;
             this.size = size;
         }
@@ -97,7 +101,9 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
         public void writeTo(OutputStream output) throws IOException {
             CountingOutputStream countingOut = new CountingOutputStream(output);
             delegate.writeTo(countingOut);
-            size.update(countingOut.getCount());
+            if (countingOut.getCount() > MIN_REPORTED_REQUEST_SIZE) {
+                size.get().update(countingOut.getCount());
+            }
         }
 
         @Override

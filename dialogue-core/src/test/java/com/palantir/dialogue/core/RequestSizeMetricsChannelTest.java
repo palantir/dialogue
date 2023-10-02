@@ -30,11 +30,13 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
@@ -44,6 +46,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class RequestSizeMetricsChannelTest {
+    private static final String JAVA_VERSION = System.getProperty("java.version", "unknown");
+    private static final String LIBRARY_VERSION =
+            Objects.requireNonNullElse(DialogueClientMetrics.class.getPackage().getImplementationVersion(), "unknown");
+
     @Mock
     DialogueChannelFactory factory;
 
@@ -52,7 +58,8 @@ public class RequestSizeMetricsChannelTest {
         TaggedMetricRegistry registry = DefaultTaggedMetricRegistry.getDefault();
 
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] expected = "test request body".getBytes(StandardCharsets.UTF_8);
+        int recordableRequestSize = 2 << 20;
+        byte[] expected = "a".repeat(recordableRequestSize).getBytes(StandardCharsets.UTF_8);
         Request request = Request.builder()
                 .body(new RequestBody() {
                     @Override
@@ -109,6 +116,71 @@ public class RequestSizeMetricsChannelTest {
                 .getSnapshot();
         assertThat(snapshot.size()).isEqualTo(1);
         assertThat(snapshot.get99thPercentile()).isEqualTo(expected.length);
+    }
+
+    @Test
+    public void small_request_not_recorded() throws ExecutionException, InterruptedException {
+        TaggedMetricRegistry registry = DefaultTaggedMetricRegistry.getDefault();
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        byte[] expected = "test request body".getBytes(StandardCharsets.UTF_8);
+        Request request = Request.builder()
+                .body(new RequestBody() {
+                    @Override
+                    public void writeTo(OutputStream output) throws IOException {
+                        output.write(expected);
+                    }
+
+                    @Override
+                    public String contentType() {
+                        return "text/plain";
+                    }
+
+                    @Override
+                    public boolean repeatable() {
+                        return true;
+                    }
+
+                    @Override
+                    public OptionalLong contentLength() {
+                        return OptionalLong.of(expected.length);
+                    }
+
+                    @Override
+                    public void close() {}
+                })
+                .build();
+
+        EndpointChannel channel = RequestSizeMetricsChannel.create(
+                config(ClientConfiguration.builder()
+                        .from(TestConfigurations.create("https://foo:10001"))
+                        .taggedMetricRegistry(registry)
+                        .build()),
+                r -> {
+                    try {
+                        RequestBody body = r.body().get();
+                        body.writeTo(baos);
+                        body.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return Futures.immediateFuture(new TestResponse().code(200));
+                },
+                TestEndpoint.GET);
+        ListenableFuture<Response> response = channel.execute(request);
+
+        assertThat(response.get().code()).isEqualTo(200);
+        MetricName metricName = MetricName.builder()
+                .safeName("dialogue.client.requests.size")
+                .putSafeTags("channel-name", "channelName")
+                .putSafeTags("service-name", "service")
+                .putSafeTags("endpoint", "endpoint")
+                .putSafeTags("retryable", "true")
+                .putSafeTags("libraryName", "dialogue")
+                .putSafeTags("libraryVersion", LIBRARY_VERSION)
+                .putSafeTags("javaVersion", JAVA_VERSION)
+                .build();
+        assertThat(registry.remove(metricName)).isEmpty();
     }
 
     private ImmutableConfig config(ClientConfiguration rawConfig) {
