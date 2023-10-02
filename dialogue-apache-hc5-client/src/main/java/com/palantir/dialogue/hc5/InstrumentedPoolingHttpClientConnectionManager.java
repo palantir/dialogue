@@ -39,6 +39,7 @@ import org.apache.hc.core5.util.TimeValue;
 import org.apache.hc.core5.util.Timeout;
 
 /** A simple wrapper around a {@link PoolingHttpClientConnectionManager} which provides instrumentation. */
+@SuppressWarnings("PreferJavaTimeOverload") // perf sensitive
 final class InstrumentedPoolingHttpClientConnectionManager
         implements HttpClientConnectionManager, ConnPoolControl<HttpRoute> {
 
