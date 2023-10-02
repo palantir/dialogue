@@ -93,6 +93,8 @@ subprojects {
             } else {
                 options.errorprone.option('NullAway:AnnotatedPackages', 'com.palantir')
             }
+            // This project is performance sensitive
+            options.errorprone.disable('PreferJavaTimeOverload')
         }
     })
 
