@@ -1,0 +1,6 @@
+type: feature
+feature:
+  description: Add a request size metric channel, which records the size of payloads
+    written by the client.
+  links:
+  - https://github.com/palantir/dialogue/pull/2023

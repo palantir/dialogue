@@ -72,6 +72,11 @@ Dialogue-specific metrics that are not necessarily applicable to other client im
 - `dialogue.client.request.queued.time` tagged `channel-name` (timer): Time spent waiting in the queue before execution.
 - `dialogue.client.request.endpoint.queued.time` tagged `channel-name`, `service-name`, `endpoint` (timer): Time spent waiting in the queue before execution on a specific endpoint due to server QoS.
 - `dialogue.client.request.sticky.queued.time` tagged `channel-name` (timer): Time spent waiting in the sticky queue before execution attempt.
+- `dialogue.client.requests.size` (histogram): Histogram of the sizes of requests larger than a threshold (1 MiB).
+  - `repeatable` values (`true`,`false`)
+  - `channel-name`
+  - `service-name`
+  - `endpoint`
 - `dialogue.client.create` tagged `client-name`, `client-type` (meter): Marked every time a new client is created.
 
 ### dialogue.concurrencylimiter
