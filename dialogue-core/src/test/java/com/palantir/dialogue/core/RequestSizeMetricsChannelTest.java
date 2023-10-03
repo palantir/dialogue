@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Snapshot;
+import com.google.common.io.ByteStreams;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -29,10 +30,10 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestsSize_Repeatable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.MetricName;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -40,19 +41,19 @@ import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 @ExtendWith(MockitoExtension.class)
 public class RequestSizeMetricsChannelTest {
-    @Mock
-    DialogueChannelFactory factory;
+
+    private static final DialogueChannelFactory STUB_FACTORY = _ignored -> {
+        throw new AssertionError("DialogueChannelFactory should not be used");
+    };
 
     @Test
     public void records_request_size_metrics() throws ExecutionException, InterruptedException {
-        TaggedMetricRegistry registry = DefaultTaggedMetricRegistry.getDefault();
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         int recordableRequestSize = 2 << 20;
         byte[] expected = "a".repeat(recordableRequestSize).getBytes(StandardCharsets.UTF_8);
         Request request = Request.builder()
@@ -85,17 +86,15 @@ public class RequestSizeMetricsChannelTest {
         EndpointChannel channel = RequestSizeMetricsChannel.create(
                 ImmutableConfig.builder()
                         .channelName("channelName")
-                        .channelFactory(factory)
+                        .channelFactory(STUB_FACTORY)
                         .rawConfig(ClientConfiguration.builder()
                                 .from(TestConfigurations.create("https://foo:10001"))
                                 .taggedMetricRegistry(registry)
                                 .build())
                         .build(),
                 r -> {
-                    try {
-                        RequestBody body = r.body().get();
-                        body.writeTo(baos);
-                        body.close();
+                    try (RequestBody body = r.body().get()) {
+                        body.writeTo(ByteStreams.nullOutputStream());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -107,10 +106,10 @@ public class RequestSizeMetricsChannelTest {
         assertThat(response.get().code()).isEqualTo(200);
         Snapshot snapshot = DialogueClientMetrics.of(registry)
                 .requestsSize()
+                .repeatable(RequestsSize_Repeatable.TRUE)
                 .channelName("channelName")
                 .serviceName("service")
                 .endpoint("endpoint")
-                .retryable("true")
                 .build()
                 .getSnapshot();
         assertThat(snapshot.size()).isEqualTo(1);
@@ -119,9 +118,8 @@ public class RequestSizeMetricsChannelTest {
 
     @Test
     public void small_request_not_recorded() throws ExecutionException, InterruptedException {
-        TaggedMetricRegistry registry = DefaultTaggedMetricRegistry.getDefault();
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
 
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
         byte[] expected = "test request body".getBytes(StandardCharsets.UTF_8);
         Request request = Request.builder()
                 .body(new RequestBody() {
@@ -153,17 +151,15 @@ public class RequestSizeMetricsChannelTest {
         EndpointChannel channel = RequestSizeMetricsChannel.create(
                 ImmutableConfig.builder()
                         .channelName("smallRequestChannelName")
-                        .channelFactory(factory)
+                        .channelFactory(STUB_FACTORY)
                         .rawConfig(ClientConfiguration.builder()
                                 .from(TestConfigurations.create("https://foo:10001"))
                                 .taggedMetricRegistry(registry)
                                 .build())
                         .build(),
                 r -> {
-                    try {
-                        RequestBody body = r.body().get();
-                        body.writeTo(baos);
-                        body.close();
+                    try (RequestBody body = r.body().get()) {
+                        body.writeTo(ByteStreams.nullOutputStream());
                     } catch (IOException e) {
                         throw new RuntimeException(e);
                     }
@@ -175,10 +171,10 @@ public class RequestSizeMetricsChannelTest {
         assertThat(response.get().code()).isEqualTo(200);
         MetricName metricName = DialogueClientMetrics.of(registry)
                 .requestsSize()
+                .repeatable(RequestsSize_Repeatable.TRUE)
                 .channelName("smallRequestChannelName")
                 .serviceName("service")
                 .endpoint("endpoint")
-                .retryable("true")
                 .buildMetricName();
         assertThat(registry.remove(metricName)).isEmpty();
     }

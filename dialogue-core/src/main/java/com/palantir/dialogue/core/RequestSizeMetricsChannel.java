@@ -26,12 +26,14 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueClientMetrics.RequestsSize_Repeatable;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.function.Supplier;
 
 final class RequestSizeMetricsChannel implements EndpointChannel {
@@ -39,8 +41,8 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
     // MIN_REPORTED_REQUEST_SIZE filters recording small requests to reduce metric cardinality
     private static final long MIN_REPORTED_REQUEST_SIZE = 1 << 20;
     private final EndpointChannel delegate;
-    private final Supplier<Histogram> retryableRequestSize;
-    private final Supplier<Histogram> nonretryableRequestSize;
+    private final Supplier<Histogram> repeatableRequestSize;
+    private final Supplier<Histogram> unrepeatableRequestSize;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
         ClientConfiguration clientConf = cf.clientConf();
@@ -51,19 +53,19 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             EndpointChannel delegate, String channelName, Endpoint endpoint, TaggedMetricRegistry registry) {
         this.delegate = delegate;
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(registry);
-        this.retryableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
+        this.repeatableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestsSize()
+                .repeatable(RequestsSize_Repeatable.TRUE)
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
-                .retryable("true")
                 .build());
-        this.nonretryableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
+        this.unrepeatableRequestSize = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestsSize()
+                .repeatable(RequestsSize_Repeatable.FALSE)
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
-                .retryable("false")
                 .build());
     }
 
@@ -80,7 +82,7 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
             return request;
         }
         Supplier<Histogram> requestSizeHistogram =
-                body.get().repeatable() ? this.retryableRequestSize : this.nonretryableRequestSize;
+                body.get().repeatable() ? this.repeatableRequestSize : this.unrepeatableRequestSize;
 
         return Request.builder()
                 .from(request)
@@ -114,6 +116,11 @@ final class RequestSizeMetricsChannel implements EndpointChannel {
         @Override
         public boolean repeatable() {
             return delegate.repeatable();
+        }
+
+        @Override
+        public OptionalLong contentLength() {
+            return delegate.contentLength();
         }
 
         @Override
