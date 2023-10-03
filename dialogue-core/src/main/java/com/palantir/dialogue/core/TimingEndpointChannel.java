@@ -18,6 +18,7 @@ package com.palantir.dialogue.core;
 
 import com.codahale.metrics.Timer;
 import com.github.benmanes.caffeine.cache.Ticker;
+import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.RateLimiter;
@@ -32,6 +33,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Supplier;
 
 final class TimingEndpointChannel implements EndpointChannel {
 
@@ -39,8 +41,8 @@ final class TimingEndpointChannel implements EndpointChannel {
     private static final RateLimiter unknownThrowableLoggingRateLimiter = RateLimiter.create(1);
 
     private final EndpointChannel delegate;
-    private final Timer successTimer;
-    private final Timer failureTimer;
+    private final Supplier<Timer> successTimer;
+    private final Supplier<Timer> failureTimer;
     private final Ticker ticker;
 
     TimingEndpointChannel(
@@ -52,18 +54,18 @@ final class TimingEndpointChannel implements EndpointChannel {
         this.delegate = delegate;
         this.ticker = ticker;
         ClientMetrics metrics = ClientMetrics.of(taggedMetrics);
-        this.successTimer = metrics.response()
+        this.successTimer = Suppliers.memoize(() -> metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("success")
-                .build();
-        this.failureTimer = metrics.response()
+                .build());
+        this.failureTimer = Suppliers.memoize(() -> metrics.response()
                 .channelName(channelName)
                 .serviceName(endpoint.serviceName())
                 .endpoint(endpoint.endpointName())
                 .status("failure")
-                .build();
+                .build());
     }
 
     static EndpointChannel create(Config cf, EndpointChannel delegate, Endpoint endpoint) {
@@ -76,7 +78,7 @@ final class TimingEndpointChannel implements EndpointChannel {
         long beforeNanos = ticker.read();
         ListenableFuture<Response> response = delegate.execute(request);
 
-        return DialogueFutures.addDirectCallback(response, new FutureCallback<Response>() {
+        return DialogueFutures.addDirectCallback(response, new FutureCallback<>() {
             @Override
             @SuppressWarnings("PreferJavaTimeOverload")
             public void onSuccess(Response response) {
@@ -102,8 +104,8 @@ final class TimingEndpointChannel implements EndpointChannel {
             }
 
             @SuppressWarnings("PreferJavaTimeOverload") // performance sensitive
-            private void updateTimer(Timer timer) {
-                timer.update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
+            private void updateTimer(Supplier<Timer> timer) {
+                timer.get().update(ticker.read() - beforeNanos, TimeUnit.NANOSECONDS);
             }
         });
     }
