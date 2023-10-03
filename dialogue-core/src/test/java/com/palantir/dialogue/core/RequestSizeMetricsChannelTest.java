@@ -40,10 +40,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.OptionalLong;
 import java.util.concurrent.ExecutionException;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
 public class RequestSizeMetricsChannelTest {
 
     private static final DialogueChannelFactory STUB_FACTORY = _ignored -> {
