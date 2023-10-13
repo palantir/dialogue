@@ -233,6 +233,7 @@ final class ChannelCache {
         }
     }
 
+    @DoNotLog
     @Value.Immutable
     interface ApacheCacheEntry {
         ApacheClientRequest originalRequest();
