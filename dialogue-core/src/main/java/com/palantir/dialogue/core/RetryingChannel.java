@@ -104,8 +104,8 @@ final class RetryingChannel implements EndpointChannel {
     private final ClientConfiguration.RetryOnTimeout retryOnTimeout;
     private final Duration backoffSlotSize;
     private final DoubleSupplier jitter;
-    private final Meter retryDueToServerError;
-    private final Meter retryDueToQosResponse;
+    private final Supplier<Meter> retryDueToServerError;
+    private final Supplier<Meter> retryDueToQosResponse;
     private final Function<Throwable, Meter> retryDueToThrowable;
 
     static EndpointChannel create(Config cf, EndpointChannel channel, Endpoint endpoint) {
@@ -180,16 +180,16 @@ final class RetryingChannel implements EndpointChannel {
         this.scheduler = instrument(scheduler, metrics);
         this.jitter = jitter;
         DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
-        this.retryDueToServerError = dialogueClientMetrics
+        this.retryDueToServerError = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason("serverError")
-                .build();
-        this.retryDueToQosResponse = dialogueClientMetrics
+                .build());
+        this.retryDueToQosResponse = Suppliers.memoize(() -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
                 .reason("qosResponse")
-                .build();
+                .build());
         this.retryDueToThrowable = throwable -> dialogueClientMetrics
                 .requestRetry()
                 .channelName(channelName)
@@ -271,11 +271,11 @@ final class RetryingChannel implements EndpointChannel {
         private ListenableFuture<Response> handleHttpResponse(Response response) {
             boolean canRetryRequest = requestCanBeRetried();
             if (canRetryRequest && isRetryableQosStatus(response)) {
-                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse);
+                return incrementFailuresAndMaybeRetry(response, qosThrowable, retryDueToQosResponse.get());
             }
 
             if (canRetryRequest && Responses.isInternalServerError(response) && safeToRetry(endpoint.httpMethod())) {
-                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError);
+                return incrementFailuresAndMaybeRetry(response, serverErrorThrowable, retryDueToServerError.get());
             }
 
             return Futures.immediateFuture(response);

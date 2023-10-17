@@ -174,13 +174,30 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     new StickyValidationChannel(NodeSelectionStrategyChannel.create(cf, channels));
 
             Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-            Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
+            EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
 
-            EndpointChannelFactory channelFactory = endpoint -> {
-                EndpointChannel channel = new EndpointChannelAdapter(endpoint, queuedChannel);
+            Supplier<Channel> stickyChannelSupplier =
+                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
+
+            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                    .create()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+            createMeter.mark();
+
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+        }
+
+        private static EndpointChannelFactory createEndpointChannelFactory(Channel multiHostQueuedChannel, Config cf) {
+            Channel queuedChannel = new QueueOverrideChannel(multiHostQueuedChannel);
+            return endpoint -> {
+                EndpointChannel endpointChannel = new EndpointChannelAdapter(endpoint, queuedChannel);
+                EndpointChannel channel = cf.clientConf()
+                        .userAgent()
+                        .map(userAgent -> UserAgentEndpointChannel.create(endpointChannel, endpoint, userAgent))
+                        .orElse(endpointChannel);
                 channel = RetryingChannel.create(cf, channel, endpoint);
-                channel = UserAgentEndpointChannel.create(
-                        channel, endpoint, cf.clientConf().userAgent().get());
                 channel = DeprecationWarningChannel.create(cf, channel, endpoint);
                 channel = ContentDecodingChannel.create(cf, channel, endpoint);
                 channel = new RangeAcceptsIdentityEncodingChannel(channel);
@@ -195,18 +212,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
-
-            Supplier<Channel> stickyChannelSupplier =
-                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
-
-            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
-                    .create()
-                    .clientName(cf.channelName())
-                    .clientType("dialogue-channel-non-reloading")
-                    .build();
-            createMeter.mark();
-
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
         }
 
         /**

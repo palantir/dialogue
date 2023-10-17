@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Memoize some sticky channel metrics
+  links:
+  - https://github.com/palantir/dialogue/pull/2026
