@@ -193,18 +193,16 @@ public final class ApacheHttpClientChannels {
             if (log.isDebugEnabled()) {
                 // If debug is enabled, log the stack trace.
                 log.debug(
-                        "Created Apache client {} {} {} {}",
+                        "Created Apache client {} {} {}",
                         SafeArg.of("name", clientName),
                         SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
-                        UnsafeArg.of("clientConfiguration", clientConfiguration),
                         UnsafeArg.of("executor", executor),
                         new SafeRuntimeException("Created here"));
             } else {
                 log.info(
-                        "Created Apache client {} {} {} {}",
+                        "Created Apache client {} {} {}",
                         SafeArg.of("name", clientName),
                         SafeArg.of("client", Integer.toHexString(System.identityHashCode(apacheClient))),
-                        UnsafeArg.of("clientConfiguration", clientConfiguration),
                         UnsafeArg.of("executor", executor));
             }
             Meter createMeter = DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry())

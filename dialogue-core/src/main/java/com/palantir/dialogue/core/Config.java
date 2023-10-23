@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.github.benmanes.caffeine.cache.Ticker;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration.ClientQoS;
+import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
@@ -30,6 +31,7 @@ import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 /** Private class to centralize validation of params necessary to construct a dialogue channel. */
+@DoNotLog
 @Value.Immutable
 interface Config {
 
