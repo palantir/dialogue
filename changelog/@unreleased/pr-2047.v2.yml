@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Add socket bind timing metrics
+  links:
+  - https://github.com/palantir/dialogue/pull/2047
