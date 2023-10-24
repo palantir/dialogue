@@ -37,13 +37,15 @@ final class InstrumentedManagedHttpConnectionFactory implements HttpConnectionFa
             TaggedMetricRegistry metrics,
             String clientName) {
         this.delegate = delegate;
-        this.serverTimingOverhead = DialogueClientMetrics.of(metrics).serverTimingOverhead(clientName);
-        this.socketBindSuccessesTimer = DialogueClientMetrics.of(metrics)
+        DialogueClientMetrics dialogueClientMetrics = DialogueClientMetrics.of(metrics);
+
+        this.serverTimingOverhead = dialogueClientMetrics.serverTimingOverhead(clientName);
+        this.socketBindSuccessesTimer = dialogueClientMetrics
                 .connectionSocketBind()
                 .clientName(clientName)
                 .result(ConnectionSocketBind_Result.SUCCESS)
                 .build();
-        this.socketBindFailureTimer = DialogueClientMetrics.of(metrics)
+        this.socketBindFailureTimer = dialogueClientMetrics
                 .connectionSocketBind()
                 .clientName(clientName)
                 .result(ConnectionSocketBind_Result.FAILURE)
