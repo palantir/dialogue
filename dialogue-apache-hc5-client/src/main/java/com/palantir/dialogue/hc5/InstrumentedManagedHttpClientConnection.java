@@ -38,15 +38,30 @@ final class InstrumentedManagedHttpClientConnection implements ManagedHttpClient
 
     private final ManagedHttpClientConnection delegate;
     private final Timer serverTimingOverhead;
+    private final Timer socketBindTimer;
+    private final Timer socketBindFailureTimer;
 
-    InstrumentedManagedHttpClientConnection(ManagedHttpClientConnection delegate, Timer serverTimingOverhead) {
+    InstrumentedManagedHttpClientConnection(
+            ManagedHttpClientConnection delegate,
+            Timer serverTimingOverhead,
+            Timer socketBindTimer,
+            Timer socketBindFailureTimer) {
         this.delegate = delegate;
         this.serverTimingOverhead = serverTimingOverhead;
+        this.socketBindTimer = socketBindTimer;
+        this.socketBindFailureTimer = socketBindFailureTimer;
     }
 
     @Override
     public void bind(Socket socket) throws IOException {
-        delegate.bind(socket);
+        long startTimeNanos = System.nanoTime();
+        try {
+            delegate.bind(socket);
+            socketBindTimer.update(System.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
+        } catch (Exception e) {
+            socketBindFailureTimer.update(System.nanoTime() - startTimeNanos, TimeUnit.NANOSECONDS);
+            throw e;
+        }
     }
 
     @Override

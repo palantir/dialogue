@@ -49,6 +49,17 @@ namespaces:
             values: [ apache-hc5 ]
         docs: Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
 
+      connection.socket.bind:
+        type: timer
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+          - name: result
+            values: [ success, failure ]
+            docs: Describes whether or not a connection was successfully established.
+        docs: Reports the time spent binding to the socket. This does not includes the TLS handshake.
+
       connection.create:
         type: timer
         tags:

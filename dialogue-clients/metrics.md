@@ -20,6 +20,10 @@ Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.close` (meter): Marked every time an Apache client is successfully closed and any underlying resources released (e.g. connections and background threads).
   - `client-name`
   - `client-type` values (`apache-hc5`)
+- `dialogue.client.connection.socket.bind` (timer): Reports the time spent binding to the socket. This does not includes the TLS handshake.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+  - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
 - `dialogue.client.connection.create` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
   - `client-name`
   - `client-type` values (`apache-hc5`)

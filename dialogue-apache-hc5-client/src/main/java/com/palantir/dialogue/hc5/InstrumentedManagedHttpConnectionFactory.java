@@ -17,6 +17,7 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
+import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionSocketBind_Result;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.net.Socket;
@@ -28,6 +29,8 @@ final class InstrumentedManagedHttpConnectionFactory implements HttpConnectionFa
 
     private final HttpConnectionFactory<ManagedHttpClientConnection> delegate;
     private final Timer serverTimingOverhead;
+    private final Timer socketBindSuccessesTimer;
+    private final Timer socketBindFailureTimer;
 
     InstrumentedManagedHttpConnectionFactory(
             HttpConnectionFactory<ManagedHttpClientConnection> delegate,
@@ -35,11 +38,25 @@ final class InstrumentedManagedHttpConnectionFactory implements HttpConnectionFa
             String clientName) {
         this.delegate = delegate;
         this.serverTimingOverhead = DialogueClientMetrics.of(metrics).serverTimingOverhead(clientName);
+        this.socketBindSuccessesTimer = DialogueClientMetrics.of(metrics)
+                .connectionSocketBind()
+                .clientName(clientName)
+                .result(ConnectionSocketBind_Result.SUCCESS)
+                .build();
+        this.socketBindFailureTimer = DialogueClientMetrics.of(metrics)
+                .connectionSocketBind()
+                .clientName(clientName)
+                .result(ConnectionSocketBind_Result.FAILURE)
+                .build();
     }
 
     @Override
     public ManagedHttpClientConnection createConnection(Socket socket) throws IOException {
-        return new InstrumentedManagedHttpClientConnection(delegate.createConnection(socket), serverTimingOverhead);
+        return new InstrumentedManagedHttpClientConnection(
+                delegate.createConnection(socket),
+                serverTimingOverhead,
+                socketBindSuccessesTimer,
+                socketBindFailureTimer);
     }
 
     @Override
