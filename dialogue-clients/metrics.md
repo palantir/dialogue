@@ -23,7 +23,7 @@ Dialogue client response metrics provided by the Apache client channel.
 - `dialogue.client.connection.socket.bind` (timer): Reports the time spent binding to the socket. This does not includes the TLS handshake.
   - `client-name`
   - `client-type` values (`apache-hc5`)
-  - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
+  - `result` values (`success`,`failure`): Describes whether or not the socket bind was successful.
 - `dialogue.client.connection.create` (timer): Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
   - `client-name`
   - `client-type` values (`apache-hc5`)

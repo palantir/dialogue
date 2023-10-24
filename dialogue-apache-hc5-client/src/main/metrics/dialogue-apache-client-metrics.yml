@@ -57,7 +57,7 @@ namespaces:
             values: [ apache-hc5 ]
           - name: result
             values: [ success, failure ]
-            docs: Describes whether or not a connection was successfully established.
+            docs: Describes whether or not the socket bind was successful.
         docs: Reports the time spent binding to the socket. This does not includes the TLS handshake.
 
       connection.create:
