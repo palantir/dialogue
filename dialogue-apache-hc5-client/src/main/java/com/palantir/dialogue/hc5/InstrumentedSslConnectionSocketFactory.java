@@ -127,7 +127,7 @@ final class InstrumentedSslConnectionSocketFactory extends SSLConnectionSocketFa
             // Run this under a doPrivileged to support lib users that run under a SecurityManager this allows granting
             // connect permissions only to this library
             try {
-                AccessController.doPrivileged((PrivilegedExceptionAction<Object>) () -> {
+                AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
                     doConnect(
                             sock,
                             remoteAddress,
