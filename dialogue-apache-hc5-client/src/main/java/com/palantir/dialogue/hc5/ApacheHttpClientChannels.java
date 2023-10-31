@@ -83,7 +83,6 @@ import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
-import org.apache.hc.client5.http.ssl.SSLConnectionSocketFactory;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
@@ -485,19 +484,17 @@ public final class ApacheHttpClientChannels {
                             })
                             .register(
                                     URIScheme.HTTPS.id,
-                                    new SSLConnectionSocketFactory(
+                                    new InstrumentedSslConnectionSocketFactory(
+                                            name,
+                                            DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry()),
                                             MetricRegistries.instrument(
                                                     conf.taggedMetricRegistry(), rawSocketFactory, name),
                                             TlsProtocols.get(),
                                             supportedCipherSuites(
                                                     CipherSuites.allCipherSuites(), rawSocketFactory, name),
                                             new InstrumentedHostnameVerifier(
-                                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry())) {
-                                        @Override
-                                        public Socket createSocket(HttpContext _context) {
-                                            return simpleSocketCreator.get();
-                                        }
-                                    })
+                                                    new DefaultHostnameVerifier(), name, conf.taggedMetricRegistry()),
+                                            simpleSocketCreator))
                             .build(),
                     PoolConcurrencyPolicy.LAX,
                     // Allow unnecessary connections to time out reducing system load.

@@ -60,6 +60,17 @@ namespaces:
             docs: Describes whether or not a connection was successfully established.
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
+      connection.connect:
+        type: timer
+        tags:
+          - name: client-name
+          - name: client-type
+            values: [ apache-hc5 ]
+          - name: result
+            values: [ success, failure ]
+            docs: Describes whether or not a connection was successfully established.
+        docs: Reports the time spent within `socket.connect`. This does not include TLS.
+
       connection.closed.partially-consumed-response:
         type: meter
         tags:

@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.fail;
 import com.codahale.metrics.Gauge;
 import com.codahale.metrics.Meter;
 import com.codahale.metrics.Metric;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.Lists;
 import com.google.common.collect.MoreCollectors;
 import com.google.common.net.HttpHeaders;
@@ -37,6 +38,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Result;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -162,16 +164,23 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
                 .connectTimeout(Duration.ofMillis(1))
                 .build();
 
-        try (ApacheHttpClientChannels.CloseableClient client =
-                ApacheHttpClientChannels.createCloseableHttpClient(conf, "testClient")) {
+        String clientName = "testClient";
 
-            Meter connectionCreateError = DialogueClientMetrics.of(conf.taggedMetricRegistry())
-                    .connectionCreateError()
-                    .clientName("testClient")
+        try (ApacheHttpClientChannels.CloseableClient client =
+                ApacheHttpClientChannels.createCloseableHttpClient(conf, clientName)) {
+
+            DialogueClientMetrics metrics = DialogueClientMetrics.of(conf.taggedMetricRegistry());
+            Meter connectionCreateError = metrics.connectionCreateError()
+                    .clientName(clientName)
                     .cause("ConnectTimeoutException")
+                    .build();
+            Timer connectionFailed = metrics.connectionCreate()
+                    .clientName(clientName)
+                    .result(ConnectionCreate_Result.FAILURE)
                     .build();
 
             assertThat(connectionCreateError.getCount()).isZero();
+            assertThat(connectionFailed.getCount()).isZero();
 
             // 203.0.113.0/24 is a test network that should never exist
             Channel channel = ApacheHttpClientChannels.createSingleUri("http://203.0.113.23", client);
@@ -185,6 +194,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             }
 
             assertThat(connectionCreateError.getCount()).isEqualTo(1L);
+            assertThat(connectionFailed.getCount()).isEqualTo(1L);
         }
     }
 
