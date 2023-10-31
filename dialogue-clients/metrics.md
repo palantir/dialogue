@@ -24,6 +24,10 @@ Dialogue client response metrics provided by the Apache client channel.
   - `client-name`
   - `client-type` values (`apache-hc5`)
   - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
+- `dialogue.client.connection.connect` (timer): Reports the time spent within `socket.connect`. This does not include TLS.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
+  - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
 - `dialogue.client.connection.closed.partially-consumed-response` (meter): Reports the rate that connections are closed due to response closure prior to response data being fully exhausted. When this occurs, subsequent requests must create new handshakes, incurring latency and CPU overhead due to handshakes.
   - `client-name`
   - `client-type` values (`apache-hc5`)
