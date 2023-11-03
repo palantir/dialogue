@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue validates RequestBody implementations
+  links:
+  - https://github.com/palantir/dialogue/pull/2057

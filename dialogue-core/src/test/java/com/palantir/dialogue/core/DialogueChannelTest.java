@@ -47,6 +47,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeNullPointerException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.tracing.TestTracing;
 import java.io.IOException;
@@ -137,6 +138,38 @@ public final class DialogueChannelTest {
 
         // only when we access things do we allow exceptions
         assertThatThrownBy(() -> Futures.getUnchecked(future)).hasCauseInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    public void testRequestBodyRequiresContentType() {
+        ListenableFuture<Response> req = channel.execute(
+                endpoint,
+                Request.builder()
+                        .body(new RequestBody() {
+                            @Override
+                            public void writeTo(OutputStream _output) {}
+
+                            @Override
+                            @SuppressWarnings("NullAway")
+                            public String contentType() {
+                                // Null values are not allowed -- this should fail
+                                return null;
+                            }
+
+                            @Override
+                            public boolean repeatable() {
+                                return false;
+                            }
+
+                            @Override
+                            public void close() {}
+                        })
+                        .build());
+        assertThat(req)
+                .failsWithin(Duration.ZERO)
+                .withThrowableThat()
+                .withRootCauseInstanceOf(SafeNullPointerException.class)
+                .withMessageContaining("contentType is required");
     }
 
     @Test

@@ -209,6 +209,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     // high cardinality.
                     channel = TimingEndpointChannel.create(cf, channel, endpoint);
                 }
+                channel = new RequestBodyValidationChannel(channel);
                 channel = new InterruptionChannel(channel);
                 return new NeverThrowEndpointChannel(channel); // this must come last as a defensive backstop
             };
