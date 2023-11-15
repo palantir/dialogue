@@ -84,6 +84,7 @@ import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.core5.http.URIScheme;
+import org.apache.hc.core5.http.config.Http1Config;
 import org.apache.hc.core5.http.config.RegistryBuilder;
 import org.apache.hc.core5.http.io.SocketConfig;
 import org.apache.hc.core5.http.protocol.HttpContext;
@@ -504,7 +505,14 @@ public final class ApacheHttpClientChannels {
                     null,
                     new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
-                            ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
+                            ManagedHttpClientConnectionFactory.builder()
+                                    .http1Config(Http1Config.custom()
+                                            .setBufferSize(16 * 1024)
+                                            .setChunkSizeHint(16 * 1024)
+                                            .build())
+                                    .build(),
+                            conf.taggedMetricRegistry(),
+                            name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()
                     .setSoKeepAlive(true)
                     // The default socket configuration socket timeout only applies prior to request execution.
