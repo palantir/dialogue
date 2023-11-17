@@ -22,6 +22,7 @@ import com.palantir.dialogue.HttpMethod;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.tokens.auth.AuthHeader;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalDouble;
@@ -46,6 +47,12 @@ public interface MyService {
     // Support blocking and listenablefuture based on the return type
     @Request(method = HttpMethod.GET, path = "/greeting", accept = CustomStringDeserializer.class)
     ListenableFuture<String> getGreetingAsync();
+
+    @Request(method = HttpMethod.GET, path = "/input-stream")
+    InputStream inputStream();
+
+    @Request(method = HttpMethod.GET, path = "/input-stream-custom", accept = CustomInputStreamDeserializer.class)
+    InputStream customInputStream();
 
     // No decoders allowed (void method)
     // No encoders allowed (RequestBody is pre-encoded)

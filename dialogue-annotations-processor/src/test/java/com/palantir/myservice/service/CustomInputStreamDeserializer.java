@@ -14,13 +14,20 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.annotations;
+package com.palantir.myservice.service;
 
-import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.Response;
+import com.palantir.dialogue.annotations.StdDeserializer;
+import java.io.InputStream;
 
-public final class ErrorHandlingVoidDeserializer extends ErrorHandlingDeserializer<Void> {
+public final class CustomInputStreamDeserializer extends StdDeserializer<InputStream> {
 
-    public ErrorHandlingVoidDeserializer(Deserializer<Void> delegate, ErrorDecoder errorDecoder) {
-        super(delegate, errorDecoder);
+    public CustomInputStreamDeserializer() {
+        super("application/octet-stream");
+    }
+
+    @Override
+    public InputStream deserialize(Response response) {
+        return response.body();
     }
 }

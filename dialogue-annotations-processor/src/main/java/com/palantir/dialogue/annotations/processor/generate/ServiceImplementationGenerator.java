@@ -22,6 +22,7 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Serializer;
 import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
+import com.palantir.dialogue.annotations.ErrorHandlingDeserializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.ParameterSerializer;
@@ -166,21 +167,34 @@ public final class ServiceImplementationGenerator {
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
-        CodeBlock realDeserializer = CodeBlock.of(
+        CodeBlock deserializer = CodeBlock.of(
                 "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
                 ErrorHandlingDeserializerFactory.class,
                 deserializerFactoryType,
                 errorDecoderType,
                 TypeMarker.class,
                 innerType);
-        CodeBlock voidDeserializer = CodeBlock.of(
-                "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
-                ErrorHandlingVoidDeserializer.class,
-                serviceDefinition.conjureRuntimeArgName(),
-                errorDecoderType);
+
+        // If no custom deserializer is used, use the runtime-provided deserializers for specific types
+        if (!type.isUsingCustomDeserializer()) {
+            if (type.isVoid()) {
+                deserializer = CodeBlock.of(
+                        "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
+                        ErrorHandlingVoidDeserializer.class,
+                        serviceDefinition.conjureRuntimeArgName(),
+                        errorDecoderType);
+            } else if (type.isInputStream()) {
+                deserializer = CodeBlock.of(
+                        "new $T<>($L.bodySerDe().inputStreamDeserializer(), new $T())",
+                        ErrorHandlingDeserializer.class,
+                        serviceDefinition.conjureRuntimeArgName(),
+                        errorDecoderType);
+            }
+        }
+
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
+                .initializer(deserializer)
                 .build());
     }
 
