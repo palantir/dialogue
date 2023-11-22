@@ -19,6 +19,7 @@ package com.palantir.dialogue.core;
 import com.google.common.util.concurrent.AtomicDouble;
 import java.time.Duration;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.DoubleBinaryOperator;
 import java.util.function.LongSupplier;
 
 /**
@@ -33,6 +34,10 @@ final class CoarseExponentialDecayReservoir {
     // Several decays occur per half life to produce smoother traffic curves.
     private static final int DECAYS_PER_HALF_LIFE = 10;
     private static final double DECAY_FACTOR = Math.pow(.5D, 1D / DECAYS_PER_HALF_LIFE);
+
+    @SuppressWarnings("UnnecessaryLambda") // no allocations
+    private static final DoubleBinaryOperator DECAY = (value, decacyFactor) -> value * decacyFactor;
+
     private final AtomicDouble value = new AtomicDouble();
     /** System precise clock time (nanoseconds) of the last decay. */
     private final AtomicLong lastDecay = new AtomicLong();
@@ -71,19 +76,7 @@ final class CoarseExponentialDecayReservoir {
                 // It's possible the current thread may read or update the value before a decay has
                 // completed, but ultimately it makes little difference due to smaller segmented decays.
                 && lastDecay.compareAndSet(lastDecaySnapshot, lastDecaySnapshot + decays * decayIntervalNanoseconds)) {
-            decay(decays);
-        }
-    }
-
-    private void decay(int decayIterations) {
-        AtomicDouble valueAtomicDouble = value;
-        // AtomicDouble does not have an accumulateAndGet function
-        while (true) {
-            double snapshot = valueAtomicDouble.get();
-            double updated = snapshot * Math.pow(DECAY_FACTOR, decayIterations);
-            if (valueAtomicDouble.compareAndSet(snapshot, updated)) {
-                break;
-            }
+            value.accumulateAndGet(Math.pow(DECAY_FACTOR, decays), DECAY);
         }
     }
 
