@@ -17,9 +17,9 @@ import com.palantir.dialogue.TypeMarker;
 import com.palantir.dialogue.UrlBuilder;
 import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
-import com.palantir.dialogue.annotations.ErrorHandlingDeserializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
+import com.palantir.dialogue.annotations.InputStreamDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
@@ -61,8 +61,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
 
             private final EndpointChannel inputStreamChannel = endpointChannelFactory.endpoint(Endpoints.inputStream);
 
-            private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializer<>(
-                    runtime.bodySerDe().inputStreamDeserializer(), new ConjureErrorDecoder());
+            private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new InputStreamDeserializer(runtime.bodySerDe()), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<InputStream>() {});
 
             private final EndpointChannel customInputStreamChannel =
                     endpointChannelFactory.endpoint(Endpoints.customInputStream);

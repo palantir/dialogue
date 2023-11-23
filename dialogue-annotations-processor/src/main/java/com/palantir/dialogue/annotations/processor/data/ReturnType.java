@@ -16,9 +16,7 @@
 
 package com.palantir.dialogue.annotations.processor.data;
 
-import com.squareup.javapoet.ClassName;
 import com.squareup.javapoet.TypeName;
-import java.io.InputStream;
 import java.util.Optional;
 import org.immutables.value.Value;
 
@@ -29,10 +27,7 @@ public interface ReturnType {
 
     TypeName deserializerFactory();
 
-    @Value.Default
-    default boolean isUsingCustomDeserializer() {
-        return false;
-    }
+    boolean deserializerUsesBodySerDe();
 
     TypeName errorDecoder();
 
@@ -44,11 +39,5 @@ public interface ReturnType {
     default boolean isVoid() {
         TypeName type = asyncInnerType().orElseGet(this::returnType);
         return type.box().equals(TypeName.VOID.box());
-    }
-
-    @Value.Derived
-    default boolean isInputStream() {
-        TypeName type = asyncInnerType().orElseGet(this::returnType);
-        return type.equals(ClassName.get(InputStream.class));
     }
 }

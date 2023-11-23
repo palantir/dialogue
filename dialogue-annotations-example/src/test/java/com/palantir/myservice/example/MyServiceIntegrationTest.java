@@ -49,6 +49,7 @@ import io.undertow.util.HeaderValues;
 import io.undertow.util.Headers;
 import io.undertow.util.HttpString;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
@@ -194,6 +195,24 @@ public final class MyServiceIntegrationTest {
                                     .putParameters("key", "value")
                                     .build());
                 });
+    }
+
+    @Test
+    public void testInputStream() throws IOException {
+        undertowHandler = exchange -> {
+            exchange.assertMethod(HttpMethod.GET);
+            exchange.assertPath("/input-stream");
+            exchange.assertAccept().isEqualTo("application/octet-stream");
+            exchange.assertContentType().isNull();
+
+            exchange.exchange.setStatusCode(200);
+            exchange.setContentType("application/octet-stream");
+            exchange.writeStringBody("Hello");
+        };
+        try (InputStream inputStream = myServiceDialogue.inputStream()) {
+            assertThat(new String(inputStream.readAllBytes(), StandardCharsets.UTF_8))
+                    .isEqualTo("Hello");
+        }
     }
 
     @Test

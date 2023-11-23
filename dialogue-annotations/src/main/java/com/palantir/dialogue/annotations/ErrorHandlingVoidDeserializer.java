@@ -17,10 +17,33 @@
 package com.palantir.dialogue.annotations;
 
 import com.palantir.dialogue.Deserializer;
+import com.palantir.dialogue.Response;
+import com.palantir.logsafe.Preconditions;
+import java.util.Optional;
 
-public final class ErrorHandlingVoidDeserializer extends ErrorHandlingDeserializer<Void> {
+public final class ErrorHandlingVoidDeserializer implements Deserializer<Void> {
+
+    private final Deserializer<Void> delegate;
+    private final ErrorDecoder errorDecoder;
 
     public ErrorHandlingVoidDeserializer(Deserializer<Void> delegate, ErrorDecoder errorDecoder) {
-        super(delegate, errorDecoder);
+        this.delegate = Preconditions.checkNotNull(delegate, "delegate");
+        this.errorDecoder = Preconditions.checkNotNull(errorDecoder, "errorDecoder");
+    }
+
+    @Override
+    public Void deserialize(Response response) {
+        try (response) {
+            if (errorDecoder.isError(response)) {
+                throw errorDecoder.decode(response);
+            } else {
+                return delegate.deserialize(response);
+            }
+        }
+    }
+
+    @Override
+    public Optional<String> accepts() {
+        return delegate.accepts();
     }
 }

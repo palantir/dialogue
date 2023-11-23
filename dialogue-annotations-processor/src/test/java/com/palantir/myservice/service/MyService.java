@@ -48,9 +48,11 @@ public interface MyService {
     @Request(method = HttpMethod.GET, path = "/greeting", accept = CustomStringDeserializer.class)
     ListenableFuture<String> getGreetingAsync();
 
+    @MustBeClosed
     @Request(method = HttpMethod.GET, path = "/input-stream")
     InputStream inputStream();
 
+    @MustBeClosed
     @Request(method = HttpMethod.GET, path = "/input-stream-custom", accept = CustomInputStreamDeserializer.class)
     InputStream customInputStream();
 
