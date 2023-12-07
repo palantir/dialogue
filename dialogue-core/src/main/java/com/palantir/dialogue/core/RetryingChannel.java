@@ -370,10 +370,14 @@ final class RetryingChannel implements EndpointChannel {
         }
 
         private long getBackoffNanoseconds() {
-            if (failures == 0) {
+            // failures == 0: this method isn't expected to be called
+            // failures == 1: The first failure has been recorded, a retry should
+            //                be attempted immediately with no backoff
+            // failures >= 2: Exponential backoff based on the number of failures
+            if (failures < 2) {
                 return 0L;
             }
-            int upperBound = (int) Math.pow(2, failures - 1);
+            int upperBound = (int) Math.pow(2, failures - 2);
             return Math.round(backoffSlotSize.toNanos() * jitter.getAsDouble() * upperBound);
         }
 
