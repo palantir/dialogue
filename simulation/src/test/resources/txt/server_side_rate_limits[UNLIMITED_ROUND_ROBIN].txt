@@ -1,3 +1,3 @@
-success=99.0%	client_mean=PT5M25.20993258S	server_cpu=PT13422H46M40S 	client_received=150000/150000	server_resps=241610	codes={200=148518, 429=1482}
-client=0 endpoint	client_mean=PT5M22.124661S 
-client=1 endpoint	client_mean=PT5M28.419374655S
+success=99.1%	client_mean=PT5M16.898919206S	server_cpu=PT13381H10M    	client_received=150000/150000	server_resps=240861	codes={200=148598, 429=1402}
+client=0 endpoint	client_mean=PT5M17.863602531S
+client=1 endpoint	client_mean=PT5M15.894516312S

@@ -1,11 +1,11 @@
-success=100.0%	client_mean=PT2M58.655204751S	server_cpu=PT12H17M5.373333196S	client_received=10000/10000	server_resps=12003	codes={200=10000}
-client=0 endpoint	client_mean=PT3M28.902604868S
-client=1 endpoint	client_mean=PT2M46.132798835S
-client=2 endpoint	client_mean=PT3M3.136739643S
-client=3 endpoint	client_mean=PT2M6.528915992S
-client=4 endpoint	client_mean=PT3M18.494629906S
-client=5 endpoint	client_mean=PT2M58.831146743S
-client=6 endpoint	client_mean=PT2M28.546744051S
-client=7 endpoint	client_mean=PT3M3.21944579S
-client=8 endpoint	client_mean=PT4M26.455405913S
-client=9 endpoint	client_mean=PT2M6.822416301S
+success=100.0%	client_mean=PT2M59.164157536S	server_cpu=PT12H27M9.866666568S	client_received=10000/10000	server_resps=11986	codes={200=9998, 500=2}
+client=0 endpoint	client_mean=PT1M38.237753731S
+client=1 endpoint	client_mean=PT3M41.728198493S
+client=2 endpoint	client_mean=PT3M2.290618157S
+client=3 endpoint	client_mean=PT3M9.718179589S
+client=4 endpoint	client_mean=PT3M15.723782551S
+client=5 endpoint	client_mean=PT2M32.513061148S
+client=6 endpoint	client_mean=PT1M44.165083431S
+client=7 endpoint	client_mean=PT3M49.225725925S
+client=8 endpoint	client_mean=PT3M44.107628829S
+client=9 endpoint	client_mean=PT3M7.968214842S

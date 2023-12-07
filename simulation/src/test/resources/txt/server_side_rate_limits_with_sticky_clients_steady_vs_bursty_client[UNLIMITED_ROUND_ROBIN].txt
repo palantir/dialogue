@@ -1,3 +1,3 @@
-success=6.4%	client_mean=PT3.873525187S 	server_cpu=PT4M1.57S      	client_received=10060/10060	server_resps=48314	codes={200=639, 429=9421}
-client=slowAndSteady endpoint	client_mean=PT0.176960338S 
-client=oneShotBurst endpoint	client_mean=PT3.895704576S 
+success=2.1%	client_mean=PT2.074470182S 	server_cpu=PT4M8.665S     	client_received=10060/10060	server_resps=49733	codes={200=210, 429=9850}
+client=slowAndSteady endpoint	client_mean=PT0.035411019S 
+client=oneShotBurst endpoint	client_mean=PT2.086704537S 
