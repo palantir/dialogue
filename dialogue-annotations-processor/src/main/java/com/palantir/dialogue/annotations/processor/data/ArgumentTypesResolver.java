@@ -152,6 +152,7 @@ public final class ArgumentTypesResolver {
         return context.getGenericInnerType(Optional.class, typeMirror)
                 .map(innerType -> getPrimitiveType(innerType)
                         .or(() -> getAliasType(innerType))
+                        .or(() -> getEnumType(innerType))
                         .orElseGet(() -> getCustomType(typeMirror)))
                 .map(innerType -> ArgumentTypes.optional(
                         typeName,
