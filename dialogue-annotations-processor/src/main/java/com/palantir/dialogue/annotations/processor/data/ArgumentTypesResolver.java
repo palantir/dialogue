@@ -39,6 +39,8 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.VariableElement;
+import javax.lang.model.type.DeclaredType;
+import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 
 public final class ArgumentTypesResolver {
@@ -79,6 +81,7 @@ public final class ArgumentTypesResolver {
                 .or(() -> getOptionalType(typeMirror))
                 .or(() -> getRawRequestBodyType(typeMirror))
                 .or(() -> getAliasType(typeMirror))
+                .or(() -> getEnumType(typeMirror))
                 .orElseGet(() -> ArgumentTypes.customType(TypeName.get(typeMirror)));
     }
 
@@ -175,6 +178,30 @@ public final class ArgumentTypesResolver {
                 .collect(MoreCollectors.toOptional())
                 .flatMap(element -> getPrimitiveSerializerMethodName(element.getReturnType()))
                 .map(methodName -> ArgumentTypes.alias(typeName, methodName));
+    }
+
+    private Optional<ArgumentType> getEnumType(TypeMirror typeMirror) {
+        TypeName typeName = TypeName.get(typeMirror);
+
+        return context.maybeAsDeclaredType(typeMirror).stream()
+                .flatMap(declaredType -> declaredType.asElement().getEnclosedElements().stream())
+                .filter(element -> element.getKind() == ElementKind.METHOD)
+                .map(ExecutableElement.class::cast)
+                .filter(element -> element.getSimpleName().contentEquals("get")
+                        && element.getModifiers().contains(Modifier.PUBLIC)
+                        && !element.getModifiers().contains(Modifier.STATIC)
+                        && element.getReturnType().getKind().equals(TypeKind.DECLARED)
+                        && element.getThrownTypes().isEmpty()
+                        && element.getParameters().isEmpty()
+                        && ((DeclaredType) element.getReturnType())
+                                .asElement()
+                                .getKind()
+                                .equals(ElementKind.ENUM))
+                .collect(MoreCollectors.toOptional())
+                .map(_element -> ArgumentTypes.enumType(
+                        typeName,
+                        getPrimitiveSerializerMethodName(context.getTypeMirror(String.class))
+                                .get()));
     }
 
     private ArgumentType getCustomType(TypeMirror typeMirror) {

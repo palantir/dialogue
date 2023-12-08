@@ -98,6 +98,7 @@ public final class ServiceImplementationGenerator {
                                         .list((typeName, _parameterSerializerMethodName) -> typeName)
                                         .alias((typeName, _aliasType) -> typeName)
                                         .optional((typeName, _optionalType) -> typeName)
+                                        .enumType((typeName, _optionalType) -> typeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
@@ -338,6 +339,20 @@ public final class ServiceImplementationGenerator {
                         .add(inner)
                         .endControlFlow()
                         .build();
+            }
+
+            @Override
+            public CodeBlock enumType(TypeName _typeName, String parameterSerializerMethodName) {
+                return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
+                    return CodeBlock.of(
+                            "$L.$L($S, $L.$L($L.toString()));",
+                            REQUEST,
+                            singleValueMethod,
+                            key,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            argName);
+                });
             }
 
             @Override

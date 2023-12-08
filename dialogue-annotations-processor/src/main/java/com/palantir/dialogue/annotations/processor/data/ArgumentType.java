@@ -32,6 +32,8 @@ public interface ArgumentType {
 
         R optional(TypeName optionalJavaType, OptionalType optionalType);
 
+        R enumType(TypeName javaTypeName, String parameterSerializerMethodName);
+
         R rawRequestBody(TypeName requestBodyType);
 
         R customType(TypeName customTypeName);
