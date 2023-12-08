@@ -77,6 +77,7 @@ public interface MyService {
             // Alias types are supported for @QueryParam and @Header
             @Request.QueryParam("q4") MyAliasType query4,
             @Request.QueryParam("q5") MyEnumType query5,
+            @Request.QueryParam("q6") List<MyAliasType> query6,
             // Path parameter variable name must match the request path component
             @Request.PathParam UUID path1,
             @Request.PathParam(encoder = MyCustomTypeParamEncoder.class) MyCustomType path2,
@@ -85,6 +86,7 @@ public interface MyService {
             @Request.Header("h3") Optional<String> header3,
             @Request.Header("h4") MyAliasType header4,
             @Request.Header("h5") MyEnumType header5,
+            @Request.Header("h6") List<MyAliasType> header6,
             // Can supply a map to fill in arbitrary query values
             @Request.QueryMap(encoder = MapToMultimapParamEncoder.class) Map<String, String> queryParams,
             // Custom encoding classes may be provided for the request and response.

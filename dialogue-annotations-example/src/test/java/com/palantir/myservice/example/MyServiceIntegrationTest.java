@@ -262,12 +262,14 @@ public final class MyServiceIntegrationTest {
             exchange.assertMethod(HttpMethod.POST);
             exchange.assertPath("/params/90a8481a-2ef5-4c64-83fc-04a9b369e2b8/my-custom-param-value");
 
-            assertThat(exchange.exchange.getQueryParameters()).containsOnlyKeys("q1", "q2", "q3", "q4", "q5", "varq1");
+            assertThat(exchange.exchange.getQueryParameters())
+                    .containsOnlyKeys("q1", "q2", "q3", "q4", "q5", "q6", "varq1");
             assertThat(exchange.exchange.getQueryParameters().get("q1")).containsOnly("query1");
             assertThat(exchange.exchange.getQueryParameters().get("q2")).containsOnly("query2-1", "query2-2");
             assertThat(exchange.exchange.getQueryParameters().get("q3")).containsOnly("query3");
             assertThat(exchange.exchange.getQueryParameters().get("q4")).containsOnly("query4");
             assertThat(exchange.exchange.getQueryParameters().get("q5")).containsOnly("VALUE_1");
+            assertThat(exchange.exchange.getQueryParameters().get("q6")).containsOnly("query6-1", "query6-2");
             assertThat(exchange.exchange.getQueryParameters().get("varq1")).containsOnly("varvar1");
             exchange.assertAccept().isNull();
             exchange.assertContentType().isEqualTo("application/json");
@@ -277,6 +279,9 @@ public final class MyServiceIntegrationTest {
             exchange.assertSingleValueHeader(HttpString.tryFromString("h3")).isEqualTo("header3");
             exchange.assertSingleValueHeader(HttpString.tryFromString("h4")).isEqualTo("header4");
             exchange.assertSingleValueHeader(HttpString.tryFromString("h5")).isEqualTo("VALUE_2");
+            exchange.assertMultiValueHeader("h6")
+                    .hasValueSatisfying(values -> assertThat(values).containsExactly("header6-1", "header6-2"));
+
             exchange.assertBodyUtf8().isEqualTo("{\n  \"value\" : \"my-serializable-type-value\"\n}");
 
             exchange.exchange.setStatusCode(200);
@@ -294,6 +299,7 @@ public final class MyServiceIntegrationTest {
                 Optional.of("query3"),
                 ImmutableMyAliasType.of("query4"),
                 MyEnumType.VALUE_1,
+                List.of(ImmutableMyAliasType.of("query6-1"), ImmutableMyAliasType.of("query6-2")),
                 uuid,
                 new MyCustomType("my-custom-param-value"),
                 "header1",
@@ -301,6 +307,7 @@ public final class MyServiceIntegrationTest {
                 Optional.of("header3"),
                 ImmutableMyAliasType.of("header4"),
                 MyEnumType.VALUE_2,
+                List.of(ImmutableMyAliasType.of("header6-1"), ImmutableMyAliasType.of("header6-2")),
                 ImmutableMap.of("varq1", "varvar1"),
                 ImmutableMySerializableType.of("my-serializable-type-value"));
     }
