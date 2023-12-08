@@ -99,7 +99,7 @@ public final class ServiceImplementationGenerator {
                                         .list((typeName, _parameterSerializerMethodName) -> typeName)
                                         .alias((typeName, _aliasType) -> typeName)
                                         .optional((typeName, _optionalType) -> typeName)
-                                        .enumType((typeName, _optionalType) -> typeName)
+                                        .enumType((typeName, _enumType) -> typeName)
                                         .rawRequestBody(typeName -> typeName)
                                         .customType(typeName -> typeName),
                                 arg.argName().get())
@@ -298,7 +298,7 @@ public final class ServiceImplementationGenerator {
             @Override
             public CodeBlock list(TypeName _typeName, ListType listType) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
-                    CodeBlock elementName = CodeBlock.of(argName + "Element");
+                    CodeBlock elementName = CodeBlock.of("$L$L", argName, "Element");
                     CodeBlock elementCodeBlock = generatePlainSerializer(
                             singleValueMethod,
                             multiValueMethod,
