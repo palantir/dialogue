@@ -26,7 +26,7 @@ public interface ArgumentType {
         /** Should be handled by {@link com.palantir.dialogue.annotations.ParameterSerializer}. */
         R primitive(TypeName javaTypeName, String parameterSerializerMethodName);
 
-        R list(TypeName javaTypeName, String parameterSerializerMethodName);
+        R list(TypeName javaTypeName, ListType listType);
 
         R alias(TypeName javaTypeName, String parameterSerializerMethodName);
 
@@ -46,6 +46,12 @@ public interface ArgumentType {
 
         String valueGetMethodName();
 
+        ArgumentType innerType();
+    }
+
+    @Value.Immutable
+    @StagedBuilder
+    interface ListType {
         ArgumentType innerType();
     }
 }

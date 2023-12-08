@@ -27,6 +27,7 @@ import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
+import com.palantir.dialogue.annotations.processor.data.ArgumentType.ListType;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.data.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
@@ -294,19 +295,17 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock list(TypeName _typeName, String parameterSerializerMethodName) {
+            public CodeBlock list(TypeName _typeName, ListType listType) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
-                    CodeBlock asList = CodeBlock.of(
-                            "$L.stream().map($L::$L).collect($T.toList())",
-                            argName,
-                            PARAMETER_SERIALIZER,
-                            parameterSerializerMethodName,
-                            Collectors.class);
-                    return CodeBlock.builder()
-                            .add("$L.$L($S,", REQUEST, multiValueMethod, key)
-                            .add(asList)
-                            .add(");")
-                            .build();
+                    CodeBlock elementName = CodeBlock.of(argName + "Element");
+                    CodeBlock elementCodeBlock = generatePlainSerializer(
+                            singleValueMethod,
+                            multiValueMethod,
+                            key,
+                            elementName,
+                            listType.innerType(),
+                            Optional.empty());
+                    return CodeBlock.of("$L.forEach($L -> { $L });", argName, elementName, elementCodeBlock);
                 });
             }
 
