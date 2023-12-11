@@ -70,23 +70,23 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                             new ResponseDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<Response>() {});
 
+            private final MyCustomTypeParamEncoder paramsQuery8Encoder = new MyCustomTypeParamEncoder();
+
             private final MyCustomTypeParamEncoder paramsQuery9Encoder = new MyCustomTypeParamEncoder();
 
-            private final MyCustomTypeParamEncoder paramsQuery10Encoder = new MyCustomTypeParamEncoder();
+            private final MyCustomStringParamEncoder paramsQuery10Encoder = new MyCustomStringParamEncoder();
 
             private final MyCustomStringParamEncoder paramsQuery11Encoder = new MyCustomStringParamEncoder();
 
-            private final MyCustomStringParamEncoder paramsQuery12Encoder = new MyCustomStringParamEncoder();
-
             private final MyCustomTypeParamEncoder paramsPath2Encoder = new MyCustomTypeParamEncoder();
+
+            private final MyCustomTypeParamEncoder paramsHeader8Encoder = new MyCustomTypeParamEncoder();
 
             private final MyCustomTypeParamEncoder paramsHeader9Encoder = new MyCustomTypeParamEncoder();
 
-            private final MyCustomTypeParamEncoder paramsHeader10Encoder = new MyCustomTypeParamEncoder();
+            private final MyCustomStringParamEncoder paramsHeader10Encoder = new MyCustomStringParamEncoder();
 
             private final MyCustomStringParamEncoder paramsHeader11Encoder = new MyCustomStringParamEncoder();
-
-            private final MyCustomStringParamEncoder paramsHeader12Encoder = new MyCustomStringParamEncoder();
 
             private final Serializer<MySerializableType> paramsSerializer =
                     new MySerializableTypeBodySerializer().serializerFor(new TypeMarker<MySerializableType>() {});
@@ -133,11 +133,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     OptionalDouble query5,
                     List<String> query6,
                     MyAliasType query7,
-                    Optional<MyAliasType> query8,
-                    MyCustomType query9,
-                    Optional<MyCustomType> query10,
-                    String query11,
-                    Optional<String> query12,
+                    MyCustomType query8,
+                    Optional<MyCustomType> query9,
+                    String query10,
+                    Optional<String> query11,
+                    Optional<MyAliasType> query12,
                     UUID path1,
                     MyCustomType path2,
                     String header1,
@@ -147,11 +147,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     OptionalDouble header5,
                     List<String> header6,
                     MyAliasType header7,
-                    Optional<MyAliasType> header8,
-                    MyCustomType header9,
-                    Optional<MyCustomType> header10,
-                    String header11,
-                    Optional<String> header12,
+                    MyCustomType header8,
+                    Optional<MyCustomType> header9,
+                    String header10,
+                    Optional<String> header11,
+                    Optional<MyAliasType> header12,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q1", _parameterSerializer.serializeString(query1));
@@ -173,18 +173,18 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                                 .map(query6Element -> _parameterSerializer.serializeString(query6Element))
                                 .collect(Collectors.toList()));
                 _request.putQueryParams("q7", _parameterSerializer.serializeString(query7.get()));
-                if (query8.isPresent()) {
-                    _request.putQueryParams(
-                            "q8",
-                            _parameterSerializer.serializeString(query8.get().get()));
+                _request.putAllQueryParams("q8", paramsQuery8Encoder.toParamValues(query8));
+                if (query9.isPresent()) {
+                    _request.putAllQueryParams("q9", paramsQuery9Encoder.toParamValues(query9.get()));
                 }
-                _request.putAllQueryParams("q9", paramsQuery9Encoder.toParamValues(query9));
-                if (query10.isPresent()) {
-                    _request.putAllQueryParams("q10", paramsQuery10Encoder.toParamValues(query10.get()));
+                _request.putAllQueryParams("q10", paramsQuery10Encoder.toParamValues(query10));
+                if (query11.isPresent()) {
+                    _request.putAllQueryParams("q11", paramsQuery11Encoder.toParamValues(query11.get()));
                 }
-                _request.putAllQueryParams("q11", paramsQuery11Encoder.toParamValues(query11));
                 if (query12.isPresent()) {
-                    _request.putAllQueryParams("q12", paramsQuery12Encoder.toParamValues(query12.get()));
+                    _request.putQueryParams(
+                            "q12",
+                            _parameterSerializer.serializeString(query12.get().get()));
                 }
                 _request.putPathParams("path1", _parameterSerializer.serializeUuid(path1));
                 _request.putPathParams("path2", paramsPath2Encoder.toParamValue(path2));
@@ -207,18 +207,18 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                                 .map(header6Element -> _parameterSerializer.serializeString(header6Element))
                                 .collect(Collectors.toList()));
                 _request.putHeaderParams("h7", _parameterSerializer.serializeString(header7.get()));
-                if (header8.isPresent()) {
-                    _request.putHeaderParams(
-                            "h8",
-                            _parameterSerializer.serializeString(header8.get().get()));
+                _request.putAllHeaderParams("h8", paramsHeader8Encoder.toParamValues(header8));
+                if (header9.isPresent()) {
+                    _request.putAllHeaderParams("h9", paramsHeader9Encoder.toParamValues(header9.get()));
                 }
-                _request.putAllHeaderParams("h9", paramsHeader9Encoder.toParamValues(header9));
-                if (header10.isPresent()) {
-                    _request.putAllHeaderParams("h10", paramsHeader10Encoder.toParamValues(header10.get()));
+                _request.putAllHeaderParams("h10", paramsHeader10Encoder.toParamValues(header10));
+                if (header11.isPresent()) {
+                    _request.putAllHeaderParams("h11", paramsHeader11Encoder.toParamValues(header11.get()));
                 }
-                _request.putAllHeaderParams("h11", paramsHeader11Encoder.toParamValues(header11));
                 if (header12.isPresent()) {
-                    _request.putAllHeaderParams("h12", paramsHeader12Encoder.toParamValues(header12.get()));
+                    _request.putHeaderParams(
+                            "h12",
+                            _parameterSerializer.serializeString(header12.get().get()));
                 }
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
