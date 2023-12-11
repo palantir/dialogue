@@ -178,7 +178,6 @@ public final class ServiceImplementationGenerator {
                 ErrorHandlingVoidDeserializer.class,
                 serviceDefinition.conjureRuntimeArgName(),
                 errorDecoderType);
-
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
