@@ -62,7 +62,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final EndpointChannel inputStreamChannel = endpointChannelFactory.endpoint(Endpoints.inputStream);
 
             private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializerFactory<>(
-                            new InputStreamDeserializer(runtime.bodySerDe()), new ConjureErrorDecoder())
+                            new InputStreamDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<InputStream>() {});
 
             private final EndpointChannel customInputStreamChannel =

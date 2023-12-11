@@ -52,8 +52,10 @@ public final class ReturnTypesResolver {
                 requestAnnotation.getFieldMaybe("accept", TypeMirror.class);
         Optional<TypeMirror> maybeErrorDecoder = requestAnnotation.getFieldMaybe("errorDecoder", TypeMirror.class);
 
-        Optional<TypeMirror> maybeDeserializerFactory = maybeAcceptDeserializerFactory.or(() ->
-                orDefaultDeserializerFactory(hasMustBeClosed, element, returnType, maybeListenableFutureInnerType));
+        Optional<TypeName> maybeDeserializerFactory = maybeAcceptDeserializerFactory
+                .map(TypeName::get)
+                .or(() -> orDefaultDeserializerFactory(
+                        hasMustBeClosed, element, returnType, maybeListenableFutureInnerType));
 
         if (maybeDeserializerFactory.isEmpty()) {
             return Optional.empty();
@@ -61,8 +63,7 @@ public final class ReturnTypesResolver {
 
         return Optional.of(ImmutableReturnType.builder()
                 .returnType(TypeName.get(returnType))
-                .deserializerFactory(TypeName.get(maybeDeserializerFactory.get()))
-                .deserializerUsesBodySerDe(usesBodySerde(maybeDeserializerFactory.get()))
+                .deserializerFactory(maybeDeserializerFactory.get())
                 .errorDecoder(maybeErrorDecoder
                         .map(TypeName::get)
                         .orElseGet(() -> context.getTypeName(ConjureErrorDecoder.class)))
@@ -71,7 +72,7 @@ public final class ReturnTypesResolver {
                 .build());
     }
 
-    private Optional<TypeMirror> orDefaultDeserializerFactory(
+    private Optional<TypeName> orDefaultDeserializerFactory(
             boolean hasMustBeClosed,
             Element element,
             TypeMirror returnType,
@@ -83,15 +84,15 @@ public final class ReturnTypesResolver {
                 context.reportError("When returning raw Response, remember to add @MustBeClosed annotation", element);
                 return Optional.empty();
             }
-            return Optional.of(context.getTypeMirror(ResponseDeserializer.class));
+            return Optional.of(context.getTypeName(ResponseDeserializer.class));
         } else if (isInputStreamType(returnType)) {
             if (!hasMustBeClosed) {
                 context.reportError("When returning InputStream, remember to add @MustBeClosed annotation", element);
                 return Optional.empty();
             }
-            return Optional.of(context.getTypeMirror(InputStreamDeserializer.class));
+            return Optional.of(context.getTypeName(InputStreamDeserializer.class));
         }
-        return Optional.of(context.getTypeMirror(Json.class));
+        return Optional.of(context.getTypeName(Json.class));
     }
 
     private boolean isResponseType(TypeMirror type) {
@@ -100,10 +101,6 @@ public final class ReturnTypesResolver {
 
     private boolean isInputStreamType(TypeMirror type) {
         return context.isSameTypes(type, InputStream.class);
-    }
-
-    private boolean usesBodySerde(TypeMirror type) {
-        return context.isSameTypes(type, InputStreamDeserializer.class);
     }
 
     private Optional<TypeMirror> getListenableFutureInnerType(TypeMirror typeName) {

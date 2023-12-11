@@ -16,30 +16,14 @@
 
 package com.palantir.dialogue.annotations;
 
+import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
+import com.palantir.conjure.java.dialogue.serde.Encodings;
 import com.palantir.dialogue.BodySerDe;
-import com.palantir.dialogue.Response;
-import java.io.InputStream;
 
-public final class InputStreamDeserializer extends StdDeserializer<InputStream> {
+public final class Constants {
 
-    private final BodySerDe bodySerDe;
+    public static final BodySerDe DEFAULT_BODY_SERDE =
+            DefaultConjureRuntime.builder().encodings(Encodings.json()).build().bodySerDe();
 
-    public InputStreamDeserializer() {
-        this(Constants.DEFAULT_BODY_SERDE);
-    }
-
-    public InputStreamDeserializer(BodySerDe bodySerDe) {
-        super(bodySerDe.inputStreamDeserializer().accepts().orElse("application/octet-stream"));
-        this.bodySerDe = bodySerDe;
-    }
-
-    @Override
-    public InputStream deserialize(Response response) {
-        return bodySerDe.inputStreamDeserializer().deserialize(response);
-    }
-
-    @Override
-    public String toString() {
-        return "InputStreamDeserializer{}";
-    }
+    private Constants() {}
 }

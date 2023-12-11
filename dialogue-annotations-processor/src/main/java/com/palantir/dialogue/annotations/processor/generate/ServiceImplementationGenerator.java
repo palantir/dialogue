@@ -166,35 +166,22 @@ public final class ServiceImplementationGenerator {
         ParameterizedTypeName deserializerType =
                 ParameterizedTypeName.get(ClassName.get(Deserializer.class), innerType);
 
-        final CodeBlock deserializer;
-        if (type.isVoid()) {
-            deserializer = CodeBlock.of(
-                    "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
-                    ErrorHandlingVoidDeserializer.class,
-                    serviceDefinition.conjureRuntimeArgName(),
-                    errorDecoderType);
-        } else if (type.deserializerUsesBodySerDe()) {
-            deserializer = CodeBlock.of(
-                    "new $T<>(new $T($L.bodySerDe()), new $T()).deserializerFor(new $T<$T>() {})",
-                    ErrorHandlingDeserializerFactory.class,
-                    deserializerFactoryType,
-                    serviceDefinition.conjureRuntimeArgName(),
-                    errorDecoderType,
-                    TypeMarker.class,
-                    innerType);
-        } else {
-            deserializer = CodeBlock.of(
-                    "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
-                    ErrorHandlingDeserializerFactory.class,
-                    deserializerFactoryType,
-                    errorDecoderType,
-                    TypeMarker.class,
-                    innerType);
-        }
+        CodeBlock realDeserializer = CodeBlock.of(
+                "new $T<>(new $T(), new $T()).deserializerFor(new $T<$T>() {})",
+                ErrorHandlingDeserializerFactory.class,
+                deserializerFactoryType,
+                errorDecoderType,
+                TypeMarker.class,
+                innerType);
+        CodeBlock voidDeserializer = CodeBlock.of(
+                "new $T($L.bodySerDe().emptyBodyDeserializer(), new $T())",
+                ErrorHandlingVoidDeserializer.class,
+                serviceDefinition.conjureRuntimeArgName(),
+                errorDecoderType);
 
         return Optional.of(FieldSpec.builder(deserializerType, type.deserializerFieldName())
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer(deserializer)
+                .initializer(type.isVoid() ? voidDeserializer : realDeserializer)
                 .build());
     }
 

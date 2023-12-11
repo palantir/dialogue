@@ -27,8 +27,6 @@ public interface ReturnType {
 
     TypeName deserializerFactory();
 
-    boolean deserializerUsesBodySerDe();
-
     TypeName errorDecoder();
 
     String deserializerFieldName();
