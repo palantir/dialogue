@@ -76,7 +76,7 @@ public interface MyService {
             @Request.QueryParam(value = "q9", encoder = MyCustomTypeParamEncoder.class) Optional<MyCustomType> query9,
             @Request.QueryParam(value = "q10", encoder = MyCustomStringParamEncoder.class) String query10,
             @Request.QueryParam(value = "q11", encoder = MyCustomStringParamEncoder.class) Optional<String> query11,
-            @Request.QueryParam("q12") Optional<MyAliasType> query12,
+            @Request.QueryParam("q12") List<MyAliasType> query12,
             @Request.PathParam UUID path1,
             @Request.PathParam(encoder = MyCustomTypeParamEncoder.class) MyCustomType path2,
             @Request.Header("h1") String header1,
@@ -90,6 +90,6 @@ public interface MyService {
             @Request.Header(value = "h9", encoder = MyCustomTypeParamEncoder.class) Optional<MyCustomType> header9,
             @Request.Header(value = "h10", encoder = MyCustomStringParamEncoder.class) String header10,
             @Request.Header(value = "h11", encoder = MyCustomStringParamEncoder.class) Optional<String> header11,
-            @Request.Header("h12") Optional<MyAliasType> header12,
+            @Request.Header("h12") List<MyAliasType> header12,
             @Request.Body(MySerializableTypeBodySerializer.class) MySerializableType body);
 }

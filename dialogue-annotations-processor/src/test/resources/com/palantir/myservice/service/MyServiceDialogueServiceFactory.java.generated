@@ -137,7 +137,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     Optional<MyCustomType> query9,
                     String query10,
                     Optional<String> query11,
-                    Optional<MyAliasType> query12,
+                    List<MyAliasType> query12,
                     UUID path1,
                     MyCustomType path2,
                     String header1,
@@ -151,7 +151,7 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                     Optional<MyCustomType> header9,
                     String header10,
                     Optional<String> header11,
-                    Optional<MyAliasType> header12,
+                    List<MyAliasType> header12,
                     MySerializableType body) {
                 Request.Builder _request = Request.builder();
                 _request.putQueryParams("q1", _parameterSerializer.serializeString(query1));
@@ -181,11 +181,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 if (query11.isPresent()) {
                     _request.putAllQueryParams("q11", paramsQuery11Encoder.toParamValues(query11.get()));
                 }
-                if (query12.isPresent()) {
-                    _request.putQueryParams(
-                            "q12",
-                            _parameterSerializer.serializeString(query12.get().get()));
-                }
+                _request.putAllQueryParams(
+                        "q12",
+                        query12.stream()
+                                .map(query12Element -> _parameterSerializer.serializeString(query12Element.get()))
+                                .collect(Collectors.toList()));
                 _request.putPathParams("path1", _parameterSerializer.serializeUuid(path1));
                 _request.putPathParams("path2", paramsPath2Encoder.toParamValue(path2));
                 _request.putHeaderParams("h1", _parameterSerializer.serializeString(header1));
@@ -215,11 +215,11 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 if (header11.isPresent()) {
                     _request.putAllHeaderParams("h11", paramsHeader11Encoder.toParamValues(header11.get()));
                 }
-                if (header12.isPresent()) {
-                    _request.putHeaderParams(
-                            "h12",
-                            _parameterSerializer.serializeString(header12.get().get()));
-                }
+                _request.putAllHeaderParams(
+                        "h12",
+                        header12.stream()
+                                .map(header12Element -> _parameterSerializer.serializeString(header12Element.get()))
+                                .collect(Collectors.toList()));
                 _request.body(paramsSerializer.serialize(body));
                 runtime.clients().callBlocking(paramsChannel, _request.build(), paramsDeserializer);
             }
