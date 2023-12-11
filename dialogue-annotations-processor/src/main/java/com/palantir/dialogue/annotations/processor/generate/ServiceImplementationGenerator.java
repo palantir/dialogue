@@ -297,7 +297,7 @@ public final class ServiceImplementationGenerator {
             @Override
             public CodeBlock list(TypeName _typeName, ListType listType) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
-                    CodeBlock elementName = CodeBlock.of(argName + "Element");
+                    CodeBlock elementName = CodeBlock.of("$L$L", argName, "Element");
                     CodeBlock elementCodeBlock = generatePlainSerializer(
                             singleValueMethod,
                             multiValueMethod,
