@@ -27,6 +27,7 @@ import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.processor.data.ArgumentDefinition;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType;
+import com.palantir.dialogue.annotations.processor.data.ArgumentType.ListType;
 import com.palantir.dialogue.annotations.processor.data.ArgumentType.OptionalType;
 import com.palantir.dialogue.annotations.processor.data.ArgumentTypes;
 import com.palantir.dialogue.annotations.processor.data.EndpointDefinition;
@@ -294,13 +295,12 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock list(TypeName _typeName, String parameterSerializerMethodName) {
+            public CodeBlock list(TypeName _typeName, ListType listType) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
                     CodeBlock asList = CodeBlock.of(
-                            "$L.stream().map($L::$L).collect($T.toList())",
+                            "$L.stream()$L.collect($T.toList())",
                             argName,
-                            PARAMETER_SERIALIZER,
-                            parameterSerializerMethodName,
+                            generateListElementSerializerCall(listType.innerType()),
                             Collectors.class);
                     return CodeBlock.builder()
                             .add("$L.$L($S,", REQUEST, multiValueMethod, key)
@@ -390,6 +390,41 @@ public final class ServiceImplementationGenerator {
                                 argName);
                     }
                 });
+            }
+        });
+    }
+
+    private CodeBlock generateListElementSerializerCall(ArgumentType type) {
+        return type.match(new ArgumentType.Cases<>() {
+            @Override
+            public CodeBlock primitive(TypeName _typeName, String parameterSerializerMethodName) {
+                return CodeBlock.of(".map($L::$L)", PARAMETER_SERIALIZER, parameterSerializerMethodName);
+            }
+
+            @Override
+            public CodeBlock list(TypeName _typeName, ListType _listType) {
+                throw new UnsupportedOperationException("This should not happen");
+            }
+
+            @Override
+            public CodeBlock alias(TypeName typeName, String parameterSerializerMethodName) {
+                return CodeBlock.of(
+                        ".map($T::get).map($L::$L)", typeName, PARAMETER_SERIALIZER, parameterSerializerMethodName);
+            }
+
+            @Override
+            public CodeBlock optional(TypeName _typeName, OptionalType _optionalType) {
+                throw new UnsupportedOperationException("This should not happen");
+            }
+
+            @Override
+            public CodeBlock rawRequestBody(TypeName _typeName) {
+                throw new UnsupportedOperationException("This should not happen");
+            }
+
+            @Override
+            public CodeBlock customType(TypeName _typeName) {
+                throw new UnsupportedOperationException("This should not happen");
             }
         });
     }

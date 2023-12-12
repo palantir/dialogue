@@ -97,10 +97,11 @@ public final class ArgumentTypesResolver {
 
     private Optional<ArgumentType> getListType(TypeMirror typeMirror) {
         TypeName typeName = TypeName.get(typeMirror);
-
         return context.getGenericInnerType(List.class, typeMirror)
-                .flatMap(this::getPrimitiveSerializerMethodName)
-                .map(methodName -> ArgumentTypes.list(typeName, methodName));
+                .flatMap(innerTypeMirror -> getPrimitiveType(innerTypeMirror).or(() -> getAliasType(innerTypeMirror)))
+                .map(argumentType -> ArgumentTypes.list(
+                        typeName,
+                        ImmutableListType.builder().innerType(argumentType).build()));
     }
 
     private Optional<ArgumentType> getOptionalType(TypeMirror typeMirror) {
