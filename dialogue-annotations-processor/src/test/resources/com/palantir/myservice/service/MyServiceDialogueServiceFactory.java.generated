@@ -32,7 +32,6 @@ import java.util.OptionalDouble;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import javax.annotation.processing.Generated;
 
 @Generated("com.palantir.dialogue.annotations.processor.generate.DialogueServiceFactoryGenerator")
@@ -165,11 +164,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 if (query5.isPresent()) {
                     _request.putQueryParams("q5", _parameterSerializer.serializeDouble(query5.getAsDouble()));
                 }
-                _request.putAllQueryParams(
-                        "q6",
-                        query6.stream()
-                                .map(_parameterSerializer::serializeString)
-                                .collect(Collectors.toList()));
+                query6.forEach(query6Element -> {
+                    _request.putQueryParams("q6", _parameterSerializer.serializeString(query6Element));
+                });
                 _request.putQueryParams("q7", _parameterSerializer.serializeString(query7.get()));
                 _request.putAllQueryParams("q8", paramsQuery8Encoder.toParamValues(query8));
                 if (query9.isPresent()) {
@@ -194,11 +191,9 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
                 if (header5.isPresent()) {
                     _request.putHeaderParams("h5", _parameterSerializer.serializeDouble(header5.getAsDouble()));
                 }
-                _request.putAllHeaderParams(
-                        "h6",
-                        header6.stream()
-                                .map(_parameterSerializer::serializeString)
-                                .collect(Collectors.toList()));
+                header6.forEach(header6Element -> {
+                    _request.putHeaderParams("h6", _parameterSerializer.serializeString(header6Element));
+                });
                 _request.putHeaderParams("h7", _parameterSerializer.serializeString(header7.get()));
                 _request.putAllHeaderParams("h8", paramsHeader8Encoder.toParamValues(header8));
                 if (header9.isPresent()) {
