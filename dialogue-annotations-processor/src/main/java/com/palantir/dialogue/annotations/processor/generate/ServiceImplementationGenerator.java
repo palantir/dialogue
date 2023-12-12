@@ -302,7 +302,7 @@ public final class ServiceImplementationGenerator {
                             "$L.stream().map($L -> $L).collect($T.toList())",
                             argName,
                             elementName,
-                            generateSerializerCall(elementName, listType.innerType()),
+                            generateListElementSerializerCall(elementName, listType.innerType()),
                             Collectors.class);
                     return CodeBlock.builder()
                             .add("$L.$L($S,", REQUEST, multiValueMethod, key)
@@ -396,7 +396,7 @@ public final class ServiceImplementationGenerator {
         });
     }
 
-    private CodeBlock generateSerializerCall(CodeBlock argName, ArgumentType type) {
+    private CodeBlock generateListElementSerializerCall(CodeBlock argName, ArgumentType type) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
             public CodeBlock primitive(TypeName _typeName, String parameterSerializerMethodName) {
