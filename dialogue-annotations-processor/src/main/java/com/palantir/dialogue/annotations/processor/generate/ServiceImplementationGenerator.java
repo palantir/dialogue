@@ -54,6 +54,7 @@ public final class ServiceImplementationGenerator {
 
     private static final String REQUEST = "_request";
     private static final String PARAMETER_SERIALIZER = "_parameterSerializer";
+    public static final String MAP = "map";
 
     private final ServiceDefinition serviceDefinition;
 
@@ -297,12 +298,10 @@ public final class ServiceImplementationGenerator {
             @Override
             public CodeBlock list(TypeName _typeName, ListType listType) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
-                    CodeBlock elementName = CodeBlock.of("$L$L", argName, "Element");
                     CodeBlock asList = CodeBlock.of(
-                            "$L.stream().map($L -> $L).collect($T.toList())",
+                            "$L.stream()$L.collect($T.toList())",
                             argName,
-                            elementName,
-                            generateListElementSerializerCall(elementName, listType.innerType()),
+                            generateListElementSerializerCall(argName, listType.innerType()),
                             Collectors.class);
                     return CodeBlock.builder()
                             .add("$L.$L($S,", REQUEST, multiValueMethod, key)
@@ -397,10 +396,17 @@ public final class ServiceImplementationGenerator {
     }
 
     private CodeBlock generateListElementSerializerCall(CodeBlock argName, ArgumentType type) {
+        CodeBlock elementName = CodeBlock.of("$L$L", argName, "Element");
         return type.match(new ArgumentType.Cases<>() {
             @Override
             public CodeBlock primitive(TypeName _typeName, String parameterSerializerMethodName) {
-                return CodeBlock.of("$L.$L($L)", PARAMETER_SERIALIZER, parameterSerializerMethodName, argName);
+                return CodeBlock.of(
+                        ".$L($L -> $L.$L($L))",
+                        MAP,
+                        elementName,
+                        PARAMETER_SERIALIZER,
+                        parameterSerializerMethodName,
+                        elementName);
             }
 
             @Override
@@ -410,7 +416,13 @@ public final class ServiceImplementationGenerator {
 
             @Override
             public CodeBlock alias(TypeName _typeName, String parameterSerializerMethodName) {
-                return CodeBlock.of("$L.$L($L.get())", PARAMETER_SERIALIZER, parameterSerializerMethodName, argName);
+                return CodeBlock.of(
+                        ".$L($L -> $L.$L($L.get()))",
+                        MAP,
+                        elementName,
+                        PARAMETER_SERIALIZER,
+                        parameterSerializerMethodName,
+                        elementName);
             }
 
             @Override
