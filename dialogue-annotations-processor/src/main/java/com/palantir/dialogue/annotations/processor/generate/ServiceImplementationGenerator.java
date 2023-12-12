@@ -54,7 +54,7 @@ public final class ServiceImplementationGenerator {
 
     private static final String REQUEST = "_request";
     private static final String PARAMETER_SERIALIZER = "_parameterSerializer";
-    public static final String MAP = "map";
+    private static final String MAP = "map";
 
     private final ServiceDefinition serviceDefinition;
 
