@@ -281,10 +281,16 @@ public final class ServiceImplementationGenerator {
             Optional<ParameterEncoderType> maybeParameterEncoderType) {
         return type.match(new ArgumentType.Cases<>() {
             @Override
-            public CodeBlock primitive(TypeName _typeName, String _parameterSerializerMethodName) {
+            public CodeBlock primitive(TypeName _typeName, String parameterSerializerMethodName) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
                     return CodeBlock.of(
-                            "$L.$L($S, $L);", REQUEST, singleValueMethod, key, generateSerializerCall(argName, type));
+                            "$L.$L($S, $L.$L($L));",
+                            REQUEST,
+                            singleValueMethod,
+                            key,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            argName);
                 });
             }
 
@@ -307,10 +313,16 @@ public final class ServiceImplementationGenerator {
             }
 
             @Override
-            public CodeBlock alias(TypeName _typeName, String _parameterSerializerMethodName) {
+            public CodeBlock alias(TypeName _typeName, String parameterSerializerMethodName) {
                 return maybeParameterEncoderType.map(this::parameterEncoderType).orElseGet(() -> {
                     return CodeBlock.of(
-                            "$L.$L($S, $L);", REQUEST, singleValueMethod, key, generateSerializerCall(argName, type));
+                            "$L.$L($S, $L.$L($L.get()));",
+                            REQUEST,
+                            singleValueMethod,
+                            key,
+                            PARAMETER_SERIALIZER,
+                            parameterSerializerMethodName,
+                            argName);
                 });
             }
 

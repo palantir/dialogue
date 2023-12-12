@@ -97,9 +97,7 @@ public final class ArgumentTypesResolver {
 
     private Optional<ArgumentType> getListType(TypeMirror typeMirror) {
         TypeName typeName = TypeName.get(typeMirror);
-        Optional<TypeMirror> innerTypeMirror = context.getGenericInnerType(List.class, typeMirror);
-
-        return innerTypeMirror
+        return context.getGenericInnerType(List.class, typeMirror)
                 .flatMap(this::getListInnerType)
                 .map(argumentType -> ArgumentTypes.list(
                         typeName,
