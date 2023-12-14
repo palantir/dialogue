@@ -19,10 +19,12 @@ import com.palantir.dialogue.annotations.ConjureErrorDecoder;
 import com.palantir.dialogue.annotations.DefaultParameterSerializer;
 import com.palantir.dialogue.annotations.ErrorHandlingDeserializerFactory;
 import com.palantir.dialogue.annotations.ErrorHandlingVoidDeserializer;
+import com.palantir.dialogue.annotations.InputStreamDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ParameterSerializer;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
 import com.palantir.tokens.auth.AuthHeader;
+import java.io.InputStream;
 import java.lang.Override;
 import java.lang.String;
 import java.lang.Void;
@@ -56,6 +58,20 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             private final Deserializer<String> getGreetingAsyncDeserializer = new ErrorHandlingDeserializerFactory<>(
                             new CustomStringDeserializer(), new ConjureErrorDecoder())
                     .deserializerFor(new TypeMarker<String>() {});
+
+            private final EndpointChannel inputStreamChannel = endpointChannelFactory.endpoint(Endpoints.inputStream);
+
+            private final Deserializer<InputStream> inputStreamDeserializer = new ErrorHandlingDeserializerFactory<>(
+                            new InputStreamDeserializer(), new ConjureErrorDecoder())
+                    .deserializerFor(new TypeMarker<InputStream>() {});
+
+            private final EndpointChannel customInputStreamChannel =
+                    endpointChannelFactory.endpoint(Endpoints.customInputStream);
+
+            private final Deserializer<InputStream> customInputStreamDeserializer =
+                    new ErrorHandlingDeserializerFactory<>(
+                                    new CustomInputStreamDeserializer(), new ConjureErrorDecoder())
+                            .deserializerFor(new TypeMarker<InputStream>() {});
 
             private final EndpointChannel customRequestChannel =
                     endpointChannelFactory.endpoint(Endpoints.customRequest);
@@ -108,6 +124,19 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             public ListenableFuture<String> getGreetingAsync() {
                 Request.Builder _request = Request.builder();
                 return runtime.clients().call(getGreetingAsyncChannel, _request.build(), getGreetingAsyncDeserializer);
+            }
+
+            @Override
+            public InputStream inputStream() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients().callBlocking(inputStreamChannel, _request.build(), inputStreamDeserializer);
+            }
+
+            @Override
+            public InputStream customInputStream() {
+                Request.Builder _request = Request.builder();
+                return runtime.clients()
+                        .callBlocking(customInputStreamChannel, _request.build(), customInputStreamDeserializer);
             }
 
             @Override
@@ -281,6 +310,66 @@ public final class MyServiceDialogueServiceFactory implements DialogueServiceFac
             @Override
             public String endpointName() {
                 return "getGreetingAsync";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        inputStream {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("input-stream").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "inputStream";
+            }
+
+            @Override
+            public String version() {
+                return VERSION;
+            }
+        },
+
+        customInputStream {
+            private final PathTemplate pathTemplate =
+                    PathTemplate.builder().fixed("input-stream-custom").build();
+
+            @Override
+            public void renderPath(ListMultimap<String, String> params, UrlBuilder url) {
+                pathTemplate.fill(params, url);
+            }
+
+            @Override
+            public HttpMethod httpMethod() {
+                return HttpMethod.GET;
+            }
+
+            @Override
+            public String serviceName() {
+                return "MyService";
+            }
+
+            @Override
+            public String endpointName() {
+                return "customInputStream";
             }
 
             @Override

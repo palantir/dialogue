@@ -27,6 +27,7 @@ import com.palantir.dialogue.annotations.ErrorDecoder;
 import com.palantir.dialogue.annotations.MapToMultimapParamEncoder;
 import com.palantir.dialogue.annotations.Request;
 import com.palantir.myservice.example.PutFileRequest.PutFileRequestSerializer;
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -46,6 +47,10 @@ public interface MyService {
     // Support blocking and listenablefuture based on the return type
     @Request(method = HttpMethod.GET, path = "/greeting", accept = CustomStringDeserializer.class)
     ListenableFuture<String> getGreetingAsync();
+
+    @MustBeClosed
+    @Request(method = HttpMethod.GET, path = "/input-stream")
+    InputStream inputStream();
 
     // No decoders allowed (void method)
     // No encoders allowed (RequestBody is pre-encoded)

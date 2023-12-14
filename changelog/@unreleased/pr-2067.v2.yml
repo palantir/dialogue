@@ -1,0 +1,6 @@
+type: improvement
+improvement:
+  description: Add native support for InputStream responses to dialogue annotations
+    processor
+  links:
+  - https://github.com/palantir/dialogue/pull/2067

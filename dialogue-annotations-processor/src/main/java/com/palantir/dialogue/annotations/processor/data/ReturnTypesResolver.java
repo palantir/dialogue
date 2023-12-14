@@ -21,9 +21,11 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.errorprone.annotations.MustBeClosed;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.annotations.ConjureErrorDecoder;
+import com.palantir.dialogue.annotations.InputStreamDeserializer;
 import com.palantir.dialogue.annotations.Json;
 import com.palantir.dialogue.annotations.ResponseDeserializer;
 import com.squareup.javapoet.TypeName;
+import java.io.InputStream;
 import java.util.Optional;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
@@ -83,12 +85,22 @@ public final class ReturnTypesResolver {
                 return Optional.empty();
             }
             return Optional.of(context.getTypeName(ResponseDeserializer.class));
+        } else if (isInputStreamType(returnType)) {
+            if (!hasMustBeClosed) {
+                context.reportError("When returning InputStream, remember to add @MustBeClosed annotation", element);
+                return Optional.empty();
+            }
+            return Optional.of(context.getTypeName(InputStreamDeserializer.class));
         }
         return Optional.of(context.getTypeName(Json.class));
     }
 
     private boolean isResponseType(TypeMirror type) {
         return context.isSameTypes(type, Response.class);
+    }
+
+    private boolean isInputStreamType(TypeMirror type) {
+        return context.isSameTypes(type, InputStream.class);
     }
 
     private Optional<TypeMirror> getListenableFutureInnerType(TypeMirror typeName) {
