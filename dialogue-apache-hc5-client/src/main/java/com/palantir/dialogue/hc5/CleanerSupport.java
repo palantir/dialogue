@@ -16,17 +16,15 @@
 
 package com.palantir.dialogue.hc5;
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.lang.ref.Cleaner;
 import java.lang.ref.Cleaner.Cleanable;
 
 /** Reflective shim to allow consumers on new runtime versions to take advantage of java.lang.ref.Cleaner. */
 final class CleanerSupport {
 
-    private static final Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder()
-            .setDaemon(true)
-            .setNameFormat("dialogue-cleaner-%d")
-            .build());
+    // Ideally we would use a name pattern like 'dialogue-cleaner-%d', however it's more important
+    // that this cleaner does not retain context classloader references.
+    private static final Cleaner cleaner = Cleaner.create();
 
     /** Arguments are passed to {@code java.lang.ref.Cleaner.register(Object, Runnable)}. */
     static Cleanable register(Object object, Runnable action) {

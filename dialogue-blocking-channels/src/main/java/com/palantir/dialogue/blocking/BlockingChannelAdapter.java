@@ -20,11 +20,11 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.dialogue.futures.DialogueFutures;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -42,17 +42,15 @@ import java.util.function.Supplier;
 public final class BlockingChannelAdapter {
 
     private static final SafeLogger log = SafeLoggerFactory.get(BlockingChannelAdapter.class);
+    private static final String EXECUTOR_NAME = "dialogue-blocking-channel";
 
     @SuppressWarnings("deprecation") // No reasonable way to pass a tagged registry to this singleton
     private static final Supplier<ExecutorService> blockingExecutor = Suppliers.memoize(() -> Tracers.wrap(
-            "dialogue-blocking-channel",
+            EXECUTOR_NAME,
             Executors.newCachedThreadPool(MetricRegistries.instrument(
                     SharedTaggedMetricRegistries.getSingleton(),
-                    new ThreadFactoryBuilder()
-                            .setNameFormat("dialogue-blocking-channel-%d")
-                            .setDaemon(true)
-                            .build(),
-                    "dialogue-blocking-channel"))));
+                    DialogueExecutors.newDaemonThreadFactory(EXECUTOR_NAME),
+                    EXECUTOR_NAME))));
 
     public static Channel of(BlockingChannel blockingChannel) {
         return of(blockingChannel, blockingExecutor.get());
