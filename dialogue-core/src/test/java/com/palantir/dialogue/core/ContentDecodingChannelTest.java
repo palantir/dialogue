@@ -35,6 +35,7 @@ import com.palantir.dialogue.TestEndpoint;
 import com.palantir.dialogue.TestResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
@@ -120,7 +121,9 @@ public final class ContentDecodingChannelTest {
                 .execute(Request.builder().build())
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
-        assertThatThrownBy(response.body()::read).isInstanceOf(IOException.class);
+        try (InputStream body = response.body()) {
+            assertThatThrownBy(() -> body.read()).isInstanceOf(IOException.class);
+        }
     }
 
     @Test

@@ -52,7 +52,7 @@ class DialogueFuturesTest {
         ListenableFuture<String> doubled = transformer.transform(original, value -> value + value);
         assertThat(original.cancel(false)).isTrue();
         assertThat(doubled).isCancelled();
-        assertThatThrownBy(doubled::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> doubled.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest
@@ -62,7 +62,7 @@ class DialogueFuturesTest {
         ListenableFuture<String> doubled = transformer.transform(original, value -> value + value);
         assertThat(doubled.cancel(false)).isTrue();
         assertThat(doubled).isCancelled();
-        assertThatThrownBy(doubled::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> doubled.get()).isInstanceOf(CancellationException.class);
         assertThat(original).isCancelled();
     }
 
@@ -90,7 +90,7 @@ class DialogueFuturesTest {
         assertThat(one.cancel(false)).isTrue();
         assertThat(transformed).isCancelled();
         assertThat(transformed).isDone();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
         assertThat(two).as("The intermediate future is not impacted").isNotDone();
     }
 
@@ -106,7 +106,7 @@ class DialogueFuturesTest {
         assertThat(two.cancel(false)).isTrue();
         assertThat(transformed).isCancelled();
         assertThat(transformed).isDone();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest
@@ -181,7 +181,7 @@ class DialogueFuturesTest {
         assertThat(one.cancel(false)).isTrue();
         assertThat(transformed).isCancelled();
         assertThat(transformed).isDone();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest
@@ -196,7 +196,7 @@ class DialogueFuturesTest {
         assertThat(two.cancel(false)).isTrue();
         assertThat(transformed).isCancelled();
         assertThat(transformed).isDone();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest
@@ -208,7 +208,7 @@ class DialogueFuturesTest {
         assertThat(transformed).isNotDone();
         assertThat(transformed.cancel(false)).isTrue();
         assertThat(transformed).isDone();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest
@@ -223,7 +223,7 @@ class DialogueFuturesTest {
         assertThat(transformed.cancel(false)).isTrue();
         assertThat(one).isNotCancelled();
         assertThat(two).isCancelled();
-        assertThatThrownBy(transformed::get).isInstanceOf(CancellationException.class);
+        assertThatThrownBy(() -> transformed.get()).isInstanceOf(CancellationException.class);
     }
 
     @ParameterizedTest

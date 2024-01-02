@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfigurations;
@@ -76,8 +77,8 @@ public final class NoResponseTest {
         }));
         try {
             Channel channel = create(defaultClientConfig(getPort(server)));
-            assertThatThrownBy(channel.execute(TestEndpoint.POST, request)::get)
-                    .hasCauseInstanceOf(SocketTimeoutException.class);
+            ListenableFuture<Response> response = channel.execute(TestEndpoint.POST, request);
+            assertThatThrownBy(() -> response.get()).hasCauseInstanceOf(SocketTimeoutException.class);
             assertThat(requests).as("Request mustn't be retried").hasValue(1);
         } finally {
             server.stop();

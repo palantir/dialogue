@@ -20,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.ForwardingExecutorService;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -130,14 +131,13 @@ public final class ApacheHandshakeTimeoutTest {
 
         executor.delayNextTask(Duration.ofSeconds(1));
 
-        assertThatThrownBy(noRetryChannel.execute(TestEndpoint.POST, request)::get)
-                .getCause()
-                .satisfies(cause -> assertThat(cause)
-                        .isInstanceOf(SafeConnectTimeoutException.class)
-                        .as("Only IOExceptions are retried")
-                        .isInstanceOf(IOException.class)
-                        .as("SocketTimeoutExceptions cannot be retried")
-                        .isNotInstanceOf(SocketTimeoutException.class));
+        ListenableFuture<Response> response = noRetryChannel.execute(TestEndpoint.POST, request);
+        assertThatThrownBy(() -> response.get()).getCause().satisfies(cause -> assertThat(cause)
+                .isInstanceOf(SafeConnectTimeoutException.class)
+                .as("Only IOExceptions are retried")
+                .isInstanceOf(IOException.class)
+                .as("SocketTimeoutExceptions cannot be retried")
+                .isNotInstanceOf(SocketTimeoutException.class));
     }
 
     @Test
