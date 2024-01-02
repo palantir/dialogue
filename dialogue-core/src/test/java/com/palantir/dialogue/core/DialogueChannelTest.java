@@ -234,7 +234,7 @@ public final class DialogueChannelTest {
         // Next request should be rejected.
         ListenableFuture<Response> rejected = channel.execute(endpoint, request);
         assertThat(rejected).isDone();
-        assertThatThrownBy(rejected::get)
+        assertThatThrownBy(() -> rejected.get())
                 .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasMessageContaining("queue is full");
     }
@@ -320,7 +320,7 @@ public final class DialogueChannelTest {
                 .factory(_args -> mockChannel)
                 .build();
         ListenableFuture<Response> future = channel.execute(endpoint, request);
-        assertThatThrownBy(future::get).hasRootCauseInstanceOf(SafeIllegalStateException.class);
+        assertThatThrownBy(() -> future.get()).hasRootCauseInstanceOf(SafeIllegalStateException.class);
     }
 
     @Test

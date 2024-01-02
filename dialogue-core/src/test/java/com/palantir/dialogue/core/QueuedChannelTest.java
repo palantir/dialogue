@@ -101,7 +101,7 @@ public class QueuedChannelTest {
         futureResponse.setException(new IllegalArgumentException());
 
         assertThat(response.isDone()).isTrue();
-        assertThatThrownBy(response::get)
+        assertThatThrownBy(() -> response.get())
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(IllegalArgumentException.class);
     }
@@ -139,7 +139,7 @@ public class QueuedChannelTest {
         assertThat(completed).isDone();
         assertThat(queuedFuture).isDone();
         assertThat(completed.get()).isEqualTo(mockResponse);
-        assertThatThrownBy(queuedFuture::get).hasRootCauseMessage("expected");
+        assertThatThrownBy(() -> queuedFuture.get()).hasRootCauseMessage("expected");
         verify(delegate, times(1)).maybeExecute(endpoint, request, DO_NOT_SKIP_LIMITS);
         verify(delegate, times(3)).maybeExecute(endpoint, queuedRequest, DO_NOT_SKIP_LIMITS);
     }

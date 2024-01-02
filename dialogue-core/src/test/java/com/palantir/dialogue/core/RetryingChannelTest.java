@@ -109,7 +109,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get)
+        assertThatThrownBy(() -> response.get())
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
     }
@@ -127,7 +127,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get).hasCauseInstanceOf(SafeIoException.class);
+        assertThatThrownBy(() -> response.get()).hasCauseInstanceOf(SafeIoException.class);
         verify(channel, times(4)).execute(REQUEST);
     }
 
@@ -472,7 +472,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get).hasRootCauseExactlyInstanceOf(SocketTimeoutException.class);
+        assertThatThrownBy(() -> response.get()).hasRootCauseExactlyInstanceOf(SocketTimeoutException.class);
     }
 
     @Test
@@ -508,7 +508,7 @@ public class RetryingChannelTest {
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
-        assertThatThrownBy(response::get)
+        assertThatThrownBy(() -> response.get())
                 .hasRootCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasRootCauseMessage("bug");
     }
@@ -612,7 +612,7 @@ public class RetryingChannelTest {
                 .build());
 
         assertThat(response).isDone();
-        assertThatThrownBy(response::get)
+        assertThatThrownBy(() -> response.get())
                 .as("requests should not be retried if they are consumed")
                 .hasRootCauseExactlyInstanceOf(SafeIoException.class)
                 .hasRootCauseMessage("FAILED");
