@@ -78,7 +78,7 @@ public final class NoResponseTest {
         try {
             Channel channel = create(defaultClientConfig(getPort(server)));
             ListenableFuture<Response> response = channel.execute(TestEndpoint.POST, request);
-            assertThatThrownBy(() -> response.get()).hasCauseInstanceOf(SocketTimeoutException.class);
+            assertThatThrownBy(response::get).hasCauseInstanceOf(SocketTimeoutException.class);
             assertThat(requests).as("Request mustn't be retried").hasValue(1);
         } finally {
             server.stop();

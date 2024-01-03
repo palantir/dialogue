@@ -91,7 +91,7 @@ public class BlockingChannelAdapterTest {
         ListenableFuture<Response> result =
                 channel.execute(TestEndpoint.POST, Request.builder().build());
         Awaitility.waitAtMost(Duration.ofSeconds(3)).until(result::isDone);
-        assertThatThrownBy(() -> result.get())
+        assertThatThrownBy(result::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseExactlyInstanceOf(SafeRuntimeException.class)
                 .hasRootCauseMessage("expected");
@@ -133,7 +133,7 @@ public class BlockingChannelAdapterTest {
                 channel.execute(TestEndpoint.POST, Request.builder().build());
 
         assertThat(future).isDone();
-        assertThatThrownBy(() -> future.get())
+        assertThatThrownBy(future::get)
                 .isInstanceOf(ExecutionException.class)
                 .hasCauseInstanceOf(RejectedExecutionException.class);
     }

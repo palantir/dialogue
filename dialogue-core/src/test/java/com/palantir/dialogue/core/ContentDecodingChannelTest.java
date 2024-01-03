@@ -122,7 +122,7 @@ public final class ContentDecodingChannelTest {
                 .get();
         assertThat(response.headers().get("content-encoding")).isEmpty();
         try (InputStream body = response.body()) {
-            assertThatThrownBy(() -> body.read()).isInstanceOf(IOException.class);
+            assertThatThrownBy(body::read).isInstanceOf(IOException.class);
         }
     }
 
