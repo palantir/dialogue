@@ -17,11 +17,13 @@
 package com.palantir.conjure.java.dialogue.serde;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.CharStreams;
 import com.google.common.net.HttpHeaders;
 import com.google.common.primitives.Longs;
 import com.palantir.conjure.java.api.errors.QosException;
+import com.palantir.conjure.java.api.errors.QosReason;
 import com.palantir.conjure.java.api.errors.RemoteException;
 import com.palantir.conjure.java.api.errors.SerializableError;
 import com.palantir.conjure.java.api.errors.UnknownRemoteException;
@@ -57,6 +59,9 @@ public enum ErrorDecoder {
     private static final SafeLogger log = SafeLoggerFactory.get(ErrorDecoder.class);
     private static final ObjectMapper MAPPER = ObjectMappers.newClientObjectMapper();
 
+    @VisibleForTesting
+    static final QosReason QOS_REASON = QosReason.of("client-qos-response");
+
     public boolean isError(Response response) {
         return 300 <= response.code() && response.code() <= 599;
     }
@@ -82,7 +87,7 @@ public enum ErrorDecoder {
                     String locationHeader = location.get();
                     try {
                         UnknownRemoteException remoteException = new UnknownRemoteException(code, "");
-                        remoteException.initCause(QosException.retryOther(new URL(locationHeader)));
+                        remoteException.initCause(QosException.retryOther(QOS_REASON, new URL(locationHeader)));
                         return remoteException;
                     } catch (MalformedURLException e) {
                         log.error(
@@ -99,10 +104,10 @@ public enum ErrorDecoder {
                 return response.getFirstHeader(HttpHeaders.RETRY_AFTER)
                         .map(Longs::tryParse)
                         .map(Duration::ofSeconds)
-                        .map(QosException::throttle)
-                        .orElseGet(QosException::throttle);
+                        .map(duration -> QosException.throttle(QOS_REASON, duration))
+                        .orElseGet(() -> QosException.throttle(QOS_REASON));
             case 503:
-                return QosException.unavailable();
+                return QosException.unavailable(QOS_REASON);
         }
 
         String body;

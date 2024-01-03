@@ -96,7 +96,9 @@ public final class ErrorDecoderTest {
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
-        assertThat(result).isInstanceOf(QosException.Unavailable.class);
+        assertThat(result).isInstanceOfSatisfying(QosException.Unavailable.class, exception -> {
+            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+        });
     }
 
     @Test
@@ -105,9 +107,10 @@ public final class ErrorDecoderTest {
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
-        assertThat(result)
-                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
-                        .isEmpty());
+        assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
+            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getRetryAfter()).isEmpty();
+        });
     }
 
     @Test
@@ -117,9 +120,10 @@ public final class ErrorDecoderTest {
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
-        assertThat(result)
-                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
-                        .hasValue(Duration.ofSeconds(3)));
+        assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
+            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getRetryAfter()).hasValue(Duration.ofSeconds(3));
+        });
     }
 
     @Test
@@ -129,9 +133,10 @@ public final class ErrorDecoderTest {
         assertThat(decoder.isError(response)).isTrue();
 
         RuntimeException result = decoder.decode(response);
-        assertThat(result)
-                .isInstanceOfSatisfying(QosException.Throttle.class, exception -> assertThat(exception.getRetryAfter())
-                        .isEmpty());
+        assertThat(result).isInstanceOfSatisfying(QosException.Throttle.class, exception -> {
+            assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+            assertThat(exception.getRetryAfter()).isEmpty();
+        });
     }
 
     @Test
@@ -169,10 +174,10 @@ public final class ErrorDecoderTest {
         assertThat(result)
                 .isInstanceOf(UnknownRemoteException.class)
                 .getRootCause()
-                .isInstanceOfSatisfying(
-                        QosException.RetryOther.class,
-                        exception ->
-                                assertThat(exception.getRedirectTo()).asString().isEqualTo(expectedLocation));
+                .isInstanceOfSatisfying(QosException.RetryOther.class, exception -> {
+                    assertThat(exception.getReason()).isEqualTo(ErrorDecoder.QOS_REASON);
+                    assertThat(exception.getRedirectTo()).asString().isEqualTo(expectedLocation);
+                });
     }
 
     @Test
