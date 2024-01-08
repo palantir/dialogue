@@ -132,7 +132,7 @@ public final class ApacheHandshakeTimeoutTest {
         executor.delayNextTask(Duration.ofSeconds(1));
 
         ListenableFuture<Response> response = noRetryChannel.execute(TestEndpoint.POST, request);
-        assertThatThrownBy(() -> response.get()).getCause().satisfies(cause -> assertThat(cause)
+        assertThatThrownBy(response::get).getCause().satisfies(cause -> assertThat(cause)
                 .isInstanceOf(SafeConnectTimeoutException.class)
                 .as("Only IOExceptions are retried")
                 .isInstanceOf(IOException.class)

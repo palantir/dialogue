@@ -109,7 +109,7 @@ class DialogueClientsTest {
         ListenableFuture<Response> future = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(() -> future.get())
+        assertThatThrownBy(future::get)
                 .describedAs("Nice error message when services doesn't exist")
                 .hasCauseInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured");
@@ -125,7 +125,7 @@ class DialogueClientsTest {
         ListenableFuture<Response> future = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(() -> future.get())
+        assertThatThrownBy(future::get)
                 .describedAs("Made a real network call")
                 .hasCauseInstanceOf(UnknownHostException.class);
     }
@@ -141,7 +141,7 @@ class DialogueClientsTest {
         ListenableFuture<Response> future = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(() -> future.get())
+        assertThatThrownBy(future::get)
                 .describedAs("Nice error message when service exists but has zero uris")
                 .hasCauseInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured");
@@ -157,7 +157,7 @@ class DialogueClientsTest {
         ListenableFuture<Response> future2 = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(() -> future2.get())
+        assertThatThrownBy(future2::get)
                 .describedAs("Made a real network call")
                 .hasCauseInstanceOf(UnknownHostException.class);
     }

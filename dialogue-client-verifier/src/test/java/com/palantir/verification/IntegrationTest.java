@@ -194,7 +194,7 @@ public class IntegrationTest {
         ListenableFuture<AliasOfOptional> future = async.getMyAlias();
         assertThat(future).isDone();
         assertThat(future).isNotCancelled();
-        assertThatThrownBy(() -> future.get()).isInstanceOf(InterruptedException.class);
+        assertThatThrownBy(future::get).isInstanceOf(InterruptedException.class);
 
         assertThat(served).hasValue(0);
     }

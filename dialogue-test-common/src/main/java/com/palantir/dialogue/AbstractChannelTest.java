@@ -352,7 +352,7 @@ public abstract class AbstractChannelTest {
         Thread.sleep(1000);
         server.enqueue(new MockResponse());
 
-        assertThatThrownBy(() -> call.get()).isInstanceOfAny(CancellationException.class);
+        assertThatThrownBy(call::get).isInstanceOfAny(CancellationException.class);
     }
 
     // TODO(rfink): How to test that cancellation propagates to the server?
@@ -361,7 +361,7 @@ public abstract class AbstractChannelTest {
     public void connectionErrorsSurfaceAsExceptions() throws IOException {
         server.shutdown();
         ListenableFuture<Response> call = channel.execute(endpoint, request);
-        assertThatThrownBy(() -> call.get()).hasCauseInstanceOf(ConnectException.class);
+        assertThatThrownBy(call::get).hasCauseInstanceOf(ConnectException.class);
     }
 
     @Test
