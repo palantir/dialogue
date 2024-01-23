@@ -44,6 +44,7 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
@@ -63,6 +64,7 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
+import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
@@ -78,16 +80,19 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
+    private final Optional<InetAddress> resolvedHost;
     private final ResponseLeakDetector responseLeakDetector;
     private final OptionalInt uriIndexForInstrumentation;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client,
             URL baseUrl,
+            Optional<InetAddress> resolvedHost,
             ResponseLeakDetector responseLeakDetector,
             OptionalInt uriIndexForInstrumentation) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
+        this.resolvedHost = resolvedHost;
         this.responseLeakDetector = responseLeakDetector;
         this.uriIndexForInstrumentation = uriIndexForInstrumentation;
     }
@@ -96,8 +101,11 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     public Response execute(Endpoint endpoint, Request request) throws IOException {
         // Create base request given the URL
         URL target = baseUrl.render(endpoint, request);
-        ClassicRequestBuilder builder =
-                ClassicRequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
+        ClassicRequestBuilder builder = ClassicRequestBuilder.create(
+                        endpoint.httpMethod().name())
+                .setHttpHost(new HttpHost(
+                        target.getProtocol(), resolvedHost.orElse(null), target.getHost(), target.getPort()))
+                .setUri(target.toString());
 
         // Fill headers
         request.headerParams().forEach(builder::addHeader);

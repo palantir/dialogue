@@ -29,6 +29,7 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.core.Config.TargetUri;
 import com.palantir.logsafe.Safe;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -143,17 +144,18 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             Config cf = builder.build();
 
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
-            for (int uriIndex = 0; uriIndex < cf.clientConf().uris().size(); uriIndex++) {
+            for (int uriIndex = 0; uriIndex < cf.uris().size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
-                String uri = cf.clientConf().uris().get(uriIndex);
+                TargetUri targetUri = cf.uris().get(uriIndex);
                 Channel channel = cf.channelFactory()
                         .create(DialogueChannelFactory.ChannelArgs.builder()
-                                .uri(uri)
+                                .uri(targetUri.uri())
+                                .resolvedHost(targetUri.host().resolved())
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .build());
                 channel = RetryOtherValidatingChannel.create(cf, channel);
-                channel = HostMetricsChannel.create(cf, channel, uri);
+                channel = HostMetricsChannel.create(cf, channel, targetUri.uri());
                 Channel tracingChannel =
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = cf.isConcurrencyLimitingEnabled()
