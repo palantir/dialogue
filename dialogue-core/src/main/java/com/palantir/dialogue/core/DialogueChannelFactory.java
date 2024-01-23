@@ -32,7 +32,7 @@ public interface DialogueChannelFactory {
     interface ChannelArgs {
         String uri();
 
-        Optional<InetAddress> resolvedHost();
+        Optional<InetAddress> resolvedAddress();
 
         OptionalInt uriIndexForInstrumentation();
 

@@ -25,7 +25,6 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
 import java.net.InetAddress;
-import java.net.URI;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -49,12 +48,7 @@ interface Config {
     default List<TargetUri> uris() {
         return rawConfig().uris().stream()
                 .map(MeshMode::stripMeshPrefix)
-                .map(uri -> ImmutableTargetUri.builder()
-                        .uri(uri)
-                        .host(ImmutableTargetHost.builder()
-                                .hostname(URI.create(uri).getHost())
-                                .build())
-                        .build())
+                .map(uri -> ImmutableTargetUri.builder().uri(uri).build())
                 .collect(Collectors.toList());
     }
 
@@ -115,17 +109,11 @@ interface Config {
     }
 
     @Value.Immutable
-    interface TargetHost {
-        String hostname();
-
-        Optional<InetAddress> resolved();
-    }
-
-    @Value.Immutable
     interface TargetUri {
-        /** URI which includes {@link TargetHost#hostname()}. */
+        /** Original service URI. */
         String uri();
 
-        TargetHost host();
+        /** Resolved IP address of the {@link #uri()}, or the IP address from the URI if it is not a hostname. */
+        Optional<InetAddress> resolvedAddress();
     }
 }

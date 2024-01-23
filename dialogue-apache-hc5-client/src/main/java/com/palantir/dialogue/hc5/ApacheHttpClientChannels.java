@@ -130,7 +130,11 @@ public final class ApacheHttpClientChannels {
 
     public static Channel createSingleUri(DialogueChannelFactory.ChannelArgs args, CloseableClient client) {
         BlockingChannel blockingChannel = new ApacheHttpClientBlockingChannel(
-                client, url(args.uri()), args.resolvedHost(), client.leakDetector(), args.uriIndexForInstrumentation());
+                client,
+                url(args.uri()),
+                args.resolvedAddress(),
+                client.leakDetector(),
+                args.uriIndexForInstrumentation());
         return client.executor() == null
                 ? BlockingChannelAdapter.of(blockingChannel)
                 : BlockingChannelAdapter.of(blockingChannel, client.executor());

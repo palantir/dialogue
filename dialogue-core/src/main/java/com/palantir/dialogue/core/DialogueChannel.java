@@ -151,7 +151,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 Channel channel = cf.channelFactory()
                         .create(DialogueChannelFactory.ChannelArgs.builder()
                                 .uri(targetUri.uri())
-                                .resolvedHost(targetUri.host().resolved())
+                                .resolvedAddress(targetUri.resolvedAddress())
                                 .uriIndexForInstrumentation(uriIndexForInstrumentation)
                                 .build());
                 channel = RetryOtherValidatingChannel.create(cf, channel);
