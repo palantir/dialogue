@@ -48,6 +48,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -399,6 +400,9 @@ final class RetryingChannel implements EndpointChannel {
                             // String matches CJR RemotingOkHttpCall.shouldRetry
                             && socketTimeout.getMessage().contains("connect timed out");
                 }
+                if (isEtimedoutException(throwable)) {
+                    return false;
+                }
             }
             // Only retry IOExceptions. Other failures, particularly RuntimeException and Error are not
             // meant to be recovered from.
@@ -439,6 +443,21 @@ final class RetryingChannel implements EndpointChannel {
         private String channelName() {
             return channelName;
         }
+    }
+
+    /**
+     * Checks if the input is the result of a TCP level {@code ETIMEDOUT} error. This means that SYN segment did
+     * not result in an ACK from the remote server, most likely because connections have been severed in an
+     * exceptional/unclean way (for example, a network cable removed may have been removed).
+     * <p>
+     * This can be thrown when we attempt to read from existing connection sockets, which occurs after we've
+     * sent a request and the remote server has begun processing.
+     */
+    private static boolean isEtimedoutException(Throwable throwable) {
+        // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658
+        return throwable != null
+                && SocketException.class.equals(throwable.getClass())
+                && "Connection timed out".equals(throwable.getMessage());
     }
 
     private static final class ConsumptionTrackingRequestBody implements RequestBody {
