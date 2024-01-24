@@ -79,7 +79,6 @@ import org.apache.hc.client5.http.impl.classic.HttpClientBuilder;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
-import org.apache.hc.client5.http.impl.routing.SystemDefaultRoutePlanner;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
 import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
@@ -548,7 +547,7 @@ public final class ApacheHttpClientChannels {
                     .setKeepAliveStrategy(
                             new InactivityValidationAwareConnectionKeepAliveStrategy(internalConnectionManager, name))
                     .setConnectionManager(connectionManager)
-                    .setRoutePlanner(new SystemDefaultRoutePlanner(null, conf.proxy()))
+                    .setRoutePlanner(new DialogueRoutePlanner(conf.proxy()))
                     .disableAutomaticRetries()
                     // Must be disabled otherwise connections are not reused when client certificates are provided
                     .disableConnectionState()

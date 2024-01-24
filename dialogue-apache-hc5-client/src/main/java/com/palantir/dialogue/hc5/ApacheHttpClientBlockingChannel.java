@@ -64,7 +64,6 @@ import org.apache.hc.client5.http.protocol.HttpClientContext;
 import org.apache.hc.core5.function.Supplier;
 import org.apache.hc.core5.http.Header;
 import org.apache.hc.core5.http.HttpEntity;
-import org.apache.hc.core5.http.HttpHost;
 import org.apache.hc.core5.http.NoHttpResponseException;
 import org.apache.hc.core5.http.io.support.ClassicRequestBuilder;
 import org.apache.hc.core5.http.message.BasicHeader;
@@ -101,11 +100,8 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     public Response execute(Endpoint endpoint, Request request) throws IOException {
         // Create base request given the URL
         URL target = baseUrl.render(endpoint, request);
-        ClassicRequestBuilder builder = ClassicRequestBuilder.create(
-                        endpoint.httpMethod().name())
-                .setHttpHost(new HttpHost(
-                        target.getProtocol(), resolvedHost.orElse(null), target.getHost(), target.getPort()))
-                .setUri(target.toString());
+        ClassicRequestBuilder builder =
+                ClassicRequestBuilder.create(endpoint.httpMethod().name()).setUri(target.toString());
 
         // Fill headers
         request.headerParams().forEach(builder::addHeader);
@@ -125,6 +121,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         long startTime = System.nanoTime();
         try {
             HttpClientContext context = HttpClientContext.create();
+            resolvedHost.ifPresent(inetAddress -> DialogueRoutePlanner.set(context, inetAddress));
             CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build(), context);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.
