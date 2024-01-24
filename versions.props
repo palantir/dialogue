@@ -5,7 +5,7 @@ com.google.testing.compile:compile-testing = 0.21.0
 com.palantir.common:streams = 2.2.0
 com.palantir.conjure:conjure = 4.39.0
 com.palantir.conjure.java:* = 8.6.0
-com.palantir.conjure.java.api:* = 2.44.0
+com.palantir.conjure.java.api:* = 2.45.0
 com.palantir.conjure.java.runtime:* = 8.4.0
 com.palantir.refreshable:* = 2.3.0
 com.palantir.ri:resource-identifier = 2.6.0
@@ -28,7 +28,7 @@ com.github.ben-manes.caffeine:caffeine = 3.1.8
 # test deps
 org.junit.jupiter:* = 5.10.1
 org.apache.logging.log4j:* = 2.22.1
-org.assertj:assertj-core = 3.25.1
+org.assertj:assertj-core = 3.25.2
 org.assertj:assertj-guava = 3.3.0
 org.hamcrest:hamcrest-core = 2.2
 org.mockito:* = 5.9.0
