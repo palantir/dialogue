@@ -39,6 +39,8 @@ import com.palantir.logsafe.exceptions.SafeIoException;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
+import java.net.ConnectException;
+import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Optional;
@@ -457,6 +459,32 @@ public class RetryingChannelTest {
         assertThat(delegateResult).as("Failed to cancel the delegate future").isCancelled();
     }
 
+    private static SocketException createEtimedoutException() {
+        // Message must precisely match:
+        // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658
+        return new SocketException("Connection timed out");
+    }
+
+    @Test
+    public void doesNotRetryEtimedoutSocketException() {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(createEtimedoutException()))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThatThrownBy(response::get)
+                .hasRootCauseExactlyInstanceOf(SocketException.class)
+                .hasRootCauseMessage("Connection timed out");
+    }
+
     @Test
     public void doesNotRetrySocketTimeout() {
         when(channel.execute(any()))
@@ -489,6 +517,44 @@ public class RetryingChannelTest {
                 Duration.ZERO,
                 ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
                 ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Test
+    public void retriesEtimedoutWhenRequested() throws ExecutionException, InterruptedException {
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(createEtimedoutException()))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DANGEROUS_ENABLE_AT_RISK_OF_RETRY_STORMS);
+        ListenableFuture<Response> response = retryer.execute(REQUEST);
+        assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
+    }
+
+    @Test
+    public void retriesEtimedoutWithAlternativeExceptionType() throws ExecutionException, InterruptedException {
+        SocketException etimedoutException = createEtimedoutException();
+        SocketException subtype = new ConnectException(etimedoutException.getMessage());
+        when(channel.execute(any()))
+                .thenReturn(Futures.immediateFailedFuture(subtype))
+                .thenReturn(SUCCESS);
+
+        EndpointChannel retryer = new RetryingChannel(
+                channel,
+                TestEndpoint.POST,
+                "my-channel",
+                1,
+                Duration.ZERO,
+                ClientConfiguration.ServerQoS.AUTOMATIC_RETRY,
+                ClientConfiguration.RetryOnTimeout.DISABLED);
         ListenableFuture<Response> response = retryer.execute(REQUEST);
         assertThat(response.get()).isEqualTo(EXPECTED_RESPONSE);
     }

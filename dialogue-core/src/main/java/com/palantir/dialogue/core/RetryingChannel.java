@@ -445,6 +445,11 @@ final class RetryingChannel implements EndpointChannel {
         }
     }
 
+    /**
+     * Checks if the input is the result of a TCP level {@code ETIMEDOUT} error. This means that SYN segment did
+     * not result in an ACK from the remote server, most likely because connections have been severed in an
+     * exceptional/unclean way (for example, a network cable removed may have been removed).
+     */
     private static boolean isEtimedoutException(Throwable throwable) {
         // https://github.com/openjdk/jdk/blob/32eb5290c207d5fda398ee09b354b8cf55b89e0c/src/hotspot/share/runtime/os.cpp#L1658
         return throwable != null
