@@ -23,7 +23,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.HttpHeaders;
-import com.palantir.conjure.java.api.config.ssl.SslConfiguration;
 import com.palantir.conjure.java.config.ssl.SslSocketFactories;
 import com.palantir.dialogue.example.SampleObject;
 import com.palantir.dialogue.example.SampleServiceAsync;
@@ -32,7 +31,6 @@ import com.palantir.ri.ResourceIdentifier;
 import java.net.ConnectException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.concurrent.ExecutionException;
@@ -51,9 +49,9 @@ import org.junit.jupiter.migrationsupport.rules.EnableRuleMigrationSupport;
 @EnableRuleMigrationSupport
 public abstract class AbstractSampleServiceClientTest {
 
-    abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
+    protected abstract SampleServiceBlocking createBlockingClient(URL baseUrl, Duration timeout);
 
-    abstract SampleServiceAsync createAsyncClient(URL baseUrl, Duration timeout);
+    protected abstract SampleServiceAsync createAsyncClient(URL baseUrl, Duration timeout);
 
     private static final String PATH = "myPath";
     private static final OffsetDateTime HEADER = OffsetDateTime.parse("2018-07-19T08:11:21+00:00");
@@ -64,50 +62,15 @@ public abstract class AbstractSampleServiceClientTest {
     private static final SampleObject RESPONSE = SampleObject.of(84);
     private static final String RESPONSE_STRING = "{\"intProperty\": 84}";
 
-    static final SslConfiguration SSL_CONFIG = SslConfiguration.of(
-            Paths.get("src/test/resources/trustStore.jks"), Paths.get("src/test/resources/keyStore.jks"), "keystore");
-
     @Rule
     public final MockWebServer server = new MockWebServer();
 
     private SampleServiceBlocking blockingClient;
     private SampleServiceAsync asyncClient;
 
-    static final ImmutableList<String> FAST_CIPHER_SUITES = ImmutableList.of(
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384",
-            "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_RSA_WITH_AES_128_CBC_SHA256",
-            "TLS_RSA_WITH_AES_256_CBC_SHA256",
-            "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA",
-            "TLS_RSA_WITH_AES_256_CBC_SHA",
-            "TLS_RSA_WITH_AES_128_CBC_SHA",
-            // TODO(rfink): These don't work with Java11, see https://bugs.openjdk.java.net/browse/JDK-8204192
-            // "TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256",
-            // "TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256",
-            "TLS_EMPTY_RENEGOTIATION_INFO_SCSV");
-
-    static final ImmutableList<String> GCM_CIPHER_SUITES = ImmutableList.of(
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256",
-            "TLS_RSA_WITH_AES_256_GCM_SHA384",
-            "TLS_RSA_WITH_AES_128_GCM_SHA256");
-
-    static final String[] ALL_CIPHER_SUITES = ImmutableList.builder()
-            .addAll(FAST_CIPHER_SUITES)
-            .addAll(GCM_CIPHER_SUITES)
-            .build()
-            .toArray(new String[0]);
-
     @BeforeEach
     public void before() {
-        server.useHttps(SslSocketFactories.createSslSocketFactory(SSL_CONFIG), false);
+        server.useHttps(SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG), false);
         blockingClient = createBlockingClient(server.url("").url(), Duration.ofSeconds(1));
         asyncClient = createAsyncClient(server.url("").url(), Duration.ofSeconds(1));
     }
