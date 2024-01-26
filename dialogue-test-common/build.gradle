@@ -20,6 +20,8 @@ dependencies {
     api 'org.mockito:mockito-core'
     api 'org.mockito:mockito-junit-jupiter'
     api 'io.undertow:undertow-core'
+
+    implementation 'org.bouncycastle:bcpkix-jdk18on'
 }
 
 tasks.withType(JavaCompile) {
