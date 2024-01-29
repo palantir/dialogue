@@ -29,8 +29,8 @@ import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
-import com.palantir.dialogue.core.Config.TargetUri;
 import com.palantir.logsafe.Safe;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -88,6 +88,11 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
 
         public Builder clientConfiguration(ClientConfiguration value) {
             builder.rawConfig(value);
+            return this;
+        }
+
+        public Builder uris(List<TargetUri> value) {
+            builder.uris(value);
             return this;
         }
 

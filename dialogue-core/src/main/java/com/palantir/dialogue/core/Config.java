@@ -24,9 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
-import java.net.InetAddress;
 import java.util.List;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -48,7 +46,7 @@ interface Config {
     default List<TargetUri> uris() {
         return rawConfig().uris().stream()
                 .map(MeshMode::stripMeshPrefix)
-                .map(uri -> ImmutableTargetUri.builder().uri(uri).build())
+                .map(uri -> TargetUri.builder().uri(uri).build())
                 .collect(Collectors.toList());
     }
 
@@ -106,14 +104,5 @@ interface Config {
                     "overrideHostIndex is only permitted when there is a single uri",
                     SafeArg.of("numUris", rawConfig().uris().size()));
         }
-    }
-
-    @Value.Immutable
-    interface TargetUri {
-        /** Original service URI. */
-        String uri();
-
-        /** Resolved IP address of the {@link #uri()}, or the IP address from the URI if it is not a hostname. */
-        Optional<InetAddress> resolvedAddress();
     }
 }

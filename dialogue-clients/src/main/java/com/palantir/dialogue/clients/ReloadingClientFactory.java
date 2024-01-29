@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
@@ -52,6 +53,7 @@ import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.lang.ref.Cleaner;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
@@ -65,6 +67,10 @@ import java.util.stream.Collectors;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
+    private static final Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("dialogue-reloading-cleaner-%d")
+            .build());
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
 
@@ -81,11 +87,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .clientName(channelName);
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
-        return DialogueChannel.builder()
+        DialogueDnsResolution.RefreshableUris uris = DialogueDnsResolution.refreshableUris(channelName, input);
+        Refreshable<DialogueChannel> channelRefreshable = uris.uris().map(newUris -> DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(clientConf)
+                .uris(newUris)
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
-                .build();
+                .build());
+        LiveReloadingChannel channel =
+                new LiveReloadingChannel(channelRefreshable, params.runtime().clients());
+        cleaner.register(channel, uris::close);
+        return channel;
     }
 
     @Value.Immutable
@@ -442,7 +454,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         public EndpointChannel endpoint(Endpoint endpoint) {
             Supplier<EndpointChannel> endpointChannel =
                     new LazilyMappedRefreshable<>(refreshable, channel -> utils.bind(channel, endpoint));
-            return new SupplierEndpointChannel(endpointChannel);
+            return new SupplierEndpointChannel(endpointChannel, this);
         }
 
         /** Older codepath, not quite as performant. */
@@ -460,9 +472,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     private static final class SupplierEndpointChannel implements EndpointChannel {
         private final Supplier<EndpointChannel> supplier;
+        // This field exists to ensure the LiveReloadingChannel is not garbage collected prematurely, which
+        // can adversely impact ongoing DNS resolution.
+        @SuppressWarnings("unused")
+        private final Object anchor;
 
-        SupplierEndpointChannel(Supplier<EndpointChannel> supplier) {
+        SupplierEndpointChannel(Supplier<EndpointChannel> supplier, Object anchor) {
             this.supplier = supplier;
+            this.anchor = anchor;
         }
 
         @Override
