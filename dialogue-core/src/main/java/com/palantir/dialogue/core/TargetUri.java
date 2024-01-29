@@ -47,6 +47,28 @@ public final class TargetUri {
         return "TargetUri{uri='" + uri + "', resolvedAddress=" + resolvedAddress + '}';
     }
 
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+        TargetUri targetUri = (TargetUri) other;
+        if (!uri.equals(targetUri.uri)) {
+            return false;
+        }
+        return resolvedAddress.equals(targetUri.resolvedAddress);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = uri.hashCode();
+        result = 31 * result + resolvedAddress.hashCode();
+        return result;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
