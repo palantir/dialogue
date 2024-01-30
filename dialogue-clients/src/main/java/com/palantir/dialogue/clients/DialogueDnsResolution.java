@@ -16,9 +16,12 @@
 
 package com.palantir.dialogue.clients;
 
+import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.InetAddresses;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.clients.DialogueDnsDiscoveryMetrics.Resolution_Result;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
@@ -48,14 +51,24 @@ final class DialogueDnsResolution {
     private static final ScheduledExecutorService SINGLETON_SCHEDULER = Executors.newSingleThreadScheduledExecutor();
 
     static RefreshableUris refreshableUris(String channelName, ClientConfiguration configuration) {
-        ImmutableList<TargetUri> initial = resolveUris(channelName, configuration);
-        SettableRefreshable<ImmutableList<TargetUri>> refreshable = Refreshable.create(initial);
-        // TODO(ckozak): Metrics for total number of dns refresh tasks are running per channel. This way
+        // Metrics for total number of dns refresh tasks are running per channel. This way
         // we can detect if one is removed unexpectedly.
+        DialogueDnsDiscoveryMetrics metrics = DialogueDnsDiscoveryMetrics.of(configuration.taggedMetricRegistry());
+        Timer successTimer = metrics.resolution()
+                .channelName(channelName)
+                .result(Resolution_Result.SUCCESS)
+                .build();
+        Timer failureTimer = metrics.resolution()
+                .channelName(channelName)
+                .result(Resolution_Result.FAILURE)
+                .build();
+        ImmutableList<TargetUri> initial = resolveUris(channelName, configuration, successTimer, failureTimer);
+        SettableRefreshable<ImmutableList<TargetUri>> refreshable = Refreshable.create(initial);
+        Counter scheduledTasks = metrics.scheduled(channelName);
         ScheduledFuture<?> dnsRefreshFuture = SINGLETON_SCHEDULER.scheduleWithFixedDelay(
                 () -> {
                     try {
-                        refreshable.update(resolveUris(channelName, configuration));
+                        refreshable.update(resolveUris(channelName, configuration, successTimer, failureTimer));
                     } catch (Throwable t) {
                         log.warn("Failed to refresh URIs for channel {}", SafeArg.of("channel", channelName), t);
                     }
@@ -63,7 +76,9 @@ final class DialogueDnsResolution {
                 5,
                 5,
                 TimeUnit.SECONDS);
-        return new RefreshableUris(channelName, refreshable, dnsRefreshFuture);
+        // Increment after scheduling to ensure the task was scheduled as expected
+        scheduledTasks.inc();
+        return new RefreshableUris(channelName, refreshable, dnsRefreshFuture, scheduledTasks);
     }
 
     static final class RefreshableUris implements Closeable {
@@ -73,14 +88,17 @@ final class DialogueDnsResolution {
 
         private final Refreshable<ImmutableList<TargetUri>> uris;
         private final ScheduledFuture<?> dnsRefreshFuture;
+        private final Counter scheduledTasks;
 
         private RefreshableUris(
                 @Safe String channelName,
                 Refreshable<ImmutableList<TargetUri>> uris,
-                ScheduledFuture<?> dnsRefreshFuture) {
+                ScheduledFuture<?> dnsRefreshFuture,
+                Counter scheduledTasks) {
             this.channelName = channelName;
             this.uris = uris;
             this.dnsRefreshFuture = dnsRefreshFuture;
+            this.scheduledTasks = scheduledTasks;
         }
 
         Refreshable<ImmutableList<TargetUri>> uris() {
@@ -91,16 +109,15 @@ final class DialogueDnsResolution {
         @Override
         public void close() {
             if (dnsRefreshFuture.cancel(false)) {
+                scheduledTasks.dec();
                 log.info("Unregistered scheduled DNS refresh task", SafeArg.of("channel", channelName));
             }
         }
     }
 
-    static ImmutableList<TargetUri> resolveUris(@Safe String channelName, ClientConfiguration configuration) {
+    static ImmutableList<TargetUri> resolveUris(
+            @Safe String channelName, ClientConfiguration configuration, Timer successTimer, Timer failureTimer) {
         List<String> uris = configuration.uris();
-        if (uris.isEmpty() || configuration.meshProxy().isPresent()) {
-            return ImmutableList.of();
-        }
         // TODO(ckozak): cache dns lookups? JVM already does this, so it may not be terribly helpful.
         List<TargetUri> targets = new ArrayList<>();
         for (String uri : uris) {
@@ -113,9 +130,11 @@ final class DialogueDnsResolution {
             if (isInetAddress || usesProxy) {
                 targets.add(TargetUri.builder().uri(uri).build());
             } else {
+                boolean success = false;
+                long startTime = System.nanoTime();
                 try {
-                    // TODO(ckozak): Add timer metrics for DNS resolution.
                     InetAddress[] addresses = InetAddress.getAllByName(host);
+                    success = true;
                     if (log.isDebugEnabled()) {
                         log.debug(
                                 "Resolved {} addresses for channel {}",
@@ -141,6 +160,9 @@ final class DialogueDnsResolution {
                     // if it's entirely absent from the list, so other nodes may take priority.
                     log.warn("DNS Resolution failed for channel {}", SafeArg.of("channel", channelName), e);
                     // TODO(ckozak): Add metrics describing rate of DNS failure per-channel.
+                } finally {
+                    Timer timer = success ? successTimer : failureTimer;
+                    timer.update(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
                 }
             }
         }

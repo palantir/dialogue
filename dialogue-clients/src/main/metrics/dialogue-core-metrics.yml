@@ -1,0 +1,18 @@
+options:
+  javaPackage: com.palantir.dialogue.clients
+  javaVisibility: packagePrivate
+namespaces:
+  dialogue.dns.discovery:
+    docs: Instrumentation on dialogue dns-based node discovery.
+    metrics:
+      scheduled:
+        type: counter
+        tags: [channel-name]
+        docs: Number of active scheduled tasks refreshing dns info.
+      resolution:
+        type: timer
+        tags:
+          - name: channel-name
+          - name: result
+            values: [success, failure]
+        docs: DNS resolution timing info.

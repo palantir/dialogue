@@ -58,6 +58,8 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
                 new HttpHost(
                         targetHost.getSchemeName(), resolvedAddress, targetHost.getHostName(), targetHost.getPort()),
                 route.getLocalAddress(),
+                // We don't really expect proxies to be used with pre-resolved addresses, however
+                // that takes place at a different layer of the implementation.
                 extractProxies(route),
                 route.isSecure(),
                 route.getTunnelType(),
