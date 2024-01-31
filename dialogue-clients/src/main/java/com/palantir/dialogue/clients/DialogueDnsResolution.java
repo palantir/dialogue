@@ -29,7 +29,6 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
-import java.io.Closeable;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.URI;
@@ -81,7 +80,7 @@ final class DialogueDnsResolution {
         return new RefreshableUris(channelName, refreshable, dnsRefreshFuture, scheduledTasks);
     }
 
-    static final class RefreshableUris implements Closeable {
+    static final class RefreshableUris {
 
         @Safe
         private final String channelName;
@@ -105,9 +104,8 @@ final class DialogueDnsResolution {
             return uris;
         }
 
-        /** {@link #close()} may be called to avoid polling DNS for updates to the returned refreshable. */
-        @Override
-        public void close() {
+        /** {@link #stop()} may be called to avoid polling DNS for updates to the returned refreshable. */
+        void stop() {
             if (dnsRefreshFuture.cancel(false)) {
                 scheduledTasks.dec();
                 log.info("Unregistered scheduled DNS refresh task", SafeArg.of("channel", channelName));

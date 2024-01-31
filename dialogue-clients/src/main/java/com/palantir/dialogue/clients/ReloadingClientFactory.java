@@ -88,7 +88,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
         DialogueDnsResolution.RefreshableUris uris = DialogueDnsResolution.refreshableUris(channelName, input);
-        Refreshable<DialogueChannel> channelRefreshable = uris.uris().map(newUris -> DialogueChannel.builder()
+        Refreshable<Channel> channelRefreshable = uris.uris().map(newUris -> DialogueChannel.builder()
                 .channelName(channelName)
                 .clientConfiguration(clientConf)
                 .uris(newUris)
@@ -96,7 +96,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .build());
         LiveReloadingChannel channel =
                 new LiveReloadingChannel(channelRefreshable, params.runtime().clients());
-        cleaner.register(channel, uris::close);
+        cleaner.register(channel, uris::stop);
         return channel;
     }
 
