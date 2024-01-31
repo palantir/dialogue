@@ -22,6 +22,7 @@ dependencies {
     implementation 'com.palantir.safe-logging:preconditions'
     implementation 'com.palantir.safe-logging:safe-logging'
     implementation 'com.palantir.tritium:tritium-registry'
+    implementation 'io.dropwizard.metrics:metrics-core'
 
     annotationProcessor 'org.immutables:value'
     compileOnly 'org.immutables:value::annotations'

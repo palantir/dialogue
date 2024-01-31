@@ -47,6 +47,17 @@ Dialogue client response metrics provided by the Apache client channel.
 Connection pool metrics from the dialogue Apache client.
 - `dialogue.client.pool.size` tagged `client-name`, `state` (gauge): Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
 
+## Dialogue Clients
+
+`com.palantir.dialogue:dialogue-clients`
+
+### dialogue.dns.discovery
+Instrumentation on dialogue dns-based node discovery.
+- `dialogue.dns.discovery.scheduled` tagged `channel-name` (counter): Number of active scheduled tasks refreshing dns info.
+- `dialogue.dns.discovery.resolution` (timer): DNS resolution timing info.
+  - `channel-name`
+  - `result` values (`success`,`failure`)
+
 ## Dialogue Core
 
 `com.palantir.dialogue:dialogue-core`

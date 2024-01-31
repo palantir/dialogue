@@ -46,6 +46,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -94,8 +95,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .uris(newUris)
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .build());
-        LiveReloadingChannel channel =
+        LiveReloadingChannel liveReloadingChannel =
                 new LiveReloadingChannel(channelRefreshable, params.runtime().clients());
+        ReferenceRetainingChannel<?> channel = new ReferenceRetainingChannel<>(liveReloadingChannel);
         cleaner.register(channel, uris::stop);
         return channel;
     }
@@ -122,7 +124,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
         Channel channel = cache.getNonReloadingChannel(
-                params, serviceConf, ChannelNames.nonReloading(clazz, params), OptionalInt.empty());
+                params,
+                serviceConf,
+                // TODO(ckozak): handle per-host resolution
+                serviceConf.uris().stream()
+                        .map(uri -> TargetUri.builder().uri(uri).build())
+                        .collect(ImmutableList.toImmutableList()),
+                ChannelNames.nonReloading(clazz, params),
+                OptionalInt.empty());
 
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
@@ -157,16 +166,21 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
                     ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
                     for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
+                        String uri = serviceConfiguration.uris().get(i);
                         ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
                                 .from(serviceConfiguration)
-                                .uris(ImmutableList.of(
-                                        serviceConfiguration.uris().get(i)))
+                                .uris(ImmutableList.of(uri))
                                 .build();
 
                         // subtle gotcha here is that every single one of these has the same channelName,
                         // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
                         list.add(cache.getNonReloadingChannel(
-                                params, singleUriServiceConf, channelName, OptionalInt.of(i)));
+                                params,
+                                singleUriServiceConf,
+                                // TODO(ckozak): handle per-host resolution
+                                ImmutableList.of(TargetUri.builder().uri(uri).build()),
+                                channelName,
+                                OptionalInt.of(i)));
                     }
                     return list.build();
                 });
@@ -381,8 +395,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ServiceConfiguration serviceConf =
                     ServiceConfigurationFactory.of(block).get(serviceName);
 
-            DialogueChannel dialogueChannel =
-                    cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+            DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
+                    params,
+                    serviceConf,
+                    // TODO(ckozak): handle per-host resolution
+                    serviceConf.uris().stream()
+                            .map(uri -> TargetUri.builder().uri(uri).build())
+                            .collect(ImmutableList.toImmutableList()),
+                    channelName,
+                    OptionalInt.empty());
             return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
         });
     }
@@ -437,6 +458,58 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
     }
 
+    private static final class ReferenceRetainingChannel<T extends Channel & EndpointChannelFactory>
+            implements Channel, EndpointChannelFactory {
+        private final T delegate;
+
+        private ReferenceRetainingChannel(T delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            return new ReferenceRetainingEndpointChannel(delegate.endpoint(endpoint), this);
+        }
+
+        /** Older codepath, not quite as performant. */
+        @Override
+        public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
+            return delegate.execute(endpoint, request);
+        }
+
+        @Override
+        public String toString() {
+            return "ReferenceRetainingChannel{" + delegate + '}';
+        }
+
+        private static final class ReferenceRetainingEndpointChannel implements EndpointChannel {
+
+            private final EndpointChannel delegate;
+            // This field exists to ensure the original channel/enpoint-channel-factory is not garbage collected
+            // prematurely, which can adversely impact ongoing DNS resolution (or any other resource management
+            // based on a reference to the original channel).
+            private final ReferenceRetainingChannel<?> originalChannelReference;
+
+            private ReferenceRetainingEndpointChannel(
+                    EndpointChannel delegate, ReferenceRetainingChannel<?> originalChannelReference) {
+                this.delegate = delegate;
+                this.originalChannelReference = originalChannelReference;
+            }
+
+            @Override
+            public ListenableFuture<Response> execute(Request request) {
+                return delegate.execute(request);
+            }
+
+            @Override
+            public String toString() {
+                return "ReferenceRetainingEndpointChannel{" + "delegate="
+                        + delegate + ", originalChannelReference="
+                        + originalChannelReference + '}';
+            }
+        }
+    }
+
     @VisibleForTesting
     static final class LiveReloadingChannel implements Channel, EndpointChannelFactory {
         private final Refreshable<? extends Channel> refreshable;
@@ -454,7 +527,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         public EndpointChannel endpoint(Endpoint endpoint) {
             Supplier<EndpointChannel> endpointChannel =
                     new LazilyMappedRefreshable<>(refreshable, channel -> utils.bind(channel, endpoint));
-            return new SupplierEndpointChannel(endpointChannel, this);
+            return new SupplierEndpointChannel(endpointChannel);
         }
 
         /** Older codepath, not quite as performant. */
@@ -472,14 +545,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     private static final class SupplierEndpointChannel implements EndpointChannel {
         private final Supplier<EndpointChannel> supplier;
-        // This field exists to ensure the LiveReloadingChannel is not garbage collected prematurely, which
-        // can adversely impact ongoing DNS resolution.
-        @SuppressWarnings("unused")
-        private final Object anchor;
 
-        SupplierEndpointChannel(Supplier<EndpointChannel> supplier, Object anchor) {
+        SupplierEndpointChannel(Supplier<EndpointChannel> supplier) {
             this.supplier = supplier;
-            this.anchor = anchor;
         }
 
         @Override

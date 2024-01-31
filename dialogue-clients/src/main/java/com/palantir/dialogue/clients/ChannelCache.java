@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
@@ -32,6 +33,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -100,6 +102,7 @@ final class ChannelCache {
     DialogueChannel getNonReloadingChannel(
             ReloadingClientFactory.ReloadingParams reloadingParams,
             ServiceConfiguration serviceConf,
+            List<TargetUri> uris,
             @Safe String channelName,
             OptionalInt overrideHostIndex) {
         if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CACHED_CHANNELS * 0.75) {
@@ -110,6 +113,7 @@ final class ChannelCache {
                 .from(reloadingParams)
                 .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
+                .uris(uris)
                 .channelName(channelName)
                 .overrideHostIndex(overrideHostIndex)
                 .build());
@@ -131,6 +135,7 @@ final class ChannelCache {
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
+                .uris(channelCacheRequest.uris())
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex())
                 .build();
@@ -210,6 +215,8 @@ final class ChannelCache {
     @Value.Immutable
     interface ChannelCacheKey extends AugmentClientConfig {
         ServiceConfiguration serviceConf();
+
+        List<TargetUri> uris();
 
         Optional<ExecutorService> blockingExecutor();
 
