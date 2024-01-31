@@ -47,7 +47,10 @@ public final class DialogueClients {
 
     public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
         return new ReloadingClientFactory(
-                ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
+                ImmutableReloadingParams.builder()
+                        .scb(ServicesConfigBlockWithResolvedHosts.from(scb))
+                        .build(),
+                ChannelCache.createEmptyCache());
     }
 
     /**

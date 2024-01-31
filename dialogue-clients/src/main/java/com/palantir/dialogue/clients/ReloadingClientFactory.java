@@ -104,7 +104,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
-        Refreshable<ServicesConfigBlock> scb();
+        Refreshable<ServicesConfigBlockWithResolvedHosts> scb();
 
         @Value.Default
         default ConjureRuntime runtime() {
@@ -156,7 +156,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         String channelName = ChannelNames.reloading(serviceName, params);
 
         Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
-                .map(block -> {
+                .map(blockAndTargets -> {
+                    ServicesConfigBlock block = blockAndTargets.scb();
                     if (!block.services().containsKey(serviceName)) {
                         return ImmutableList.of();
                     }
@@ -165,22 +166,23 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             ServiceConfigurationFactory.of(block).get(serviceName);
 
                     ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
-                    for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
-                        String uri = serviceConfiguration.uris().get(i);
+                    int index = 0;
+                    for (String uri : serviceConfiguration.uris()) {
                         ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
                                 .from(serviceConfiguration)
                                 .uris(ImmutableList.of(uri))
                                 .build();
-
-                        // subtle gotcha here is that every single one of these has the same channelName,
-                        // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
-                        list.add(cache.getNonReloadingChannel(
-                                params,
-                                singleUriServiceConf,
-                                // TODO(ckozak): handle per-host resolution
-                                ImmutableList.of(TargetUri.builder().uri(uri).build()),
-                                channelName,
-                                OptionalInt.of(i)));
+                        for (TargetUri target : blockAndTargets.targets().get(uri)) {
+                            // subtle gotcha here is that every single one of these has the same channelName,
+                            // which means metrics like the QueuedChannel counter will end up being the sum of all of
+                            // them.
+                            list.add(cache.getNonReloadingChannel(
+                                    params,
+                                    singleUriServiceConf,
+                                    ImmutableList.of(target),
+                                    channelName,
+                                    OptionalInt.of(index++)));
+                        }
                     }
                     return list.build();
                 });
@@ -284,7 +286,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public DialogueClients.ReloadingFactory reloading(Refreshable<ServicesConfigBlock> scb) {
-        return new ReloadingClientFactory(params.withScb(scb), cache);
+        return new ReloadingClientFactory(params.withScb(ServicesConfigBlockWithResolvedHosts.from(scb)), cache);
     }
 
     @Override
@@ -371,8 +373,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return params.scb().map(block -> {
-            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
+        return params.scb().map(scbAndResolvedAddresses -> {
+            Preconditions.checkNotNull(
+                    scbAndResolvedAddresses, "Refreshable must not provide a null ServicesConfigBlock");
+            ServicesConfigBlock block = scbAndResolvedAddresses.scb();
 
             if (!block.services().containsKey(serviceName)) {
                 return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
@@ -395,15 +399,17 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ServiceConfiguration serviceConf =
                     ServiceConfigurationFactory.of(block).get(serviceName);
 
-            DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
-                    params,
-                    serviceConf,
-                    // TODO(ckozak): handle per-host resolution
-                    serviceConf.uris().stream()
-                            .map(uri -> TargetUri.builder().uri(uri).build())
-                            .collect(ImmutableList.toImmutableList()),
-                    channelName,
-                    OptionalInt.empty());
+            ImmutableList<TargetUri> targetUris = serviceConf.uris().stream()
+                    .flatMap(uri -> scbAndResolvedAddresses.targets().get(uri).stream())
+                    .collect(ImmutableList.toImmutableList());
+
+            if (targetUris.isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "DNS resolution found no hosts for service", SafeArg.of("serviceName", serviceName)));
+            }
+
+            DialogueChannel dialogueChannel =
+                    cache.getNonReloadingChannel(params, serviceConf, targetUris, channelName, OptionalInt.empty());
             return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
         });
     }

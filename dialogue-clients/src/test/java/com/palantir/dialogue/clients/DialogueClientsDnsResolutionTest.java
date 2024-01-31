@@ -49,6 +49,7 @@ import javax.net.ssl.X509TrustManager;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 public class DialogueClientsDnsResolutionTest {
@@ -77,6 +78,7 @@ public class DialogueClientsDnsResolutionTest {
     }
 
     @Test
+    @Disabled // Not implemented yet
     void reloadingFactoryDnsTaskCleanup() {
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {

@@ -25,12 +25,15 @@ import com.palantir.dialogue.clients.DialogueDnsDiscoveryMetrics.Resolution_Resu
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.Proxy;
+import java.net.ProxySelector;
 import java.net.URI;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
@@ -49,10 +52,16 @@ final class DialogueDnsResolution {
     // This shouldn't be a static singleton if we can avoid it.
     private static final ScheduledExecutorService SINGLETON_SCHEDULER = Executors.newSingleThreadScheduledExecutor();
 
-    static RefreshableUris refreshableUris(String channelName, ClientConfiguration configuration) {
+    static RefreshableUris refreshableUris(String serviceName, ClientConfiguration configuration) {
+        return refreshableUris(
+                serviceName, configuration.taggedMetricRegistry(), configuration.uris(), configuration.proxy());
+    }
+
+    static RefreshableUris refreshableUris(
+            String channelName, TaggedMetricRegistry registry, List<String> uris, ProxySelector selector) {
         // Metrics for total number of dns refresh tasks are running per channel. This way
         // we can detect if one is removed unexpectedly.
-        DialogueDnsDiscoveryMetrics metrics = DialogueDnsDiscoveryMetrics.of(configuration.taggedMetricRegistry());
+        DialogueDnsDiscoveryMetrics metrics = DialogueDnsDiscoveryMetrics.of(registry);
         Timer successTimer = metrics.resolution()
                 .channelName(channelName)
                 .result(Resolution_Result.SUCCESS)
@@ -61,13 +70,13 @@ final class DialogueDnsResolution {
                 .channelName(channelName)
                 .result(Resolution_Result.FAILURE)
                 .build();
-        ImmutableList<TargetUri> initial = resolveUris(channelName, configuration, successTimer, failureTimer);
+        ImmutableList<TargetUri> initial = resolveUris(channelName, uris, selector, successTimer, failureTimer);
         SettableRefreshable<ImmutableList<TargetUri>> refreshable = Refreshable.create(initial);
         Counter scheduledTasks = metrics.scheduled(channelName);
         ScheduledFuture<?> dnsRefreshFuture = SINGLETON_SCHEDULER.scheduleWithFixedDelay(
                 () -> {
                     try {
-                        refreshable.update(resolveUris(channelName, configuration, successTimer, failureTimer));
+                        refreshable.update(resolveUris(channelName, uris, selector, successTimer, failureTimer));
                     } catch (Throwable t) {
                         log.warn("Failed to refresh URIs for channel {}", SafeArg.of("channel", channelName), t);
                     }
@@ -114,15 +123,18 @@ final class DialogueDnsResolution {
     }
 
     static ImmutableList<TargetUri> resolveUris(
-            @Safe String channelName, ClientConfiguration configuration, Timer successTimer, Timer failureTimer) {
-        List<String> uris = configuration.uris();
+            @Safe String channelName,
+            List<String> uris,
+            ProxySelector selector,
+            Timer successTimer,
+            Timer failureTimer) {
         // TODO(ckozak): cache dns lookups? JVM already does this, so it may not be terribly helpful.
         List<TargetUri> targets = new ArrayList<>();
         for (String uri : uris) {
             URI parsed = URI.create(uri);
             String host = parsed.getHost();
             boolean isInetAddress = InetAddresses.isInetAddress(host);
-            boolean usesProxy = usesProxy(configuration, parsed);
+            boolean usesProxy = usesProxy(selector, parsed);
             // If the input is already an IP address, or uses a proxy,
             // we do not attempt DNS resolution.
             if (isInetAddress || usesProxy) {
@@ -135,8 +147,9 @@ final class DialogueDnsResolution {
                     success = true;
                     if (log.isDebugEnabled()) {
                         log.debug(
-                                "Resolved {} addresses for channel {}",
-                                SafeArg.of("addresses", addresses.length),
+                                "Resolved {} addresses ({}) for channel {}",
+                                SafeArg.of("numAddresses", addresses.length),
+                                UnsafeArg.of("addresses", addresses),
                                 SafeArg.of("channel", channelName));
                     }
                     // Avoid forcing a refresh when DNS ordering changes.
@@ -157,7 +170,6 @@ final class DialogueDnsResolution {
                     // We could provide the unresolved hostname, however we're probably better off
                     // if it's entirely absent from the list, so other nodes may take priority.
                     log.warn("DNS Resolution failed for channel {}", SafeArg.of("channel", channelName), e);
-                    // TODO(ckozak): Add metrics describing rate of DNS failure per-channel.
                 } finally {
                     Timer timer = success ? successTimer : failureTimer;
                     timer.update(System.nanoTime() - startTime, TimeUnit.NANOSECONDS);
@@ -167,14 +179,9 @@ final class DialogueDnsResolution {
         return ImmutableList.copyOf(targets);
     }
 
-    private static boolean usesProxy(ClientConfiguration configuration, URI uri) {
-        if (configuration.meshProxy().isPresent()) {
-            // Mesh proxy isn't actually supported in practice, however we might as well account for it while
-            // the field exists.
-            return true;
-        }
+    private static boolean usesProxy(ProxySelector proxySelector, URI uri) {
         try {
-            List<Proxy> proxies = configuration.proxy().select(uri);
+            List<Proxy> proxies = proxySelector.select(uri);
             return proxies.stream().allMatch(proxy -> Proxy.Type.DIRECT.equals(proxy.type()));
         } catch (RuntimeException e) {
             // Fall back to the simple path without scheduling recurring DNS resolution.

@@ -93,6 +93,12 @@ public final class TargetUri {
             return this;
         }
 
+        public Builder resolvedAddress(Optional<InetAddress> value) {
+            this.resolvedAddress =
+                    Preconditions.checkNotNull(value, "resolvedAddress").orElse(null);
+            return this;
+        }
+
         @CheckReturnValue
         public TargetUri build() {
             return new TargetUri(Preconditions.checkNotNull(uri, "uri"), Optional.ofNullable(resolvedAddress));
