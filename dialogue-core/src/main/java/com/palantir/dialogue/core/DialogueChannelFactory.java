@@ -18,6 +18,8 @@ package com.palantir.dialogue.core;
 
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.DialogueImmutablesStyle;
+import java.net.InetAddress;
+import java.util.Optional;
 import java.util.OptionalInt;
 import org.immutables.value.Value;
 
@@ -29,6 +31,8 @@ public interface DialogueChannelFactory {
     @DialogueImmutablesStyle
     interface ChannelArgs {
         String uri();
+
+        Optional<InetAddress> resolvedAddress();
 
         OptionalInt uriIndexForInstrumentation();
 
