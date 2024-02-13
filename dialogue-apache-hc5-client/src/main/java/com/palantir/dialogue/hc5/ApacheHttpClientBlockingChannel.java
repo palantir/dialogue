@@ -44,6 +44,7 @@ import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.InetAddress;
 import java.net.URL;
 import java.util.Arrays;
 import java.util.Collections;
@@ -78,16 +79,19 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
 
     private final ApacheHttpClientChannels.CloseableClient client;
     private final BaseUrl baseUrl;
+    private final Optional<InetAddress> resolvedHost;
     private final ResponseLeakDetector responseLeakDetector;
     private final OptionalInt uriIndexForInstrumentation;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client,
             URL baseUrl,
+            Optional<InetAddress> resolvedHost,
             ResponseLeakDetector responseLeakDetector,
             OptionalInt uriIndexForInstrumentation) {
         this.client = client;
         this.baseUrl = BaseUrl.of(baseUrl);
+        this.resolvedHost = resolvedHost;
         this.responseLeakDetector = responseLeakDetector;
         this.uriIndexForInstrumentation = uriIndexForInstrumentation;
     }
@@ -117,6 +121,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         long startTime = System.nanoTime();
         try {
             HttpClientContext context = HttpClientContext.create();
+            resolvedHost.ifPresent(inetAddress -> DialogueRoutePlanner.set(context, inetAddress));
             CloseableHttpResponse httpClientResponse = client.apacheClient().execute(builder.build(), context);
             // Defensively ensure that resources are closed if failures occur within this block,
             // for example HttpClientResponse allocation may throw an OutOfMemoryError.

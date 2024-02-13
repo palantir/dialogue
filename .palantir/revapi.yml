@@ -268,6 +268,11 @@ acceptedBreaks:
       new: "parameter <V> V com.palantir.dialogue.ResponseAttachments::put(===com.palantir.dialogue.ResponseAttachmentKey<V>===,\
         \ V)"
       justification: "Incorrect parameter types"
+  "3.110.0":
+    com.palantir.dialogue:dialogue-core:
+    - code: "java.method.addedToInterface"
+      new: "method java.util.Optional<java.net.InetAddress> com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs::resolvedAddress()"
+      justification: "Type is consumed, not extended"
   "3.2.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"
