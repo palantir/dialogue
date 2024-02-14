@@ -19,10 +19,10 @@ package com.palantir.dialogue.clients;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Maps;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -52,15 +52,23 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.net.InetAddress;
+import java.net.URI;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -69,10 +77,20 @@ import org.immutables.value.Value;
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
+    private final ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
+    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
+            Refreshable.create(null);
+    private final Future<?> dnsResolutionFuture;
 
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
+        DialogueDnsResolver dummyResolver = hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
+        DialogueDnsResolutionWorker dnsResolutionWorker =
+                new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult);
+        dnsResolutionFuture = dnsResolutionExecutor.submit(dnsResolutionWorker);
+        // TODO: change this to `scb().subscribe(...)
+        Disposable scbSubscribe = this.params.scb().subscribe(dnsResolutionWorker::update);
     }
 
     @Override
@@ -358,34 +376,67 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return params.scb().map(block -> {
-            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
+        return dnsResolutionResult
+                .map(block -> {
+                    Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
-            if (!block.services().containsKey(serviceName)) {
-                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)",
-                        SafeArg.of("serviceName", serviceName),
-                        SafeArg.of("available", block.services().keySet())));
-            }
+                    if (!block.scb().services().containsKey(serviceName)) {
+                        return new InternalDialogueChannelConfiguration(
+                                Optional.empty(),
+                                ImmutableSetMultimap.of(),
+                                block.scb().services().keySet());
+                    }
 
-            if (block.services().get(serviceName).uris().isEmpty()) {
-                return new EmptyInternalDialogueChannel(() -> {
-                    Map<String, PartialServiceConfiguration> servicesWithUris =
-                            Maps.filterValues(block.services(), c -> !c.uris().isEmpty());
-                    return new SafeIllegalStateException(
-                            "Service not configured (no URIs)",
-                            SafeArg.of("serviceName", serviceName),
-                            SafeArg.of("available", servicesWithUris.keySet()));
+                    Optional<ServiceConfiguration> serviceConf = Optional.of(
+                            ServiceConfigurationFactory.of(block.scb()).get(serviceName));
+
+                    if (block.scb().services().get(serviceName).uris().isEmpty()) {
+                        Set<String> servicesWithUris = block.scb().services().entrySet().stream()
+                                .filter(e -> !e.getValue().uris().isEmpty())
+                                .map(Entry::getKey)
+                                .collect(Collectors.toSet());
+                        return new InternalDialogueChannelConfiguration(
+                                serviceConf, ImmutableSetMultimap.of(), servicesWithUris);
+                    }
+
+                    ImmutableSetMultimap.Builder<String, InetAddress> resolvedHostsForService =
+                            ImmutableSetMultimap.builder();
+                    block.scb().services().get(serviceName).uris().stream()
+                            .map(URI::create)
+                            .map(URI::getHost)
+                            .forEach(host -> resolvedHostsForService.putAll(
+                                    host, block.resolvedHosts().get(host)));
+
+                    return new InternalDialogueChannelConfiguration(
+                            serviceConf, resolvedHostsForService.build(), ImmutableSet.of());
+                })
+                .map(conf -> {
+                    Preconditions.checkNotNull(
+                            conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
+
+                    if (conf.getServiceConfiguration().isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured (config block not present)",
+                                SafeArg.of("serviceName", serviceName),
+                                SafeArg.of("available", conf.getAvailableServices())));
+                    }
+
+                    if (conf.getResolvedHosts().isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> {
+                            return new SafeIllegalStateException(
+                                    "Service not configured (no URIs)",
+                                    SafeArg.of("serviceName", serviceName),
+                                    SafeArg.of("available", conf.getAvailableServices()));
+                        });
+                    }
+
+                    ServiceConfiguration serviceConf =
+                            conf.getServiceConfiguration().get();
+
+                    DialogueChannel dialogueChannel =
+                            cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+                    return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
                 });
-            }
-
-            ServiceConfiguration serviceConf =
-                    ServiceConfigurationFactory.of(block).get(serviceName);
-
-            DialogueChannel dialogueChannel =
-                    cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
-            return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
-        });
     }
 
     @Unsafe
@@ -510,6 +561,60 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public String toString() {
             return "LazilyMappedRefreshable{" + delegate + '}';
+        }
+    }
+
+    private static final class InternalDialogueChannelConfiguration {
+        private final Optional<ServiceConfiguration> serviceConfiguration;
+        private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
+        private final Set<String> availableServices;
+
+        InternalDialogueChannelConfiguration(
+                Optional<ServiceConfiguration> serviceConfiguration,
+                ImmutableSetMultimap<String, InetAddress> resolvedHosts,
+                Set<String> availableServices) {
+            this.serviceConfiguration = serviceConfiguration;
+            this.resolvedHosts = resolvedHosts;
+            this.availableServices = availableServices;
+        }
+
+        Optional<ServiceConfiguration> getServiceConfiguration() {
+            return serviceConfiguration;
+        }
+
+        ImmutableSetMultimap<String, InetAddress> getResolvedHosts() {
+            return resolvedHosts;
+        }
+
+        Set<String> getAvailableServices() {
+            return availableServices;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
+            }
+            InternalDialogueChannelConfiguration that = (InternalDialogueChannelConfiguration) other;
+            return Objects.equals(serviceConfiguration, that.serviceConfiguration)
+                    && Objects.equals(resolvedHosts, that.resolvedHosts)
+                    && Objects.equals(availableServices, that.availableServices);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(serviceConfiguration, resolvedHosts, availableServices);
+        }
+
+        @Override
+        public String toString() {
+            return "InternalDialogueChannelConfiguration{" + "serviceConfiguration="
+                    + serviceConfiguration + ", resolvedHosts="
+                    + resolvedHosts + ", availableServices="
+                    + availableServices + '}';
         }
     }
 }

@@ -24,6 +24,8 @@ public interface DialogueDnsResolver {
     ImmutableSet<InetAddress> resolve(String hostname);
 
     default ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostNames) {
-        return ImmutableSetMultimap.of();
+        ImmutableSetMultimap.Builder<String, InetAddress> builder = ImmutableSetMultimap.builder();
+        hostNames.forEach(hostname -> builder.putAll(hostname, resolve(hostname)));
+        return builder.build();
     }
 }
