@@ -24,6 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
@@ -41,11 +42,19 @@ interface Config {
 
     ClientConfiguration rawConfig();
 
+    @Value.Default
+    default List<TargetUri> uris() {
+        return rawConfig().uris().stream()
+                .map(MeshMode::stripMeshPrefix)
+                .map(uri -> TargetUri.builder().uri(uri).build())
+                .collect(Collectors.toList());
+    }
+
     @Value.Derived
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
-                .uris(rawConfig().uris().stream().map(MeshMode::stripMeshPrefix).collect(Collectors.toList()))
+                .uris(uris().stream().map(TargetUri::uri).collect(Collectors.toList()))
                 .taggedMetricRegistry(rawConfig().taggedMetricRegistry())
                 .build();
     }
