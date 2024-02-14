@@ -25,6 +25,7 @@ import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -167,6 +168,8 @@ public final class DialogueClients {
                     ReloadingChannelFactory,
                     NonReloadingChannelFactory,
                     ClientConfigurationNonReloadingClientFactory {
+
+        ReloadingFactory withDnsResolver(DialogueDnsResolver dnsResolver);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 
