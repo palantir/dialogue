@@ -30,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
-public class DialogueDnsResolutionWorker implements Runnable {
+final class DialogueDnsResolutionWorker implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);
     private static final BlockingQueue<ServicesConfigBlock> updatesQueue = new LinkedBlockingQueue<>();
 
@@ -51,11 +51,11 @@ public class DialogueDnsResolutionWorker implements Runnable {
         this.shutdownRequested = false;
     }
 
-    public boolean update(ServicesConfigBlock scb) {
+    boolean update(ServicesConfigBlock scb) {
         return updatesQueue.offer(scb);
     }
 
-    public void shutdown() {
+    void shutdown() {
         shutdownRequested = true;
     }
 

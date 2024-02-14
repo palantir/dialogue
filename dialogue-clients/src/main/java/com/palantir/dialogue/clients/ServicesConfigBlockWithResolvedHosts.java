@@ -47,10 +47,14 @@ final class ServicesConfigBlockWithResolvedHosts {
     }
 
     @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ServicesConfigBlockWithResolvedHosts that = (ServicesConfigBlockWithResolvedHosts) o;
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+        ServicesConfigBlockWithResolvedHosts that = (ServicesConfigBlockWithResolvedHosts) other;
         return Objects.equals(scb, that.scb) && Objects.equals(resolvedHosts, that.resolvedHosts);
     }
 
