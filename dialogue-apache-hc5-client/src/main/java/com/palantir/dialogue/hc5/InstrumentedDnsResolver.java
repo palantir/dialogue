@@ -17,14 +17,26 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Meter;
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
+import com.google.errorprone.annotations.CompileTimeConstant;
+import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.logsafe.Arg;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.SafeLoggable;
 import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.exceptions.SafeExceptions;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableTracer;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 import org.apache.hc.client5.http.DnsResolver;
 
 /** {@link DnsResolver} wrapper which adds tracing spans. */
@@ -32,11 +44,17 @@ final class InstrumentedDnsResolver implements DnsResolver {
 
     private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedDnsResolver.class);
     private final DnsResolver delegate;
+    private final Optional<DialogueDnsResolver> dialogueDnsResolver;
     private final Meter errorMeter;
     private final String clientName;
 
-    InstrumentedDnsResolver(DnsResolver delegate, String clientName, TaggedMetricRegistry metricRegistry) {
+    InstrumentedDnsResolver(
+            DnsResolver delegate,
+            Optional<DialogueDnsResolver> dialogueDnsResolver,
+            String clientName,
+            TaggedMetricRegistry metricRegistry) {
         this.delegate = delegate;
+        this.dialogueDnsResolver = dialogueDnsResolver;
         this.clientName = clientName;
         this.errorMeter = DialogueClientMetrics.of(metricRegistry).connectionResolutionError(clientName);
     }
@@ -48,7 +66,7 @@ final class InstrumentedDnsResolver implements DnsResolver {
         // Avoid unnecessary timer syscall overhead when debug logging is not enabled
         long startNanos = debugLoggingEnabled ? System.nanoTime() : -1L;
         try (CloseableTracer ignored = CloseableTracer.startSpan("DnsResolver.resolve")) {
-            InetAddress[] resolved = delegate.resolve(host);
+            InetAddress[] resolved = internalHostnameResolution(host);
             if (debugLoggingEnabled) {
                 long durationNanos = System.nanoTime() - startNanos;
                 log.debug(
@@ -73,6 +91,20 @@ final class InstrumentedDnsResolver implements DnsResolver {
                         t);
             }
             throw t;
+        }
+    }
+
+    private InetAddress[] internalHostnameResolution(String host) throws UnknownHostException {
+        if (dialogueDnsResolver.isPresent()) {
+            DialogueDnsResolver resolver = dialogueDnsResolver.get();
+            ImmutableSet<InetAddress> resolved = resolver.resolve(Strings.nullToEmpty(host));
+            if (resolved.isEmpty()) {
+                throw new SafeUnknownHostException(
+                        "Failed to resolve host", SafeArg.of("client", clientName), UnsafeArg.of("host", host));
+            }
+            return resolved.toArray(InetAddress[]::new);
+        } else {
+            return delegate.resolve(host);
         }
     }
 
@@ -117,5 +149,28 @@ final class InstrumentedDnsResolver implements DnsResolver {
     @Override
     public String toString() {
         return "InstrumentedDnsResolver{" + delegate + '}';
+    }
+
+    private static final class SafeUnknownHostException extends UnknownHostException implements SafeLoggable {
+        @CompileTimeConstant
+        private final String logMessage;
+
+        private final List<Arg<?>> arguments;
+
+        SafeUnknownHostException(@CompileTimeConstant String message, Arg<?>... arguments) {
+            super(SafeExceptions.renderMessage(message, arguments));
+            this.logMessage = message;
+            this.arguments = Collections.unmodifiableList(Arrays.asList(arguments));
+        }
+
+        @Override
+        public @Safe String getLogMessage() {
+            return logMessage;
+        }
+
+        @Override
+        public List<Arg<?>> getArgs() {
+            return arguments;
+        }
     }
 }

@@ -22,6 +22,7 @@ import com.google.common.annotations.VisibleForTesting;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
@@ -112,6 +113,7 @@ final class ChannelCache {
                 .serviceConf(serviceConf)
                 .channelName(channelName)
                 .overrideHostIndex(overrideHostIndex)
+                .dnsResolver(reloadingParams.dnsResolver())
                 .build());
     }
 
@@ -121,6 +123,7 @@ final class ChannelCache {
                 .channelName(channelCacheRequest.channelName())
                 .serviceConf(stripUris(channelCacheRequest.serviceConf())) // we strip out uris to maximise cache hits
                 .blockingExecutor(channelCacheRequest.blockingExecutor())
+                .dnsResolver(channelCacheRequest.dnsResolver())
                 .build();
 
         ApacheCacheEntry apacheClient = getApacheClient(request);
@@ -161,7 +164,8 @@ final class ChannelCache {
 
         ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
                 .clientConfiguration(clientConf)
-                .clientName(request.channelName());
+                .clientName(request.channelName())
+                .dnsResolver(request.dnsResolver());
         request.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient client = clientBuilder.build();
 
@@ -216,6 +220,8 @@ final class ChannelCache {
         String channelName();
 
         OptionalInt overrideHostIndex();
+
+        DialogueDnsResolver dnsResolver();
     }
 
     @DoNotLog
@@ -226,6 +232,8 @@ final class ChannelCache {
         String channelName();
 
         Optional<ExecutorService> blockingExecutor();
+
+        DialogueDnsResolver dnsResolver();
 
         @Value.Check
         default void check() {

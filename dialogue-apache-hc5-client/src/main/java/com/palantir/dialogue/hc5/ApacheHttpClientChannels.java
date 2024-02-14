@@ -29,6 +29,7 @@ import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.blocking.BlockingChannelAdapter;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueChannelFactory;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueInternalWeakReducingGauge;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
@@ -53,6 +54,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -427,6 +429,8 @@ public final class ApacheHttpClientChannels {
         @Nullable
         private ExecutorService executor;
 
+        private Optional<DialogueDnsResolver> dnsResolver = Optional.empty();
+
         private ClientBuilder() {}
 
         public ClientBuilder clientConfiguration(ClientConfiguration value) {
@@ -453,6 +457,15 @@ public final class ApacheHttpClientChannels {
          */
         public ClientBuilder executor(ExecutorService value) {
             this.executor = Preconditions.checkNotNull(value, "ExecutorService is required");
+            return this;
+        }
+
+        /**
+         * Configures the {@link DialogueDnsResolver} used to look up addresses. If no
+         * {@link DialogueDnsResolver resolver} is provided, the httpclient5 default will be used.
+         */
+        public ClientBuilder dnsResolver(DialogueDnsResolver value) {
+            this.dnsResolver = Optional.of(Preconditions.checkNotNull(value, "DialogueDnsResolver is required"));
             return this;
         }
 
@@ -505,7 +518,8 @@ public final class ApacheHttpClientChannels {
                     // No maximum time to live
                     TimeValue.NEG_ONE_MILLISECOND,
                     null,
-                    new InstrumentedDnsResolver(SystemDefaultDnsResolver.INSTANCE, name, conf.taggedMetricRegistry()),
+                    new InstrumentedDnsResolver(
+                            SystemDefaultDnsResolver.INSTANCE, dnsResolver, name, conf.taggedMetricRegistry()),
                     new InstrumentedManagedHttpConnectionFactory(
                             ManagedHttpClientConnectionFactory.INSTANCE, conf.taggedMetricRegistry(), name));
             internalConnectionManager.setDefaultSocketConfig(SocketConfig.custom()

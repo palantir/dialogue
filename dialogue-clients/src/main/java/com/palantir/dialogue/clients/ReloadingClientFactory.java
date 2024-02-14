@@ -40,10 +40,12 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
+import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
@@ -78,7 +80,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         ClientConfiguration clientConf = hydrate(input);
         ApacheHttpClientChannels.ClientBuilder clientBuilder = ApacheHttpClientChannels.clientBuilder()
                 .clientConfiguration(clientConf)
-                .clientName(channelName);
+                .clientName(channelName)
+                .dnsResolver(params.dnsResolver());
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
         return DialogueChannel.builder()
@@ -95,6 +98,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default ConjureRuntime runtime() {
             return DefaultConjureRuntime.builder().build();
+        }
+
+        @Value.Default
+        default DialogueDnsResolver dnsResolver() {
+            return DefaultDialogueDnsResolver.INSTANCE;
         }
 
         Optional<ExecutorService> blockingExecutor();
@@ -320,6 +328,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public DialogueClients.ReloadingFactory withHostEventsSink(HostEventsSink value) {
         return new ReloadingClientFactory(params.withHostEventsSink(value), cache);
+    }
+
+    @Override
+    public ReloadingFactory withDnsResolver(DialogueDnsResolver value) {
+        return new ReloadingClientFactory(params.withDnsResolver(value), cache);
     }
 
     @Override

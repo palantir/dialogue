@@ -273,6 +273,12 @@ acceptedBreaks:
     - code: "java.method.addedToInterface"
       new: "method java.util.Optional<java.net.InetAddress> com.palantir.dialogue.core.DialogueChannelFactory.ChannelArgs::resolvedAddress()"
       justification: "Type is consumed, not extended"
+  "3.111.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDnsResolver(com.palantir.dialogue.core.DialogueDnsResolver)"
+      justification: "API is only consumed, not extended"
   "3.2.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"

@@ -18,15 +18,19 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,11 +66,13 @@ class ChannelCacheTest {
     @Test
     void identical_requests_are_hits() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(serviceConf)
                 .channelName("channelName")
                 .build());
 
         ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(serviceConf)
                 .channelName("channelName")
                 .build());
@@ -77,11 +83,13 @@ class ChannelCacheTest {
     @Test
     void different_channel_name_is_miss() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(serviceConf)
                 .channelName("channelName")
                 .build());
 
         ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(serviceConf)
                 .channelName("channelName2")
                 .build());
@@ -91,13 +99,32 @@ class ChannelCacheTest {
     }
 
     @Test
-    void new_config_evicts_client_but_old_one_is_still_usable() {
+    void different_dns_resolver_new_instance() {
         ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(serviceConf)
                 .channelName("channelName")
                 .build());
 
         ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(_hostname -> ImmutableSet.of())
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .build());
+
+        assertThat(cacheResult).isNotSameAs(cacheResult2);
+    }
+
+    @Test
+    void new_config_evicts_client_but_old_one_is_still_usable() {
+        ChannelCache.ApacheCacheEntry cacheResult = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
+                .serviceConf(serviceConf)
+                .channelName("channelName")
+                .build());
+
+        ChannelCache.ApacheCacheEntry cacheResult2 = cache.getApacheClient(ImmutableApacheClientRequest.builder()
+                .dnsResolver(StubDnsResolver.INSTANCE)
                 .serviceConf(ServiceConfiguration.builder()
                         .from(serviceConf)
                         .enableHttp2(false)
@@ -126,5 +153,18 @@ class ChannelCacheTest {
         return SampleServiceBlocking.of(
                 ApacheHttpClientChannels.createSingleUri(uri, apache),
                 DefaultConjureRuntime.builder().build());
+    }
+
+    private enum StubDnsResolver implements DialogueDnsResolver {
+        INSTANCE;
+
+        @Override
+        public ImmutableSet<InetAddress> resolve(String hostname) {
+            try {
+                return ImmutableSet.copyOf(InetAddress.getAllByName(hostname));
+            } catch (UnknownHostException ignored) {
+                return ImmutableSet.of();
+            }
+        }
     }
 }
