@@ -18,6 +18,8 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.util.concurrent.MoreExecutors;
@@ -28,6 +30,11 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import java.net.InetAddress;
 import java.time.Duration;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -35,11 +42,11 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
 class DialogueDnsResolutionWorkerTest {
-    private static final class TestDnsResolver implements DialogueDnsResolver {
+    private static final class StaticDnsResolver implements DialogueDnsResolver {
 
         private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
 
-        TestDnsResolver(ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
+        StaticDnsResolver(ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
             this.resolvedHosts = resolvedHosts;
         }
 
@@ -59,9 +66,130 @@ class DialogueDnsResolutionWorkerTest {
         }
     }
 
+    private static final class RotatingStaticDnsResolver implements DialogueDnsResolver {
+        private final Map<String, Deque<InetAddress>> resolvedHosts = new HashMap<>();
+        private long lastResolveTime = System.currentTimeMillis();
+
+        RotatingStaticDnsResolver(Map<String, List<InetAddress>> staticMapping) {
+            staticMapping.forEach((hostname, addresses) -> addresses.forEach(address -> {
+                if (!resolvedHosts.containsKey(hostname)) {
+                    Deque<InetAddress> resolvedAddresses = new ArrayDeque<>();
+                    resolvedAddresses.add(address);
+                    resolvedHosts.put(hostname, resolvedAddresses);
+                } else {
+                    Deque<InetAddress> resolvedAddresses = resolvedHosts.get(hostname);
+                    resolvedAddresses.add(address);
+                }
+            }));
+        }
+
+        private InetAddress getNextAddress(String hostname) {
+            Deque<InetAddress> addresses = resolvedHosts.get(hostname);
+            if (addresses == null) {
+                throw new RuntimeException("invalid key: " + hostname);
+            }
+
+            long elapsedMillis = System.currentTimeMillis() - lastResolveTime;
+            // rotate resolved addresses every 5 seconds;
+            long nRotations = elapsedMillis / 5000;
+            if (nRotations > 100) {
+                throw new RuntimeException("too many rotations");
+            }
+
+            while (nRotations > 0) {
+                addresses.add(addresses.pop());
+                --nRotations;
+            }
+
+            return addresses.getFirst();
+        }
+
+        @Override
+        public ImmutableSet<InetAddress> resolve(String hostname) {
+            if (!resolvedHosts.containsKey(hostname)) {
+                return ImmutableSet.of();
+            }
+            InetAddress next = getNextAddress(hostname);
+            lastResolveTime = System.currentTimeMillis();
+            return ImmutableSet.of(next);
+        }
+
+        @Override
+        public ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostNames) {
+            ImmutableSetMultimap.Builder<String, InetAddress> builder = ImmutableSetMultimap.builder();
+            hostNames.forEach(hostname -> {
+                ImmutableSet<InetAddress> addresses = resolve(hostname);
+                builder.putAll(hostname, addresses);
+            });
+            return builder.build();
+        }
+    }
+
+    @Test
+    public void testResolvedAddressesChangesAfterStartup() throws Exception {
+        InetAddress address1 = InetAddress.getByName("1.2.3.4");
+        InetAddress address2 = InetAddress.getByName("5.6.7.8");
+
+        DialogueDnsResolver resolver =
+                new RotatingStaticDnsResolver(ImmutableMap.of("foo.com", ImmutableList.of(address1, address2)));
+
+        String fooUri = "https://foo.com:12345/foo";
+        ServicesConfigBlock initialState = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                .putServices(
+                        "foo",
+                        PartialServiceConfiguration.builder().addUris(fooUri).build())
+                .build();
+        SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
+        SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
+        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
+        ExecutorService executorService = Executors.newSingleThreadExecutor();
+        try {
+            executorService.execute(worker);
+            inputRefreshable.map(worker::update);
+
+            Awaitility.waitAtMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+                assertThat(receiverRefreshable.get()).isNotNull();
+                assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
+                        .isTrue();
+                assertThat(receiverRefreshable
+                                .get()
+                                .resolvedHosts()
+                                .get("foo.com")
+                                .size())
+                        .isEqualTo(1);
+                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                        .allMatch(address1::equals);
+                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                        .noneMatch(address2::equals);
+            });
+
+            // resolved address should rotate after ~5 seconds
+            Awaitility.waitAtMost(Duration.ofSeconds(7)).untilAsserted(() -> {
+                assertThat(receiverRefreshable.get()).isNotNull();
+                assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
+                        .isTrue();
+                assertThat(receiverRefreshable
+                                .get()
+                                .resolvedHosts()
+                                .get("foo.com")
+                                .size())
+                        .isEqualTo(1);
+                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                        .allMatch(address2::equals);
+                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                        .noneMatch(address1::equals);
+            });
+        } finally {
+            worker.shutdown();
+            assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.MINUTES))
+                    .isTrue();
+        }
+    }
+
     @Test
     public void testInputStateChangeAddsAdditionalResolvedHost() {
-        DialogueDnsResolver resolver = new TestDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+        DialogueDnsResolver resolver = new StaticDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
                 .put("foo.com", InetAddress.getLoopbackAddress())
                 .put("bar.com", InetAddress.getLoopbackAddress())
                 .build());
