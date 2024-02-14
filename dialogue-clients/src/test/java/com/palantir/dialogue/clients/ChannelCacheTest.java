@@ -26,11 +26,11 @@ import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
-import com.palantir.logsafe.exceptions.SafeUnsupportedOperationException;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -159,8 +159,12 @@ class ChannelCacheTest {
         INSTANCE;
 
         @Override
-        public ImmutableSet<InetAddress> resolve(String _hostname) {
-            throw new SafeUnsupportedOperationException();
+        public ImmutableSet<InetAddress> resolve(String hostname) {
+            try {
+                return ImmutableSet.copyOf(InetAddress.getAllByName(hostname));
+            } catch (UnknownHostException ignored) {
+                return ImmutableSet.of();
+            }
         }
     }
 }
