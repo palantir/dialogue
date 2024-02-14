@@ -86,7 +86,7 @@ class DialogueDnsResolutionWorkerTest {
         private InetAddress getNextAddress(String hostname) {
             Deque<InetAddress> addresses = resolvedHosts.get(hostname);
             if (addresses == null) {
-                throw new RuntimeException("invalid key: " + hostname);
+                return null;
             }
 
             long elapsedMillis = System.currentTimeMillis() - lastResolveTime;
@@ -106,11 +106,11 @@ class DialogueDnsResolutionWorkerTest {
 
         @Override
         public ImmutableSet<InetAddress> resolve(String hostname) {
-            if (!resolvedHosts.containsKey(hostname)) {
-                return ImmutableSet.of();
-            }
             InetAddress next = getNextAddress(hostname);
             lastResolveTime = System.currentTimeMillis();
+            if (next == null) {
+                return ImmutableSet.of();
+            }
             return ImmutableSet.of(next);
         }
 
