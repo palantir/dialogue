@@ -91,7 +91,7 @@ final class ServicesConfigBlockWithResolvedHosts {
     }
 
     @SuppressWarnings("deprecation") // singleton registry
-    private static ImmutableSetMultimap<String, TargetUri> from(ServicesConfigBlock block) {
+    static ImmutableSetMultimap<String, TargetUri> from(ServicesConfigBlock block) {
         ImmutableSetMultimap.Builder<String, TargetUri> builder = ImmutableSetMultimap.builder();
         ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(block);
         TaggedMetricRegistry registry = SharedTaggedMetricRegistries.getSingleton();

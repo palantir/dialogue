@@ -182,7 +182,7 @@ final class DialogueDnsResolution {
     private static boolean usesProxy(ProxySelector proxySelector, URI uri) {
         try {
             List<Proxy> proxies = proxySelector.select(uri);
-            return proxies.stream().allMatch(proxy -> Proxy.Type.DIRECT.equals(proxy.type()));
+            return proxies.stream().noneMatch(proxy -> Proxy.Type.DIRECT.equals(proxy.type()));
         } catch (RuntimeException e) {
             // Fall back to the simple path without scheduling recurring DNS resolution.
             return true;
