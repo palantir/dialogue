@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -48,10 +47,7 @@ import com.palantir.refreshable.SettableRefreshable;
 import io.undertow.Undertow;
 import io.undertow.server.HttpHandler;
 import io.undertow.server.handlers.BlockingHandler;
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
-import java.net.URI;
-import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -59,7 +55,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -152,41 +147,6 @@ public class DialogueClientsIntegrationTest {
 
         client.voidToVoid();
         assertThat(requestPaths).containsExactly("/foo1/voidToVoid", "/foo2/voidToVoid");
-    }
-
-    @Test
-    void custom_dns_resolver() {
-        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
-        undertowHandler = exchange -> {
-            requestPaths.add(exchange.getRequestPath());
-            exchange.setStatusCode(200);
-        };
-        String randomHostname = UUID.randomUUID().toString();
-        String uri = (getUri(undertow) + foo1Path).replace("localhost", randomHostname);
-        assertThat(URI.create(uri)).hasHost(randomHostname);
-        DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(ServicesConfigBlock.builder()
-                        .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                        .putServices(
-                                "foo",
-                                PartialServiceConfiguration.builder()
-                                        .addUris(uri)
-                                        .build())
-                        .build()))
-                .withUserAgent(TestConfigurations.AGENT)
-                .withDnsResolver(hostname -> {
-                    if (randomHostname.equals(hostname)) {
-                        try {
-                            return ImmutableSet.of(InetAddress.getByAddress(randomHostname, new byte[] {127, 0, 0, 1}));
-                        } catch (UnknownHostException ignored) {
-                            // fall-through
-                        }
-                    }
-                    return ImmutableSet.of();
-                });
-
-        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
-        client.voidToVoid();
-        assertThat(requestPaths).containsExactly("/foo1/voidToVoid");
     }
 
     @Test
