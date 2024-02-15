@@ -74,9 +74,6 @@ final class DialogueDnsResolutionWorker implements Runnable {
                 doUpdate(updatedInputState);
             } catch (InterruptedException e) {
                 log.warn("interrupted checking for updates", e);
-            }
-
-            if (Thread.currentThread().isInterrupted()) {
                 shutdownRequested = true;
             }
         }
