@@ -72,12 +72,14 @@ import org.immutables.value.Value;
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
-    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
-            Refreshable.create(null);
+    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult;
 
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
+        this.dnsResolutionResult = Refreshable.create(ImmutableServicesConfigBlockWithResolvedHosts.of(
+                ServicesConfigBlock.builder().build(), ImmutableSetMultimap.of()));
+
         DialogueDnsResolver dummyResolver = _hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
         DialogueDnsResolutionWorker dnsResolutionWorker =
                 new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult);
@@ -547,49 +549,4 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Parameter
         ImmutableSetMultimap<String, InetAddress> resolvedHosts();
     }
-
-    //    private static final class InternalDialogueChannelConfiguration {
-    //        private final Optional<ServiceConfiguration> serviceConfiguration;
-    //        private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
-    //
-    //        InternalDialogueChannelConfiguration(
-    //                Optional<ServiceConfiguration> serviceConfiguration,
-    //                ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
-    //            this.serviceConfiguration = serviceConfiguration;
-    //            this.resolvedHosts = resolvedHosts;
-    //        }
-    //
-    //        Optional<ServiceConfiguration> getServiceConfiguration() {
-    //            return serviceConfiguration;
-    //        }
-    //
-    //        ImmutableSetMultimap<String, InetAddress> getResolvedHosts() {
-    //            return resolvedHosts;
-    //        }
-    //
-    //        @Override
-    //        public boolean equals(Object other) {
-    //            if (this == other) {
-    //                return true;
-    //            }
-    //            if (other == null || getClass() != other.getClass()) {
-    //                return false;
-    //            }
-    //            InternalDialogueChannelConfiguration that = (InternalDialogueChannelConfiguration) other;
-    //            return Objects.equals(serviceConfiguration, that.serviceConfiguration)
-    //                    && Objects.equals(resolvedHosts, that.resolvedHosts);
-    //        }
-    //
-    //        @Override
-    //        public int hashCode() {
-    //            return Objects.hash(serviceConfiguration, resolvedHosts);
-    //        }
-    //
-    //        @Override
-    //        public String toString() {
-    //            return "InternalDialogueChannelConfiguration{" + "serviceConfiguration="
-    //                    + serviceConfiguration + ", resolvedHosts="
-    //                    + resolvedHosts + '}';
-    //        }
-    //    }
 }
