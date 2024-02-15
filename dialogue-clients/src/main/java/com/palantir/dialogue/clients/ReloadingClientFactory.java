@@ -52,7 +52,6 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
-import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
@@ -66,7 +65,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -81,12 +79,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
-        DialogueDnsResolver dummyResolver = hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
+        DialogueDnsResolver dummyResolver = _hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
         DialogueDnsResolutionWorker dnsResolutionWorker =
                 new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult);
         ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
-        Future<?> dnsResolutionFuture = dnsResolutionExecutor.submit(dnsResolutionWorker);
-        Disposable scbSubscribe = this.params.scb().subscribe(dnsResolutionWorker::update);
+        dnsResolutionExecutor.execute(dnsResolutionWorker);
+        this.params.scb().subscribe(dnsResolutionWorker::update);
     }
 
     @Override

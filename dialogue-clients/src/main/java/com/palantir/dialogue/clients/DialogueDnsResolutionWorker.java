@@ -18,6 +18,7 @@ package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.SettableRefreshable;
