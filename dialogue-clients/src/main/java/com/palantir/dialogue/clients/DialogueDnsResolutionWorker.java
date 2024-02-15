@@ -53,6 +53,11 @@ final class DialogueDnsResolutionWorker implements Runnable {
     }
 
     boolean update(ServicesConfigBlock scb) {
+        if (inputState == null) {
+            // blocks the calling thread for the first update
+            doUpdate(scb);
+            return true;
+        }
         return updatesQueue.offer(scb);
     }
 
@@ -66,29 +71,33 @@ final class DialogueDnsResolutionWorker implements Runnable {
             try {
                 // check for updates to scb state first
                 ServicesConfigBlock updatedInputState = updatesQueue.poll(5, TimeUnit.SECONDS);
-                if (updatedInputState != null && !updatedInputState.equals(inputState)) {
-                    inputState = updatedInputState;
-                }
-
-                // resolve all names in the current state, if there is one
-                if (inputState != null) {
-                    List<String> allHosts = inputState.services().values().stream()
-                            .flatMap(psc -> psc.uris().stream().map(URI::create).map(URI::getHost))
-                            .collect(Collectors.toList());
-                    ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
-                    ServicesConfigBlockWithResolvedHosts newResolvedState =
-                            ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
-                    if (resolvedState == null || !newResolvedState.equals(resolvedState)) {
-                        resolvedState = newResolvedState;
-                        receiver.update(resolvedState);
-                    }
-                }
+                doUpdate(updatedInputState);
             } catch (InterruptedException e) {
                 log.warn("interrupted checking for updates", e);
             }
 
             if (Thread.currentThread().isInterrupted()) {
                 shutdownRequested = true;
+            }
+        }
+    }
+
+    private void doUpdate(ServicesConfigBlock updatedInputState) {
+        if (updatedInputState != null && !updatedInputState.equals(inputState)) {
+            inputState = updatedInputState;
+        }
+
+        // resolve all names in the current state, if there is one
+        if (inputState != null) {
+            List<String> allHosts = inputState.services().values().stream()
+                    .flatMap(psc -> psc.uris().stream().map(URI::create).map(URI::getHost))
+                    .collect(Collectors.toList());
+            ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
+            ServicesConfigBlockWithResolvedHosts newResolvedState =
+                    ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
+            if (resolvedState == null || !newResolvedState.equals(resolvedState)) {
+                resolvedState = newResolvedState;
+                receiver.update(resolvedState);
             }
         }
     }
