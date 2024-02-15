@@ -47,6 +47,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelSession;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
+import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -62,6 +63,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
@@ -405,13 +407,35 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 SafeArg.of("serviceName", serviceName)));
                     }
 
+                    // TODO(blaub): this is probably misleading... no resolvedHosts doesn't mean no URIs were set,
+                    // just that we couldn't resolve the names; effectively those are the same scenarios though
                     if (conf.resolvedHosts().isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
                                 "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
                     }
 
+                    // construct a TargetUri for each resolved address for this service's uris
+                    ImmutableList.Builder<TargetUri> targetUris = ImmutableList.builder();
+                    maybeServiceConf.get().uris().forEach(uri -> {
+                        URI parsed = URI.create(uri);
+                        Set<InetAddress> resolvedAddresses =
+                                conf.resolvedHosts().get(parsed.getHost());
+                        // as a special case, if there were no resolved addresses for this host, we want to set
+                        // a TargetUri with an empty resolvedAddress
+                        if (resolvedAddresses.isEmpty()) {
+                            targetUris.add(TargetUri.builder().uri(uri).build());
+                        } else {
+                            resolvedAddresses.forEach(addr -> {
+                                targetUris.add(TargetUri.builder()
+                                        .uri(uri)
+                                        .resolvedAddress(addr)
+                                        .build());
+                            });
+                        }
+                    });
+
                     DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
-                            params, maybeServiceConf.get(), channelName, OptionalInt.empty());
+                            params, maybeServiceConf.get(), targetUris.build(), channelName, OptionalInt.empty());
                     return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
                 });
     }
