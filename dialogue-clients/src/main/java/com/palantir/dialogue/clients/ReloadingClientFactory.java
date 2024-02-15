@@ -60,7 +60,6 @@ import java.net.URI;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.concurrent.ExecutorService;
@@ -375,7 +374,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
                     if (!block.scb().services().containsKey(serviceName)) {
-                        return new InternalDialogueChannelConfiguration(Optional.empty(), ImmutableSetMultimap.of());
+                        return ImmutableInternalDialogueChannelConfiguration.of(
+                                Optional.empty(), ImmutableSetMultimap.of());
                     }
 
                     Optional<ServiceConfiguration> serviceConf = Optional.of(
@@ -388,30 +388,28 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             .forEach(host -> resolvedHostsForService.putAll(
                                     host, block.resolvedHosts().get(host)));
 
-                    return new InternalDialogueChannelConfiguration(serviceConf, resolvedHostsForService.build());
+                    return ImmutableInternalDialogueChannelConfiguration.of(
+                            serviceConf, resolvedHostsForService.build());
                 })
                 .map(conf -> {
                     Preconditions.checkNotNull(
                             conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
 
-                    if (conf.getServiceConfiguration().isEmpty()) {
+                    Optional<ServiceConfiguration> maybeServiceConf = conf.serviceConfiguration();
+
+                    if (maybeServiceConf.isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
                                 "Service not configured (config block not present)",
                                 SafeArg.of("serviceName", serviceName)));
                     }
 
-                    if (conf.getResolvedHosts().isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> {
-                            return new SafeIllegalStateException(
-                                    "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName));
-                        });
+                    if (conf.resolvedHosts().isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
                     }
 
-                    ServiceConfiguration serviceConf =
-                            conf.getServiceConfiguration().get();
-
-                    DialogueChannel dialogueChannel =
-                            cache.getNonReloadingChannel(params, serviceConf, channelName, OptionalInt.empty());
+                    DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
+                            params, maybeServiceConf.get(), channelName, OptionalInt.empty());
                     return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
                 });
     }
@@ -541,48 +539,57 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
     }
 
-    private static final class InternalDialogueChannelConfiguration {
-        private final Optional<ServiceConfiguration> serviceConfiguration;
-        private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
+    @Value.Immutable
+    interface InternalDialogueChannelConfiguration {
+        @Value.Parameter
+        Optional<ServiceConfiguration> serviceConfiguration();
 
-        InternalDialogueChannelConfiguration(
-                Optional<ServiceConfiguration> serviceConfiguration,
-                ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
-            this.serviceConfiguration = serviceConfiguration;
-            this.resolvedHosts = resolvedHosts;
-        }
-
-        Optional<ServiceConfiguration> getServiceConfiguration() {
-            return serviceConfiguration;
-        }
-
-        ImmutableSetMultimap<String, InetAddress> getResolvedHosts() {
-            return resolvedHosts;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) {
-                return true;
-            }
-            if (other == null || getClass() != other.getClass()) {
-                return false;
-            }
-            InternalDialogueChannelConfiguration that = (InternalDialogueChannelConfiguration) other;
-            return Objects.equals(serviceConfiguration, that.serviceConfiguration)
-                    && Objects.equals(resolvedHosts, that.resolvedHosts);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(serviceConfiguration, resolvedHosts);
-        }
-
-        @Override
-        public String toString() {
-            return "InternalDialogueChannelConfiguration{" + "serviceConfiguration="
-                    + serviceConfiguration + ", resolvedHosts="
-                    + resolvedHosts + '}';
-        }
+        @Value.Parameter
+        ImmutableSetMultimap<String, InetAddress> resolvedHosts();
     }
+
+    //    private static final class InternalDialogueChannelConfiguration {
+    //        private final Optional<ServiceConfiguration> serviceConfiguration;
+    //        private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
+    //
+    //        InternalDialogueChannelConfiguration(
+    //                Optional<ServiceConfiguration> serviceConfiguration,
+    //                ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
+    //            this.serviceConfiguration = serviceConfiguration;
+    //            this.resolvedHosts = resolvedHosts;
+    //        }
+    //
+    //        Optional<ServiceConfiguration> getServiceConfiguration() {
+    //            return serviceConfiguration;
+    //        }
+    //
+    //        ImmutableSetMultimap<String, InetAddress> getResolvedHosts() {
+    //            return resolvedHosts;
+    //        }
+    //
+    //        @Override
+    //        public boolean equals(Object other) {
+    //            if (this == other) {
+    //                return true;
+    //            }
+    //            if (other == null || getClass() != other.getClass()) {
+    //                return false;
+    //            }
+    //            InternalDialogueChannelConfiguration that = (InternalDialogueChannelConfiguration) other;
+    //            return Objects.equals(serviceConfiguration, that.serviceConfiguration)
+    //                    && Objects.equals(resolvedHosts, that.resolvedHosts);
+    //        }
+    //
+    //        @Override
+    //        public int hashCode() {
+    //            return Objects.hash(serviceConfiguration, resolvedHosts);
+    //        }
+    //
+    //        @Override
+    //        public String toString() {
+    //            return "InternalDialogueChannelConfiguration{" + "serviceConfiguration="
+    //                    + serviceConfiguration + ", resolvedHosts="
+    //                    + resolvedHosts + '}';
+    //        }
+    //    }
 }
