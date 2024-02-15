@@ -19,52 +19,16 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.logsafe.DoNotLog;
-import com.palantir.logsafe.logger.SafeLogger;
-import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.InetAddress;
-import java.util.Objects;
+import org.immutables.value.Value;
 
 @DoNotLog
-final class ServicesConfigBlockWithResolvedHosts {
-    private static final SafeLogger log = SafeLoggerFactory.get(ServicesConfigBlockWithResolvedHosts.class);
+@Value.Immutable
+interface ServicesConfigBlockWithResolvedHosts {
+    @Value.Parameter
+    ServicesConfigBlock scb();
 
-    private final ServicesConfigBlock scb;
     // maps hostname (not service name) -> resolved IP addresses
-    private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
-
-    ServicesConfigBlockWithResolvedHosts(
-            ServicesConfigBlock scb, ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
-        this.scb = scb;
-        this.resolvedHosts = resolvedHosts;
-    }
-
-    ServicesConfigBlock scb() {
-        return scb;
-    }
-
-    ImmutableSetMultimap<String, InetAddress> resolvedHosts() {
-        return resolvedHosts;
-    }
-
-    @Override
-    public boolean equals(Object other) {
-        if (this == other) {
-            return true;
-        }
-        if (other == null || getClass() != other.getClass()) {
-            return false;
-        }
-        ServicesConfigBlockWithResolvedHosts that = (ServicesConfigBlockWithResolvedHosts) other;
-        return Objects.equals(scb, that.scb) && Objects.equals(resolvedHosts, that.resolvedHosts);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(scb, resolvedHosts);
-    }
-
-    @Override
-    public String toString() {
-        return "ServicesConfigBlockWithResolvedHosts{" + "scb=" + scb + ", resolvedHosts=" + resolvedHosts + '}';
-    }
+    @Value.Parameter
+    ImmutableSetMultimap<String, InetAddress> resolvedHosts();
 }

@@ -77,7 +77,7 @@ final class DialogueDnsResolutionWorker implements Runnable {
                             .collect(Collectors.toList());
                     ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
                     ServicesConfigBlockWithResolvedHosts newResolvedState =
-                            new ServicesConfigBlockWithResolvedHosts(inputState, resolvedHosts);
+                            ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
                     if (resolvedState == null || !newResolvedState.equals(resolvedState)) {
                         resolvedState = newResolvedState;
                         receiver.update(resolvedState);
