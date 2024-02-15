@@ -26,6 +26,7 @@ import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.TestConfigurations;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import java.net.InetAddress;
