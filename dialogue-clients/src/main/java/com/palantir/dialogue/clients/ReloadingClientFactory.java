@@ -61,11 +61,9 @@ import java.net.URI;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -77,10 +75,8 @@ import org.immutables.value.Value;
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
-    private final ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
     private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
             Refreshable.create(null);
-    private final Future<?> dnsResolutionFuture;
 
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
@@ -88,8 +84,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         DialogueDnsResolver dummyResolver = hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
         DialogueDnsResolutionWorker dnsResolutionWorker =
                 new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult);
-        dnsResolutionFuture = dnsResolutionExecutor.submit(dnsResolutionWorker);
-        // TODO: change this to `scb().subscribe(...)
+        ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
+        Future<?> dnsResolutionFuture = dnsResolutionExecutor.submit(dnsResolutionWorker);
         Disposable scbSubscribe = this.params.scb().subscribe(dnsResolutionWorker::update);
     }
 
@@ -381,24 +377,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
 
                     if (!block.scb().services().containsKey(serviceName)) {
-                        return new InternalDialogueChannelConfiguration(
-                                Optional.empty(),
-                                ImmutableSetMultimap.of(),
-                                block.scb().services().keySet());
+                        return new InternalDialogueChannelConfiguration(Optional.empty(), ImmutableSetMultimap.of());
                     }
 
                     Optional<ServiceConfiguration> serviceConf = Optional.of(
                             ServiceConfigurationFactory.of(block.scb()).get(serviceName));
-
-                    if (block.scb().services().get(serviceName).uris().isEmpty()) {
-                        Set<String> servicesWithUris = block.scb().services().entrySet().stream()
-                                .filter(e -> !e.getValue().uris().isEmpty())
-                                .map(Entry::getKey)
-                                .collect(Collectors.toSet());
-                        return new InternalDialogueChannelConfiguration(
-                                serviceConf, ImmutableSetMultimap.of(), servicesWithUris);
-                    }
-
                     ImmutableSetMultimap.Builder<String, InetAddress> resolvedHostsForService =
                             ImmutableSetMultimap.builder();
                     block.scb().services().get(serviceName).uris().stream()
@@ -407,8 +390,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             .forEach(host -> resolvedHostsForService.putAll(
                                     host, block.resolvedHosts().get(host)));
 
-                    return new InternalDialogueChannelConfiguration(
-                            serviceConf, resolvedHostsForService.build(), ImmutableSet.of());
+                    return new InternalDialogueChannelConfiguration(serviceConf, resolvedHostsForService.build());
                 })
                 .map(conf -> {
                     Preconditions.checkNotNull(
@@ -417,16 +399,13 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     if (conf.getServiceConfiguration().isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
                                 "Service not configured (config block not present)",
-                                SafeArg.of("serviceName", serviceName),
-                                SafeArg.of("available", conf.getAvailableServices())));
+                                SafeArg.of("serviceName", serviceName)));
                     }
 
                     if (conf.getResolvedHosts().isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> {
                             return new SafeIllegalStateException(
-                                    "Service not configured (no URIs)",
-                                    SafeArg.of("serviceName", serviceName),
-                                    SafeArg.of("available", conf.getAvailableServices()));
+                                    "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName));
                         });
                     }
 
@@ -567,15 +546,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final class InternalDialogueChannelConfiguration {
         private final Optional<ServiceConfiguration> serviceConfiguration;
         private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
-        private final Set<String> availableServices;
 
         InternalDialogueChannelConfiguration(
                 Optional<ServiceConfiguration> serviceConfiguration,
-                ImmutableSetMultimap<String, InetAddress> resolvedHosts,
-                Set<String> availableServices) {
+                ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
             this.serviceConfiguration = serviceConfiguration;
             this.resolvedHosts = resolvedHosts;
-            this.availableServices = availableServices;
         }
 
         Optional<ServiceConfiguration> getServiceConfiguration() {
@@ -584,10 +560,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         ImmutableSetMultimap<String, InetAddress> getResolvedHosts() {
             return resolvedHosts;
-        }
-
-        Set<String> getAvailableServices() {
-            return availableServices;
         }
 
         @Override
@@ -600,21 +572,19 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             }
             InternalDialogueChannelConfiguration that = (InternalDialogueChannelConfiguration) other;
             return Objects.equals(serviceConfiguration, that.serviceConfiguration)
-                    && Objects.equals(resolvedHosts, that.resolvedHosts)
-                    && Objects.equals(availableServices, that.availableServices);
+                    && Objects.equals(resolvedHosts, that.resolvedHosts);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(serviceConfiguration, resolvedHosts, availableServices);
+            return Objects.hash(serviceConfiguration, resolvedHosts);
         }
 
         @Override
         public String toString() {
             return "InternalDialogueChannelConfiguration{" + "serviceConfiguration="
                     + serviceConfiguration + ", resolvedHosts="
-                    + resolvedHosts + ", availableServices="
-                    + availableServices + '}';
+                    + resolvedHosts + '}';
         }
     }
 }
