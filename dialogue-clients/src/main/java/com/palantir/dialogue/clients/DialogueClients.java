@@ -47,6 +47,19 @@ import java.util.concurrent.ExecutorService;
 public final class DialogueClients {
 
     public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
+        // TODO(blaub): move the logic from RelaodingClientFactory ctor that launches a DialogueDnsResolutionWorker
+        // thread to here. We want a single thread to perform resolution for all subsequent factories created via
+        // methods that chain off of the one created here.
+        // e.g. this:
+        //        DialogueClients.ReloadingFactory factory =
+        //                DialogueClients.create(refreshable).withUserAgent("foo");
+        // creates 2 ReloadingClientFactory instances, but the latter re-uses the initial set of params
+        // we don't need two name resolution threads, a single one will suffice as both instances are reloaded via
+        // the input scb above
+        //
+        // need to figure out what to do about the `reloading()` method on ConjureClients.ToReloadingFactory<T>
+        // which is implemented by ReloadingClientFactory and produces a new factory from another Refreshable<scb>
+        // via e.g. `params.withScb(newScb)`
         return new ReloadingClientFactory(
                 ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
