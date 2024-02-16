@@ -98,7 +98,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         DialogueDnsResolver dummyResolver = _hostname -> ImmutableSet.of(InetAddress.getLoopbackAddress());
         DialogueDnsResolutionWorker dnsResolutionWorker =
-                new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult);
+                new DialogueDnsResolutionWorker(dummyResolver, dnsResolutionResult::update);
         ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
         dnsResolutionExecutor.execute(dnsResolutionWorker);
         this.params.scb().subscribe(dnsResolutionWorker::update);
