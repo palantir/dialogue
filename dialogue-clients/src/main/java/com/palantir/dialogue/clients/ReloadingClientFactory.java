@@ -21,6 +21,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
@@ -28,6 +29,7 @@ import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
@@ -49,18 +51,28 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
+import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
+import java.net.Proxy;
+import java.net.ProxySelector;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.security.Provider;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
@@ -69,9 +81,11 @@ import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
+    private static final SafeLogger log = SafeLoggerFactory.get(ReloadingClientFactory.class);
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
     private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult;
@@ -369,6 +383,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return configuration;
     }
 
+    // TODO(ckozak): Each of the 'map(' blocks should be extracted to another method. I'm not doing that
+    // yet be cause it will make the diff much harder to review.
+    @SuppressWarnings("CyclomaticComplexity")
     private Refreshable<InternalDialogueChannel> getInternalDialogueChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
@@ -376,24 +393,30 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return dnsResolutionResult
                 .map(block -> {
                     Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
-
                     if (!block.scb().services().containsKey(serviceName)) {
                         return ImmutableInternalDialogueChannelConfiguration.of(
                                 Optional.empty(), ImmutableSetMultimap.of());
                     }
 
-                    Optional<ServiceConfiguration> serviceConf = Optional.of(
-                            ServiceConfigurationFactory.of(block.scb()).get(serviceName));
-                    ImmutableSetMultimap.Builder<String, InetAddress> resolvedHostsForService =
-                            ImmutableSetMultimap.builder();
-                    block.scb().services().get(serviceName).uris().stream()
-                            .map(URI::create)
-                            .map(URI::getHost)
-                            .forEach(host -> resolvedHostsForService.putAll(
-                                    host, block.resolvedHosts().get(host)));
-
-                    return ImmutableInternalDialogueChannelConfiguration.of(
-                            serviceConf, resolvedHostsForService.build());
+                    ServicesConfigBlock scb = block.scb();
+                    ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(scb);
+                    try {
+                        // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
+                        // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
+                        ServiceConfiguration serviceConf = factory.get(serviceName);
+                        ImmutableSet<String> hosts = extractHosts(serviceName, serviceConf);
+                        ImmutableSetMultimap<String, InetAddress> resolvedHostsForService = ImmutableSetMultimap.copyOf(
+                                Multimaps.filterKeys(block.resolvedHosts(), hosts::contains));
+                        return ImmutableInternalDialogueChannelConfiguration.of(
+                                Optional.of(serviceConf), resolvedHostsForService);
+                    } catch (RuntimeException e) {
+                        log.warn(
+                                "Failed to produce a ServiceConfigurationFactory for service {}",
+                                SafeArg.of("service", serviceName),
+                                e);
+                        return ImmutableInternalDialogueChannelConfiguration.of(
+                                Optional.empty(), ImmutableSetMultimap.of());
+                    }
                 })
                 .map(conf -> {
                     Preconditions.checkNotNull(
@@ -407,37 +430,87 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 SafeArg.of("serviceName", serviceName)));
                     }
 
-                    // TODO(blaub): this is probably misleading... no resolvedHosts doesn't mean no URIs were set,
-                    // just that we couldn't resolve the names; effectively those are the same scenarios though
-                    if (conf.resolvedHosts().isEmpty()) {
+                    ServiceConfiguration serviceConf = maybeServiceConf.get();
+
+                    // Verify URIs are present (regardless of whether they can be DNS resolved)
+                    if (serviceConf.uris().isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
                                 "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
                     }
 
+                    ProxySelector proxySelector = serviceConf
+                            .proxy()
+                            .map(ClientConfigurations::createProxySelector)
+                            .orElseGet(ProxySelector::getDefault);
                     // construct a TargetUri for each resolved address for this service's uris
-                    ImmutableList.Builder<TargetUri> targetUris = ImmutableList.builder();
-                    maybeServiceConf.get().uris().forEach(uri -> {
-                        URI parsed = URI.create(uri);
-                        Set<InetAddress> resolvedAddresses =
-                                conf.resolvedHosts().get(parsed.getHost());
-                        // as a special case, if there were no resolved addresses for this host, we want to set
-                        // a TargetUri with an empty resolvedAddress
-                        if (resolvedAddresses.isEmpty()) {
+                    List<TargetUri> targetUris = new ArrayList<>();
+                    for (String uri : serviceConf.uris()) {
+                        URI parsed = tryParseUri(serviceName, uri);
+                        if (parsed == null || parsed.getHost() == null) {
+                            continue;
+                        }
+                        // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
+                        // proxy handles DNS resolution.
+                        if (usesProxy(proxySelector, parsed)) {
                             targetUris.add(TargetUri.builder().uri(uri).build());
                         } else {
-                            resolvedAddresses.forEach(addr -> {
+                            String host = parsed.getHost();
+                            Set<InetAddress> resolvedAddresses =
+                                    conf.resolvedHosts().get(host);
+                            if (resolvedAddresses.isEmpty()) {
+                                log.info(
+                                        "Resolved no addresses for host '{}' of service '{}'",
+                                        UnsafeArg.of("host", host),
+                                        SafeArg.of("service", serviceName));
+                            }
+                            for (InetAddress addr : resolvedAddresses) {
                                 targetUris.add(TargetUri.builder()
                                         .uri(uri)
                                         .resolvedAddress(addr)
                                         .build());
-                            });
+                            }
                         }
-                    });
+                    }
+
+                    if (targetUris.isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not available (no addresses via DNS)",
+                                SafeArg.of("serviceName", serviceName)));
+                    }
 
                     DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
-                            params, maybeServiceConf.get(), targetUris.build(), channelName, OptionalInt.empty());
+                            params, serviceConf, targetUris, channelName, OptionalInt.empty());
                     return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
                 });
+    }
+
+    private static boolean usesProxy(ProxySelector proxySelector, URI uri) {
+        try {
+            List<Proxy> proxies = proxySelector.select(uri);
+            return !proxies.stream().allMatch(proxy -> Proxy.Type.DIRECT.equals(proxy.type()));
+        } catch (RuntimeException e) {
+            // Fall back to the simple path without scheduling recurring DNS resolution.
+            return true;
+        }
+    }
+
+    @Nullable
+    private static URI tryParseUri(@Safe String serviceName, @Unsafe String uri) {
+        try {
+            return new URI(uri);
+        } catch (URISyntaxException | RuntimeException e) {
+            log.error("Failed to parse URI for service {}", SafeArg.of("service", serviceName), e);
+            return null;
+        }
+    }
+
+    private static ImmutableSet<String> extractHosts(@Safe String serviceName, ServiceConfiguration configuration) {
+        return configuration.uris().stream()
+                .map(uri -> tryParseUri(serviceName, uri))
+                .filter(Objects::nonNull)
+                .map(URI::getHost)
+                .filter(Objects::nonNull)
+                .collect(ImmutableSet.toImmutableSet());
     }
 
     @Unsafe
@@ -565,6 +638,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
     }
 
+    @DoNotLog
     @Value.Immutable
     interface InternalDialogueChannelConfiguration {
         @Value.Parameter
