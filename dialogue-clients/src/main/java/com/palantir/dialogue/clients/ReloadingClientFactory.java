@@ -60,9 +60,11 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.lang.ref.Cleaner;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -88,19 +90,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(ReloadingClientFactory.class);
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
-    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult;
 
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
-        this.dnsResolutionResult = Refreshable.create(ImmutableServicesConfigBlockWithResolvedHosts.of(
-                ServicesConfigBlock.builder().build(), ImmutableSetMultimap.of()));
-
-        DialogueDnsResolutionWorker dnsResolutionWorker =
-                new DialogueDnsResolutionWorker(params.dnsResolver(), dnsResolutionResult::update);
-        ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
-        dnsResolutionExecutor.execute(dnsResolutionWorker);
-        this.params.scb().subscribe(dnsResolutionWorker::update);
     }
 
     @Override
@@ -119,9 +112,55 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .build();
     }
 
+    private static final Cleaner dnsWorkerCleaner = Cleaner.create();
+
+    private static final class CleanupTask implements Runnable {
+
+        private static final SafeLogger log = SafeLoggerFactory.get(CleanupTask.class);
+
+        private final Disposable disposable;
+        private final ExecutorService dnsResolutionExecutor;
+        private final DialogueDnsResolutionWorker dnsResolutionWorker;
+
+        private CleanupTask(
+                Disposable disposable,
+                ExecutorService dnsResolutionExecutor,
+                DialogueDnsResolutionWorker dnsResolutionWorker) {
+            this.disposable = disposable;
+            this.dnsResolutionExecutor = dnsResolutionExecutor;
+            this.dnsResolutionWorker = dnsResolutionWorker;
+        }
+
+        @Override
+        public void run() {
+            log.debug("Unregistering dns update background worker");
+            disposable.dispose();
+            dnsResolutionWorker.shutdown();
+            dnsResolutionExecutor.shutdownNow();
+        }
+    }
+
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
+
         Refreshable<ServicesConfigBlock> scb();
+
+        @Value.Lazy
+        default Refreshable<ServicesConfigBlockWithResolvedHosts> resolvedConfig() {
+            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
+                    Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
+
+            DialogueDnsResolutionWorker dnsResolutionWorker =
+                    new DialogueDnsResolutionWorker(dnsResolver(), dnsResolutionResult);
+            ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
+            dnsResolutionExecutor.execute(dnsResolutionWorker);
+            Disposable disposable = scb().subscribe(dnsResolutionWorker::update);
+
+            dnsWorkerCleaner.register(
+                    dnsResolutionResult, new CleanupTask(disposable, dnsResolutionExecutor, dnsResolutionWorker));
+
+            return dnsResolutionResult;
+        }
 
         @Value.Default
         default ConjureRuntime runtime() {
@@ -134,6 +173,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
+
+        static Builder builder() {
+            return new Builder();
+        }
+
+        class Builder extends ImmutableReloadingParams.Builder {}
     }
 
     @Override
@@ -170,14 +215,14 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
+        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.resolvedConfig()
                 .map(block -> {
-                    if (!block.services().containsKey(serviceName)) {
+                    if (!block.scb().services().containsKey(serviceName)) {
                         return ImmutableList.of();
                     }
 
                     ServiceConfiguration serviceConfiguration =
-                            ServiceConfigurationFactory.of(block).get(serviceName);
+                            ServiceConfigurationFactory.of(block.scb()).get(serviceName);
 
                     ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
                     for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
@@ -389,7 +434,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return dnsResolutionResult
+        return params.resolvedConfig()
                 .map(block -> {
                     Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
                     if (!block.scb().services().containsKey(serviceName)) {

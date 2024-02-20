@@ -18,33 +18,34 @@ package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
+import com.google.errorprone.annotations.concurrent.GuardedBy;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.SettableRefreshable;
+import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
-import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);
 
     @Nullable
+    @GuardedBy("this")
     private ServicesConfigBlock inputState;
-
-    @Nullable
-    private ServicesConfigBlockWithResolvedHosts resolvedState;
 
     private volatile boolean shutdownRequested;
     private final DialogueDnsResolver resolver;
-    private final Consumer<ServicesConfigBlockWithResolvedHosts> receiver;
+    private final WeakReference<SettableRefreshable<ServicesConfigBlockWithResolvedHosts>> receiver;
 
-    DialogueDnsResolutionWorker(DialogueDnsResolver resolver, Consumer<ServicesConfigBlockWithResolvedHosts> receiver) {
+    DialogueDnsResolutionWorker(
+            DialogueDnsResolver resolver, SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
         this.resolver = resolver;
-        this.receiver = receiver;
+        this.receiver = new WeakReference<>(receiver);
         this.shutdownRequested = false;
     }
 
@@ -66,13 +67,21 @@ final class DialogueDnsResolutionWorker implements Runnable {
                 // check for updates to scb state first
                 Thread.sleep(5000L);
                 try {
+                    if (receiver.get() == null) {
+                        shutdownRequested = true;
+                        log.info("Output refreshable has been garbage collected, no need to continue polling");
+                    }
                     doUpdate(null);
                 } catch (Throwable t) {
                     log.error("Scheduled DNS update failed", t);
                 }
             } catch (InterruptedException e) {
-                log.warn("interrupted checking for updates", e);
-                shutdownRequested = true;
+                if (shutdownRequested) {
+                    log.debug("interrupted checking for updates after shutdown", e);
+                } else {
+                    log.warn("interrupted checking for updates", e);
+                    shutdownRequested = true;
+                }
             }
         }
     }
@@ -100,9 +109,12 @@ final class DialogueDnsResolutionWorker implements Runnable {
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
             ServicesConfigBlockWithResolvedHosts newResolvedState =
                     ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
-            if (!Objects.equals(newResolvedState, resolvedState)) {
-                resolvedState = newResolvedState;
-                receiver.accept(resolvedState);
+            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> refreshable = receiver.get();
+            if (refreshable != null) {
+                refreshable.update(newResolvedState);
+            } else {
+                log.info("Attempted to update ServicesConfigBlockWithResolvedHosts refreshable "
+                        + "which has already been garbage collected");
             }
         }
     }

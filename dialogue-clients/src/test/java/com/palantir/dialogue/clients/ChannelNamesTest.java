@@ -20,6 +20,7 @@ import static org.assertj.core.api.AssertionsForClassTypes.assertThat;
 
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
+import com.palantir.dialogue.clients.ReloadingClientFactory.ReloadingParams;
 import com.palantir.refreshable.Refreshable;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +30,7 @@ class ChannelNamesTest {
     void name_is_concise_by_default() {
         String channelName = ChannelNames.reloading(
                 "multipass",
-                ImmutableReloadingParams.builder().scb(Refreshable.only(null)).build());
+                ReloadingParams.builder().scb(Refreshable.only(null)).build());
         assertThat(channelName).isEqualTo("dialogue-multipass");
     }
 
@@ -37,7 +38,7 @@ class ChannelNamesTest {
     void verbose_if_necessary() {
         String channelName = ChannelNames.reloading(
                 "multipass",
-                ImmutableReloadingParams.builder()
+                ReloadingParams.builder()
                         .scb(Refreshable.only(null))
                         .nodeSelectionStrategy(NodeSelectionStrategy.ROUND_ROBIN)
                         .clientQoS(ClientConfiguration.ClientQoS.DANGEROUS_DISABLE_SYMPATHETIC_CLIENT_QOS)

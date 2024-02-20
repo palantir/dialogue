@@ -144,7 +144,7 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable::update);
+        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
@@ -206,7 +206,7 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable::update);
+        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
