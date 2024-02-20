@@ -173,12 +173,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         }
 
         Optional<ExecutorService> blockingExecutor();
-
-        static Builder builder() {
-            return new Builder();
-        }
-
-        class Builder extends ImmutableReloadingParams.Builder {}
     }
 
     @Override

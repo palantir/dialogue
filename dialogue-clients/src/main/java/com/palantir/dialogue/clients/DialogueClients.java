@@ -24,7 +24,6 @@ import com.palantir.conjure.java.clients.ConjureClients;
 import com.palantir.conjure.java.clients.ConjureClients.WithClientOptions;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.ConjureRuntime;
-import com.palantir.dialogue.clients.ReloadingClientFactory.ReloadingParams;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
@@ -48,7 +47,8 @@ import java.util.concurrent.ExecutorService;
 public final class DialogueClients {
 
     public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
-        return new ReloadingClientFactory(ReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
+        return new ReloadingClientFactory(
+                ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
 
     /**
