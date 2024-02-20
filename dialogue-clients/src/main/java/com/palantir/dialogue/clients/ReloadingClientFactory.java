@@ -58,6 +58,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
+import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
@@ -413,8 +414,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 "Failed to produce a ServiceConfigurationFactory for service {}",
                                 SafeArg.of("service", serviceName),
                                 e);
-                        return ImmutableInternalDialogueChannelConfiguration.of(
-                                Optional.empty(), ImmutableSetMultimap.of());
+                        //                        return ImmutableInternalDialogueChannelConfiguration.of(
+                        //                                Optional.empty(), ImmutableSetMultimap.of());
+                        System.out.println("OHNOOOO");
+                        throw new SafeRuntimeException("OHNO", e);
                     }
                 })
                 .map(conf -> {

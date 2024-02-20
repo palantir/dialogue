@@ -128,6 +128,23 @@ public class DialogueClientsIntegrationTest {
     }
 
     @Test
+    void test_invalid_service_name() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scb);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        // should not throw
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "bogus");
+        assertThatCode(client::voidToVoid).doesNotThrowAnyException();
+    }
+
+    @Test
     void reload_uris_works() {
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {
