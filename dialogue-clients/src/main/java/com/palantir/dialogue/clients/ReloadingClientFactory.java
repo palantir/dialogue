@@ -229,7 +229,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = getServiceRefreshable(serviceName)
+        Refreshable<List<DialogueChannel>> perHostDialogueChannels = configurationForService(serviceName)
                 .map(block -> {
                     ServiceConfiguration serviceConfiguration =
                             block.serviceConfiguration().orElse(null);
@@ -456,7 +456,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return configuration;
     }
 
-    private Refreshable<InternalDialogueChannelConfiguration> getServiceRefreshable(String serviceName) {
+    private Refreshable<InternalDialogueChannelConfiguration> configurationForService(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         return params.resolvedConfig().map(block -> {
             Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
@@ -526,7 +526,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return getServiceRefreshable(serviceName).map(conf -> {
+        return configurationForService(serviceName).map(conf -> {
             Preconditions.checkNotNull(
                     conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
 
