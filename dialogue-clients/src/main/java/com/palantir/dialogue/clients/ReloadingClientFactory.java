@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -112,8 +113,13 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .build();
     }
 
-    private static final Cleaner dnsWorkerCleaner = Cleaner.create();
+    private static final Cleaner dnsWorkerCleaner = Cleaner.create(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("dialogue-reloading-factory-cleaner-%d")
+            .build());
 
+    // We define a concrete class here to avoid accidental lambda references to the
+    // cleaner target.
     private static final class CleanupTask implements Runnable {
 
         private static final SafeLogger log = SafeLoggerFactory.get(CleanupTask.class);
