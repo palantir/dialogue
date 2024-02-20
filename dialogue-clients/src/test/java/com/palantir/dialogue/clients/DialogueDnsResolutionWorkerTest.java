@@ -27,6 +27,7 @@ import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import java.net.InetAddress;
@@ -143,11 +144,11 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
+        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable::update);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
-            inputRefreshable.map(worker::update);
+            Disposable disposable = inputRefreshable.subscribe(worker::update);
 
             Awaitility.waitAtMost(Duration.ofSeconds(2)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
@@ -181,6 +182,7 @@ class DialogueDnsResolutionWorkerTest {
                 assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
                         .noneMatch(address1::equals);
             });
+            disposable.dispose();
         } finally {
             worker.shutdown();
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.MINUTES))
@@ -204,14 +206,14 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
+        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable::update);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
 
             assertThat(receiverRefreshable.get()).isNull();
 
-            inputRefreshable.map(worker::update);
+            Disposable disposable = inputRefreshable.subscribe(worker::update);
 
             Awaitility.waitAtMost(Duration.ofSeconds(10))
                     .untilAsserted(() -> assertThat(receiverRefreshable.get()).isNotNull());
@@ -246,6 +248,7 @@ class DialogueDnsResolutionWorkerTest {
                     .isTrue();
             assertThat(receiverRefreshable.get().resolvedHosts().get("bar.com"))
                     .anyMatch(InetAddress::isLoopbackAddress);
+            disposable.dispose();
         } finally {
             worker.shutdown();
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.MINUTES))

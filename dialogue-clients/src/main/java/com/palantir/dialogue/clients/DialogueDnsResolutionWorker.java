@@ -16,24 +16,21 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
-import com.palantir.refreshable.SettableRefreshable;
 import java.net.InetAddress;
 import java.net.URI;
-import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
+import java.net.URISyntaxException;
+import java.util.Objects;
+import java.util.function.Consumer;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);
-    private static final BlockingQueue<ServicesConfigBlock> updatesQueue = new LinkedBlockingQueue<>();
 
     @Nullable
     private ServicesConfigBlock inputState;
@@ -43,22 +40,17 @@ final class DialogueDnsResolutionWorker implements Runnable {
 
     private volatile boolean shutdownRequested;
     private final DialogueDnsResolver resolver;
-    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver;
+    private final Consumer<ServicesConfigBlockWithResolvedHosts> receiver;
 
-    DialogueDnsResolutionWorker(
-            DialogueDnsResolver resolver, SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
+    DialogueDnsResolutionWorker(DialogueDnsResolver resolver, Consumer<ServicesConfigBlockWithResolvedHosts> receiver) {
         this.resolver = resolver;
         this.receiver = receiver;
         this.shutdownRequested = false;
     }
 
-    boolean update(ServicesConfigBlock scb) {
-        if (inputState == null) {
-            // blocks the calling thread for the first update
-            doUpdate(scb);
-            return true;
-        }
-        return updatesQueue.offer(scb);
+    void update(ServicesConfigBlock scb) {
+        // blocks the calling thread
+        doUpdate(scb);
     }
 
     void shutdown() {
@@ -67,11 +59,17 @@ final class DialogueDnsResolutionWorker implements Runnable {
 
     @Override
     public void run() {
+        // TODO(dns): We can handle this with a scheduled executor instead, allowing a single scheduler to be reused
+        // for multiple factories.
         while (!shutdownRequested) {
             try {
                 // check for updates to scb state first
-                ServicesConfigBlock updatedInputState = updatesQueue.poll(5, TimeUnit.SECONDS);
-                doUpdate(updatedInputState);
+                Thread.sleep(5000L);
+                try {
+                    doUpdate(null);
+                } catch (Throwable t) {
+                    log.error("Scheduled DNS update failed", t);
+                }
             } catch (InterruptedException e) {
                 log.warn("interrupted checking for updates", e);
                 shutdownRequested = true;
@@ -79,22 +77,32 @@ final class DialogueDnsResolutionWorker implements Runnable {
         }
     }
 
-    private void doUpdate(ServicesConfigBlock updatedInputState) {
+    private synchronized void doUpdate(@Nullable ServicesConfigBlock updatedInputState) {
         if (updatedInputState != null && !updatedInputState.equals(inputState)) {
             inputState = updatedInputState;
         }
 
         // resolve all names in the current state, if there is one
         if (inputState != null) {
-            List<String> allHosts = inputState.services().values().stream()
-                    .flatMap(psc -> psc.uris().stream().map(URI::create).map(URI::getHost))
-                    .collect(Collectors.toList());
+            ImmutableSet<String> allHosts = inputState.services().values().stream()
+                    .flatMap(psc -> psc.uris().stream()
+                            .map(uriString -> {
+                                try {
+                                    URI uri = new URI(uriString);
+                                    return uri.getHost();
+                                } catch (URISyntaxException | RuntimeException e) {
+                                    log.debug("Failed to parse URI", e);
+                                    return null;
+                                }
+                            })
+                            .filter(Objects::nonNull))
+                    .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
             ServicesConfigBlockWithResolvedHosts newResolvedState =
                     ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
-            if (resolvedState == null || !newResolvedState.equals(resolvedState)) {
+            if (!Objects.equals(newResolvedState, resolvedState)) {
                 resolvedState = newResolvedState;
-                receiver.update(resolvedState);
+                receiver.accept(resolvedState);
             }
         }
     }
