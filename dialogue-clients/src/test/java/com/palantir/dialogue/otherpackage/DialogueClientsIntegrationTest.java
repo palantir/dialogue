@@ -151,7 +151,7 @@ public class DialogueClientsIntegrationTest {
     }
 
     @Test
-    void test_invalid_partial_config_does_not_block_valid_partial_config() {
+    void test_invalid_partial_config_with_missing_security_does_not_block_valid_partial_config() {
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         undertowHandler = exchange -> {
             requestPaths.add(exchange.getRequestPath());
@@ -174,6 +174,40 @@ public class DialogueClientsIntegrationTest {
                 DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
 
         SampleServiceBlocking foo1 = factory.get(SampleServiceBlocking.class, "foo1");
+        assertThatThrownBy(foo1::voidToVoid)
+                .isInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured");
+
+        SampleServiceBlocking foo2 = factory.get(SampleServiceBlocking.class, "foo2");
+        assertThatCode(foo2::voidToVoid).doesNotThrowAnyException();
+    }
+
+    @Test
+    void test_invalid_partial_config_with_bad_uri_does_not_block_valid_partial_config() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        ServicesConfigBlock scbWithBothValidAndInvalidServices = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                // invalid uri causes "foo1" to be invalid
+                .putServices(
+                        "foo1",
+                        PartialServiceConfiguration.builder()
+                                .addUris("this_is_bad")
+                                .build())
+                // "foo2" contains a valid configuration
+                .putServices("foo2", foo2)
+                .build();
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scbWithBothValidAndInvalidServices);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking foo1 = factory.get(SampleServiceBlocking.class, "foo");
         assertThatThrownBy(foo1::voidToVoid)
                 .isInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured");

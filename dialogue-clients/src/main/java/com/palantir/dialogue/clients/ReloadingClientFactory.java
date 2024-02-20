@@ -425,7 +425,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
                     if (maybeServiceConf.isEmpty()) {
                         return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (config block not present)",
+                                "Service not configured (config block invalid or not present)",
                                 SafeArg.of("serviceName", serviceName)));
                     }
 
