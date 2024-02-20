@@ -44,8 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicReference;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
@@ -194,6 +192,7 @@ public class DialogueClientsDnsIntegrationTest {
         try {
             ImmutableSet<Thread> existing = getDialogueReloadingFactoryDnsThreads();
 
+            // reassigned to null later so that the target may be garbage collected
             @SuppressWarnings("unused")
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
                             Refreshable.only(ServicesConfigBlock.builder()
@@ -210,6 +209,7 @@ public class DialogueClientsDnsIntegrationTest {
                     .withUserAgent(TestConfigurations.AGENT);
 
             WeakReference<DialogueClients.ReloadingFactory> factoryRef = new WeakReference<>(factory);
+            // reassigned to null later so that the target may be garbage collected
             @SuppressWarnings("unused")
             SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
             factory = null;
@@ -235,15 +235,12 @@ public class DialogueClientsDnsIntegrationTest {
             client.voidToVoid();
             assertThat(requestPaths).containsExactly("/one/voidToVoid", "/two/voidToVoid");
 
-            // Ensure the dns update thread sticks around after a GC
-            System.gc();
-
+            // Dropping the client reference should allow the factory to be freed
             client = null;
-            AtomicReference<Object> ref = new AtomicReference<>();
-            // Ensure the dns update thread sticks around after a GC
+
             Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
+                // Give the GC a nudge so the cleaner is likely to fire.
                 System.gc();
-                ref.set(new byte[ThreadLocalRandom.current().nextInt(1_00_000)]);
                 assertThat(factoryRef.get())
                         .as("Expected the factory reference to be freed")
                         .isNull();
