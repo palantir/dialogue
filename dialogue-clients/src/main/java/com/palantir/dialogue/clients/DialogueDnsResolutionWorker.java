@@ -75,8 +75,9 @@ final class DialogueDnsResolutionWorker implements Runnable {
                     if (receiver.get() == null) {
                         shutdownRequested = true;
                         log.info("Output refreshable has been garbage collected, no need to continue polling");
+                    } else {
+                        doUpdate(null);
                     }
-                    doUpdate(null);
                 } catch (Throwable t) {
                     log.error("Scheduled DNS update failed", t);
                 }
