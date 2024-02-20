@@ -31,4 +31,9 @@ interface ServicesConfigBlockWithResolvedHosts {
     // maps hostname (not service name) -> resolved IP addresses
     @Value.Parameter
     ImmutableSetMultimap<String, InetAddress> resolvedHosts();
+
+    static ServicesConfigBlockWithResolvedHosts empty() {
+        return ImmutableServicesConfigBlockWithResolvedHosts.of(
+                ServicesConfigBlock.builder().build(), ImmutableSetMultimap.of());
+    }
 }

@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -60,9 +61,11 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
+import java.lang.ref.Cleaner;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -88,19 +91,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     private static final SafeLogger log = SafeLoggerFactory.get(ReloadingClientFactory.class);
     private final ImmutableReloadingParams params;
     private final ChannelCache cache;
-    private final SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult;
 
     ReloadingClientFactory(ImmutableReloadingParams params, ChannelCache cache) {
         this.params = params;
         this.cache = cache;
-        this.dnsResolutionResult = Refreshable.create(ImmutableServicesConfigBlockWithResolvedHosts.of(
-                ServicesConfigBlock.builder().build(), ImmutableSetMultimap.of()));
-
-        DialogueDnsResolutionWorker dnsResolutionWorker =
-                new DialogueDnsResolutionWorker(params.dnsResolver(), dnsResolutionResult::update);
-        ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
-        dnsResolutionExecutor.execute(dnsResolutionWorker);
-        this.params.scb().subscribe(dnsResolutionWorker::update);
     }
 
     @Override
@@ -119,9 +113,69 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .build();
     }
 
+    private static final Cleaner dnsWorkerCleaner = Cleaner.create(new ThreadFactoryBuilder()
+            .setDaemon(true)
+            .setNameFormat("dialogue-reloading-factory-cleaner-%d")
+            .build());
+
+    // We define a concrete class here to avoid accidental lambda references to the
+    // cleaner target.
+    private static final class CleanupTask implements Runnable {
+
+        private static final SafeLogger log = SafeLoggerFactory.get(CleanupTask.class);
+
+        private final Disposable disposable;
+        private final ExecutorService dnsResolutionExecutor;
+        private final DialogueDnsResolutionWorker dnsResolutionWorker;
+
+        private CleanupTask(
+                Disposable disposable,
+                ExecutorService dnsResolutionExecutor,
+                DialogueDnsResolutionWorker dnsResolutionWorker) {
+            this.disposable = disposable;
+            this.dnsResolutionExecutor = dnsResolutionExecutor;
+            this.dnsResolutionWorker = dnsResolutionWorker;
+        }
+
+        @Override
+        public void run() {
+            log.debug("Unregistering dns update background worker");
+            disposable.dispose();
+            dnsResolutionWorker.shutdown();
+            dnsResolutionExecutor.shutdownNow();
+        }
+    }
+
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
+
         Refreshable<ServicesConfigBlock> scb();
+
+        /**
+         * We use a lazy field here in order to avoid scheduling background work for each stage of
+         * ReloadingClientFactory configuration, e.g. {@code factory.withUserAgent(agent).withTaggedMetrics(registry)}.
+         */
+        @Value.Lazy
+        default Refreshable<ServicesConfigBlockWithResolvedHosts> resolvedConfig() {
+            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
+                    Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
+
+            DialogueDnsResolutionWorker dnsResolutionWorker =
+                    new DialogueDnsResolutionWorker(dnsResolver(), dnsRefreshInterval(), dnsResolutionResult);
+            // TODO(dns): Use a scheduled executor instead here.
+            // TODO(dns): We should record metrics for this sort of thing.
+            ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+                    .setDaemon(true)
+                    .setNameFormat("dialogue-reloading-factory-dns-%d")
+                    .build());
+            dnsResolutionExecutor.execute(dnsResolutionWorker);
+            Disposable disposable = scb().subscribe(dnsResolutionWorker::update);
+
+            dnsWorkerCleaner.register(
+                    dnsResolutionResult, new CleanupTask(disposable, dnsResolutionExecutor, dnsResolutionWorker));
+
+            return dnsResolutionResult;
+        }
 
         @Value.Default
         default ConjureRuntime runtime() {
@@ -131,6 +185,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default DialogueDnsResolver dnsResolver() {
             return DefaultDialogueDnsResolver.INSTANCE;
+        }
+
+        @Value.Default
+        default Duration dnsRefreshInterval() {
+            return Duration.ofSeconds(5);
         }
 
         Optional<ExecutorService> blockingExecutor();
@@ -170,27 +229,37 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = params.scb()
+        Refreshable<List<DialogueChannel>> perHostDialogueChannels = configurationForService(serviceName)
                 .map(block -> {
-                    if (!block.services().containsKey(serviceName)) {
+                    ServiceConfiguration serviceConfiguration =
+                            block.serviceConfiguration().orElse(null);
+                    if (serviceConfiguration == null) {
                         return ImmutableList.of();
                     }
 
-                    ServiceConfiguration serviceConfiguration =
-                            ServiceConfigurationFactory.of(block).get(serviceName);
+                    ImmutableList<TargetUri> targetUris =
+                            getTargetUrisForService(serviceName, serviceConfiguration, block.resolvedHosts());
+
+                    if (targetUris.isEmpty()) {
+                        return ImmutableList.of();
+                    }
 
                     ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
-                    for (int i = 0; i < serviceConfiguration.uris().size(); i++) {
+                    for (int i = 0; i < targetUris.size(); i++) {
+                        TargetUri targetUri = targetUris.get(i);
                         ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
                                 .from(serviceConfiguration)
-                                .uris(ImmutableList.of(
-                                        serviceConfiguration.uris().get(i)))
+                                .uris(ImmutableList.of(targetUri.uri()))
                                 .build();
 
                         // subtle gotcha here is that every single one of these has the same channelName,
                         // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
                         list.add(cache.getNonReloadingChannel(
-                                params, singleUriServiceConf, channelName, OptionalInt.of(i)));
+                                params,
+                                singleUriServiceConf,
+                                ImmutableList.of(targetUri),
+                                channelName,
+                                OptionalInt.of(i)));
                     }
                     return list.build();
                 });
@@ -364,6 +433,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    public ReloadingFactory withDnsRefreshInterval(Duration value) {
+        return new ReloadingClientFactory(params.withDnsRefreshInterval(value), cache);
+    }
+
+    @Override
     public String toString() {
         return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
     }
@@ -382,105 +456,106 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return configuration;
     }
 
-    // TODO(ckozak): Each of the 'map(' blocks should be extracted to another method. I'm not doing that
-    // yet be cause it will make the diff much harder to review.
-    @SuppressWarnings("CyclomaticComplexity")
+    private Refreshable<InternalDialogueChannelConfiguration> configurationForService(String serviceName) {
+        Preconditions.checkNotNull(serviceName, "serviceName");
+        return params.resolvedConfig().map(block -> {
+            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
+            if (!block.scb().services().containsKey(serviceName)) {
+                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty(), ImmutableSetMultimap.of());
+            }
+
+            ServicesConfigBlock scb = block.scb();
+            ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(scb);
+            try {
+                // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
+                // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
+                ServiceConfiguration serviceConf = factory.get(serviceName);
+                ImmutableSet<String> hosts = extractHosts(serviceName, serviceConf);
+                ImmutableSetMultimap<String, InetAddress> resolvedHostsForService =
+                        ImmutableSetMultimap.copyOf(Multimaps.filterKeys(block.resolvedHosts(), hosts::contains));
+                return ImmutableInternalDialogueChannelConfiguration.of(
+                        Optional.of(serviceConf), resolvedHostsForService);
+            } catch (RuntimeException e) {
+                log.warn(
+                        "Failed to produce a ServiceConfigurationFactory for service {}",
+                        SafeArg.of("service", serviceName),
+                        e);
+                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty(), ImmutableSetMultimap.of());
+            }
+        });
+    }
+
+    private ImmutableList<TargetUri> getTargetUrisForService(
+            String serviceName,
+            ServiceConfiguration serviceConf,
+            ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
+        ProxySelector proxySelector = serviceConf
+                .proxy()
+                .map(ClientConfigurations::createProxySelector)
+                .orElseGet(ProxySelector::getDefault);
+        // construct a TargetUri for each resolved address for this service's uris
+        List<TargetUri> targetUris = new ArrayList<>();
+        for (String uri : serviceConf.uris()) {
+            URI parsed = tryParseUri(serviceName, uri);
+            if (parsed == null || parsed.getHost() == null) {
+                continue;
+            }
+            // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
+            // proxy handles DNS resolution.
+            if (usesProxy(proxySelector, parsed)) {
+                targetUris.add(TargetUri.builder().uri(uri).build());
+            } else {
+                String host = parsed.getHost();
+                Set<InetAddress> resolvedAddresses = resolvedHosts.get(host);
+                if (resolvedAddresses.isEmpty()) {
+                    log.info(
+                            "Resolved no addresses for host '{}' of service '{}'",
+                            UnsafeArg.of("host", host),
+                            SafeArg.of("service", serviceName));
+                }
+                for (InetAddress addr : resolvedAddresses) {
+                    targetUris.add(
+                            TargetUri.builder().uri(uri).resolvedAddress(addr).build());
+                }
+            }
+        }
+        return ImmutableList.copyOf(targetUris);
+    }
+
     private Refreshable<InternalDialogueChannel> getInternalDialogueChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return dnsResolutionResult
-                .map(block -> {
-                    Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
-                    if (!block.scb().services().containsKey(serviceName)) {
-                        return ImmutableInternalDialogueChannelConfiguration.of(
-                                Optional.empty(), ImmutableSetMultimap.of());
-                    }
+        return configurationForService(serviceName).map(conf -> {
+            Preconditions.checkNotNull(
+                    conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
 
-                    ServicesConfigBlock scb = block.scb();
-                    ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(scb);
-                    try {
-                        // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
-                        // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
-                        ServiceConfiguration serviceConf = factory.get(serviceName);
-                        ImmutableSet<String> hosts = extractHosts(serviceName, serviceConf);
-                        ImmutableSetMultimap<String, InetAddress> resolvedHostsForService = ImmutableSetMultimap.copyOf(
-                                Multimaps.filterKeys(block.resolvedHosts(), hosts::contains));
-                        return ImmutableInternalDialogueChannelConfiguration.of(
-                                Optional.of(serviceConf), resolvedHostsForService);
-                    } catch (RuntimeException e) {
-                        log.warn(
-                                "Failed to produce a ServiceConfigurationFactory for service {}",
-                                SafeArg.of("service", serviceName),
-                                e);
-                        return ImmutableInternalDialogueChannelConfiguration.of(
-                                Optional.empty(), ImmutableSetMultimap.of());
-                    }
-                })
-                .map(conf -> {
-                    Preconditions.checkNotNull(
-                            conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
+            Optional<ServiceConfiguration> maybeServiceConf = conf.serviceConfiguration();
 
-                    Optional<ServiceConfiguration> maybeServiceConf = conf.serviceConfiguration();
+            if (maybeServiceConf.isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)", SafeArg.of("serviceName", serviceName)));
+            }
 
-                    if (maybeServiceConf.isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (config block not present)",
-                                SafeArg.of("serviceName", serviceName)));
-                    }
+            ServiceConfiguration serviceConf = maybeServiceConf.get();
 
-                    ServiceConfiguration serviceConf = maybeServiceConf.get();
+            // Verify URIs are present (regardless of whether they can be DNS resolved)
+            if (serviceConf.uris().isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
+            }
 
-                    // Verify URIs are present (regardless of whether they can be DNS resolved)
-                    if (serviceConf.uris().isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
-                    }
+            List<TargetUri> targetUris = getTargetUrisForService(serviceName, serviceConf, conf.resolvedHosts());
 
-                    ProxySelector proxySelector = serviceConf
-                            .proxy()
-                            .map(ClientConfigurations::createProxySelector)
-                            .orElseGet(ProxySelector::getDefault);
-                    // construct a TargetUri for each resolved address for this service's uris
-                    List<TargetUri> targetUris = new ArrayList<>();
-                    for (String uri : serviceConf.uris()) {
-                        URI parsed = tryParseUri(serviceName, uri);
-                        if (parsed == null || parsed.getHost() == null) {
-                            continue;
-                        }
-                        // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
-                        // proxy handles DNS resolution.
-                        if (usesProxy(proxySelector, parsed)) {
-                            targetUris.add(TargetUri.builder().uri(uri).build());
-                        } else {
-                            String host = parsed.getHost();
-                            Set<InetAddress> resolvedAddresses =
-                                    conf.resolvedHosts().get(host);
-                            if (resolvedAddresses.isEmpty()) {
-                                log.info(
-                                        "Resolved no addresses for host '{}' of service '{}'",
-                                        UnsafeArg.of("host", host),
-                                        SafeArg.of("service", serviceName));
-                            }
-                            for (InetAddress addr : resolvedAddresses) {
-                                targetUris.add(TargetUri.builder()
-                                        .uri(uri)
-                                        .resolvedAddress(addr)
-                                        .build());
-                            }
-                        }
-                    }
+            if (targetUris.isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not available (no addresses via DNS)", SafeArg.of("serviceName", serviceName)));
+            }
 
-                    if (targetUris.isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not available (no addresses via DNS)",
-                                SafeArg.of("serviceName", serviceName)));
-                    }
-
-                    DialogueChannel dialogueChannel = cache.getNonReloadingChannel(
-                            params, serviceConf, targetUris, channelName, OptionalInt.empty());
-                    return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
-                });
+            DialogueChannel dialogueChannel =
+                    cache.getNonReloadingChannel(params, serviceConf, targetUris, channelName, OptionalInt.empty());
+            return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
+        });
     }
 
     private static boolean usesProxy(ProxySelector proxySelector, URI uri) {

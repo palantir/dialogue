@@ -27,6 +27,7 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -47,19 +48,6 @@ import java.util.concurrent.ExecutorService;
 public final class DialogueClients {
 
     public static ReloadingFactory create(Refreshable<ServicesConfigBlock> scb) {
-        // TODO(blaub): move the logic from RelaodingClientFactory ctor that launches a DialogueDnsResolutionWorker
-        // thread to here. We want a single thread to perform resolution for all subsequent factories created via
-        // methods that chain off of the one created here.
-        // e.g. this:
-        //        DialogueClients.ReloadingFactory factory =
-        //                DialogueClients.create(refreshable).withUserAgent("foo");
-        // creates 2 ReloadingClientFactory instances, but the latter re-uses the initial set of params
-        // we don't need two name resolution threads, a single one will suffice as both instances are reloaded via
-        // the input scb above
-        //
-        // need to figure out what to do about the `reloading()` method on ConjureClients.ToReloadingFactory<T>
-        // which is implemented by ReloadingClientFactory and produces a new factory from another Refreshable<scb>
-        // via e.g. `params.withScb(newScb)`
         return new ReloadingClientFactory(
                 ImmutableReloadingParams.builder().scb(scb).build(), ChannelCache.createEmptyCache());
     }
@@ -182,7 +170,17 @@ public final class DialogueClients {
                     NonReloadingChannelFactory,
                     ClientConfigurationNonReloadingClientFactory {
 
+        /**
+         * Configures the {@link DialogueDnsResolver} used by clients managed by this factory.
+         * This should generally only be used for tests.
+         */
         ReloadingFactory withDnsResolver(DialogueDnsResolver dnsResolver);
+
+        /**
+         * Configures the interval at which the {@link DialogueDnsResolver} is polled for DNS updates.
+         * This should generally only be used for tests.
+         */
+        ReloadingFactory withDnsRefreshInterval(Duration interval);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 
