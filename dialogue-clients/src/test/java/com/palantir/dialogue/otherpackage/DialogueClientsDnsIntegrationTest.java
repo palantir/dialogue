@@ -235,6 +235,10 @@ public class DialogueClientsDnsIntegrationTest {
             client.voidToVoid();
             assertThat(requestPaths).containsExactly("/one/voidToVoid", "/two/voidToVoid");
 
+            assertThat(factoryRef.get())
+                    .as("The factory should not be possible to collect while clients are referenced")
+                    .isNotNull();
+
             // Dropping the client reference should allow the factory to be freed
             client = null;
 
