@@ -28,6 +28,7 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -40,11 +41,15 @@ final class DialogueDnsResolutionWorker implements Runnable {
 
     private volatile boolean shutdownRequested;
     private final DialogueDnsResolver resolver;
+    private final Duration dnsRefreshInterval;
     private final WeakReference<SettableRefreshable<ServicesConfigBlockWithResolvedHosts>> receiver;
 
     DialogueDnsResolutionWorker(
-            DialogueDnsResolver resolver, SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
+            DialogueDnsResolver resolver,
+            Duration dnsRefreshInterval,
+            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
         this.resolver = resolver;
+        this.dnsRefreshInterval = dnsRefreshInterval;
         this.receiver = new WeakReference<>(receiver);
         this.shutdownRequested = false;
     }
@@ -65,7 +70,7 @@ final class DialogueDnsResolutionWorker implements Runnable {
         while (!shutdownRequested) {
             try {
                 // check for updates to scb state first
-                Thread.sleep(5000L);
+                Thread.sleep(dnsRefreshInterval.toMillis());
                 try {
                     if (receiver.get() == null) {
                         shutdownRequested = true;

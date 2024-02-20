@@ -155,7 +155,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
 
             DialogueDnsResolutionWorker dnsResolutionWorker =
-                    new DialogueDnsResolutionWorker(dnsResolver(), dnsResolutionResult);
+                    new DialogueDnsResolutionWorker(dnsResolver(), dnsRefreshInterval(), dnsResolutionResult);
             ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
             dnsResolutionExecutor.execute(dnsResolutionWorker);
             Disposable disposable = scb().subscribe(dnsResolutionWorker::update);
@@ -174,6 +174,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Default
         default DialogueDnsResolver dnsResolver() {
             return DefaultDialogueDnsResolver.INSTANCE;
+        }
+
+        @Value.Default
+        default Duration dnsRefreshInterval() {
+            return Duration.ofSeconds(5);
         }
 
         Optional<ExecutorService> blockingExecutor();
@@ -404,6 +409,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public ReloadingFactory withDnsResolver(DialogueDnsResolver value) {
         return new ReloadingClientFactory(params.withDnsResolver(value), cache);
+    }
+
+    @Override
+    public ReloadingFactory withDnsRefreshInterval(Duration value) {
+        return new ReloadingClientFactory(params.withDnsRefreshInterval(value), cache);
     }
 
     @Override
