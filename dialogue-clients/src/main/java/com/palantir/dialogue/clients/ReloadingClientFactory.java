@@ -145,6 +145,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         Refreshable<ServicesConfigBlock> scb();
 
+        /**
+         * We use a lazy field here in order to avoid scheduling background work for each stage of
+         * ReloadingClientFactory configuration, e.g. {@code factory.withUserAgent(agent).withTaggedMetrics(registry)}.
+         */
         @Value.Lazy
         default Refreshable<ServicesConfigBlockWithResolvedHosts> resolvedConfig() {
             SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
