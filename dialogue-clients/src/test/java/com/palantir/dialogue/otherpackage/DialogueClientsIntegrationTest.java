@@ -173,13 +173,13 @@ public class DialogueClientsIntegrationTest {
         DialogueClients.ReloadingFactory factory =
                 DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
 
-        SampleServiceBlocking foo1 = factory.get(SampleServiceBlocking.class, "foo1");
-        assertThatThrownBy(foo1::voidToVoid)
+        SampleServiceBlocking client1 = factory.get(SampleServiceBlocking.class, "foo1");
+        assertThatThrownBy(client1::voidToVoid)
                 .isInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured");
 
-        SampleServiceBlocking foo2 = factory.get(SampleServiceBlocking.class, "foo2");
-        assertThatCode(foo2::voidToVoid).doesNotThrowAnyException();
+        SampleServiceBlocking client2 = factory.get(SampleServiceBlocking.class, "foo2");
+        assertThatCode(client2::voidToVoid).doesNotThrowAnyException();
     }
 
     @Test
@@ -207,13 +207,13 @@ public class DialogueClientsIntegrationTest {
         DialogueClients.ReloadingFactory factory =
                 DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
 
-        SampleServiceBlocking foo1 = factory.get(SampleServiceBlocking.class, "foo");
-        assertThatThrownBy(foo1::voidToVoid)
+        SampleServiceBlocking client1 = factory.get(SampleServiceBlocking.class, "foo");
+        assertThatThrownBy(client1::voidToVoid)
                 .isInstanceOf(SafeIllegalStateException.class)
                 .hasMessageContaining("Service not configured");
 
-        SampleServiceBlocking foo2 = factory.get(SampleServiceBlocking.class, "foo2");
-        assertThatCode(foo2::voidToVoid).doesNotThrowAnyException();
+        SampleServiceBlocking client2 = factory.get(SampleServiceBlocking.class, "foo2");
+        assertThatCode(client2::voidToVoid).doesNotThrowAnyException();
     }
 
     @Test
