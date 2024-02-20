@@ -144,7 +144,8 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
+        DialogueDnsResolutionWorker worker =
+                new DialogueDnsResolutionWorker(resolver, Duration.ofSeconds(5), receiverRefreshable);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
@@ -206,7 +207,8 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
-        DialogueDnsResolutionWorker worker = new DialogueDnsResolutionWorker(resolver, receiverRefreshable);
+        DialogueDnsResolutionWorker worker =
+                new DialogueDnsResolutionWorker(resolver, Duration.ofMillis(500), receiverRefreshable);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
@@ -215,7 +217,7 @@ class DialogueDnsResolutionWorkerTest {
 
             Disposable disposable = inputRefreshable.subscribe(worker::update);
 
-            Awaitility.waitAtMost(Duration.ofSeconds(10))
+            Awaitility.waitAtMost(Duration.ofSeconds(1))
                     .untilAsserted(() -> assertThat(receiverRefreshable.get()).isNotNull());
 
             assertThat(receiverRefreshable.get().scb()).isEqualTo(initialState);
@@ -238,7 +240,7 @@ class DialogueDnsResolutionWorkerTest {
 
             inputRefreshable.update(newState);
 
-            Awaitility.waitAtMost(Duration.ofSeconds(10))
+            Awaitility.waitAtMost(Duration.ofSeconds(1))
                     .untilAsserted(
                             () -> assertThat(receiverRefreshable.get().scb()).isEqualTo(newState));
 

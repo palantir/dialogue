@@ -162,7 +162,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
             DialogueDnsResolutionWorker dnsResolutionWorker =
                     new DialogueDnsResolutionWorker(dnsResolver(), dnsRefreshInterval(), dnsResolutionResult);
-            ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor();
+            // TODO(dns): Use a scheduled executor instead here.
+            // TODO(dns): We should record metrics for this sort of thing.
+            ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
+                    .setDaemon(true)
+                    .setNameFormat("dialogue-reloading-factory-dns-%d")
+                    .build());
             dnsResolutionExecutor.execute(dnsResolutionWorker);
             Disposable disposable = scb().subscribe(dnsResolutionWorker::update);
 
