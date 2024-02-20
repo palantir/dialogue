@@ -46,7 +46,7 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.net.UnknownHostException;
+import java.io.IOException;
 import java.security.Provider;
 import java.time.Duration;
 import java.util.Optional;
@@ -56,7 +56,7 @@ class DialogueClientsTest {
 
     private static final ServiceConfiguration serviceConf = ServiceConfiguration.builder()
             .security(TestConfigurations.SSL_CONFIG)
-            .addUris("https://multipass")
+            .addUris("https://127.0.0.1/multipass")
             .build();
 
     private static final ServicesConfigBlock scb = ServicesConfigBlock.builder()
@@ -64,12 +64,12 @@ class DialogueClientsTest {
             .putServices(
                     "multipass",
                     PartialServiceConfiguration.builder()
-                            .addUris("https://multipass.fake.palantir.com")
+                            .addUris("https://127.0.0.1/multipass.fake.palantir.com")
                             .build())
             .putServices(
                     "email-service",
                     PartialServiceConfiguration.builder()
-                            .addUris("https://email-service.fake.palantir.com")
+                            .addUris("https://127.0.0.1/email-service.fake.palantir.com")
                             .build())
             .putServices(
                     "zero-uris-service", PartialServiceConfiguration.builder().build())
@@ -124,9 +124,7 @@ class DialogueClientsTest {
         ListenableFuture<Response> future = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(future::get)
-                .describedAs("Made a real network call")
-                .hasCauseInstanceOf(UnknownHostException.class);
+        assertThatThrownBy(future::get).describedAs("Made a real network call").hasCauseInstanceOf(IOException.class);
     }
 
     @Test
@@ -150,15 +148,13 @@ class DialogueClientsTest {
                 .putServices(
                         "zero-uris-service",
                         PartialServiceConfiguration.builder()
-                                .addUris("https://live-reloaded-uri-appeared")
+                                .addUris("https://127.0.0.1")
                                 .build())
                 .build());
         ListenableFuture<Response> future2 = stickyChannels
                 .getStickyChannel()
                 .execute(TestEndpoint.POST, Request.builder().build());
-        assertThatThrownBy(future2::get)
-                .describedAs("Made a real network call")
-                .hasCauseInstanceOf(UnknownHostException.class);
+        assertThatThrownBy(future2::get).describedAs("Made a real network call").hasCauseInstanceOf(IOException.class);
     }
 
     @Test
@@ -169,9 +165,9 @@ class DialogueClientsTest {
                         .putServices(
                                 "my-service",
                                 PartialServiceConfiguration.builder()
-                                        .addUris("https://my-service-0.fake.palantir.com")
-                                        .addUris("https://my-service-1.fake.palantir.com")
-                                        .addUris("https://my-service-2.fake.palantir.com")
+                                        .addUris("https://127.0.0.1/0")
+                                        .addUris("https://127.0.0.1/1")
+                                        .addUris("https://127.0.0.1/2")
                                         .build())
                         .build()))
                 .withUserAgent(TestConfigurations.AGENT)
