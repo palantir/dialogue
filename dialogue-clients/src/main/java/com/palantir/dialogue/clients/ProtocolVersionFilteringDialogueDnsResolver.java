@@ -19,14 +19,15 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.Collection;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver {
+    private static final SafeLogger log = SafeLoggerFactory.get(ProtocolVersionFilteringDialogueDnsResolver.class);
+
     private final DialogueDnsResolver delegate;
 
     ProtocolVersionFilteringDialogueDnsResolver(DialogueDnsResolver delegate) {
@@ -42,32 +43,44 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
     public ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostnames) {
         ImmutableSetMultimap<String, InetAddress> resolved = delegate.resolve(hostnames);
         ImmutableSetMultimap.Builder<String, InetAddress> result = ImmutableSetMultimap.builder();
-        resolved.asMap().forEach((host, addresses) -> result.putAll(host, filter(addresses)));
+        for (String host : resolved.keySet()) {
+            result.putAll(host, filter(resolved.get(host)));
+        }
         return result.build();
     }
 
     // TODO(dns): report metrics here
-    private static ImmutableSet<InetAddress> filter(Collection<InetAddress> addresses) {
+    private static ImmutableSet<InetAddress> filter(ImmutableSet<InetAddress> addresses) {
         // Assume that if resolved addresses contain a mix of ipv4 and ipv6 addresses, then they
         // likely point to the same host, just using a different protocol. In that case, we discared the ipv6
         // addresses and prefer only ipv4.
         //
         // If the set of resolved addresses contains only ipv4 or only ipv6 addresses, then it is left unmodified.
 
-        Set<InetAddress> ipv4Addresses =
-                addresses.stream().filter(addr -> addr instanceof Inet4Address).collect(Collectors.toUnmodifiableSet());
-        Set<InetAddress> ipv6Addresses =
-                addresses.stream().filter(addr -> addr instanceof Inet6Address).collect(Collectors.toUnmodifiableSet());
-
-        if (ipv4Addresses.isEmpty() && ipv6Addresses.isEmpty()) {
-            return ImmutableSet.of();
-        } else if (ipv6Addresses.isEmpty()) {
-            return ImmutableSet.copyOf(ipv4Addresses);
-        } else if (ipv4Addresses.isEmpty()) {
-            return ImmutableSet.copyOf(ipv6Addresses);
-        } else {
-            // only include ipv4 addresses
-            return ImmutableSet.copyOf(ipv4Addresses);
+        int numIpv4 = 0;
+        int numIpv6 = 0;
+        int numUnknown = 0;
+        ImmutableSet.Builder<InetAddress> onlyIpv4Addresses = ImmutableSet.builder();
+        for (InetAddress address : addresses) {
+            if (address instanceof Inet4Address) {
+                ++numIpv4;
+                onlyIpv4Addresses.add(address);
+            } else if (address instanceof Inet6Address) {
+                ++numIpv6;
+            } else {
+                ++numUnknown;
+            }
         }
+
+        if (numUnknown > 0) {
+            log.warn("name resolution result contains an address that is neither IPv4 nor IPv6");
+            return addresses;
+        }
+
+        if (numIpv4 > 0 && numIpv6 > 0) {
+            return onlyIpv4Addresses.build();
+        }
+
+        return addresses;
     }
 }
