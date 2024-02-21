@@ -31,6 +31,7 @@ import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.example.SampleServiceBlocking;
+import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.BlockingHandler;
@@ -269,18 +270,5 @@ public class DialogueClientsDnsIntegrationTest {
         return String.format(
                 "%s://%s:%d",
                 listenerInfo.getProtcol(), hostname, ((InetSocketAddress) listenerInfo.getAddress()).getPort());
-    }
-
-    private static final class MapBasedDnsResolver implements DialogueDnsResolver {
-        private final SetMultimap<String, InetAddress> map;
-
-        MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
-            this.map = map;
-        }
-
-        @Override
-        public ImmutableSet<InetAddress> resolve(String hostname) {
-            return ImmutableSet.copyOf(map.get(hostname));
-        }
     }
 }

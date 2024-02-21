@@ -27,6 +27,7 @@ import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
@@ -44,19 +45,6 @@ import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
 
 class DialogueDnsResolutionWorkerTest {
-    private static final class StaticDnsResolver implements DialogueDnsResolver {
-
-        private final ImmutableSetMultimap<String, InetAddress> resolvedHosts;
-
-        StaticDnsResolver(ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
-            this.resolvedHosts = resolvedHosts;
-        }
-
-        @Override
-        public ImmutableSet<InetAddress> resolve(String hostname) {
-            return resolvedHosts.get(hostname);
-        }
-    }
 
     private static final class RotatingStaticDnsResolver implements DialogueDnsResolver {
         private final Map<String, Deque<InetAddress>> resolvedHosts = new HashMap<>();
@@ -163,7 +151,7 @@ class DialogueDnsResolutionWorkerTest {
 
     @Test
     public void testInputStateChangeAddsAdditionalResolvedHost() {
-        DialogueDnsResolver resolver = new StaticDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
                 .put("foo.com", InetAddress.getLoopbackAddress())
                 .put("bar.com", InetAddress.getLoopbackAddress())
                 .build());
