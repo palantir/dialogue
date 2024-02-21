@@ -56,21 +56,10 @@ class DialogueDnsResolutionWorkerTest {
         public ImmutableSet<InetAddress> resolve(String hostname) {
             return resolvedHosts.get(hostname);
         }
-
-        @Override
-        public ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostNames) {
-            ImmutableSetMultimap.Builder<String, InetAddress> builder = ImmutableSetMultimap.builder();
-            hostNames.forEach(hostname -> {
-                ImmutableSet<InetAddress> addresses = resolvedHosts.get(hostname);
-                builder.putAll(hostname, addresses);
-            });
-            return builder.build();
-        }
     }
 
     private static final class RotatingStaticDnsResolver implements DialogueDnsResolver {
         private final Map<String, Deque<InetAddress>> resolvedHosts = new HashMap<>();
-        private long lastResolveTime = System.currentTimeMillis();
 
         RotatingStaticDnsResolver(Map<String, List<InetAddress>> staticMapping) {
             staticMapping.forEach((hostname, addresses) -> addresses.forEach(address -> {
@@ -85,45 +74,25 @@ class DialogueDnsResolutionWorkerTest {
             }));
         }
 
-        private InetAddress getNextAddress(String hostname) {
+        @Override
+        public ImmutableSet<InetAddress> resolve(String hostname) {
+            InetAddress current = getCurrentAddress(hostname);
+            if (current == null) {
+                return ImmutableSet.of();
+            }
+            return ImmutableSet.of(current);
+        }
+
+        void rotate() {
+            resolvedHosts.values().forEach(addresses -> addresses.add(addresses.pop()));
+        }
+
+        private InetAddress getCurrentAddress(String hostname) {
             Deque<InetAddress> addresses = resolvedHosts.get(hostname);
             if (addresses == null) {
                 return null;
             }
-
-            long elapsedMillis = System.currentTimeMillis() - lastResolveTime;
-            // rotate resolved addresses every 5 seconds;
-            long nRotations = elapsedMillis / 5000;
-            if (nRotations > 100) {
-                throw new RuntimeException("too many rotations");
-            }
-
-            while (nRotations > 0) {
-                addresses.add(addresses.pop());
-                --nRotations;
-            }
-
             return addresses.getFirst();
-        }
-
-        @Override
-        public ImmutableSet<InetAddress> resolve(String hostname) {
-            InetAddress next = getNextAddress(hostname);
-            lastResolveTime = System.currentTimeMillis();
-            if (next == null) {
-                return ImmutableSet.of();
-            }
-            return ImmutableSet.of(next);
-        }
-
-        @Override
-        public ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostNames) {
-            ImmutableSetMultimap.Builder<String, InetAddress> builder = ImmutableSetMultimap.builder();
-            hostNames.forEach(hostname -> {
-                ImmutableSet<InetAddress> addresses = resolve(hostname);
-                builder.putAll(hostname, addresses);
-            });
-            return builder.build();
         }
     }
 
@@ -132,7 +101,7 @@ class DialogueDnsResolutionWorkerTest {
         InetAddress address1 = InetAddress.getByName("1.2.3.4");
         InetAddress address2 = InetAddress.getByName("5.6.7.8");
 
-        DialogueDnsResolver resolver =
+        RotatingStaticDnsResolver resolver =
                 new RotatingStaticDnsResolver(ImmutableMap.of("foo.com", ImmutableList.of(address1, address2)));
 
         String fooUri = "https://foo.com:12345/foo";
@@ -145,13 +114,13 @@ class DialogueDnsResolutionWorkerTest {
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = Refreshable.create(null);
         DialogueDnsResolutionWorker worker =
-                new DialogueDnsResolutionWorker(resolver, Duration.ofSeconds(5), receiverRefreshable);
+                new DialogueDnsResolutionWorker(resolver, Duration.ofMillis(500), receiverRefreshable);
         ExecutorService executorService = Executors.newSingleThreadExecutor();
         try {
             executorService.execute(worker);
             Disposable disposable = inputRefreshable.subscribe(worker::update);
 
-            Awaitility.waitAtMost(Duration.ofSeconds(2)).untilAsserted(() -> {
+            Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
                 assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
                         .isTrue();
@@ -167,8 +136,9 @@ class DialogueDnsResolutionWorkerTest {
                         .noneMatch(address2::equals);
             });
 
-            // resolved address should rotate after ~5 seconds
-            Awaitility.waitAtMost(Duration.ofSeconds(7)).untilAsserted(() -> {
+            resolver.rotate();
+
+            Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
                 assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
                         .isTrue();
