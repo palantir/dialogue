@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.Inet4Address;
@@ -60,24 +61,30 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
         int numIpv4 = 0;
         int numIpv6 = 0;
         int numUnknown = 0;
-        ImmutableSet.Builder<InetAddress> onlyIpv4Addresses = ImmutableSet.builder();
         for (InetAddress address : addresses) {
             if (address instanceof Inet4Address) {
                 ++numIpv4;
-                onlyIpv4Addresses.add(address);
             } else if (address instanceof Inet6Address) {
                 ++numIpv6;
             } else {
                 ++numUnknown;
+                log.warn(
+                        "name resolution result contains an address that is neither IPv4 nor IPv6",
+                        UnsafeArg.of("address", address));
             }
         }
 
         if (numUnknown > 0) {
-            log.warn("name resolution result contains an address that is neither IPv4 nor IPv6");
             return addresses;
         }
 
         if (numIpv4 > 0 && numIpv6 > 0) {
+            ImmutableSet.Builder<InetAddress> onlyIpv4Addresses = ImmutableSet.builder();
+            for (InetAddress address : addresses) {
+                if (address instanceof Inet4Address) {
+                    onlyIpv4Addresses.add(address);
+                }
+            }
             return onlyIpv4Addresses.build();
         }
 
