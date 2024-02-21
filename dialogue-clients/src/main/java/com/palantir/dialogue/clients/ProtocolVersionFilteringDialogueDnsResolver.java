@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -37,21 +38,21 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
 
     @Override
     public ImmutableSet<InetAddress> resolve(String hostname) {
-        return filter(delegate.resolve(hostname));
+        return filter(delegate.resolve(hostname), hostname);
     }
 
     @Override
     public ImmutableSetMultimap<String, InetAddress> resolve(Iterable<String> hostnames) {
         ImmutableSetMultimap<String, InetAddress> resolved = delegate.resolve(hostnames);
         ImmutableSetMultimap.Builder<String, InetAddress> result = ImmutableSetMultimap.builder();
-        for (String host : resolved.keySet()) {
-            result.putAll(host, filter(resolved.get(host)));
+        for (String hostname : resolved.keySet()) {
+            result.putAll(hostname, filter(resolved.get(hostname), hostname));
         }
         return result.build();
     }
 
     // TODO(dns): report metrics here
-    private static ImmutableSet<InetAddress> filter(ImmutableSet<InetAddress> addresses) {
+    private static ImmutableSet<InetAddress> filter(ImmutableSet<InetAddress> addresses, String hostname) {
         // Assume that if resolved addresses contain a mix of ipv4 and ipv6 addresses, then they
         // likely point to the same host, just using a different protocol. In that case, we discared the ipv6
         // addresses and prefer only ipv4.
@@ -85,6 +86,11 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
                     onlyIpv4Addresses.add(address);
                 }
             }
+            log.info(
+                    "using only resolved IPv4 addresses for host to avoid double-counting",
+                    SafeArg.of("numIpv4", numIpv4),
+                    SafeArg.of("numIpv6", numIpv6),
+                    UnsafeArg.of("host", hostname));
             return onlyIpv4Addresses.build();
         }
 
