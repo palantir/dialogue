@@ -19,9 +19,9 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.LinkedHashMultimap;
+import com.google.common.collect.SetMultimap;
 import com.google.common.util.concurrent.MoreExecutors;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -33,11 +33,6 @@ import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import java.net.InetAddress;
 import java.time.Duration;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -46,51 +41,14 @@ import org.junit.jupiter.api.Test;
 
 class DialogueDnsResolutionWorkerTest {
 
-    private static final class RotatingStaticDnsResolver implements DialogueDnsResolver {
-        private final Map<String, Deque<InetAddress>> resolvedHosts = new HashMap<>();
-
-        RotatingStaticDnsResolver(Map<String, List<InetAddress>> staticMapping) {
-            staticMapping.forEach((hostname, addresses) -> addresses.forEach(address -> {
-                if (!resolvedHosts.containsKey(hostname)) {
-                    Deque<InetAddress> resolvedAddresses = new ArrayDeque<>();
-                    resolvedAddresses.add(address);
-                    resolvedHosts.put(hostname, resolvedAddresses);
-                } else {
-                    Deque<InetAddress> resolvedAddresses = resolvedHosts.get(hostname);
-                    resolvedAddresses.add(address);
-                }
-            }));
-        }
-
-        @Override
-        public ImmutableSet<InetAddress> resolve(String hostname) {
-            InetAddress current = getCurrentAddress(hostname);
-            if (current == null) {
-                return ImmutableSet.of();
-            }
-            return ImmutableSet.of(current);
-        }
-
-        void rotate() {
-            resolvedHosts.values().forEach(addresses -> addresses.add(addresses.pop()));
-        }
-
-        private InetAddress getCurrentAddress(String hostname) {
-            Deque<InetAddress> addresses = resolvedHosts.get(hostname);
-            if (addresses == null) {
-                return null;
-            }
-            return addresses.getFirst();
-        }
-    }
-
     @Test
     public void testResolvedAddressesChangesAfterStartup() throws Exception {
         InetAddress address1 = InetAddress.getByName("1.2.3.4");
         InetAddress address2 = InetAddress.getByName("5.6.7.8");
 
-        RotatingStaticDnsResolver resolver =
-                new RotatingStaticDnsResolver(ImmutableMap.of("foo.com", ImmutableList.of(address1, address2)));
+        SetMultimap<String, InetAddress> resolvedAddresses = LinkedHashMultimap.create();
+        resolvedAddresses.put("foo.com", address1);
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(resolvedAddresses);
 
         String fooUri = "https://foo.com:12345/foo";
         ServicesConfigBlock initialState = ServicesConfigBlock.builder()
@@ -124,7 +82,8 @@ class DialogueDnsResolutionWorkerTest {
                         .noneMatch(address2::equals);
             });
 
-            resolver.rotate();
+            // simulate a change for the resolved addresses after the worker thread has started
+            resolvedAddresses.replaceValues("foo.com", ImmutableList.of(address2));
 
             Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();

@@ -21,7 +21,7 @@ import com.google.common.collect.SetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import java.net.InetAddress;
 
-public class MapBasedDnsResolver implements DialogueDnsResolver {
+public final class MapBasedDnsResolver implements DialogueDnsResolver {
     private final SetMultimap<String, InetAddress> map;
 
     public MapBasedDnsResolver(SetMultimap<String, InetAddress> map) {
