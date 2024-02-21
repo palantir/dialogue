@@ -28,7 +28,6 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
@@ -39,19 +38,13 @@ final class DialogueDnsResolutionWorker implements Runnable {
     @GuardedBy("this")
     private ServicesConfigBlock inputState;
 
-    private volatile boolean shutdownRequested;
     private final DialogueDnsResolver resolver;
-    private final Duration dnsRefreshInterval;
     private final WeakReference<SettableRefreshable<ServicesConfigBlockWithResolvedHosts>> receiver;
 
     DialogueDnsResolutionWorker(
-            DialogueDnsResolver resolver,
-            Duration dnsRefreshInterval,
-            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
+            DialogueDnsResolver resolver, SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
         this.resolver = resolver;
-        this.dnsRefreshInterval = dnsRefreshInterval;
         this.receiver = new WeakReference<>(receiver);
-        this.shutdownRequested = false;
     }
 
     void update(ServicesConfigBlock scb) {
@@ -59,36 +52,18 @@ final class DialogueDnsResolutionWorker implements Runnable {
         doUpdate(scb);
     }
 
-    void shutdown() {
-        shutdownRequested = true;
-    }
-
     @Override
     public void run() {
-        // TODO(dns): We can handle this with a scheduled executor instead, allowing a single scheduler to be reused
-        // for multiple factories.
-        while (!shutdownRequested) {
-            try {
-                // check for updates to scb state first
-                Thread.sleep(dnsRefreshInterval.toMillis());
-                try {
-                    if (receiver.get() == null) {
-                        shutdownRequested = true;
-                        log.info("Output refreshable has been garbage collected, no need to continue polling");
-                    } else {
-                        doUpdate(null);
-                    }
-                } catch (Throwable t) {
-                    log.error("Scheduled DNS update failed", t);
-                }
-            } catch (InterruptedException e) {
-                if (shutdownRequested) {
-                    log.debug("interrupted checking for updates after shutdown", e);
-                } else {
-                    log.warn("interrupted checking for updates", e);
-                    shutdownRequested = true;
-                }
+        try {
+            if (receiver.get() == null) {
+                // n.b. We could throw an exception here to specifically cause the executor to deschedule, however
+                // this logging may be helpful in informing us of problems in the system.
+                log.info("Output refreshable has been garbage collected, no need to continue polling");
+            } else {
+                doUpdate(null);
             }
+        } catch (Throwable t) {
+            log.error("Scheduled DNS update failed", t);
         }
     }
 

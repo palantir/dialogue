@@ -14,25 +14,26 @@
  * limitations under the License.
  */
 
-package com.palantir.dialogue.otherpackage;
+package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.codahale.metrics.Counter;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
-import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.TestConfigurations;
-import com.palantir.dialogue.clients.DialogueClients;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.dialogue.util.MapBasedDnsResolver;
 import com.palantir.refreshable.Refreshable;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import io.undertow.Undertow;
 import io.undertow.server.handlers.BlockingHandler;
 import java.lang.ref.WeakReference;
@@ -43,7 +44,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -94,12 +94,6 @@ public class DialogueClientsDnsIntegrationTest {
         }
     }
 
-    private static ImmutableSet<Thread> getDialogueReloadingFactoryDnsThreads() {
-        return Thread.getAllStackTraces().keySet().stream()
-                .filter(thread -> thread.getName().startsWith("dialogue-reloading-factory-dns-"))
-                .collect(ImmutableSet.toImmutableSet());
-    }
-
     @Test
     void dns_refresh_works() throws UnknownHostException {
         Duration dnsRefreshInterval = Duration.ofMillis(50);
@@ -112,6 +106,9 @@ public class DialogueClientsDnsIntegrationTest {
 
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks();
+
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
                 .addHttpListener(0, "localhost", new BlockingHandler(exchange -> {
@@ -121,8 +118,6 @@ public class DialogueClientsDnsIntegrationTest {
                 .build();
         undertow.start();
         try {
-            ImmutableSet<Thread> existing = getDialogueReloadingFactoryDnsThreads();
-
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
                             Refreshable.only(ServicesConfigBlock.builder()
                                     .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -135,15 +130,13 @@ public class DialogueClientsDnsIntegrationTest {
                                     .build()))
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
-                    .withUserAgent(TestConfigurations.AGENT);
+                    .withUserAgent(TestConfigurations.AGENT)
+                    .withTaggedMetrics(metrics);
 
             SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
             client.voidToVoid();
 
-            ImmutableSet<Thread> afterFactoryUsage = getDialogueReloadingFactoryDnsThreads();
-
-            Set<Thread> difference = Sets.difference(afterFactoryUsage, existing);
-            assertThat(difference).hasSize(1);
+            assertThat(activeTasks.getCount()).isEqualTo(1);
 
             // Ensure the dns update thread sticks around after a GC
             System.gc();
@@ -158,12 +151,11 @@ public class DialogueClientsDnsIntegrationTest {
             client.voidToVoid();
             assertThat(requestPaths).containsExactly("/one/voidToVoid", "/two/voidToVoid");
 
-            // Ensure the dns update thread sticks around after a GC
+            // Ensure the dns update task sticks around after a GC
             System.gc();
-
-            ImmutableSet<Thread> endOfTest = getDialogueReloadingFactoryDnsThreads();
-            Set<Thread> endOfTestDifference = Sets.difference(endOfTest, existing);
-            assertThat(endOfTestDifference).hasSize(1);
+            assertThat(activeTasks.getCount())
+                    .as("Background refresh task should still be polling")
+                    .isEqualTo(1);
         } finally {
             undertow.stop();
         }
@@ -182,6 +174,9 @@ public class DialogueClientsDnsIntegrationTest {
 
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks();
+
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
                 .addHttpListener(0, "localhost", new BlockingHandler(exchange -> {
@@ -191,7 +186,6 @@ public class DialogueClientsDnsIntegrationTest {
                 .build();
         undertow.start();
         try {
-            ImmutableSet<Thread> existing = getDialogueReloadingFactoryDnsThreads();
 
             // reassigned to null later so that the target may be garbage collected
             @SuppressWarnings("unused")
@@ -207,7 +201,8 @@ public class DialogueClientsDnsIntegrationTest {
                                     .build()))
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
-                    .withUserAgent(TestConfigurations.AGENT);
+                    .withUserAgent(TestConfigurations.AGENT)
+                    .withTaggedMetrics(metrics);
 
             WeakReference<DialogueClients.ReloadingFactory> factoryRef = new WeakReference<>(factory);
             // reassigned to null later so that the target may be garbage collected
@@ -221,10 +216,7 @@ public class DialogueClientsDnsIntegrationTest {
 
             client.voidToVoid();
 
-            ImmutableSet<Thread> afterFactoryUsage = getDialogueReloadingFactoryDnsThreads();
-
-            Set<Thread> difference = Sets.difference(afterFactoryUsage, existing);
-            assertThat(difference).hasSize(1);
+            assertThat(activeTasks.getCount()).isEqualTo(1);
 
             dnsEntries.put(hostTwo, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
             dnsEntries.removeAll(hostOne);
@@ -254,11 +246,9 @@ public class DialogueClientsDnsIntegrationTest {
             Awaitility.waitAtMost(Duration.ofSeconds(3)).untilAsserted(() -> {
                 // Force a gc to help the cleaner along
                 System.gc();
-                ImmutableSet<Thread> endOfTest = getDialogueReloadingFactoryDnsThreads();
-                Set<Thread> endOfTestDifference = Sets.difference(endOfTest, existing);
-                assertThat(endOfTestDifference)
+                assertThat(activeTasks.getCount())
                         .as("The background task should no longer exist")
-                        .isEmpty();
+                        .isZero();
             });
         } finally {
             undertow.stop();

@@ -1,0 +1,10 @@
+options:
+  javaPackage: com.palantir.dialogue.clients
+  javaVisibility: packagePrivate
+namespaces:
+  client.dns:
+    docs: Dialogue DNS metrics.
+    metrics:
+      tasks:
+        type: counter
+        docs: Number of active Dialogue DNS update background tasks currently scheduled.

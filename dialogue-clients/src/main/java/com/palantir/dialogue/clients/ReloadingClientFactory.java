@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
@@ -61,11 +60,8 @@ import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
-import com.palantir.refreshable.Disposable;
 import com.palantir.refreshable.Refreshable;
-import com.palantir.refreshable.SettableRefreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.lang.ref.Cleaner;
 import java.net.InetAddress;
 import java.net.Proxy;
 import java.net.ProxySelector;
@@ -80,7 +76,6 @@ import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -113,39 +108,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .build();
     }
 
-    private static final Cleaner dnsWorkerCleaner = Cleaner.create(new ThreadFactoryBuilder()
-            .setDaemon(true)
-            .setNameFormat("dialogue-reloading-factory-cleaner-%d")
-            .build());
-
-    // We define a concrete class here to avoid accidental lambda references to the
-    // cleaner target.
-    private static final class CleanupTask implements Runnable {
-
-        private static final SafeLogger log = SafeLoggerFactory.get(CleanupTask.class);
-
-        private final Disposable disposable;
-        private final ExecutorService dnsResolutionExecutor;
-        private final DialogueDnsResolutionWorker dnsResolutionWorker;
-
-        private CleanupTask(
-                Disposable disposable,
-                ExecutorService dnsResolutionExecutor,
-                DialogueDnsResolutionWorker dnsResolutionWorker) {
-            this.disposable = disposable;
-            this.dnsResolutionExecutor = dnsResolutionExecutor;
-            this.dnsResolutionWorker = dnsResolutionWorker;
-        }
-
-        @Override
-        public void run() {
-            log.debug("Unregistering dns update background worker");
-            disposable.dispose();
-            dnsResolutionWorker.shutdown();
-            dnsResolutionExecutor.shutdownNow();
-        }
-    }
-
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
 
@@ -157,24 +119,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
          */
         @Value.Lazy
         default Refreshable<ServicesConfigBlockWithResolvedHosts> resolvedConfig() {
-            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
-                    Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
-
-            DialogueDnsResolutionWorker dnsResolutionWorker =
-                    new DialogueDnsResolutionWorker(dnsResolver(), dnsRefreshInterval(), dnsResolutionResult);
-            // TODO(dns): Use a scheduled executor instead here.
-            // TODO(dns): We should record metrics for this sort of thing.
-            ExecutorService dnsResolutionExecutor = Executors.newSingleThreadExecutor(new ThreadFactoryBuilder()
-                    .setDaemon(true)
-                    .setNameFormat("dialogue-reloading-factory-dns-%d")
-                    .build());
-            dnsResolutionExecutor.execute(dnsResolutionWorker);
-            Disposable disposable = scb().subscribe(dnsResolutionWorker::update);
-
-            dnsWorkerCleaner.register(
-                    dnsResolutionResult, new CleanupTask(disposable, dnsResolutionExecutor, dnsResolutionWorker));
-
-            return dnsResolutionResult;
+            return DnsSupport.pollForChanges(dnsResolver(), dnsRefreshInterval(), taggedMetrics(), scb());
         }
 
         @Value.Default
