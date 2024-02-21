@@ -82,8 +82,7 @@ class DialogueClientsTest {
 
         SampleServiceBlocking unknown = factory.get(SampleServiceBlocking.class, "borf");
         assertThatThrownBy(unknown::voidToVoid)
-                .hasMessageContaining(
-                        "Service not configured (config block invalid or not present): " + "{serviceName=borf}");
+                .hasMessageContaining("Service not configured (config block not present): " + "{serviceName=borf}");
     }
 
     @Test
