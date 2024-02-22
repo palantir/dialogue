@@ -44,10 +44,7 @@ interface Config {
 
     @Value.Default
     default List<TargetUri> uris() {
-        return rawConfig().uris().stream()
-                .map(MeshMode::stripMeshPrefix)
-                .map(uri -> TargetUri.builder().uri(uri).build())
-                .collect(Collectors.toList());
+        return rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toList());
     }
 
     @Value.Derived
@@ -99,7 +96,7 @@ interface Config {
                 rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
 
-        if (rawConfig().uris().size() > 1 && overrideSingleHostIndex().isPresent()) {
+        if (uris().size() > 1 && overrideSingleHostIndex().isPresent()) {
             throw new SafeIllegalArgumentException(
                     "overrideHostIndex is only permitted when there is a single uri",
                     SafeArg.of("numUris", rawConfig().uris().size()));

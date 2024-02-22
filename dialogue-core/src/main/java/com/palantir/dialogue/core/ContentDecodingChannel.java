@@ -77,8 +77,9 @@ final class ContentDecodingChannel implements EndpointChannel {
         // In mesh mode or environments which appear to be within an environment,
         // prefer not to request compressed responses. This heuristic assumes response
         // compression should not be used in a service mesh, nor when load balancing
-        // is handled by the client.
-        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.clientConf().uris().size() == 1;
+        // is handled by the client. Note that this will also opt out of response
+        // compression when the target host resolves to multiple IP addresses.
+        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.uris().size() == 1;
     }
 
     @Override

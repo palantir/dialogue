@@ -96,6 +96,16 @@ final class DnsSupport {
         return dnsResolutionResult;
     }
 
+    /**
+     * This prefix may reconfigure several aspects of the client to work better in a world where requests are routed
+     * through a service mesh like istio/envoy.
+     */
+    private static final String MESH_PREFIX = "mesh-";
+
+    static boolean isMeshMode(String uri) {
+        return uri.startsWith(MESH_PREFIX);
+    }
+
     private DnsSupport() {}
 
     // We define a concrete class here to avoid accidental lambda references to the

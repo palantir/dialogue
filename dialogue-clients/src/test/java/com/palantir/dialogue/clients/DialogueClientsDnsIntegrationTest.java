@@ -19,13 +19,17 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Counter;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
 import com.google.common.collect.SetMultimap;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
+import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.core.DialogueDnsResolver;
@@ -253,6 +257,91 @@ public class DialogueClientsDnsIntegrationTest {
         } finally {
             undertow.stop();
         }
+    }
+
+    @Test
+    void perHostDnsNodeDiscovery() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        ImmutableList<InetAddress> addresses = ImmutableList.of(
+                InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}));
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(host, addresses)
+                .build());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("https://" + host + ":8080")
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withUserAgent(TestConfigurations.AGENT)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("Expect one node per resolved address")
+                .hasSameSizeAs(addresses);
+    }
+
+    @Test
+    void meshModeDoesNotUseDnsNodeDiscovery() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(
+                        host,
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
+                .build());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("mesh-https://" + host + ":8080")
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withUserAgent(TestConfigurations.AGENT)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("Mesh-mode URIs should result in a single channel")
+                .hasSize(1);
+    }
+
+    @Test
+    void proxyDoesNotUseDnsNodeDiscovery() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(
+                        host,
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
+                .build());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("https://" + host + ":8080")
+                                                .proxyConfiguration(ProxyConfiguration.of("localhost:123"))
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withUserAgent(TestConfigurations.AGENT)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("Configurations using a proxy must not use dns node discovery")
+                .hasSize(1);
     }
 
     private static String getUri(Undertow undertow, String hostname) {
