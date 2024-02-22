@@ -450,7 +450,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
             // proxy handles DNS resolution.
             if (DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
-                targetUris.add(TargetUri.builder().uri(uri).build());
+                targetUris.add(TargetUri.of(uri));
             } else {
                 String host = parsed.getHost();
                 Set<InetAddress> resolvedAddresses = resolvedHosts.get(host);

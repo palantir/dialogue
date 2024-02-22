@@ -109,7 +109,7 @@ final class ChannelCache {
             OptionalInt overrideHostIndex) {
         ImmutableList<TargetUri> uris = serviceConf.uris().stream()
                 // Using a TargetUri with a uri and no resolvedAddress preserves the legacy Dialogue behavior.
-                .map(uri -> TargetUri.builder().uri(uri).build())
+                .map(TargetUri::of)
                 .collect(ImmutableList.toImmutableList());
         return getNonReloadingChannel(reloadingParams, serviceConf, uris, channelName, overrideHostIndex);
     }

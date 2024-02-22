@@ -69,6 +69,10 @@ public final class TargetUri {
         return result;
     }
 
+    public static TargetUri of(String uri) {
+        return builder().uri(uri).build();
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -83,8 +87,9 @@ public final class TargetUri {
 
         private Builder() {}
 
+        /** Sets the {@link #uri} field. Note that this does not retain service-mesh prefixes. */
         public Builder uri(String value) {
-            this.uri = Preconditions.checkNotNull(value, "uri");
+            this.uri = MeshMode.stripMeshPrefix(Preconditions.checkNotNull(value, "uri"));
             return this;
         }
 
