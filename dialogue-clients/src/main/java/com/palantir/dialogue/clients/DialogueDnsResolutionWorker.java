@@ -19,7 +19,6 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -31,25 +30,27 @@ import java.net.URISyntaxException;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
-final class DialogueDnsResolutionWorker implements Runnable {
+final class DialogueDnsResolutionWorker<INPUT, OUTPUT> implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);
 
     @Nullable
     @GuardedBy("this")
-    private ServicesConfigBlock inputState;
+    private INPUT inputState;
 
+    private final DnsPollingSpec<INPUT, OUTPUT> spec;
     private final DialogueDnsResolver resolver;
-    private final WeakReference<SettableRefreshable<ServicesConfigBlockWithResolvedHosts>> receiver;
+    private final WeakReference<SettableRefreshable<OUTPUT>> receiver;
 
     DialogueDnsResolutionWorker(
-            DialogueDnsResolver resolver, SettableRefreshable<ServicesConfigBlockWithResolvedHosts> receiver) {
+            DnsPollingSpec<INPUT, OUTPUT> spec, DialogueDnsResolver resolver, SettableRefreshable<OUTPUT> receiver) {
+        this.spec = spec;
         this.resolver = resolver;
         this.receiver = new WeakReference<>(receiver);
     }
 
-    void update(ServicesConfigBlock scb) {
+    void update(INPUT input) {
         // blocks the calling thread
-        doUpdate(scb);
+        doUpdate(input);
     }
 
     @Override
@@ -67,38 +68,36 @@ final class DialogueDnsResolutionWorker implements Runnable {
         }
     }
 
-    private synchronized void doUpdate(@Nullable ServicesConfigBlock updatedInputState) {
+    private synchronized void doUpdate(@Nullable INPUT updatedInputState) {
         if (updatedInputState != null && !updatedInputState.equals(inputState)) {
             inputState = updatedInputState;
         }
 
         // resolve all names in the current state, if there is one
         if (inputState != null) {
-            ImmutableSet<String> allHosts = inputState.services().values().stream()
-                    .flatMap(psc -> psc.uris().stream()
-                            // n.b. we could filter out hosts with specify a proxy and mesh-mode
-                            // uris here, however it's simpler to resolve everything, and use what
-                            // we need when TargetUri instances are constructed.
-                            .map(uriString -> {
-                                try {
-                                    URI uri = new URI(uriString);
-                                    return uri.getHost();
-                                } catch (URISyntaxException | RuntimeException e) {
-                                    log.debug("Failed to parse URI", e);
-                                    return null;
-                                }
-                            })
-                            .filter(Objects::nonNull))
+            ImmutableSet<String> allHosts = spec.extractUris(inputState)
+                    .filter(Objects::nonNull)
+                    // n.b. we could filter out hosts with specify a proxy and mesh-mode
+                    // uris here, however it's simpler to resolve everything, and use what
+                    // we need when TargetUri instances are constructed.
+                    .map(uriString -> {
+                        try {
+                            URI uri = new URI(uriString);
+                            return uri.getHost();
+                        } catch (URISyntaxException | RuntimeException e) {
+                            log.debug("Failed to parse URI", e);
+                            return null;
+                        }
+                    })
+                    .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
-            ServicesConfigBlockWithResolvedHosts newResolvedState =
-                    ImmutableServicesConfigBlockWithResolvedHosts.of(inputState, resolvedHosts);
-            SettableRefreshable<ServicesConfigBlockWithResolvedHosts> refreshable = receiver.get();
+            OUTPUT newResolvedState = spec.createOutput(inputState, resolvedHosts);
+            SettableRefreshable<OUTPUT> refreshable = receiver.get();
             if (refreshable != null) {
                 refreshable.update(newResolvedState);
             } else {
-                log.info("Attempted to update ServicesConfigBlockWithResolvedHosts refreshable "
-                        + "which has already been garbage collected");
+                log.info("Attempted to update DNS output refreshable which has already been garbage collected");
             }
         }
     }

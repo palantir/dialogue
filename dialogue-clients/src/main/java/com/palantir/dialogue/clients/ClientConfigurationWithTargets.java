@@ -16,19 +16,19 @@
 
 package com.palantir.dialogue.clients;
 
-import com.google.common.collect.ImmutableSetMultimap;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.google.common.collect.ImmutableList;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
+import com.palantir.dialogue.core.TargetUri;
 import com.palantir.logsafe.DoNotLog;
-import java.net.InetAddress;
 import org.immutables.value.Value;
 
 @DoNotLog
 @Value.Immutable
-interface ServicesConfigBlockWithResolvedHosts {
+interface ClientConfigurationWithTargets {
     @Value.Parameter
-    ServicesConfigBlock scb();
+    ClientConfiguration config();
 
     // maps hostname (not service name) -> resolved IP addresses
     @Value.Parameter
-    ImmutableSetMultimap<String, InetAddress> resolvedHosts();
+    ImmutableList<TargetUri> targets();
 }

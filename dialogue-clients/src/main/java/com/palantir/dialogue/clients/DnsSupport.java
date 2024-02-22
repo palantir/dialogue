@@ -20,7 +20,9 @@ import com.codahale.metrics.Counter;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -63,6 +65,34 @@ final class DnsSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
+    static Refreshable<ServiceConfigurationWithTargets> pollForChanges(
+            DialogueDnsResolver dnsResolver,
+            Duration dnsRefreshInterval,
+            TaggedMetricRegistry metrics,
+            ServiceConfiguration input) {
+        return pollForChanges(
+                DnsPollingSpec.SERVICE_CONFIG,
+                sharedScheduler.get(),
+                dnsResolver,
+                dnsRefreshInterval,
+                metrics,
+                Refreshable.only(input));
+    }
+
+    static Refreshable<ClientConfigurationWithTargets> pollForChanges(
+            DialogueDnsResolver dnsResolver,
+            Duration dnsRefreshInterval,
+            TaggedMetricRegistry metrics,
+            ClientConfiguration input) {
+        return pollForChanges(
+                DnsPollingSpec.CLIENT_CONFIG,
+                sharedScheduler.get(),
+                dnsResolver,
+                dnsRefreshInterval,
+                metrics,
+                Refreshable.only(input));
+    }
+
     static Refreshable<ServicesConfigBlockWithResolvedHosts> pollForChanges(
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
@@ -78,18 +108,29 @@ final class DnsSupport {
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
             Refreshable<ServicesConfigBlock> input) {
-        SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
-                Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
+        return pollForChanges(
+                DnsPollingSpec.RELOADING_FACTORY, executor, dnsResolver, dnsRefreshInterval, metrics, input);
+    }
 
-        DialogueDnsResolutionWorker dnsResolutionWorker =
-                new DialogueDnsResolutionWorker(dnsResolver, dnsResolutionResult);
+    private static <I, O> Refreshable<O> pollForChanges(
+            DnsPollingSpec<I, O> spec,
+            ScheduledExecutorService executor,
+            DialogueDnsResolver dnsResolver,
+            Duration dnsRefreshInterval,
+            TaggedMetricRegistry metrics,
+            Refreshable<I> input) {
+        @SuppressWarnings("NullAway")
+        SettableRefreshable<O> dnsResolutionResult = Refreshable.create(null);
+
+        DialogueDnsResolutionWorker<I, O> dnsResolutionWorker =
+                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult);
 
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
                 dnsResolutionWorker,
                 dnsRefreshInterval.toMillis(),
                 dnsRefreshInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
-        Counter counter = ClientDnsMetrics.of(metrics).tasks();
+        Counter counter = ClientDnsMetrics.of(metrics).tasks(spec.kind());
         counter.inc();
         Disposable disposable = input.subscribe(dnsResolutionWorker::update);
         cleaner.register(dnsResolutionResult, new CleanupTask(disposable, future, counter));

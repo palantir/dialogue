@@ -101,11 +101,16 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .dnsResolver(params.dnsResolver());
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
-        return DialogueChannel.builder()
-                .channelName(channelName)
-                .clientConfiguration(clientConf)
-                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
-                .build();
+        return new LiveReloadingChannel(
+                DnsSupport.pollForChanges(
+                                params.dnsResolver(), params.dnsRefreshInterval(), params.taggedMetrics(), clientConf)
+                        .map(clientConfigWithTargets -> DialogueChannel.builder()
+                                .channelName(channelName)
+                                .clientConfiguration(clientConfigWithTargets.config())
+                                .uris(clientConfigWithTargets.targets())
+                                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                                .build()),
+                params.runtime().clients());
     }
 
     @Value.Immutable
@@ -149,9 +154,16 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
-        Channel channel = cache.getNonReloadingChannel(
-                params, serviceConf, ChannelNames.nonReloading(clazz, params), OptionalInt.empty());
-
+        Channel channel = new LiveReloadingChannel(
+                DnsSupport.pollForChanges(
+                                params.dnsResolver(), params.dnsRefreshInterval(), params.taggedMetrics(), serviceConf)
+                        .map(serviceConfWithTargets -> cache.getNonReloadingChannel(
+                                params,
+                                serviceConfWithTargets.config(),
+                                serviceConfWithTargets.targets(),
+                                ChannelNames.nonReloading(clazz, params),
+                                OptionalInt.empty())),
+                params.runtime().clients());
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
