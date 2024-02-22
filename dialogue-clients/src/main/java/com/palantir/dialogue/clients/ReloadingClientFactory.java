@@ -164,7 +164,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         @Value.Default
         default boolean dnsNodeDiscovery() {
-            return true;
+            return false;
         }
 
         Optional<ExecutorService> blockingExecutor();
