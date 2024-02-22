@@ -36,6 +36,7 @@ import com.palantir.dialogue.TestResponse;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 import javax.net.ssl.SSLContext;
@@ -57,12 +58,15 @@ public final class ContentDecodingChannelTest {
                 ImmutableList.of("https://localhost:8123"),
                 SSLContext.getDefault().getSocketFactory(),
                 tm);
+        List<TargetUri> targets = ImmutableList.of(TargetUri.of("https://localhost:8123"));
         standard = Mockito.mock(Config.class);
         Mockito.when(standard.mesh()).thenReturn(MeshMode.DEFAULT_NO_MESH);
         Mockito.when(standard.clientConf()).thenReturn(clientConfig);
+        Mockito.when(standard.uris()).thenReturn(targets);
         mesh = Mockito.mock(Config.class);
         Mockito.when(mesh.mesh()).thenReturn(MeshMode.USE_EXTERNAL_MESH);
         Mockito.when(mesh.clientConf()).thenReturn(clientConfig);
+        Mockito.when(mesh.uris()).thenReturn(targets);
     }
 
     @Test
