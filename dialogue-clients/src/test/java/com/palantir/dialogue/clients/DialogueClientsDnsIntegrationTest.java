@@ -82,6 +82,7 @@ public class DialogueClientsDnsIntegrationTest {
                                             .addUris(getUri(undertow, randomHostname))
                                             .build())
                             .build()))
+                    .withDnsNodeDiscovery(true)
                     .withUserAgent(TestConfigurations.AGENT)
                     .withDnsResolver(hostname -> {
                         if (randomHostname.equals(hostname)) {
@@ -137,6 +138,7 @@ public class DialogueClientsDnsIntegrationTest {
                                                     .addUris(getUri(undertow, hostTwo) + "/two")
                                                     .build())
                                     .build()))
+                    .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
                     .withUserAgent(TestConfigurations.AGENT)
@@ -208,6 +210,7 @@ public class DialogueClientsDnsIntegrationTest {
                                                     .addUris(getUri(undertow, hostTwo) + "/two")
                                                     .build())
                                     .build()))
+                    .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
                     .withUserAgent(TestConfigurations.AGENT)
@@ -283,6 +286,7 @@ public class DialogueClientsDnsIntegrationTest {
                                                 .addUris("https://" + host + ":8080")
                                                 .build())
                                 .build()))
+                .withDnsNodeDiscovery(true)
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
@@ -311,6 +315,7 @@ public class DialogueClientsDnsIntegrationTest {
                                                 .addUris("mesh-https://" + host + ":8080")
                                                 .build())
                                 .build()))
+                .withDnsNodeDiscovery(true)
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
@@ -340,12 +345,42 @@ public class DialogueClientsDnsIntegrationTest {
                                                 .proxyConfiguration(ProxyConfiguration.of("localhost:123"))
                                                 .build())
                                 .build()))
+                .withDnsNodeDiscovery(true)
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
                 .getPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Configurations using a proxy must not use dns node discovery")
+                .hasSize(1);
+    }
+
+    @Test
+    void dnsNodeDiscoveryOff() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(
+                        host,
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
+                .build());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("https://" + host + ":8080")
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDnsNodeDiscovery(false)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("DNS node discovery shouldn't work when it's not enabled")
                 .hasSize(1);
     }
 
@@ -375,6 +410,7 @@ public class DialogueClientsDnsIntegrationTest {
         try {
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
                             Refreshable.only(ServicesConfigBlock.builder().build()))
+                    .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
                     .withUserAgent(TestConfigurations.AGENT)
@@ -451,6 +487,7 @@ public class DialogueClientsDnsIntegrationTest {
         try {
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
                             Refreshable.only(ServicesConfigBlock.builder().build()))
+                    .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
                     .withUserAgent(TestConfigurations.AGENT)

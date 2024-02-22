@@ -60,6 +60,7 @@ class DialogueDnsResolutionWorkerTest {
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
+                true,
                 DnsPollingSpec.RELOADING_FACTORY,
                 executorService,
                 resolver,
@@ -69,17 +70,18 @@ class DialogueDnsResolutionWorkerTest {
         try {
             Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
-                assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                         .isTrue();
                 assertThat(receiverRefreshable
                                 .get()
                                 .resolvedHosts()
+                                .get()
                                 .get("foo.com")
                                 .size())
                         .isEqualTo(1);
-                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .allMatch(address1::equals);
-                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .noneMatch(address2::equals);
             });
 
@@ -88,17 +90,18 @@ class DialogueDnsResolutionWorkerTest {
 
             Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
-                assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                         .isTrue();
                 assertThat(receiverRefreshable
                                 .get()
                                 .resolvedHosts()
+                                .get()
                                 .get("foo.com")
                                 .size())
                         .isEqualTo(1);
-                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .allMatch(address2::equals);
-                assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .noneMatch(address1::equals);
             });
         } finally {
@@ -124,6 +127,7 @@ class DialogueDnsResolutionWorkerTest {
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
+                true,
                 DnsPollingSpec.RELOADING_FACTORY,
                 executorService,
                 resolver,
@@ -134,11 +138,11 @@ class DialogueDnsResolutionWorkerTest {
             assertThat(receiverRefreshable.get()).isNotNull();
 
             assertThat(receiverRefreshable.get().config()).isEqualTo(initialState);
-            assertThat(receiverRefreshable.get().resolvedHosts().keySet().size())
+            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet().size())
                     .isEqualTo(1);
-            assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
+            assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                     .isTrue();
-            assertThat(receiverRefreshable.get().resolvedHosts().get("foo.com"))
+            assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                     .anyMatch(InetAddress::isLoopbackAddress);
 
             String barUri = "https://bar.com:12345/bar";
@@ -157,11 +161,11 @@ class DialogueDnsResolutionWorkerTest {
                     .untilAsserted(
                             () -> assertThat(receiverRefreshable.get().config()).isEqualTo(newState));
 
-            assertThat(receiverRefreshable.get().resolvedHosts().keySet().size())
+            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet().size())
                     .isEqualTo(2);
-            assertThat(receiverRefreshable.get().resolvedHosts().containsKey("bar.com"))
+            assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("bar.com"))
                     .isTrue();
-            assertThat(receiverRefreshable.get().resolvedHosts().get("bar.com"))
+            assertThat(receiverRefreshable.get().resolvedHosts().get().get("bar.com"))
                     .anyMatch(InetAddress::isLoopbackAddress);
         } finally {
             assertThat(MoreExecutors.shutdownAndAwaitTermination(executorService, 5, TimeUnit.MINUTES))

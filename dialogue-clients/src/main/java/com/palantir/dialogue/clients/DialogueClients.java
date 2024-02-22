@@ -182,6 +182,9 @@ public final class DialogueClients {
          */
         ReloadingFactory withDnsRefreshInterval(Duration interval);
 
+        /** Feature flag to opt into or out of the default dns node discovery behavior */
+        ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery);
+
         StickyChannelFactory getStickyChannels(String serviceName);
 
         @Beta
