@@ -105,7 +105,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
         return new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
-                                params.dnsResolver(), params.dnsRefreshInterval(), params.taggedMetrics(), clientConf)
+                                DnsPollingSpec.CLIENT_CONFIG,
+                                params.dnsResolver(),
+                                params.dnsRefreshInterval(),
+                                params.taggedMetrics(),
+                                Refreshable.only(clientConf))
                         .map(dnsResult -> {
                             ImmutableList<TargetUri> targets = getTargetUris(
                                     channelName,
@@ -133,7 +137,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
          */
         @Value.Lazy
         default Refreshable<DnsResolutionResults<ServicesConfigBlock>> resolvedConfig() {
-            return DnsSupport.pollForChanges(dnsResolver(), dnsRefreshInterval(), taggedMetrics(), scb());
+            return DnsSupport.pollForChanges(
+                    DnsPollingSpec.RELOADING_FACTORY, dnsResolver(), dnsRefreshInterval(), taggedMetrics(), scb());
         }
 
         @Value.Default
@@ -166,7 +171,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         String channelName = ChannelNames.nonReloading(clazz, params);
         Channel channel = new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
-                                params.dnsResolver(), params.dnsRefreshInterval(), params.taggedMetrics(), serviceConf)
+                                DnsPollingSpec.SERVICE_CONFIG,
+                                params.dnsResolver(),
+                                params.dnsRefreshInterval(),
+                                params.taggedMetrics(),
+                                Refreshable.only(serviceConf))
                         .map(dnsResult -> {
                             ImmutableList<TargetUri> targets = getTargetUris(
                                     channelName,

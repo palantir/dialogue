@@ -60,7 +60,12 @@ class DialogueDnsResolutionWorkerTest {
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
-                executorService, resolver, Duration.ofMillis(500), new DefaultTaggedMetricRegistry(), inputRefreshable);
+                DnsPollingSpec.RELOADING_FACTORY,
+                executorService,
+                resolver,
+                Duration.ofMillis(500),
+                new DefaultTaggedMetricRegistry(),
+                inputRefreshable);
         try {
             Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
                 assertThat(receiverRefreshable.get()).isNotNull();
@@ -119,7 +124,12 @@ class DialogueDnsResolutionWorkerTest {
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
         Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
-                executorService, resolver, Duration.ofMillis(500), new DefaultTaggedMetricRegistry(), inputRefreshable);
+                DnsPollingSpec.RELOADING_FACTORY,
+                executorService,
+                resolver,
+                Duration.ofMillis(500),
+                new DefaultTaggedMetricRegistry(),
+                inputRefreshable);
         try {
             assertThat(receiverRefreshable.get()).isNotNull();
 

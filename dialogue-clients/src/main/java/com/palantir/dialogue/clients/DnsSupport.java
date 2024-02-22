@@ -17,12 +17,8 @@
 package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
-import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -65,54 +61,17 @@ final class DnsSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    static Refreshable<DnsResolutionResults<ServiceConfiguration>> pollForChanges(
+    /** Identical to the overload, but using the {@link #sharedScheduler}. */
+    static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            DnsPollingSpec<I> spec,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
-            ServiceConfiguration input) {
-        return pollForChanges(
-                DnsPollingSpec.SERVICE_CONFIG,
-                sharedScheduler.get(),
-                dnsResolver,
-                dnsRefreshInterval,
-                metrics,
-                Refreshable.only(input));
+            Refreshable<I> input) {
+        return pollForChanges(spec, sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
     }
 
-    static Refreshable<DnsResolutionResults<ClientConfiguration>> pollForChanges(
-            DialogueDnsResolver dnsResolver,
-            Duration dnsRefreshInterval,
-            TaggedMetricRegistry metrics,
-            ClientConfiguration input) {
-        return pollForChanges(
-                DnsPollingSpec.CLIENT_CONFIG,
-                sharedScheduler.get(),
-                dnsResolver,
-                dnsRefreshInterval,
-                metrics,
-                Refreshable.only(input));
-    }
-
-    static Refreshable<DnsResolutionResults<ServicesConfigBlock>> pollForChanges(
-            DialogueDnsResolver dnsResolver,
-            Duration dnsRefreshInterval,
-            TaggedMetricRegistry metrics,
-            Refreshable<ServicesConfigBlock> input) {
-        return pollForChanges(sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
-    }
-
-    @VisibleForTesting
-    static Refreshable<DnsResolutionResults<ServicesConfigBlock>> pollForChanges(
-            ScheduledExecutorService executor,
-            DialogueDnsResolver dnsResolver,
-            Duration dnsRefreshInterval,
-            TaggedMetricRegistry metrics,
-            Refreshable<ServicesConfigBlock> input) {
-        return pollForChanges(
-                DnsPollingSpec.RELOADING_FACTORY, executor, dnsResolver, dnsRefreshInterval, metrics, input);
-    }
-
-    private static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+    static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
             DnsPollingSpec<I> spec,
             ScheduledExecutorService executor,
             DialogueDnsResolver dnsResolver,
