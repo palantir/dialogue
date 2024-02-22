@@ -445,9 +445,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             if (parsed == null || parsed.getHost() == null) {
                 continue;
             }
+            // Mesh mode does not require any form of dns updating because all dns results
+            // are considered equivalent.
             // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
             // proxy handles DNS resolution.
-            if (usesProxy(proxySelector, parsed)) {
+            if (DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
                 targetUris.add(TargetUri.builder().uri(uri).build());
             } else {
                 String host = parsed.getHost();

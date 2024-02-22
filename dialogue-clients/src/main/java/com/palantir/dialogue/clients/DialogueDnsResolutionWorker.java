@@ -76,6 +76,9 @@ final class DialogueDnsResolutionWorker implements Runnable {
         if (inputState != null) {
             ImmutableSet<String> allHosts = inputState.services().values().stream()
                     .flatMap(psc -> psc.uris().stream()
+                            // n.b. we could filter out hosts with specify a proxy and mesh-mode
+                            // uris here, however it's simpler to resolve everything, and use what
+                            // we need when TargetUri instances are constructed.
                             .map(uriString -> {
                                 try {
                                     URI uri = new URI(uriString);
