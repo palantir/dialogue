@@ -54,6 +54,7 @@ Connection pool metrics from the dialogue Apache client.
 ### client.dns
 Dialogue DNS metrics.
 - `client.dns.tasks` (counter): Number of active Dialogue DNS update background tasks currently scheduled.
+  - `kind`: Describes the type of component polling for DNS updates.
 
 ## Dialogue Core
 
