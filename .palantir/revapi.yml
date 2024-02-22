@@ -283,6 +283,12 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDnsResolver(com.palantir.dialogue.core.DialogueDnsResolver)"
       justification: "API is only consumed, not extended"
+  "3.112.0-rc2":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
+        \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDnsNodeDiscovery(boolean)"
+      justification: "interface is consumed, not implemented"
   "3.2.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"
