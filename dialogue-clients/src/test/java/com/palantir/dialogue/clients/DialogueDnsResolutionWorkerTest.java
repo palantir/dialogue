@@ -59,7 +59,7 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-        Refreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = DnsSupport.pollForChanges(
+        Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
                 executorService, resolver, Duration.ofMillis(500), new DefaultTaggedMetricRegistry(), inputRefreshable);
         try {
             Awaitility.waitAtMost(Duration.ofSeconds(1)).untilAsserted(() -> {
@@ -118,12 +118,12 @@ class DialogueDnsResolutionWorkerTest {
                 .build();
         SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-        Refreshable<ServicesConfigBlockWithResolvedHosts> receiverRefreshable = DnsSupport.pollForChanges(
+        Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
                 executorService, resolver, Duration.ofMillis(500), new DefaultTaggedMetricRegistry(), inputRefreshable);
         try {
             assertThat(receiverRefreshable.get()).isNotNull();
 
-            assertThat(receiverRefreshable.get().scb()).isEqualTo(initialState);
+            assertThat(receiverRefreshable.get().config()).isEqualTo(initialState);
             assertThat(receiverRefreshable.get().resolvedHosts().keySet().size())
                     .isEqualTo(1);
             assertThat(receiverRefreshable.get().resolvedHosts().containsKey("foo.com"))
@@ -145,7 +145,7 @@ class DialogueDnsResolutionWorkerTest {
 
             Awaitility.waitAtMost(Duration.ofSeconds(1))
                     .untilAsserted(
-                            () -> assertThat(receiverRefreshable.get().scb()).isEqualTo(newState));
+                            () -> assertThat(receiverRefreshable.get().config()).isEqualTo(newState));
 
             assertThat(receiverRefreshable.get().resolvedHosts().keySet().size())
                     .isEqualTo(2);

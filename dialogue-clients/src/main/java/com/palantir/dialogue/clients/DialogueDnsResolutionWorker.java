@@ -30,19 +30,21 @@ import java.net.URISyntaxException;
 import java.util.Objects;
 import javax.annotation.Nullable;
 
-final class DialogueDnsResolutionWorker<INPUT, OUTPUT> implements Runnable {
+final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     private static final SafeLogger log = SafeLoggerFactory.get(DialogueDnsResolutionWorker.class);
 
     @Nullable
     @GuardedBy("this")
     private INPUT inputState;
 
-    private final DnsPollingSpec<INPUT, OUTPUT> spec;
+    private final DnsPollingSpec<INPUT> spec;
     private final DialogueDnsResolver resolver;
-    private final WeakReference<SettableRefreshable<OUTPUT>> receiver;
+    private final WeakReference<SettableRefreshable<DnsResolutionResults<INPUT>>> receiver;
 
     DialogueDnsResolutionWorker(
-            DnsPollingSpec<INPUT, OUTPUT> spec, DialogueDnsResolver resolver, SettableRefreshable<OUTPUT> receiver) {
+            DnsPollingSpec<INPUT> spec,
+            DialogueDnsResolver resolver,
+            SettableRefreshable<DnsResolutionResults<INPUT>> receiver) {
         this.spec = spec;
         this.resolver = resolver;
         this.receiver = new WeakReference<>(receiver);
@@ -92,8 +94,8 @@ final class DialogueDnsResolutionWorker<INPUT, OUTPUT> implements Runnable {
                     .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
-            OUTPUT newResolvedState = spec.createOutput(inputState, resolvedHosts);
-            SettableRefreshable<OUTPUT> refreshable = receiver.get();
+            DnsResolutionResults<INPUT> newResolvedState = ImmutableDnsResolutionResults.of(inputState, resolvedHosts);
+            SettableRefreshable<DnsResolutionResults<INPUT>> refreshable = receiver.get();
             if (refreshable != null) {
                 refreshable.update(newResolvedState);
             } else {

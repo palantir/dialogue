@@ -65,7 +65,7 @@ final class DnsSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    static Refreshable<ServiceConfigurationWithTargets> pollForChanges(
+    static Refreshable<DnsResolutionResults<ServiceConfiguration>> pollForChanges(
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
@@ -79,7 +79,7 @@ final class DnsSupport {
                 Refreshable.only(input));
     }
 
-    static Refreshable<ClientConfigurationWithTargets> pollForChanges(
+    static Refreshable<DnsResolutionResults<ClientConfiguration>> pollForChanges(
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
@@ -93,7 +93,7 @@ final class DnsSupport {
                 Refreshable.only(input));
     }
 
-    static Refreshable<ServicesConfigBlockWithResolvedHosts> pollForChanges(
+    static Refreshable<DnsResolutionResults<ServicesConfigBlock>> pollForChanges(
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
@@ -102,7 +102,7 @@ final class DnsSupport {
     }
 
     @VisibleForTesting
-    static Refreshable<ServicesConfigBlockWithResolvedHosts> pollForChanges(
+    static Refreshable<DnsResolutionResults<ServicesConfigBlock>> pollForChanges(
             ScheduledExecutorService executor,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
@@ -112,17 +112,17 @@ final class DnsSupport {
                 DnsPollingSpec.RELOADING_FACTORY, executor, dnsResolver, dnsRefreshInterval, metrics, input);
     }
 
-    private static <I, O> Refreshable<O> pollForChanges(
-            DnsPollingSpec<I, O> spec,
+    private static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            DnsPollingSpec<I> spec,
             ScheduledExecutorService executor,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
             Refreshable<I> input) {
         @SuppressWarnings("NullAway")
-        SettableRefreshable<O> dnsResolutionResult = Refreshable.create(null);
+        SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
-        DialogueDnsResolutionWorker<I, O> dnsResolutionWorker =
+        DialogueDnsResolutionWorker<I> dnsResolutionWorker =
                 new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult);
 
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
