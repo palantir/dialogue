@@ -90,7 +90,7 @@ final class DnsSupport {
         SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
         DialogueDnsResolutionWorker<I> dnsResolutionWorker =
-                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult);
+                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult, metrics);
 
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
                 dnsResolutionWorker,

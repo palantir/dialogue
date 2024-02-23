@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue.clients;
 
+import com.codahale.metrics.Timer;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
@@ -23,6 +24,7 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.SettableRefreshable;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
@@ -41,14 +43,17 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     private final DnsPollingSpec<INPUT> spec;
     private final DialogueDnsResolver resolver;
     private final WeakReference<SettableRefreshable<DnsResolutionResults<INPUT>>> receiver;
+    private final Timer updateTimer;
 
     DialogueDnsResolutionWorker(
             DnsPollingSpec<INPUT> spec,
             DialogueDnsResolver resolver,
-            SettableRefreshable<DnsResolutionResults<INPUT>> receiver) {
+            SettableRefreshable<DnsResolutionResults<INPUT>> receiver,
+            TaggedMetricRegistry metrics) {
         this.spec = spec;
         this.resolver = resolver;
         this.receiver = new WeakReference<>(receiver);
+        this.updateTimer = ClientDnsMetrics.of(metrics).resolveTime();
     }
 
     void update(INPUT input) {
@@ -64,7 +69,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                 // this logging may be helpful in informing us of problems in the system.
                 log.info("Output refreshable has been garbage collected, no need to continue polling");
             } else {
-                doUpdate(null);
+                updateTimer.time(() -> doUpdate(null));
             }
         } catch (Throwable t) {
             log.error("Scheduled DNS update failed", t);
