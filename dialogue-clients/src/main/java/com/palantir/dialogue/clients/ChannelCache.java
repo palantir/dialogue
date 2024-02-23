@@ -19,7 +19,6 @@ package com.palantir.dialogue.clients;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.LoadingCache;
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.dialogue.core.DialogueChannel;
@@ -99,19 +98,6 @@ final class ChannelCache {
         }
 
         return newCache;
-    }
-
-    // TODO(dns): Callers should be migrated away from this method to the overload which accepts 'TargetUri'
-    DialogueChannel getNonReloadingChannel(
-            ReloadingClientFactory.ReloadingParams reloadingParams,
-            ServiceConfiguration serviceConf,
-            @Safe String channelName,
-            OptionalInt overrideHostIndex) {
-        ImmutableList<TargetUri> uris = serviceConf.uris().stream()
-                // Using a TargetUri with a uri and no resolvedAddress preserves the legacy Dialogue behavior.
-                .map(TargetUri::of)
-                .collect(ImmutableList.toImmutableList());
-        return getNonReloadingChannel(reloadingParams, serviceConf, uris, channelName, overrideHostIndex);
     }
 
     DialogueChannel getNonReloadingChannel(

@@ -17,10 +17,8 @@
 package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -33,6 +31,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -63,33 +62,42 @@ final class DnsSupport {
                             .build(),
                     SCHEDULER_NAME)));
 
-    static Refreshable<ServicesConfigBlockWithResolvedHosts> pollForChanges(
+    /** Identical to the overload, but using the {@link #sharedScheduler}. */
+    static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            boolean dnsNodeDiscovery,
+            DnsPollingSpec<I> spec,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
-            Refreshable<ServicesConfigBlock> input) {
-        return pollForChanges(sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
+            Refreshable<I> input) {
+        return pollForChanges(
+                dnsNodeDiscovery, spec, sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
     }
 
-    @VisibleForTesting
-    static Refreshable<ServicesConfigBlockWithResolvedHosts> pollForChanges(
+    static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            boolean dnsNodeDiscovery,
+            DnsPollingSpec<I> spec,
             ScheduledExecutorService executor,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
-            Refreshable<ServicesConfigBlock> input) {
-        SettableRefreshable<ServicesConfigBlockWithResolvedHosts> dnsResolutionResult =
-                Refreshable.create(ServicesConfigBlockWithResolvedHosts.empty());
+            Refreshable<I> input) {
+        if (!dnsNodeDiscovery) {
+            // When the feature flag is disabled, we only map from the input to a similar shape result.
+            return input.map(value -> ImmutableDnsResolutionResults.of(value, Optional.empty()));
+        }
+        @SuppressWarnings("NullAway")
+        SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
-        DialogueDnsResolutionWorker dnsResolutionWorker =
-                new DialogueDnsResolutionWorker(dnsResolver, dnsResolutionResult);
+        DialogueDnsResolutionWorker<I> dnsResolutionWorker =
+                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult);
 
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
                 dnsResolutionWorker,
                 dnsRefreshInterval.toMillis(),
                 dnsRefreshInterval.toMillis(),
                 TimeUnit.MILLISECONDS);
-        Counter counter = ClientDnsMetrics.of(metrics).tasks();
+        Counter counter = ClientDnsMetrics.of(metrics).tasks(spec.kind());
         counter.inc();
         Disposable disposable = input.subscribe(dnsResolutionWorker::update);
         cleaner.register(dnsResolutionResult, new CleanupTask(disposable, future, counter));

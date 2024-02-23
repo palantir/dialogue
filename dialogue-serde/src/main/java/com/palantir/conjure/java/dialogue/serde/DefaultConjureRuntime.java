@@ -33,7 +33,7 @@ import java.util.List;
 public final class DefaultConjureRuntime implements ConjureRuntime {
     @VisibleForTesting
     static final CaffeineSpec DEFAULT_SERDE_CACHE_SPEC =
-            CaffeineSpec.parse("maximumSize=1000,expireAfterAccess=1m,weakValues");
+            CaffeineSpec.parse("maximumSize=1000,expireAfterAccess=1m,weakKeys,weakValues");
 
     static final ImmutableList<WeightedEncoding> DEFAULT_ENCODINGS = ImmutableList.of(
             WeightedEncoding.of(Encodings.json(), .9),

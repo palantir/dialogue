@@ -7,4 +7,7 @@ namespaces:
     metrics:
       tasks:
         type: counter
+        tags:
+          - name: kind
+            docs: Describes the type of component polling for DNS updates.
         docs: Number of active Dialogue DNS update background tasks currently scheduled.

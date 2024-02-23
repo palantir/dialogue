@@ -17,23 +17,21 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.collect.ImmutableSetMultimap;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.logsafe.DoNotLog;
 import java.net.InetAddress;
+import java.util.Optional;
 import org.immutables.value.Value;
 
 @DoNotLog
 @Value.Immutable
-interface ServicesConfigBlockWithResolvedHosts {
+interface DnsResolutionResults<T> {
     @Value.Parameter
-    ServicesConfigBlock scb();
+    T config();
 
-    // maps hostname (not service name) -> resolved IP addresses
+    /**
+     * Maps hostname (not service name) -> resolved IP addresses.
+     * When this value is an empty optional, the DNS node discovery is not enabled.
+     */
     @Value.Parameter
-    ImmutableSetMultimap<String, InetAddress> resolvedHosts();
-
-    static ServicesConfigBlockWithResolvedHosts empty() {
-        return ImmutableServicesConfigBlockWithResolvedHosts.of(
-                ServicesConfigBlock.builder().build(), ImmutableSetMultimap.of());
-    }
+    Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts();
 }
