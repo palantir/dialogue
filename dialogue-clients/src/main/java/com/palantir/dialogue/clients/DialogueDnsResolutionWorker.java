@@ -29,6 +29,7 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
 import javax.annotation.Nullable;
@@ -69,7 +70,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                 // this logging may be helpful in informing us of problems in the system.
                 log.info("Output refreshable has been garbage collected, no need to continue polling");
             } else {
-                updateTimer.time(() -> doUpdate(null));
+                doUpdate(null);
             }
         } catch (Throwable t) {
             log.error("Scheduled DNS update failed", t);
@@ -77,6 +78,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     }
 
     private synchronized void doUpdate(@Nullable INPUT updatedInputState) {
+        long start = System.nanoTime();
         if (updatedInputState != null && !updatedInputState.equals(inputState)) {
             inputState = updatedInputState;
         }
@@ -109,5 +111,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                 log.info("Attempted to update DNS output refreshable which has already been garbage collected");
             }
         }
+        long end = System.nanoTime();
+        updateTimer.update(Duration.ofNanos(end - start));
     }
 }
