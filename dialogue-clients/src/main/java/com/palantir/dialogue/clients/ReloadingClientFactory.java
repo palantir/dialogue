@@ -127,6 +127,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 params.runtime().clients());
     }
 
+    // allow enabling dns node discovery by setting an environment variable
+    // note that this can still be disabled explicitly via the factory, but having a global flag
+    // that overrides the default value allows for enabling this behavior without explicit code
+    // changes
+    private static final String ENABLE_DNS_NODE_DISCOVERY_ENV_VAR = "DIALOGUE_ENABLE_EXPERIMENTAL_DNS_NODE_DISCOVERY";
+
     @Value.Immutable
     interface ReloadingParams extends AugmentClientConfig {
 
@@ -164,7 +170,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         @Value.Default
         default boolean dnsNodeDiscovery() {
-            return false;
+            return "true".equals(System.getenv(ENABLE_DNS_NODE_DISCOVERY_ENV_VAR));
         }
 
         Optional<ExecutorService> blockingExecutor();
