@@ -11,3 +11,9 @@ namespaces:
           - name: kind
             docs: Describes the type of component polling for DNS updates.
         docs: Number of active Dialogue DNS update background tasks currently scheduled.
+      refresh:
+        type: timer
+        tags:
+          - name: kind
+            docs: Describes the type of component polling for DNS updates.
+        docs: Measures the time taken to complete a full pass polling for DNS updates.
