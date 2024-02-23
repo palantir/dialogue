@@ -170,7 +170,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         @Value.Default
         default boolean dnsNodeDiscovery() {
-            return "true".equals(System.getenv(ENABLE_DNS_NODE_DISCOVERY_ENV_VAR));
+            return "true".equalsIgnoreCase(System.getenv(ENABLE_DNS_NODE_DISCOVERY_ENV_VAR));
         }
 
         Optional<ExecutorService> blockingExecutor();
