@@ -17,6 +17,7 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
+import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Address;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -46,25 +47,38 @@ final class InstrumentedPoolingHttpClientConnectionManager
     private static final SafeLogger log = SafeLoggerFactory.get(InstrumentedPoolingHttpClientConnectionManager.class);
 
     private final PoolingHttpClientConnectionManager manager;
-    private final TaggedMetricRegistry registry;
+    private final DialogueClientMetrics metrics;
     private final String clientName;
-    private final Timer connectTimerSuccess;
-    private final Timer connectTimerFailure;
+    private final Timer connectTimerSuccessDnsLookup;
+    private final Timer connectTimerFailureDnsLookup;
+    private final Timer connectTimerSuccessPreResolved;
+    private final Timer connectTimerFailurePreResolved;
     private volatile boolean closed;
 
     InstrumentedPoolingHttpClientConnectionManager(
             PoolingHttpClientConnectionManager manager, TaggedMetricRegistry registry, String clientName) {
         this.manager = manager;
-        this.registry = registry;
         this.clientName = clientName;
-        DialogueClientMetrics metrics = DialogueClientMetrics.of(registry);
-        this.connectTimerSuccess = metrics.connectionCreate()
+        this.metrics = DialogueClientMetrics.of(registry);
+        this.connectTimerSuccessDnsLookup = metrics.connectionCreate()
                 .clientName(clientName)
                 .result(DialogueClientMetrics.ConnectionCreate_Result.SUCCESS)
+                .address(ConnectionCreate_Address.DNS_LOOKUP)
                 .build();
-        this.connectTimerFailure = metrics.connectionCreate()
+        this.connectTimerFailureDnsLookup = metrics.connectionCreate()
                 .clientName(clientName)
                 .result(DialogueClientMetrics.ConnectionCreate_Result.FAILURE)
+                .address(ConnectionCreate_Address.DNS_LOOKUP)
+                .build();
+        this.connectTimerSuccessPreResolved = metrics.connectionCreate()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionCreate_Result.SUCCESS)
+                .address(ConnectionCreate_Address.PRE_RESOLVED)
+                .build();
+        this.connectTimerFailurePreResolved = metrics.connectionCreate()
+                .clientName(clientName)
+                .result(DialogueClientMetrics.ConnectionCreate_Result.FAILURE)
+                .address(ConnectionCreate_Address.PRE_RESOLVED)
                 .build();
     }
 
@@ -122,11 +136,10 @@ final class InstrumentedPoolingHttpClientConnectionManager
         long beginNanos = System.nanoTime();
         try (CloseableTracer ignored = CloseableTracer.startSpan("Dialogue ConnectionManager.connect")) {
             manager.connect(endpoint, connectTimeout, context);
-            connectTimerSuccess.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
+            successTimer(context).update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
         } catch (Throwable throwable) {
-            connectTimerFailure.update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
-            DialogueClientMetrics.of(registry)
-                    .connectionCreateError()
+            failureTimer(context).update(System.nanoTime() - beginNanos, TimeUnit.NANOSECONDS);
+            metrics.connectionCreateError()
                     .clientName(clientName)
                     .cause(throwable.getClass().getSimpleName())
                     .build()
@@ -138,6 +151,18 @@ final class InstrumentedPoolingHttpClientConnectionManager
 
             throw throwable;
         }
+    }
+
+    private Timer successTimer(HttpContext context) {
+        return DialogueRoutePlanner.hasPreResolvedAddress(context)
+                ? connectTimerSuccessPreResolved
+                : connectTimerSuccessDnsLookup;
+    }
+
+    private Timer failureTimer(HttpContext context) {
+        return DialogueRoutePlanner.hasPreResolvedAddress(context)
+                ? connectTimerFailurePreResolved
+                : connectTimerFailureDnsLookup;
     }
 
     @Override

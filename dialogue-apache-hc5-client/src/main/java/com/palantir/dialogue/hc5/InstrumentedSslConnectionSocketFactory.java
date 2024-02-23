@@ -17,7 +17,6 @@
 package com.palantir.dialogue.hc5;
 
 import com.codahale.metrics.Timer;
-import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionConnect_Result;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -41,29 +40,18 @@ import org.apache.hc.core5.util.Timeout;
 final class InstrumentedSslConnectionSocketFactory extends SSLConnectionSocketFactory {
     private final Supplier<Socket> rawSocketCreator;
 
-    private final Timer connectTimerSuccess;
-    private final Timer connectTimerFailure;
+    private final ConnectInstrumentation connectInstrumentation;
 
     InstrumentedSslConnectionSocketFactory(
-            String clientName,
-            DialogueClientMetrics dialogueClientMetrics,
+            ConnectInstrumentation connectInstrumentation,
             SSLSocketFactory socketFactory,
             String[] supportedProtocols,
             String[] supportedCipherSuites,
             HostnameVerifier hostnameVerifier,
             Supplier<Socket> rawSocketCreator) {
         super(socketFactory, supportedProtocols, supportedCipherSuites, hostnameVerifier);
+        this.connectInstrumentation = connectInstrumentation;
         this.rawSocketCreator = rawSocketCreator;
-        this.connectTimerSuccess = dialogueClientMetrics
-                .connectionConnect()
-                .clientName(clientName)
-                .result(ConnectionConnect_Result.SUCCESS)
-                .build();
-        this.connectTimerFailure = dialogueClientMetrics
-                .connectionConnect()
-                .clientName(clientName)
-                .result(ConnectionConnect_Result.FAILURE)
-                .build();
     }
 
     @Override
@@ -85,7 +73,7 @@ final class InstrumentedSslConnectionSocketFactory extends SSLConnectionSocketFa
             success = true;
         } finally {
             long durationNanos = System.nanoTime() - startNanos;
-            Timer timer = success ? connectTimerSuccess : connectTimerFailure;
+            Timer timer = connectInstrumentation.timer(success, context);
             timer.update(durationNanos, TimeUnit.NANOSECONDS);
         }
     }
