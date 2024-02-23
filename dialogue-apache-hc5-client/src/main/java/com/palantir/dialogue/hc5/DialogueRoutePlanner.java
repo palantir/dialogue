@@ -83,6 +83,10 @@ final class DialogueRoutePlanner implements HttpRoutePlanner {
         context.setAttribute(ATTRIBUTE, resolvedAddress);
     }
 
+    static boolean hasPreResolvedAddress(HttpContext context) {
+        return context != null && get(context) != null;
+    }
+
     @Nullable
     private static InetAddress get(HttpContext context) {
         Object value = context.getAttribute(ATTRIBUTE);

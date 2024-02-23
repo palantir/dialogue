@@ -58,6 +58,13 @@ namespaces:
           - name: result
             values: [ success, failure ]
             docs: Describes whether or not a connection was successfully established.
+          - name: address
+            values:
+              - value: pre-resolved
+                docs: Pre-resolved addresses used for DNS-based node discovery.
+              - value: dns-lookup
+                docs: Standard dns-lookup immediately prior to connection creation.
+            docs: Describes the DNS address resolution strategy used for this connection.
         docs: Reports the time spent creating a new connection. This includes both connecting the socket and the full TLS handshake.
 
       connection.connect:
@@ -69,6 +76,13 @@ namespaces:
           - name: result
             values: [ success, failure ]
             docs: Describes whether or not a connection was successfully established.
+          - name: address
+            values:
+              - value: pre-resolved
+                docs: Pre-resolved addresses used for DNS-based node discovery.
+              - value: dns-lookup
+                docs: Standard dns-lookup immediately prior to connection creation.
+            docs: Describes the DNS address resolution strategy used for this connection.
         docs: Reports the time spent within `socket.connect`. This does not include TLS.
 
       connection.closed.partially-consumed-response:

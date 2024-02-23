@@ -82,7 +82,6 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.hc.client5.http.impl.io.ManagedHttpClientConnectionFactory;
 import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
 import org.apache.hc.client5.http.socket.ConnectionSocketFactory;
-import org.apache.hc.client5.http.socket.PlainConnectionSocketFactory;
 import org.apache.hc.client5.http.ssl.DefaultHostnameVerifier;
 import org.apache.hc.core5.http.URIScheme;
 import org.apache.hc.core5.http.config.RegistryBuilder;
@@ -490,19 +489,19 @@ public final class ApacheHttpClientChannels {
                     ? () -> new Socket(Proxy.NO_PROXY)
                     : () -> new Socket(new Proxy(Proxy.Type.SOCKS, socksProxyAddress));
 
+            ConnectInstrumentation connectInstrumentation =
+                    new ConnectInstrumentation(conf.taggedMetricRegistry(), name);
+
             PoolingHttpClientConnectionManager internalConnectionManager = new PoolingHttpClientConnectionManager(
                     RegistryBuilder.<ConnectionSocketFactory>create()
-                            .register(URIScheme.HTTP.id, new PlainConnectionSocketFactory() {
-                                @Override
-                                public Socket createSocket(HttpContext _context) {
-                                    return simpleSocketCreator.get();
-                                }
-                            })
+                            .register(
+                                    URIScheme.HTTP.id,
+                                    new InstrumentedPlainConnectionSocketFactory(
+                                            simpleSocketCreator, connectInstrumentation))
                             .register(
                                     URIScheme.HTTPS.id,
                                     new InstrumentedSslConnectionSocketFactory(
-                                            name,
-                                            DialogueClientMetrics.of(clientConfiguration.taggedMetricRegistry()),
+                                            connectInstrumentation,
                                             MetricRegistries.instrument(
                                                     conf.taggedMetricRegistry(), rawSocketFactory, name),
                                             TlsProtocols.get(),
