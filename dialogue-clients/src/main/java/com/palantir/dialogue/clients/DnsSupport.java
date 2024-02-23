@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Timer;
 import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.core.DialogueDnsResolver;
@@ -89,8 +90,9 @@ final class DnsSupport {
         @SuppressWarnings("NullAway")
         SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
+        Timer workerUpdateTimer = ClientDnsMetrics.of(metrics).resolveTime(spec.kind());
         DialogueDnsResolutionWorker<I> dnsResolutionWorker =
-                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult, metrics);
+                new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult, workerUpdateTimer);
 
         ScheduledFuture<?> future = executor.scheduleWithFixedDelay(
                 dnsResolutionWorker,

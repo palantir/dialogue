@@ -56,6 +56,7 @@ Dialogue DNS metrics.
 - `client.dns.tasks` (counter): Number of active Dialogue DNS update background tasks currently scheduled.
   - `kind`: Describes the type of component polling for DNS updates.
 - `client.dns.resolveTime` (timer): Measures the time taken to complete a full pass polling for DNS updates.
+  - `kind`: Describes the type of component polling for DNS updates.
 
 ## Dialogue Core
 

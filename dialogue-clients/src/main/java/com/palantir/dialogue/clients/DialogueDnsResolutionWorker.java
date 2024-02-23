@@ -24,7 +24,6 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.SettableRefreshable;
-import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
@@ -50,11 +49,11 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             DnsPollingSpec<INPUT> spec,
             DialogueDnsResolver resolver,
             SettableRefreshable<DnsResolutionResults<INPUT>> receiver,
-            TaggedMetricRegistry metrics) {
+            Timer updateTimer) {
         this.spec = spec;
         this.resolver = resolver;
         this.receiver = new WeakReference<>(receiver);
-        this.updateTimer = ClientDnsMetrics.of(metrics).resolveTime();
+        this.updateTimer = updateTimer;
     }
 
     void update(INPUT input) {
@@ -78,13 +77,13 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     }
 
     private synchronized void doUpdate(@Nullable INPUT updatedInputState) {
-        long start = System.nanoTime();
         if (updatedInputState != null && !updatedInputState.equals(inputState)) {
             inputState = updatedInputState;
         }
 
         // resolve all names in the current state, if there is one
         if (inputState != null) {
+            long start = System.nanoTime();
             ImmutableSet<String> allHosts = spec.extractUris(inputState)
                     .filter(Objects::nonNull)
                     // n.b. we could filter out hosts with specify a proxy and mesh-mode
@@ -110,8 +109,8 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             } else {
                 log.info("Attempted to update DNS output refreshable which has already been garbage collected");
             }
+            long end = System.nanoTime();
+            updateTimer.update(Duration.ofNanos(end - start));
         }
-        long end = System.nanoTime();
-        updateTimer.update(Duration.ofNanos(end - start));
     }
 }
