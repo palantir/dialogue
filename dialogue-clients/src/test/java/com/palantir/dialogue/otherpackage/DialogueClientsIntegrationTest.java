@@ -42,6 +42,7 @@ import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory2;
 import com.palantir.dialogue.example.SampleServiceAsync;
 import com.palantir.dialogue.example.SampleServiceBlocking;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.refreshable.SettableRefreshable;
 import io.undertow.Undertow;
@@ -125,6 +126,94 @@ public class DialogueClientsIntegrationTest {
         assertThatThrownBy(() -> DialogueClients.create(Refreshable.only(null))
                         .getNonReloading(SampleServiceAsync.class, serviceConfig))
                 .hasMessageContaining("userAgent must be specified");
+    }
+
+    @Test
+    void test_missing_default_security_in_scb() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+        ServicesConfigBlock badScb =
+                ServicesConfigBlock.builder().putServices("foo", foo1).build();
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(badScb);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        // should not throw
+        SampleServiceBlocking client = factory.get(SampleServiceBlocking.class, "foo");
+
+        assertThatThrownBy(client::voidToVoid)
+                .isInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured");
+    }
+
+    @Test
+    void test_invalid_partial_config_with_missing_security_does_not_block_valid_partial_config() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+        ServicesConfigBlock scbWithBothValidAndInvalidServices = ServicesConfigBlock.builder()
+                // no default security causes "foo1" to be invalid
+                .putServices("foo1", foo1)
+                // "foo2" contains security defined in the partial config
+                .putServices(
+                        "foo2",
+                        PartialServiceConfiguration.builder()
+                                .from(foo2)
+                                .security(TestConfigurations.SSL_CONFIG)
+                                .build())
+                .build();
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scbWithBothValidAndInvalidServices);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client1 = factory.get(SampleServiceBlocking.class, "foo1");
+        assertThatThrownBy(client1::voidToVoid)
+                .isInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured");
+
+        SampleServiceBlocking client2 = factory.get(SampleServiceBlocking.class, "foo2");
+        assertThatCode(client2::voidToVoid).doesNotThrowAnyException();
+    }
+
+    @Test
+    void test_invalid_partial_config_with_bad_uri_does_not_block_valid_partial_config() {
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        undertowHandler = exchange -> {
+            requestPaths.add(exchange.getRequestPath());
+            exchange.setStatusCode(200);
+        };
+
+        ServicesConfigBlock scbWithBothValidAndInvalidServices = ServicesConfigBlock.builder()
+                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                // invalid uri causes "foo1" to be invalid
+                .putServices(
+                        "foo1",
+                        PartialServiceConfiguration.builder()
+                                .addUris("this_is_bad")
+                                .build())
+                // "foo2" contains a valid configuration
+                .putServices("foo2", foo2)
+                .build();
+
+        SettableRefreshable<ServicesConfigBlock> refreshable = Refreshable.create(scbWithBothValidAndInvalidServices);
+
+        DialogueClients.ReloadingFactory factory =
+                DialogueClients.create(refreshable).withUserAgent(TestConfigurations.AGENT);
+
+        SampleServiceBlocking client1 = factory.get(SampleServiceBlocking.class, "foo");
+        assertThatThrownBy(client1::voidToVoid)
+                .isInstanceOf(SafeIllegalStateException.class)
+                .hasMessageContaining("Service not configured");
+
+        SampleServiceBlocking client2 = factory.get(SampleServiceBlocking.class, "foo2");
+        assertThatCode(client2::voidToVoid).doesNotThrowAnyException();
     }
 
     @Test

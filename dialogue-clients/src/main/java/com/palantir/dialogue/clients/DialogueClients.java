@@ -27,6 +27,7 @@ import com.palantir.dialogue.ConjureRuntime;
 import com.palantir.dialogue.core.DialogueChannel;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 
@@ -169,7 +170,20 @@ public final class DialogueClients {
                     NonReloadingChannelFactory,
                     ClientConfigurationNonReloadingClientFactory {
 
+        /**
+         * Configures the {@link DialogueDnsResolver} used by clients managed by this factory.
+         * This should generally only be used for tests.
+         */
         ReloadingFactory withDnsResolver(DialogueDnsResolver dnsResolver);
+
+        /**
+         * Configures the interval at which the {@link DialogueDnsResolver} is polled for DNS updates.
+         * This should generally only be used for tests.
+         */
+        ReloadingFactory withDnsRefreshInterval(Duration interval);
+
+        /** Feature flag to opt into or out of the default dns-based node discovery behavior. */
+        ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery);
 
         StickyChannelFactory getStickyChannels(String serviceName);
 

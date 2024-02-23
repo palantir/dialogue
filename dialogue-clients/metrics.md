@@ -24,10 +24,16 @@ Dialogue client response metrics provided by the Apache client channel.
   - `client-name`
   - `client-type` values (`apache-hc5`)
   - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
+  - `address`: Describes the DNS address resolution strategy used for this connection.
+    - `pre-resolved`: Pre-resolved addresses used for DNS-based node discovery.
+    - `dns-lookup`: Standard dns-lookup immediately prior to connection creation.
 - `dialogue.client.connection.connect` (timer): Reports the time spent within `socket.connect`. This does not include TLS.
   - `client-name`
   - `client-type` values (`apache-hc5`)
   - `result` values (`success`,`failure`): Describes whether or not a connection was successfully established.
+  - `address`: Describes the DNS address resolution strategy used for this connection.
+    - `pre-resolved`: Pre-resolved addresses used for DNS-based node discovery.
+    - `dns-lookup`: Standard dns-lookup immediately prior to connection creation.
 - `dialogue.client.connection.closed.partially-consumed-response` (meter): Reports the rate that connections are closed due to response closure prior to response data being fully exhausted. When this occurs, subsequent requests must create new handshakes, incurring latency and CPU overhead due to handshakes.
   - `client-name`
   - `client-type` values (`apache-hc5`)
@@ -46,6 +52,17 @@ Dialogue client response metrics provided by the Apache client channel.
 ### dialogue.client.pool
 Connection pool metrics from the dialogue Apache client.
 - `dialogue.client.pool.size` tagged `client-name`, `state` (gauge): Number of connections in the client connection pool in states `idle`, `pending`, and `leased`.
+
+## Dialogue Clients
+
+`com.palantir.dialogue:dialogue-clients`
+
+### client.dns
+Dialogue DNS metrics.
+- `client.dns.tasks` (counter): Number of active Dialogue DNS update background tasks currently scheduled.
+  - `kind`: Describes the type of component polling for DNS updates.
+- `client.dns.refresh` (timer): Measures the time taken to complete a full pass polling for DNS updates.
+  - `kind`: Describes the type of component polling for DNS updates.
 
 ## Dialogue Core
 

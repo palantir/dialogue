@@ -38,6 +38,7 @@ import com.palantir.dialogue.RequestBody;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.TestEndpoint;
+import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Address;
 import com.palantir.dialogue.hc5.DialogueClientMetrics.ConnectionCreate_Result;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.SafeLoggable;
@@ -177,6 +178,7 @@ public final class ApacheHttpClientChannelsTest extends AbstractChannelTest {
             Timer connectionFailed = metrics.connectionCreate()
                     .clientName(clientName)
                     .result(ConnectionCreate_Result.FAILURE)
+                    .address(ConnectionCreate_Address.DNS_LOOKUP)
                     .build();
 
             assertThat(connectionCreateError.getCount()).isZero();
