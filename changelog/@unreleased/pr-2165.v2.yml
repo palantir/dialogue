@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Implement DNS-based node discovery
+  links:
+  - https://github.com/palantir/dialogue/pull/2165
