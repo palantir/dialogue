@@ -105,6 +105,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
         return new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
+                                params.dnsNodeDiscovery(),
                                 DnsPollingSpec.CLIENT_CONFIG,
                                 params.dnsResolver(),
                                 params.dnsRefreshInterval(),
@@ -138,7 +139,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Value.Lazy
         default Refreshable<DnsResolutionResults<ServicesConfigBlock>> resolvedConfig() {
             return DnsSupport.pollForChanges(
-                    DnsPollingSpec.RELOADING_FACTORY, dnsResolver(), dnsRefreshInterval(), taggedMetrics(), scb());
+                    dnsNodeDiscovery(),
+                    DnsPollingSpec.RELOADING_FACTORY,
+                    dnsResolver(),
+                    dnsRefreshInterval(),
+                    taggedMetrics(),
+                    scb());
         }
 
         @Value.Default
@@ -156,6 +162,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             return Duration.ofSeconds(5);
         }
 
+        @Value.Default
+        default boolean dnsNodeDiscovery() {
+            return false;
+        }
+
         Optional<ExecutorService> blockingExecutor();
     }
 
@@ -171,6 +182,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         String channelName = ChannelNames.nonReloading(clazz, params);
         Channel channel = new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
+                                params.dnsNodeDiscovery(),
                                 DnsPollingSpec.SERVICE_CONFIG,
                                 params.dnsResolver(),
                                 params.dnsRefreshInterval(),
@@ -216,7 +228,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         return ImmutableList.of();
                     }
 
-                    ImmutableSetMultimap<String, InetAddress> resolvedHosts = block.resolvedHosts();
+                    Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts = block.resolvedHosts();
                     ImmutableList<TargetUri> targetUris = getTargetUris(
                             serviceName,
                             serviceConfiguration.uris(),
@@ -421,6 +433,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Override
+    public ReloadingFactory withDnsNodeDiscovery(boolean dnsNodeDiscovery) {
+        return new ReloadingClientFactory(params.withDnsNodeDiscovery(dnsNodeDiscovery), cache);
+    }
+
+    @Override
     public String toString() {
         return "ReloadingClientFactory{params=" + params + ", cache=" + cache + '}';
     }
@@ -444,7 +461,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return params.resolvedConfig().map(block -> {
             Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
             if (!block.config().services().containsKey(serviceName)) {
-                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty(), ImmutableSetMultimap.of());
+                return ImmutableInternalDialogueChannelConfiguration.of(
+                        Optional.empty(),
+                        params.dnsNodeDiscovery() ? Optional.of(ImmutableSetMultimap.of()) : Optional.empty());
             }
 
             ServicesConfigBlock scb = block.config();
@@ -454,8 +473,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
                 ServiceConfiguration serviceConf = factory.get(serviceName);
                 ImmutableSet<String> hosts = extractHosts(serviceName, serviceConf);
-                ImmutableSetMultimap<String, InetAddress> resolvedHostsForService =
-                        ImmutableSetMultimap.copyOf(Multimaps.filterKeys(block.resolvedHosts(), hosts::contains));
+                Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHostsForService = block.resolvedHosts()
+                        .map(resolvedHosts ->
+                                ImmutableSetMultimap.copyOf(Multimaps.filterKeys(resolvedHosts, hosts::contains)));
                 return ImmutableInternalDialogueChannelConfiguration.of(
                         Optional.of(serviceConf), resolvedHostsForService);
             } catch (RuntimeException e) {
@@ -463,7 +483,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         "Failed to produce a ServiceConfigurationFactory for service {}",
                         SafeArg.of("service", serviceName),
                         e);
-                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty(), ImmutableSetMultimap.of());
+                return ImmutableInternalDialogueChannelConfiguration.of(
+                        Optional.empty(),
+                        params.dnsNodeDiscovery()
+                                ? Optional.of(ImmutableSetMultimap.of())
+                                : Optional.<ImmutableSetMultimap<String, InetAddress>>empty());
             }
         });
     }
@@ -472,22 +496,23 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             @Safe String serviceNameForLogging,
             Collection<String> uris,
             ProxySelector proxySelector,
-            ImmutableSetMultimap<String, InetAddress> resolvedHosts) {
+            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts) {
         List<TargetUri> targetUris = new ArrayList<>();
         for (String uri : uris) {
             URI parsed = tryParseUri(serviceNameForLogging, uri);
             if (parsed == null || parsed.getHost() == null) {
                 continue;
             }
+            // When resolvedHosts is an empty optional, dns-based discovery is not supported.
             // Mesh mode does not require any form of dns updating because all dns results
             // are considered equivalent.
             // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
             // proxy handles DNS resolution.
-            if (DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
+            if (resolvedHosts.isEmpty() || DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
                 targetUris.add(TargetUri.of(uri));
             } else {
                 String host = parsed.getHost();
-                Set<InetAddress> resolvedAddresses = resolvedHosts.get(host);
+                Set<InetAddress> resolvedAddresses = resolvedHosts.get().get(host);
                 if (resolvedAddresses.isEmpty()) {
                     log.info(
                             "Resolved no addresses for host '{}' of service '{}'",
@@ -530,7 +555,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
             }
 
-            ImmutableSetMultimap<String, InetAddress> resolvedHosts = conf.resolvedHosts();
+            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts = conf.resolvedHosts();
             List<TargetUri> targetUris =
                     getTargetUris(serviceName, serviceConf.uris(), proxySelector(serviceConf.proxy()), resolvedHosts);
 
@@ -710,6 +735,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Optional<ServiceConfiguration> serviceConfiguration();
 
         @Value.Parameter
-        ImmutableSetMultimap<String, InetAddress> resolvedHosts();
+        Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts();
     }
 }

@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.logsafe.DoNotLog;
 import java.net.InetAddress;
+import java.util.Optional;
 import org.immutables.value.Value;
 
 @DoNotLog
@@ -27,7 +28,10 @@ interface DnsResolutionResults<T> {
     @Value.Parameter
     T config();
 
-    // maps hostname (not service name) -> resolved IP addresses
+    /**
+     * Maps hostname (not service name) -> resolved IP addresses.
+     * When this value is an empty optional, the DNS node discovery is not enabled.
+     */
     @Value.Parameter
-    ImmutableSetMultimap<String, InetAddress> resolvedHosts();
+    Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts();
 }

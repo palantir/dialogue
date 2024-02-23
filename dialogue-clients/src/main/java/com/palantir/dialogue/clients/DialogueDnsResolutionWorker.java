@@ -28,6 +28,7 @@ import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Objects;
+import java.util.Optional;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
@@ -94,7 +95,8 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                     .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
-            DnsResolutionResults<INPUT> newResolvedState = ImmutableDnsResolutionResults.of(inputState, resolvedHosts);
+            DnsResolutionResults<INPUT> newResolvedState =
+                    ImmutableDnsResolutionResults.of(inputState, Optional.of(resolvedHosts));
             SettableRefreshable<DnsResolutionResults<INPUT>> refreshable = receiver.get();
             if (refreshable != null) {
                 refreshable.update(newResolvedState);

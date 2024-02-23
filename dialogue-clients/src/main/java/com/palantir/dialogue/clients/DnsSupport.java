@@ -31,6 +31,7 @@ import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
 import java.time.Duration;
+import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -63,21 +64,28 @@ final class DnsSupport {
 
     /** Identical to the overload, but using the {@link #sharedScheduler}. */
     static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            boolean dnsNodeDiscovery,
             DnsPollingSpec<I> spec,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
             Refreshable<I> input) {
-        return pollForChanges(spec, sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
+        return pollForChanges(
+                dnsNodeDiscovery, spec, sharedScheduler.get(), dnsResolver, dnsRefreshInterval, metrics, input);
     }
 
     static <I> Refreshable<DnsResolutionResults<I>> pollForChanges(
+            boolean dnsNodeDiscovery,
             DnsPollingSpec<I> spec,
             ScheduledExecutorService executor,
             DialogueDnsResolver dnsResolver,
             Duration dnsRefreshInterval,
             TaggedMetricRegistry metrics,
             Refreshable<I> input) {
+        if (!dnsNodeDiscovery) {
+            // When the feature flag is disabled, we only map from the input to a similar shape result.
+            return input.map(value -> ImmutableDnsResolutionResults.of(value, Optional.empty()));
+        }
         @SuppressWarnings("NullAway")
         SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
