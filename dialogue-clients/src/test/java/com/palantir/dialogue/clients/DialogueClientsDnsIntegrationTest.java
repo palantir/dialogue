@@ -365,6 +365,8 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
         Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -382,6 +384,9 @@ public class DialogueClientsDnsIntegrationTest {
         assertThat(perHostChannels.get())
                 .as("DNS node discovery shouldn't work when it's not enabled")
                 .hasSize(1);
+        assertThat(activeTasks.getCount())
+                .as("Background dns refreshing should not be scheduled when the feature is disabled")
+                .isZero();
     }
 
     @Test
