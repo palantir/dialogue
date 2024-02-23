@@ -28,9 +28,9 @@ import java.lang.ref.WeakReference;
 import java.net.InetAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.time.Duration;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import javax.annotation.Nullable;
 
 final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
@@ -110,7 +110,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                 log.info("Attempted to update DNS output refreshable which has already been garbage collected");
             }
             long end = System.nanoTime();
-            updateTimer.update(Duration.ofNanos(end - start));
+            updateTimer.update(end - start, TimeUnit.NANOSECONDS);
         }
     }
 }

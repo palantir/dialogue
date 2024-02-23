@@ -90,7 +90,7 @@ final class DnsSupport {
         @SuppressWarnings("NullAway")
         SettableRefreshable<DnsResolutionResults<I>> dnsResolutionResult = Refreshable.create(null);
 
-        Timer workerUpdateTimer = ClientDnsMetrics.of(metrics).resolveTime(spec.kind());
+        Timer workerUpdateTimer = ClientDnsMetrics.of(metrics).refresh(spec.kind());
         DialogueDnsResolutionWorker<I> dnsResolutionWorker =
                 new DialogueDnsResolutionWorker<>(spec, dnsResolver, dnsResolutionResult, workerUpdateTimer);
 
