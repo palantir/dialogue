@@ -2,6 +2,13 @@ options:
   javaPackage: com.palantir.dialogue.clients
   javaVisibility: packagePrivate
 namespaces:
+  client.uri:
+    docs: Dialogue URI parsing metrics.
+    metrics:
+      invalid:
+        type: meter
+        tags: [service]
+        docs: Meter which is incremented any time an invalid URI is read.
   client.dns:
     docs: Dialogue DNS metrics.
     metrics:
