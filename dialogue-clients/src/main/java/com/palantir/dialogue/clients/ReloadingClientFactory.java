@@ -498,6 +498,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
     }
 
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private ImmutableList<TargetUri> getTargetUris(
             @Safe String serviceNameForLogging,
             Collection<String> uris,
@@ -534,7 +535,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             }
         }
         if (targetUris.isEmpty() && failedToParse) {
-            // Handle cases like "host:-1"
+            // Handle cases like "host:-1", but only when _all_ uris are invalid
+            log.warn(
+                    "Failed to parse all URIs, falling back to legacy DNS approach for service '{}'",
+                    SafeArg.of("service", serviceNameForLogging));
             return uris.stream().map(TargetUri::of).collect(ImmutableList.toImmutableList());
         }
         return ImmutableList.copyOf(targetUris);
