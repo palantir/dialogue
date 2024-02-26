@@ -390,6 +390,75 @@ public class DialogueClientsDnsIntegrationTest {
     }
 
     @Test
+    void dnsNodeDiscoveryOffWithInvalidUri() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(
+                        host,
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
+                .build());
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("https://" + host + ":-1")
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withUserAgent(TestConfigurations.AGENT)
+                .withTaggedMetrics(metrics)
+                .withDnsNodeDiscovery(false)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("Host cannot be parsed from this URI, but it should still be handled")
+                .hasSize(1);
+        assertThat(activeTasks.getCount())
+                .as("Background dns refreshing should not be scheduled when the feature is disabled")
+                .isZero();
+    }
+
+    @Test
+    void dnsNodeDiscoveryOnWithInvalidUri() throws UnknownHostException {
+        String host = "somehost";
+        String service = "service";
+        DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
+                .putAll(
+                        host,
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
+                        InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
+                .build());
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+                        Refreshable.only(ServicesConfigBlock.builder()
+                                .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                .putServices(
+                                        service,
+                                        PartialServiceConfiguration.builder()
+                                                .addUris("https://" + host + ":-1")
+                                                .build())
+                                .build()))
+                .withDnsResolver(resolver)
+                .withTaggedMetrics(metrics)
+                .withUserAgent(TestConfigurations.AGENT)
+                .withDnsNodeDiscovery(true)
+                .perHost(service)
+                .getPerHostChannels();
+        assertThat(perHostChannels.get())
+                .as("Host cannot be parsed from this URI, but it should "
+                        + "still be handled using the legacy dns-lookup path")
+                .hasSize(1);
+        assertThat(activeTasks.getCount()).isOne();
+    }
+
+    @Test
     void nonReloadableClientConfig() throws IOException {
         Duration dnsRefreshInterval = Duration.ofMillis(50);
         String hostOne = "hostone";

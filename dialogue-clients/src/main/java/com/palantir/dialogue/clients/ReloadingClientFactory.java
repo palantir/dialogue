@@ -504,9 +504,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ProxySelector proxySelector,
             Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts) {
         List<TargetUri> targetUris = new ArrayList<>();
+        boolean failedToParse = false;
         for (String uri : uris) {
             URI parsed = tryParseUri(serviceNameForLogging, uri);
             if (parsed == null || parsed.getHost() == null) {
+                failedToParse = true;
                 continue;
             }
             // When resolvedHosts is an empty optional, dns-based discovery is not supported.
@@ -530,6 +532,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             TargetUri.builder().uri(uri).resolvedAddress(addr).build());
                 }
             }
+        }
+        if (targetUris.isEmpty() && failedToParse) {
+            // Handle cases like "host:-1"
+            return uris.stream().map(TargetUri::of).collect(ImmutableList.toImmutableList());
         }
         return ImmutableList.copyOf(targetUris);
     }
