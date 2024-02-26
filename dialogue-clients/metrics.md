@@ -66,7 +66,7 @@ Dialogue DNS metrics.
 
 ### client.uri
 Dialogue URI parsing metrics.
-- `client.uri.invalid` tagged `service` (meter): Meter which is incremented any time an invalid URI is read.
+- `client.uri.invalid` tagged `channel-name` (meter): Meter which is incremented any time an invalid URI is read.
 
 ## Dialogue Core
 
