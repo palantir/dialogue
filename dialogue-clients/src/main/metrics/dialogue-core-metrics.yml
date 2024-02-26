@@ -7,7 +7,7 @@ namespaces:
     metrics:
       invalid:
         type: meter
-        tags: [service]
+        tags: [channel-name]
         docs: Meter which is incremented any time an invalid URI is read.
   client.dns:
     docs: Dialogue DNS metrics.
