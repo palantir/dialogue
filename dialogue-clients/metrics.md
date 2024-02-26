@@ -64,6 +64,10 @@ Dialogue DNS metrics.
 - `client.dns.refresh` (timer): Measures the time taken to complete a full pass polling for DNS updates.
   - `kind`: Describes the type of component polling for DNS updates.
 
+### client.uri
+Dialogue URI parsing metrics.
+- `client.uri.invalid` tagged `service` (meter): Meter which is incremented any time an invalid URI is read.
+
 ## Dialogue Core
 
 `com.palantir.dialogue:dialogue-core`

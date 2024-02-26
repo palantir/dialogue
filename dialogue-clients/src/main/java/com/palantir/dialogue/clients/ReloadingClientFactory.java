@@ -478,7 +478,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
                 // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
                 ServiceConfiguration serviceConf = factory.get(serviceName);
-                ImmutableSet<String> hosts = extractHosts(serviceName, serviceConf);
+                ImmutableSet<String> hosts = extractHosts(params.taggedMetrics(), serviceName, serviceConf);
                 Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHostsForService = block.resolvedHosts()
                         .map(resolvedHosts ->
                                 ImmutableSetMultimap.copyOf(Multimaps.filterKeys(resolvedHosts, hosts::contains)));
@@ -507,7 +507,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         List<TargetUri> targetUris = new ArrayList<>();
         boolean failedToParse = false;
         for (String uri : uris) {
-            URI parsed = tryParseUri(serviceNameForLogging, uri);
+            URI parsed = tryParseUri(params.taggedMetrics(), serviceNameForLogging, uri);
             if (parsed == null || parsed.getHost() == null) {
                 failedToParse = true;
                 continue;
@@ -597,22 +597,34 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     }
 
     @Nullable
-    private static URI tryParseUri(@Safe String serviceName, @Unsafe String uri) {
+    private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
         try {
-            return new URI(uri);
+            URI result = new URI(uri);
+            if (result.getHost() == null) {
+                log.error(
+                        "Failed to correctly parse URI {} for service {} due to null host component. "
+                                + "This usually occurs due to invalid characters causing information to be "
+                                + "parsed in the wrong uri component, often the host info lands in the authority.",
+                        UnsafeArg.of("uri", uri),
+                        SafeArg.of("service", serviceName));
+                ClientUriMetrics.of(metrics).invalid(serviceName).mark();
+            }
+            return result;
         } catch (URISyntaxException | RuntimeException e) {
             log.error(
                     "Failed to parse URI {} for service {}",
                     UnsafeArg.of("uri", uri),
                     SafeArg.of("service", serviceName),
                     e);
+            ClientUriMetrics.of(metrics).invalid(serviceName).mark();
             return null;
         }
     }
 
-    private static ImmutableSet<String> extractHosts(@Safe String serviceName, ServiceConfiguration configuration) {
+    private static ImmutableSet<String> extractHosts(
+            TaggedMetricRegistry metrics, @Safe String serviceName, ServiceConfiguration configuration) {
         return configuration.uris().stream()
-                .map(uri -> tryParseUri(serviceName, uri))
+                .map(uri -> tryParseUri(metrics, serviceName, uri))
                 .filter(Objects::nonNull)
                 .map(URI::getHost)
                 .filter(Objects::nonNull)

@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.codahale.metrics.Counter;
+import com.codahale.metrics.Meter;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
@@ -401,6 +402,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Meter invalidUris = ClientUriMetrics.of(metrics).invalid("service");
         Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
@@ -422,6 +424,7 @@ public class DialogueClientsDnsIntegrationTest {
         assertThat(activeTasks.getCount())
                 .as("Background dns refreshing should not be scheduled when the feature is disabled")
                 .isZero();
+        assertThat(invalidUris.getCount()).isGreaterThan(0);
     }
 
     @Test
