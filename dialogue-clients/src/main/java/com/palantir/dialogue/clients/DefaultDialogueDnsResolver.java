@@ -90,15 +90,27 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
     }
 
     private static ExtractedGaiError extractGaiErrorString(UnknownHostException exception) {
+        if (exception == null) {
+            return ImmutableExtractedGaiError.of("null", "null");
+        }
+
         try {
-            for (Map.Entry<String, String> entry : EXPECTED_GAI_ERROR_STRINGS.entrySet()) {
-                if (exception.getMessage() != null && exception.getMessage().contains(entry.getKey())) {
-                    return ImmutableExtractedGaiError.of(entry.getKey(), entry.getValue());
+            StackTraceElement[] trace = exception.getStackTrace();
+            if (trace.length > 0) {
+                StackTraceElement top = trace[0];
+                if ("java.net.InetAddress$CachedLookup".equals(top.getClassName())) {
+                    return ImmutableExtractedGaiError.of("cached", "cached");
+                }
+
+                for (Map.Entry<String, String> entry : EXPECTED_GAI_ERROR_STRINGS.entrySet()) {
+                    if (exception.getMessage() != null && exception.getMessage().contains(entry.getKey())) {
+                        return ImmutableExtractedGaiError.of(entry.getKey(), entry.getValue());
+                    }
                 }
             }
+            return ImmutableExtractedGaiError.of("unknown", "unknown");
         } catch (Exception e) {
             return ImmutableExtractedGaiError.of("unknown", "unknown");
         }
-        return ImmutableExtractedGaiError.of("unknown", "unknown");
     }
 }
