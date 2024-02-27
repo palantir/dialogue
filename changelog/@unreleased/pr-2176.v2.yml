@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Implement a DNS fallback cache to avoid failures in DNS outages
+  links:
+  - https://github.com/palantir/dialogue/pull/2176
