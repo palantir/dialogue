@@ -63,6 +63,11 @@ Dialogue DNS metrics.
   - `kind`: Describes the type of component polling for DNS updates.
 - `client.dns.refresh` (timer): Measures the time taken to complete a full pass polling for DNS updates.
   - `kind`: Describes the type of component polling for DNS updates.
+- `client.dns.lookup` (meter): DNS resolver query metrics, on a per-hostname basis.
+  - `result`
+    - `success`: DNS resolution succeeded using `InetAddress.getAllByName`.
+    - `fallback`: DNS resolution using the primary mechanism failed, however addresses were available in the fallback cache.
+    - `failure`: No addresses could be resolved for the given hostname.
 
 ### client.uri
 Dialogue URI parsing metrics.
