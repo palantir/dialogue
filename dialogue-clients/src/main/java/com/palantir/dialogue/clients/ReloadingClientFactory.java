@@ -160,7 +160,9 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         @Value.Default
         default DialogueDnsResolver dnsResolver() {
-            return new ProtocolVersionFilteringDialogueDnsResolver(DefaultDialogueDnsResolver.INSTANCE);
+            return new CachingFallbackDnsResolver(
+                    new ProtocolVersionFilteringDialogueDnsResolver(DefaultDialogueDnsResolver.INSTANCE),
+                    taggedMetrics());
         }
 
         @Value.Default

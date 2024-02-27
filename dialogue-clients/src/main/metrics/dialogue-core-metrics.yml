@@ -24,3 +24,16 @@ namespaces:
           - name: kind
             docs: Describes the type of component polling for DNS updates.
         docs: Measures the time taken to complete a full pass polling for DNS updates.
+      lookup:
+        type: meter
+        tags:
+          - name: result
+            values:
+              - value: success
+                docs: DNS resolution succeeded using `InetAddress.getAllByName`.
+              - value: fallback
+                docs: DNS resolution using the primary mechanism failed, however
+                      addresses were available in the fallback cache.
+              - value: failure
+                docs: No addresses could be resolved for the given hostname.
+        docs: DNS resolver query metrics, on a per-hostname basis.
