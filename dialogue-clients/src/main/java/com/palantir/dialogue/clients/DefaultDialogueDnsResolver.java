@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
@@ -44,12 +45,7 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiErrorString(e);
-            log.warn(
-                    "Unknown host '{}'",
-                    SafeArg.of("gaiErrorMessage", gaiError.getErrorMessage().orElse(gaiError.name())),
-                    SafeArg.of("gaiErrorType", gaiError.name()),
-                    UnsafeArg.of("hostname", hostname),
-                    e);
+            log.warn("Unknown host '{}'", SafeArg.of("gaiError", gaiError), UnsafeArg.of("hostname", hostname), e);
             return ImmutableSet.of();
         }
     }
@@ -89,8 +85,9 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
             this.errorMessage = Optional.of(errorMessage);
         }
 
-        Optional<String> getErrorMessage() {
-            return errorMessage;
+        @Safe
+        String errorMessage() {
+            return errorMessage.orElse(name());
         }
     }
 
@@ -104,10 +101,8 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
                 }
 
                 for (GaiError error : GaiError.values()) {
-                    if (error.getErrorMessage().isPresent()) {
-                        if (exception
-                                .getMessage()
-                                .contains(error.getErrorMessage().get())) {
+                    if (error.errorMessage.isPresent()) {
+                        if (exception.getMessage().contains(error.errorMessage.get())) {
                             return error;
                         }
                     }
