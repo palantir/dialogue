@@ -27,6 +27,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Objects;
 import java.util.Optional;
 
 final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
@@ -49,7 +50,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
             }
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
-            GaiError gaiError = extractGaiErrorString(e);
+            GaiError gaiError = extractGaiErrorString(e, hostname);
             log.warn(
                     "Unknown host '{}'",
                     SafeArg.of("gaiErrorType", gaiError.name()),
@@ -102,23 +103,19 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
     }
 
-    private static GaiError extractGaiErrorString(UnknownHostException exception) {
+    private static GaiError extractGaiErrorString(UnknownHostException exception, String requestedHostname) {
         if (exception.getMessage() == null) {
             return GaiError.UNKNOWN;
         }
 
         try {
-            StackTraceElement[] trace = exception.getStackTrace();
-            if (trace.length > 0) {
-                StackTraceElement top = trace[0];
-                if ("java.net.InetAddress$CachedLookup".equals(top.getClassName())) {
-                    return GaiError.CACHED;
-                }
+            if (Objects.equals(requestedHostname, exception.getMessage())) {
+                return GaiError.CACHED;
+            }
 
-                for (GaiError error : GaiError.values()) {
-                    if (error.errorMessage.isPresent() && exception.getMessage().contains(error.errorMessage.get())) {
-                        return error;
-                    }
+            for (GaiError error : GaiError.values()) {
+                if (error.errorMessage.isPresent() && exception.getMessage().contains(error.errorMessage.get())) {
+                    return error;
                 }
             }
             return GaiError.UNKNOWN;
