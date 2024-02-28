@@ -16,7 +16,6 @@
 
 package com.palantir.dialogue.clients;
 
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Preconditions;
@@ -26,8 +25,7 @@ import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.Map;
-import org.immutables.value.Value;
+import java.util.Optional;
 
 enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
     INSTANCE;
@@ -45,11 +43,11 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
             }
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
-            ExtractedGaiError gaiError = extractGaiErrorString(e);
+            GaiError gaiError = extractGaiErrorString(e);
             log.warn(
                     "Unknown host '{}'",
-                    SafeArg.of("gaiErrorMessage", gaiError.getErrorMessage()),
-                    SafeArg.of("gaiErrorType", gaiError.getErrorType()),
+                    SafeArg.of("gaiErrorMessage", gaiError.getErrorMessage().orElse(gaiError.name())),
+                    SafeArg.of("gaiErrorType", gaiError.name()),
                     UnsafeArg.of("hostname", hostname),
                     e);
             return ImmutableSet.of();
@@ -59,39 +57,47 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
     // these strings were taken from glibc-2.39, but likely have not changed in quite a while
     // strings may be different on BSD systems like macos
     // TODO(dns): update this list to try to match against known strings on other platforms
-    private static final Map<String, String> EXPECTED_GAI_ERROR_STRINGS = ImmutableMap.<String, String>builder()
-            .put("Address family for hostname not supported", "EAI_ADDRFAMILY")
-            .put("Temporary failure in name resolution", "EAI_AGAIN")
-            .put("Bad value for ai_flags", "EAI_BADFLAGS")
-            .put("Non-recoverable failure in name resolution", "EAI_FAIL")
-            .put("ai_family not supported", "EAI_FAMILY")
-            .put("Memory allocation failure", "EAI_MEMORY")
-            .put("No address associated with hostname", "EAI_NODATA")
-            .put("Name or service not known", "EAI_NONAME")
-            .put("Servname not supported for ai_socktype", "EAI_SERVICE")
-            .put("ai_socktype not supported", "EAI_SOCKTYPE")
-            .put("System error", "EAI_SYSTEM")
-            .put("Processing request in progress", "EAI_INPROGRESS")
-            .put("Request canceled", "EAI_CANCELED")
-            .put("Request not canceled", "EAI_NOTCANCELED")
-            .put("All requests done", "EAI_ALLDONE")
-            .put("Interrupted by a signal", "EAI_INTR")
-            .put("Parameter string not correctly encoded", "EAI_IDN_ENCODE")
-            .put("Result too large for supplied buffer", "EAI_OVERFLOW")
-            .buildOrThrow();
+    private enum GaiError {
+        EAI_ADDRFAMILY("Address family for hostname not supported"),
+        EAI_AGAIN("Temporary failure in name resolution"),
+        EAI_BADFLAGS("Bad value for ai_flags"),
+        EAI_FAIL("Non-recoverable failure in name resolution"),
+        EAI_FAMILY("ai_family not supported"),
+        EAI_MEMORY("Memory allocation failure"),
+        EAI_NODATA("No address associated with hostname"),
+        EAI_NONAME("Name or service not known"),
+        EAI_SERVICE("Servname not supported for ai_socktype"),
+        EAI_SOCKTYPE("ai_socktype not supported"),
+        EAI_SYSTEM("System error"),
+        EAI_INPROGRESS("Processing request in progress"),
+        EAI_CANCELED("Request canceled"),
+        EAI_NOTCANCELED("Request not canceled"),
+        EAI_ALLDONE("All requests done"),
+        EAI_INTR("Interrupted by a signal"),
+        EAI_IDN_ENCODE("Parameter string not correctly encoded"),
+        EAI_OVERFLOW("Result too large for supplied buffer"),
+        CACHED(),
+        NULL(),
+        UNKNOWN();
 
-    @Value.Immutable
-    interface ExtractedGaiError {
-        @Value.Parameter
-        String getErrorMessage();
+        private final Optional<String> errorMessage;
 
-        @Value.Parameter
-        String getErrorType();
+        GaiError() {
+            this.errorMessage = Optional.empty();
+        }
+
+        GaiError(String errorMessage) {
+            this.errorMessage = Optional.of(errorMessage);
+        }
+
+        Optional<String> getErrorMessage() {
+            return errorMessage;
+        }
     }
 
-    private static ExtractedGaiError extractGaiErrorString(UnknownHostException exception) {
+    private static GaiError extractGaiErrorString(UnknownHostException exception) {
         if (exception == null) {
-            return ImmutableExtractedGaiError.of("null", "null");
+            return GaiError.NULL;
         }
 
         try {
@@ -99,18 +105,22 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
             if (trace.length > 0) {
                 StackTraceElement top = trace[0];
                 if ("java.net.InetAddress$CachedLookup".equals(top.getClassName())) {
-                    return ImmutableExtractedGaiError.of("cached", "cached");
+                    return GaiError.CACHED;
                 }
 
-                for (Map.Entry<String, String> entry : EXPECTED_GAI_ERROR_STRINGS.entrySet()) {
-                    if (exception.getMessage() != null && exception.getMessage().contains(entry.getKey())) {
-                        return ImmutableExtractedGaiError.of(entry.getKey(), entry.getValue());
+                for (GaiError error : GaiError.values()) {
+                    if (error.getErrorMessage().isPresent()) {
+                        if (exception
+                                .getMessage()
+                                .contains(error.getErrorMessage().get())) {
+                            return error;
+                        }
                     }
                 }
             }
-            return ImmutableExtractedGaiError.of("unknown", "unknown");
+            return GaiError.UNKNOWN;
         } catch (Exception e) {
-            return ImmutableExtractedGaiError.of("unknown", "unknown");
+            return GaiError.UNKNOWN;
         }
     }
 }
