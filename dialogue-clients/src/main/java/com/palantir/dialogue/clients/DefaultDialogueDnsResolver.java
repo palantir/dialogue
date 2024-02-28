@@ -24,14 +24,19 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Optional;
 
-enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
-    INSTANCE;
-
+final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
     private static final SafeLogger log = SafeLoggerFactory.get(DefaultDialogueDnsResolver.class);
+
+    private final ClientDnsMetrics metrics;
+
+    DefaultDialogueDnsResolver(TaggedMetricRegistry registry) {
+        this.metrics = ClientDnsMetrics.of(registry);
+    }
 
     @Override
     public ImmutableSet<InetAddress> resolve(String hostname) {
@@ -51,6 +56,7 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
                     SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
                     UnsafeArg.of("hostname", hostname),
                     e);
+            metrics.lookupError(gaiError.name()).mark();
             return ImmutableSet.of();
         }
     }
@@ -97,6 +103,10 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
     }
 
     private static GaiError extractGaiErrorString(UnknownHostException exception) {
+        if (exception.getMessage() == null) {
+            return GaiError.UNKNOWN;
+        }
+
         try {
             StackTraceElement[] trace = exception.getStackTrace();
             if (trace.length > 0) {
@@ -106,11 +116,8 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
                 }
 
                 for (GaiError error : GaiError.values()) {
-                    if (error.errorMessage.isPresent()) {
-                        if (exception.getMessage() != null
-                                && exception.getMessage().contains(error.errorMessage.get())) {
-                            return error;
-                        }
+                    if (error.errorMessage.isPresent() && exception.getMessage().contains(error.errorMessage.get())) {
+                        return error;
                     }
                 }
             }

@@ -37,3 +37,9 @@ namespaces:
               - value: failure
                 docs: No addresses could be resolved for the given hostname.
         docs: DNS resolver query metrics, on a per-hostname basis.
+      lookupError:
+        type: meter
+        tags: 
+          - name: error-type
+            docs: Describes the error type returned by getaddrinfo() when lookup fails.
+        docs: DNS resolver query failures.

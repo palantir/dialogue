@@ -18,9 +18,13 @@ package com.palantir.dialogue.clients;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assumptions.assumeThat;
 
 import com.google.common.collect.ImmutableSet;
+import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.exceptions.SafeNullPointerException;
+import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
+import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import org.junit.jupiter.api.Test;
@@ -66,7 +70,42 @@ class DefaultDialogueDnsResolverTest {
         assertThat(resolve("::z")).isEmpty();
     }
 
+    @Test
+    void unknown_host() {
+        assumeThat(System.getProperty("os.name").toLowerCase().startsWith("linux"))
+                .describedAs("GAI Error Strings are only defined for Linux environments")
+                .isTrue();
+
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+
+        String badHost = "alksdjflajsdlkfjalksjflkadjsf.com";
+        ImmutableSet<InetAddress> result = resolver.resolve(badHost);
+
+        assertThat(result).isEmpty();
+        ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
+        assertThat(metrics.lookupError("EAI_NONAME").getCount()).isGreaterThan(0);
+    }
+
+    @Test
+    void unknown_host_from_cache() {
+        TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
+        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+
+        String badHost = "alksdjflajsdlkfjalksjflkadjsf.com";
+        ImmutableSet<InetAddress> result = resolver.resolve(badHost);
+
+        assertThat(result).isEmpty();
+
+        // should resolve from cache
+        ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
+        assertThat(result2).isEmpty();
+        ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
+        assertThat(metrics.lookupError("CACHED").getCount()).isGreaterThan(0);
+    }
+
     private static ImmutableSet<InetAddress> resolve(String hostname) {
-        return DefaultDialogueDnsResolver.INSTANCE.resolve(hostname);
+        DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(new DefaultTaggedMetricRegistry());
+        return resolver.resolve(hostname);
     }
 }
