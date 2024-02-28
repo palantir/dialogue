@@ -80,7 +80,7 @@ class DefaultDialogueDnsResolverTest {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
 
-        String badHost = "alksdjflajsdlkfjalksjflkadjsf.com";
+        String badHost = UUID.randomUUID() + ".palantir.com";
         ImmutableSet<InetAddress> result = resolver.resolve(badHost);
 
         assertThat(result).isEmpty();
