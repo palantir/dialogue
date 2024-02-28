@@ -103,7 +103,7 @@ class DefaultDialogueDnsResolverTest {
         // should resolve from cache
         ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
         assertThat(result2).isEmpty();
-        assertThat(metrics.failure("CACHED").getCount()).isGreaterThan(0);
+        assertThat(metrics.failure("CACHED").getCount()).isEqualTo(1);
     }
 
     private static ImmutableSet<InetAddress> resolve(String hostname) {
