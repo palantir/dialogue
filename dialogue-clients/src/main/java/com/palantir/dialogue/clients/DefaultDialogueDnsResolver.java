@@ -77,7 +77,6 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
         EAI_IDN_ENCODE("Parameter string not correctly encoded"),
         EAI_OVERFLOW("Result too large for supplied buffer"),
         CACHED(),
-        NULL(),
         UNKNOWN();
 
         private final Optional<String> errorMessage;
@@ -96,10 +95,6 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
     }
 
     private static GaiError extractGaiErrorString(UnknownHostException exception) {
-        if (exception == null) {
-            return GaiError.NULL;
-        }
-
         try {
             StackTraceElement[] trace = exception.getStackTrace();
             if (trace.length > 0) {
