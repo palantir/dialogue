@@ -52,7 +52,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiError(e, hostname);
             log.warn(
-                    "Unknown host '{}'",
+                    "Unknown host '{}'. {}: {}",
                     SafeArg.of("gaiErrorType", gaiError.name()),
                     SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
                     UnsafeArg.of("hostname", hostname),
