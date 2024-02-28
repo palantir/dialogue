@@ -45,7 +45,12 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
             GaiError gaiError = extractGaiErrorString(e);
-            log.warn("Unknown host '{}'", SafeArg.of("gaiError", gaiError), UnsafeArg.of("hostname", hostname), e);
+            log.warn(
+                    "Unknown host '{}'",
+                    SafeArg.of("gaiErrorType", gaiError.name()),
+                    SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
+                    UnsafeArg.of("hostname", hostname),
+                    e);
             return ImmutableSet.of();
         }
     }
@@ -87,7 +92,7 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
 
         @Safe
         String errorMessage() {
-            return errorMessage.orElse(name());
+            return errorMessage.orElseGet(this::name);
         }
     }
 
@@ -102,7 +107,8 @@ enum DefaultDialogueDnsResolver implements DialogueDnsResolver {
 
                 for (GaiError error : GaiError.values()) {
                     if (error.errorMessage.isPresent()) {
-                        if (exception.getMessage().contains(error.errorMessage.get())) {
+                        if (exception.getMessage() != null
+                                && exception.getMessage().contains(error.errorMessage.get())) {
                             return error;
                         }
                     }
