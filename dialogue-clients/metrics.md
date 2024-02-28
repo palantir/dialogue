@@ -68,6 +68,8 @@ Dialogue DNS metrics.
     - `success`: DNS resolution succeeded using `InetAddress.getAllByName`.
     - `fallback`: DNS resolution using the primary mechanism failed, however addresses were available in the fallback cache.
     - `failure`: No addresses could be resolved for the given hostname.
+- `client.dns.failure` (meter): DNS resolver query failures.
+  - `error-type`: Describes the error type returned by getaddrinfo() when lookup fails.
 
 ### client.uri
 Dialogue URI parsing metrics.
