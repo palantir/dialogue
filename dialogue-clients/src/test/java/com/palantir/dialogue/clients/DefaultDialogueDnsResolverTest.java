@@ -27,6 +27,7 @@ import com.palantir.tritium.metrics.registry.DefaultTaggedMetricRegistry;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 class DefaultDialogueDnsResolverTest {
@@ -84,24 +85,25 @@ class DefaultDialogueDnsResolverTest {
 
         assertThat(result).isEmpty();
         ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
-        assertThat(metrics.lookupError("EAI_NONAME").getCount()).isGreaterThan(0);
+        assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
     }
 
     @Test
     void unknown_host_from_cache() {
         TaggedMetricRegistry registry = new DefaultTaggedMetricRegistry();
         DialogueDnsResolver resolver = new DefaultDialogueDnsResolver(registry);
+        ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
 
-        String badHost = "alksdjflajsdlkfjalksjflkadjsf.com";
+        String badHost = UUID.randomUUID() + ".palantir.com";
         ImmutableSet<InetAddress> result = resolver.resolve(badHost);
 
         assertThat(result).isEmpty();
+        assertThat(metrics.failure("EAI_NONAME").getCount()).isEqualTo(1);
 
         // should resolve from cache
         ImmutableSet<InetAddress> result2 = resolver.resolve(badHost);
         assertThat(result2).isEmpty();
-        ClientDnsMetrics metrics = ClientDnsMetrics.of(registry);
-        assertThat(metrics.lookupError("CACHED").getCount()).isGreaterThan(0);
+        assertThat(metrics.failure("CACHED").getCount()).isGreaterThan(0);
     }
 
     private static ImmutableSet<InetAddress> resolve(String hostname) {

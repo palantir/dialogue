@@ -50,14 +50,14 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
             }
             return ImmutableSet.copyOf(results);
         } catch (UnknownHostException e) {
-            GaiError gaiError = extractGaiErrorString(e, hostname);
+            GaiError gaiError = extractGaiError(e, hostname);
             log.warn(
                     "Unknown host '{}'",
                     SafeArg.of("gaiErrorType", gaiError.name()),
                     SafeArg.of("gaiErrorMessage", gaiError.errorMessage()),
                     UnsafeArg.of("hostname", hostname),
                     e);
-            metrics.lookupError(gaiError.name()).mark();
+            metrics.failure(gaiError.name()).mark();
             return ImmutableSet.of();
         }
     }
@@ -103,7 +103,7 @@ final class DefaultDialogueDnsResolver implements DialogueDnsResolver {
         }
     }
 
-    private static GaiError extractGaiErrorString(UnknownHostException exception, String requestedHostname) {
+    private static GaiError extractGaiError(UnknownHostException exception, String requestedHostname) {
         if (exception.getMessage() == null) {
             return GaiError.UNKNOWN;
         }

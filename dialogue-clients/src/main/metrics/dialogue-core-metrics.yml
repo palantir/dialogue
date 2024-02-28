@@ -37,7 +37,7 @@ namespaces:
               - value: failure
                 docs: No addresses could be resolved for the given hostname.
         docs: DNS resolver query metrics, on a per-hostname basis.
-      lookupError:
+      failure:
         type: meter
         tags: 
           - name: error-type
