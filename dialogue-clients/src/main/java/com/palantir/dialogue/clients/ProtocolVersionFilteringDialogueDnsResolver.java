@@ -20,6 +20,7 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
@@ -52,7 +53,7 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
     }
 
     // TODO(dns): report metrics here
-    private static ImmutableSet<InetAddress> filter(ImmutableSet<InetAddress> addresses, String hostname) {
+    private static ImmutableSet<InetAddress> filter(ImmutableSet<InetAddress> addresses, @Unsafe String hostname) {
         // Assume that if resolved addresses contain a mix of ipv4 and ipv6 addresses, then they
         // likely point to the same host, just using a different protocol. In that case, we discared the ipv6
         // addresses and prefer only ipv4.
@@ -70,8 +71,9 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
             } else {
                 ++numUnknown;
                 log.warn(
-                        "name resolution result contains an address that is neither IPv4 nor IPv6",
-                        UnsafeArg.of("address", address));
+                        "name resolution result contains address {} that is neither IPv4 nor IPv6 ({})",
+                        UnsafeArg.of("address", address),
+                        SafeArg.of("type", address.getClass()));
             }
         }
 
@@ -86,14 +88,30 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
                     onlyIpv4Addresses.add(address);
                 }
             }
+            logFilteredAddresses(hostname, numIpv4, numIpv6);
+            return onlyIpv4Addresses.build();
+        }
+
+        return addresses;
+    }
+
+    private static void logFilteredAddresses(@Unsafe String hostname, int numIpv4, int numIpv6) {
+        // Localhost is logged at debug because this is most often expected.
+        // We will likely drop non-localhost filtering to debug as well after this feature has rolled out.
+        if ("localhost".equals(hostname)) {
+            if (log.isDebugEnabled()) {
+                log.debug(
+                        "using only resolved IPv4 addresses for host to avoid double-counting",
+                        SafeArg.of("numIpv4", numIpv4),
+                        SafeArg.of("numIpv6", numIpv6),
+                        SafeArg.of("host", "localhost"));
+            }
+        } else {
             log.info(
                     "using only resolved IPv4 addresses for host to avoid double-counting",
                     SafeArg.of("numIpv4", numIpv4),
                     SafeArg.of("numIpv6", numIpv6),
                     UnsafeArg.of("host", hostname));
-            return onlyIpv4Addresses.build();
         }
-
-        return addresses;
     }
 }
