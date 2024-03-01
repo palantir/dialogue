@@ -86,7 +86,7 @@ class ProtocolVersionFilteringDialogueDnsResolver implements DialogueDnsResolver
                     onlyIpv4Addresses.add(address);
                 }
             }
-            log.info(
+            log.debug(
                     "using only resolved IPv4 addresses for host to avoid double-counting",
                     SafeArg.of("numIpv4", numIpv4),
                     SafeArg.of("numIpv6", numIpv6),
