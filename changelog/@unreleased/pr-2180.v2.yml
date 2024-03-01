@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Avoid logging at INFO on each DNS request
+  links:
+  - https://github.com/palantir/dialogue/pull/2180
