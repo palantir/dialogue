@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: ProtocolVersionFilteringDialogueDnsResolver logs localhost at debug
+  links:
+  - https://github.com/palantir/dialogue/pull/2181
