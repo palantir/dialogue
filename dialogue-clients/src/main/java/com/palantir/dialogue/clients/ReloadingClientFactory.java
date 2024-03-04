@@ -37,6 +37,7 @@ import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
+import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
@@ -572,8 +573,10 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     getTargetUris(serviceName, serviceConf.uris(), proxySelector(serviceConf.proxy()), resolvedHosts);
 
             if (targetUris.isEmpty()) {
-                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                        "Service not available (no addresses via DNS)", SafeArg.of("serviceName", serviceName)));
+                return new EmptyInternalDialogueChannel(() -> new DialogueException(new SafeUnknownHostException(
+                        "Service not available (no addresses via DNS)",
+                        SafeArg.of("serviceName", serviceName),
+                        UnsafeArg.of("uris", serviceConf.uris()))));
             }
 
             DialogueChannel dialogueChannel =
