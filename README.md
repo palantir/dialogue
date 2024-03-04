@@ -29,7 +29,9 @@ Dialogue works best with Conjure-generated client bindings, i.e. for a given Con
 `FooServiceBlocking` and `FooServiceAsync`. See the [conjure-java generated client bindings][] section below for more
 details.
 
-**Production usage**: your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
+### Production usage
+
+Your server framework should provide an abstraction to create clients that handle uri live-reloading and reuse connection pools. For example in Witchcraft, you can create a `FooServiceBlocking` like so:
 
 ```groovy
 FooServiceBlocking fooService = witchcraft.conjureClients().client(FooServiceBlocking.class, "foo-service").get();
@@ -46,7 +48,7 @@ FooServiceAsync fooService = witchcraft.conjureClients().client(FooServiceAsync.
 ListenableFuture<List<Item>> items = fooService.getItems();
 ```
 
-**Under the hood**
+### Under the hood
 
 If the Witchcraft method above is not available, you can construct clients manually using a factory provided by
 `com.palantir.dialogue:dialogue-clients`.
