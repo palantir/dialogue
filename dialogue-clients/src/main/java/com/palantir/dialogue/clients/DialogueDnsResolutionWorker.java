@@ -17,17 +17,24 @@
 package com.palantir.dialogue.clients;
 
 import com.codahale.metrics.Timer;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
+import com.google.common.collect.Maps;
+import com.google.common.collect.MultimapBuilder.SetMultimapBuilder;
+import com.google.common.collect.SetMultimap;
 import com.google.errorprone.annotations.concurrent.GuardedBy;
 import com.palantir.dialogue.core.DialogueDnsResolver;
+import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.SettableRefreshable;
 import java.lang.ref.WeakReference;
 import java.net.InetAddress;
-import java.net.URI;
-import java.net.URISyntaxException;
+import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -39,6 +46,9 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
     @Nullable
     @GuardedBy("this")
     private INPUT inputState;
+
+    @GuardedBy("this")
+    private ImmutableMap<@Safe String, @Safe Integer> previousUnresolvedByChannel = ImmutableMap.of();
 
     private final DnsPollingSpec<INPUT> spec;
     private final DialogueDnsResolver resolver;
@@ -67,12 +77,14 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             if (receiver.get() == null) {
                 // n.b. We could throw an exception here to specifically cause the executor to deschedule, however
                 // this logging may be helpful in informing us of problems in the system.
-                log.info("Output refreshable has been garbage collected, no need to continue polling");
+                log.info(
+                        "Output refreshable has been garbage collected, no need to continue polling",
+                        SafeArg.of("kind", spec.kind()));
             } else {
                 doUpdate(null);
             }
         } catch (Throwable t) {
-            log.error("Scheduled DNS update failed", t);
+            log.error("Scheduled DNS update failed", SafeArg.of("kind", spec.kind()), t);
         }
     }
 
@@ -89,28 +101,59 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                     // n.b. we could filter out hosts with specify a proxy and mesh-mode
                     // uris here, however it's simpler to resolve everything, and use what
                     // we need when TargetUri instances are constructed.
-                    .map(uriString -> {
-                        try {
-                            URI uri = new URI(uriString);
-                            return uri.getHost();
-                        } catch (URISyntaxException | RuntimeException e) {
-                            log.debug("Failed to parse URI", e);
-                            return null;
-                        }
-                    })
+                    .map(DnsSupport::tryGetHost)
                     .filter(Objects::nonNull)
                     .collect(ImmutableSet.toImmutableSet());
             ImmutableSetMultimap<String, InetAddress> resolvedHosts = resolver.resolve(allHosts);
+            ImmutableSet<@Unsafe String> unresolvedHosts = allHosts.stream()
+                    .filter(host -> !resolvedHosts.containsKey(host))
+                    .collect(ImmutableSet.toImmutableSet());
+            ImmutableMap<@Safe String, @Safe Integer> unresolvedByChannel =
+                    countHostsByChannelName(inputState, unresolvedHosts);
+            // Only emit logging upon a state change
+            if (!Objects.equals(unresolvedByChannel, previousUnresolvedByChannel)) {
+                previousUnresolvedByChannel = unresolvedByChannel;
+                if (!unresolvedByChannel.isEmpty()) {
+                    Map<@Safe String, @Safe Integer> resolvedByChannel =
+                            countHostsByChannelName(inputState, resolvedHosts.keySet());
+                    log.info(
+                            "Failed to resolve all hostnames",
+                            SafeArg.of("kind", spec.kind()),
+                            SafeArg.of("unresolvedByChannel", unresolvedByChannel),
+                            SafeArg.of("resolvedByChannel", resolvedByChannel));
+                } else {
+                    // This will be logged once after a dns failure is resolved
+                    log.info("Successfully resolved all hostnames", SafeArg.of("kind", spec.kind()));
+                }
+            }
             DnsResolutionResults<INPUT> newResolvedState =
                     ImmutableDnsResolutionResults.of(inputState, Optional.of(resolvedHosts));
             SettableRefreshable<DnsResolutionResults<INPUT>> refreshable = receiver.get();
             if (refreshable != null) {
                 refreshable.update(newResolvedState);
             } else {
-                log.info("Attempted to update DNS output refreshable which has already been garbage collected");
+                log.info(
+                        "Attempted to update DNS output refreshable which has already been garbage collected",
+                        SafeArg.of("kind", spec.kind()));
             }
             long end = System.nanoTime();
             updateTimer.update(end - start, TimeUnit.NANOSECONDS);
         }
+    }
+
+    @GuardedBy("this")
+    private ImmutableMap<@Safe String, @Safe Integer> countHostsByChannelName(INPUT input, ImmutableSet<String> hosts) {
+        if (hosts.isEmpty()) {
+            // Short circuit the trivial case
+            return ImmutableMap.of();
+        }
+        SetMultimap<@Safe String, @Unsafe String> channelNameToHostnames =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        for (@Unsafe String host : hosts) {
+            for (String channelName : spec.describeHostname(input, host)) {
+                channelNameToHostnames.put(channelName, host);
+            }
+        }
+        return ImmutableMap.copyOf(Maps.transformValues(channelNameToHostnames.asMap(), Collection::size));
     }
 }
