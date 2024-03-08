@@ -474,7 +474,8 @@ public class DialogueClientsDnsIntegrationTest {
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.CLIENT_CONFIG.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics)
+                .tasks("dialogue-nonreloading-" + SampleServiceBlocking.class.getSimpleName());
 
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
@@ -551,7 +552,8 @@ public class DialogueClientsDnsIntegrationTest {
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.SERVICE_CONFIG.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics)
+                .tasks("dialogue-nonreloading-" + SampleServiceBlocking.class.getSimpleName());
 
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()

@@ -22,6 +22,7 @@ import com.google.common.base.Suppliers;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.DialogueExecutors;
+import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Disposable;
@@ -31,6 +32,8 @@ import com.palantir.tritium.metrics.MetricRegistries;
 import com.palantir.tritium.metrics.registry.SharedTaggedMetricRegistries;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.lang.ref.Cleaner;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.ScheduledExecutorService;
@@ -38,9 +41,11 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 final class DnsSupport {
 
+    private static final SafeLogger log = SafeLoggerFactory.get(DnsSupport.class);
     private static final String SCHEDULER_NAME = "dialogue-client-dns-scheduler";
 
     private static final Cleaner cleaner = Cleaner.create(new ThreadFactoryBuilder()
@@ -104,6 +109,18 @@ final class DnsSupport {
         Disposable disposable = input.subscribe(dnsResolutionWorker::update);
         cleaner.register(dnsResolutionResult, new CleanupTask(disposable, future, counter));
         return dnsResolutionResult;
+    }
+
+    @Unsafe
+    @Nullable
+    static String tryGetHost(@Unsafe String uriString) {
+        try {
+            URI uri = new URI(uriString);
+            return uri.getHost();
+        } catch (URISyntaxException | RuntimeException e) {
+            log.debug("Failed to parse URI", e);
+            return null;
+        }
     }
 
     /**

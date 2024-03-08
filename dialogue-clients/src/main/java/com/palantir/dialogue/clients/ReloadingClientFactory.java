@@ -107,7 +107,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
                                 params.dnsNodeDiscovery(),
-                                DnsPollingSpec.CLIENT_CONFIG,
+                                DnsPollingSpec.clientConfig(channelName),
                                 params.dnsResolver(),
                                 params.dnsRefreshInterval(),
                                 params.taggedMetrics(),
@@ -186,7 +186,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Channel channel = new LiveReloadingChannel(
                 DnsSupport.pollForChanges(
                                 params.dnsNodeDiscovery(),
-                                DnsPollingSpec.SERVICE_CONFIG,
+                                DnsPollingSpec.serviceConfig(channelName),
                                 params.dnsResolver(),
                                 params.dnsRefreshInterval(),
                                 params.taggedMetrics(),

@@ -16,10 +16,15 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.common.collect.ImmutableList;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
 import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.Unsafe;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Stream;
 
 /** Internal interface to handle DNS refresh from various sources. */
@@ -30,6 +35,9 @@ interface DnsPollingSpec<INPUT> {
     String kind();
 
     Stream<String> extractUris(INPUT input);
+
+    /** Returns a channel-name associated with the host. */
+    List<@Safe String> describeHostname(INPUT input, String hostname);
 
     DnsPollingSpec<ServicesConfigBlock> RELOADING_FACTORY = new DnsPollingSpec<>() {
 
@@ -42,31 +50,57 @@ interface DnsPollingSpec<INPUT> {
         public Stream<String> extractUris(ServicesConfigBlock servicesConfigBlock) {
             return servicesConfigBlock.services().values().stream().flatMap(psc -> psc.uris().stream());
         }
-    };
-
-    DnsPollingSpec<ClientConfiguration> CLIENT_CONFIG = new DnsPollingSpec<>() {
 
         @Override
-        public String kind() {
-            return "non-reloading-clientconfig";
-        }
-
-        @Override
-        public Stream<String> extractUris(ClientConfiguration input) {
-            return input.uris().stream();
-        }
-    };
-
-    DnsPollingSpec<ServiceConfiguration> SERVICE_CONFIG = new DnsPollingSpec<>() {
-
-        @Override
-        public String kind() {
-            return "non-reloading-serviceconfig";
-        }
-
-        @Override
-        public Stream<String> extractUris(ServiceConfiguration input) {
-            return input.uris().stream();
+        public List<@Safe String> describeHostname(ServicesConfigBlock servicesConfigBlock, @Unsafe String host) {
+            return servicesConfigBlock.services().entrySet().stream()
+                    .filter(entry -> entry.getValue().uris().stream()
+                            .map(DnsSupport::tryGetHost)
+                            .filter(Objects::nonNull)
+                            .anyMatch(host::equals))
+                    .map(Map.Entry::getKey)
+                    .map(ChannelNames::reloading)
+                    .collect(ImmutableList.toImmutableList());
         }
     };
+
+    static DnsPollingSpec<ClientConfiguration> clientConfig(@Safe String channelName) {
+        return new DnsPollingSpec<>() {
+
+            @Override
+            public String kind() {
+                return channelName;
+            }
+
+            @Override
+            public Stream<String> extractUris(ClientConfiguration input) {
+                return input.uris().stream();
+            }
+
+            @Override
+            public List<@Safe String> describeHostname(ClientConfiguration _configuration, String _uri) {
+                return ImmutableList.of(kind());
+            }
+        };
+    }
+
+    static DnsPollingSpec<ServiceConfiguration> serviceConfig(@Safe String channelName) {
+        return new DnsPollingSpec<>() {
+
+            @Override
+            public String kind() {
+                return channelName;
+            }
+
+            @Override
+            public Stream<String> extractUris(ServiceConfiguration input) {
+                return input.uris().stream();
+            }
+
+            @Override
+            public List<@Safe String> describeHostname(ServiceConfiguration _configuration, String _uri) {
+                return ImmutableList.of(kind());
+            }
+        };
+    }
 }

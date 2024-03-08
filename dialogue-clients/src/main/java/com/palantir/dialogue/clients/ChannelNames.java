@@ -18,8 +18,12 @@ package com.palantir.dialogue.clients;
 
 final class ChannelNames {
 
+    static String reloading(String serviceName) {
+        return "dialogue-" + serviceName;
+    }
+
     static String reloading(String serviceName, ImmutableReloadingParams params) {
-        return "dialogue-" + serviceName + summarizeOptions(params);
+        return reloading(serviceName) + summarizeOptions(params);
     }
 
     static String sticky(String serviceName, ImmutableReloadingParams params) {
