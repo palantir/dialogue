@@ -19,6 +19,7 @@ package com.palantir.dialogue.clients;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.Multimaps;
@@ -65,8 +66,10 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
+import java.net.NetworkInterface;
 import java.net.Proxy;
 import java.net.ProxySelector;
+import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.Provider;
@@ -74,6 +77,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -223,12 +227,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<List<DialogueChannel>> perHostDialogueChannels = configurationForService(serviceName)
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = configurationForService(serviceName)
                 .map(block -> {
                     ServiceConfiguration serviceConfiguration =
                             block.serviceConfiguration().orElse(null);
                     if (serviceConfiguration == null) {
-                        return ImmutableList.of();
+                        return ImmutableMap.of();
                     }
 
                     Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts = block.resolvedHosts();
@@ -239,46 +243,75 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                             resolvedHosts);
 
                     if (targetUris.isEmpty()) {
-                        return ImmutableList.of();
+                        return ImmutableMap.of();
                     }
 
-                    ImmutableList.Builder<DialogueChannel> list = ImmutableList.builder();
+                    Set<InetAddress> selfAddresses;
+                    try {
+                        selfAddresses = NetworkInterface.networkInterfaces()
+                                .flatMap(NetworkInterface::inetAddresses)
+                                .collect(Collectors.toSet());
+                    } catch (SocketException e) {
+                        log.warn("Failed to obtain local addresses from network interfaces", e);
+                        selfAddresses = Set.of();
+                    }
+
+                    ImmutableMap.Builder<PerHostTarget, Channel> map = ImmutableMap.builder();
                     for (int i = 0; i < targetUris.size(); i++) {
                         TargetUri targetUri = targetUris.get(i);
                         ServiceConfiguration singleUriServiceConf = ServiceConfiguration.builder()
                                 .from(serviceConfiguration)
                                 .uris(ImmutableList.of(targetUri.uri()))
                                 .build();
+                        boolean isSelf = targetUri
+                                .resolvedAddress()
+                                .map(selfAddresses::contains)
+                                .orElse(false);
 
                         // subtle gotcha here is that every single one of these has the same channelName,
                         // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
-                        list.add(cache.getNonReloadingChannel(
-                                params,
-                                singleUriServiceConf,
-                                ImmutableList.of(targetUri),
-                                channelName,
-                                OptionalInt.of(i)));
+                        map.put(
+                                new PerHostTarget(targetUri, isSelf),
+                                cache.getNonReloadingChannel(
+                                        params,
+                                        singleUriServiceConf,
+                                        ImmutableList.of(targetUri),
+                                        channelName,
+                                        OptionalInt.of(i)));
                     }
-                    return list.build();
+                    return map.buildKeepingLast();
                 });
 
         return new PerHostClientFactory() {
             @Override
             public Refreshable<List<Channel>> getPerHostChannels() {
-                return perHostDialogueChannels.map(ImmutableList::copyOf);
+                return perHostChannels.map(channels -> ImmutableList.copyOf(channels.values()));
+            }
+
+            @Override
+            public Refreshable<Map<PerHostTarget, Channel>> getNamedPerHostChannels() {
+                return perHostChannels;
             }
 
             @Override
             public <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
-                return getPerHostChannels().map(channels -> channels.stream()
-                        .map(chan -> Reflection.callStaticFactoryMethod(clientInterface, chan, params.runtime()))
+                return perHostChannels.map(channels -> channels.values().stream()
+                        .map(channel -> Reflection.callStaticFactoryMethod(clientInterface, channel, params.runtime()))
                         .collect(ImmutableList.toImmutableList()));
             }
 
             @Override
+            public <T> Refreshable<Map<PerHostTarget, T>> getNamedPerHost(Class<T> clientInterface) {
+                return perHostChannels.map(channels -> channels.entrySet().stream()
+                        .collect(ImmutableMap.toImmutableMap(
+                                Map.Entry::getKey,
+                                entry -> Reflection.callStaticFactoryMethod(
+                                        clientInterface, entry.getValue(), params.runtime()))));
+            }
+
+            @Override
             public String toString() {
-                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostDialogueChannels.get()
-                        + '}';
+                return "PerHostClientFactory{serviceName=" + serviceName + ", channels=" + perHostChannels.get() + '}';
             }
         };
     }

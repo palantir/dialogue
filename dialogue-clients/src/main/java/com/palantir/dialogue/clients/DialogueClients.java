@@ -29,6 +29,7 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -154,10 +155,21 @@ public final class DialogueClients {
 
     public interface PerHostClientFactory {
 
-        /** Single-uri channels. */
+        /**
+         * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
+         * returns some 429s.
+         */
         Refreshable<List<Channel>> getPerHostChannels();
 
+        /**
+         * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
+         * returns some 429s. The channels are uniquely identified by a stable, opaque key.
+         */
+        Refreshable<Map<PerHostTarget, Channel>> getNamedPerHostChannels();
+
         <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface);
+
+        <T> Refreshable<Map<PerHostTarget, T>> getNamedPerHost(Class<T> clientInterface);
     }
 
     public interface ReloadingFactory

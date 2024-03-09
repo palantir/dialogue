@@ -54,6 +54,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.Test;
@@ -278,7 +279,7 @@ public class DialogueClientsDnsIntegrationTest {
         DialogueDnsResolver resolver = new MapBasedDnsResolver(ImmutableSetMultimap.<String, InetAddress>builder()
                 .putAll(host, addresses)
                 .build());
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -291,7 +292,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Expect one node per resolved address")
                 .hasSameSizeAs(addresses);
@@ -307,7 +308,7 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -320,7 +321,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Mesh-mode URIs should result in a single channel")
                 .hasSize(1);
@@ -336,7 +337,7 @@ public class DialogueClientsDnsIntegrationTest {
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 1}),
                         InetAddress.getByAddress(host, new byte[] {127, 0, 0, 2}))
                 .build());
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -350,7 +351,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withDnsResolver(resolver)
                 .withUserAgent(TestConfigurations.AGENT)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Configurations using a proxy must not use dns node discovery")
                 .hasSize(1);
@@ -368,7 +369,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -381,7 +382,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withDnsNodeDiscovery(false)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("DNS node discovery shouldn't work when it's not enabled")
                 .hasSize(1);
@@ -403,7 +404,7 @@ public class DialogueClientsDnsIntegrationTest {
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
         Meter invalidUris = ClientUriMetrics.of(metrics).invalid("service");
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -417,7 +418,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withTaggedMetrics(metrics)
                 .withDnsNodeDiscovery(false)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Host cannot be parsed from this URI, but it should still be handled")
                 .hasSize(1);
@@ -439,7 +440,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .build());
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
         Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
-        Refreshable<List<Channel>> perHostChannels = DialogueClients.create(
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DialogueClients.create(
                         Refreshable.only(ServicesConfigBlock.builder()
                                 .defaultSecurity(TestConfigurations.SSL_CONFIG)
                                 .putServices(
@@ -453,7 +454,7 @@ public class DialogueClientsDnsIntegrationTest {
                 .withUserAgent(TestConfigurations.AGENT)
                 .withDnsNodeDiscovery(true)
                 .perHost(service)
-                .getPerHostChannels();
+                .getNamedPerHostChannels();
         assertThat(perHostChannels.get())
                 .as("Host cannot be parsed from this URI, but it should "
                         + "still be handled using the legacy dns-lookup path")
