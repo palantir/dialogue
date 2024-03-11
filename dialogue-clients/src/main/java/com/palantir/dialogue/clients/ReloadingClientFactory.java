@@ -66,10 +66,8 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
 import java.net.InetAddress;
-import java.net.NetworkInterface;
 import java.net.Proxy;
 import java.net.ProxySelector;
-import java.net.SocketException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.Provider;
@@ -246,16 +244,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         return ImmutableMap.of();
                     }
 
-                    Set<InetAddress> selfAddresses;
-                    try {
-                        selfAddresses = NetworkInterface.networkInterfaces()
-                                .flatMap(NetworkInterface::inetAddresses)
-                                .collect(Collectors.toSet());
-                    } catch (SocketException e) {
-                        log.warn("Failed to obtain local addresses from network interfaces", e);
-                        selfAddresses = Set.of();
-                    }
-
                     ImmutableMap.Builder<PerHostTarget, Channel> map = ImmutableMap.builder();
                     for (int i = 0; i < targetUris.size(); i++) {
                         TargetUri targetUri = targetUris.get(i);
@@ -263,15 +251,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 .from(serviceConfiguration)
                                 .uris(ImmutableList.of(targetUri.uri()))
                                 .build();
-                        boolean isSelf = targetUri
-                                .resolvedAddress()
-                                .map(selfAddresses::contains)
-                                .orElse(false);
 
                         // subtle gotcha here is that every single one of these has the same channelName,
                         // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
                         map.put(
-                                new PerHostTarget(targetUri, isSelf),
+                                new PerHostTarget(targetUri),
                                 cache.getNonReloadingChannel(
                                         params,
                                         singleUriServiceConf,
@@ -284,20 +268,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         return new PerHostClientFactory() {
             @Override
-            public Refreshable<List<Channel>> getPerHostChannels() {
-                return perHostChannels.map(channels -> ImmutableList.copyOf(channels.values()));
-            }
-
-            @Override
             public Refreshable<Map<PerHostTarget, Channel>> getNamedPerHostChannels() {
                 return perHostChannels;
-            }
-
-            @Override
-            public <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
-                return perHostChannels.map(channels -> channels.values().stream()
-                        .map(channel -> Reflection.callStaticFactoryMethod(clientInterface, channel, params.runtime()))
-                        .collect(ImmutableList.toImmutableList()));
             }
 
             @Override
@@ -569,9 +541,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             log.warn(
                     "Failed to parse all URIs, falling back to legacy DNS approach for service '{}'",
                     SafeArg.of("service", serviceNameForLogging));
-            return uris.stream().map(TargetUri::of).collect(ImmutableList.toImmutableList());
+            for (String uri : uris) {
+                targetUris.add(TargetUri.of(uri));
+            }
         }
-        return ImmutableList.copyOf(targetUris);
+        return ImmutableSet.copyOf(targetUris).asList();
     }
 
     private static ProxySelector proxySelector(Optional<ProxyConfiguration> proxyConfiguration) {

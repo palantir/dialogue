@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.Beta;
+import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -159,15 +160,19 @@ public final class DialogueClients {
          * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
          * returns some 429s.
          */
-        Refreshable<List<Channel>> getPerHostChannels();
+        default Refreshable<List<Channel>> getPerHostChannels() {
+            return getNamedPerHostChannels().map(channels -> ImmutableList.copyOf(channels.values()));
+        }
+
+        default <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
+            return getNamedPerHost(clientInterface).map(channels -> ImmutableList.copyOf(channels.values()));
+        }
 
         /**
          * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
          * returns some 429s. The channels are uniquely identified by a stable, opaque key.
          */
         Refreshable<Map<PerHostTarget, Channel>> getNamedPerHostChannels();
-
-        <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface);
 
         <T> Refreshable<Map<PerHostTarget, T>> getNamedPerHost(Class<T> clientInterface);
     }

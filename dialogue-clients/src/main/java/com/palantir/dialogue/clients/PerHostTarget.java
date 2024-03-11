@@ -21,24 +21,18 @@ import com.palantir.dialogue.core.TargetUri;
 public final class PerHostTarget {
 
     private final TargetUri targetUri;
-    private final boolean isSelf;
 
-    PerHostTarget(TargetUri targetUri, boolean isSelf) {
+    PerHostTarget(TargetUri targetUri) {
         this.targetUri = targetUri;
-        this.isSelf = isSelf;
     }
 
     public TargetUri targetUri() {
         return targetUri;
     }
 
-    public boolean isSelf() {
-        return isSelf;
-    }
-
     @Override
     public String toString() {
-        return "Target{targetUri='" + targetUri + "', isSelf=" + isSelf + '}';
+        return "Target{targetUri='" + targetUri + '}';
     }
 
     @Override
@@ -50,13 +44,11 @@ public final class PerHostTarget {
             return false;
         }
         PerHostTarget perHostTarget = (PerHostTarget) other;
-        return targetUri.equals(perHostTarget.targetUri) && isSelf == perHostTarget.isSelf;
+        return targetUri.equals(perHostTarget.targetUri);
     }
 
     @Override
     public int hashCode() {
-        int result = targetUri.hashCode();
-        result = 31 * result + Boolean.hashCode(isSelf);
-        return result;
+        return targetUri.hashCode();
     }
 }
