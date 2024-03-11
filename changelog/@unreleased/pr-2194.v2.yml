@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Dialogue ChannelCache uses weak values to allow collection of old data
+  links:
+  - https://github.com/palantir/dialogue/pull/2194
