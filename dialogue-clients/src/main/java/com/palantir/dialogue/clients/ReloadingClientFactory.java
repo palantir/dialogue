@@ -255,7 +255,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         // subtle gotcha here is that every single one of these has the same channelName,
                         // which means metrics like the QueuedChannel counter will end up being the sum of all of them.
                         map.put(
-                                new PerHostTarget(targetUri),
+                                PerHostTarget.builder().targetUri(targetUri).build(),
                                 cache.getNonReloadingChannel(
                                         params,
                                         singleUriServiceConf,

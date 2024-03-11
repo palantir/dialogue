@@ -16,13 +16,16 @@
 
 package com.palantir.dialogue.clients;
 
+import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.dialogue.core.TargetUri;
+import com.palantir.logsafe.Preconditions;
+import javax.annotation.Nullable;
 
 public final class PerHostTarget {
 
     private final TargetUri targetUri;
 
-    PerHostTarget(TargetUri targetUri) {
+    private PerHostTarget(TargetUri targetUri) {
         this.targetUri = targetUri;
     }
 
@@ -50,5 +53,27 @@ public final class PerHostTarget {
     @Override
     public int hashCode() {
         return targetUri.hashCode();
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static final class Builder {
+
+        @Nullable
+        private TargetUri targetUri;
+
+        private Builder() {}
+
+        public Builder targetUri(TargetUri value) {
+            this.targetUri = Preconditions.checkNotNull(value, "targetUri");
+            return this;
+        }
+
+        @CheckReturnValue
+        public PerHostTarget build() {
+            return new PerHostTarget(Preconditions.checkNotNull(targetUri, "targetUri"));
+        }
     }
 }
