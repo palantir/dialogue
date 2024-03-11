@@ -289,6 +289,16 @@ acceptedBreaks:
       new: "method com.palantir.dialogue.clients.DialogueClients.ReloadingFactory\
         \ com.palantir.dialogue.clients.DialogueClients.ReloadingFactory::withDnsNodeDiscovery(boolean)"
       justification: "interface is consumed, not implemented"
+  "3.121.0":
+    com.palantir.dialogue:dialogue-clients:
+    - code: "java.method.addedToInterface"
+      new: "method <T> com.palantir.refreshable.Refreshable<java.util.Map<com.palantir.dialogue.clients.PerHostTarget,\
+        \ T>> com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory::getNamedPerHost(java.lang.Class<T>)"
+      justification: "Adding new client factory methods"
+    - code: "java.method.addedToInterface"
+      new: "method com.palantir.refreshable.Refreshable<java.util.Map<com.palantir.dialogue.clients.PerHostTarget,\
+        \ com.palantir.dialogue.Channel>> com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory::getNamedPerHostChannels()"
+      justification: "Adding new client factory methods"
   "3.2.0":
     com.palantir.dialogue:dialogue-clients:
     - code: "java.method.addedToInterface"

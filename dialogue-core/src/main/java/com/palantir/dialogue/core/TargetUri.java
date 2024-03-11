@@ -19,10 +19,11 @@ package com.palantir.dialogue.core;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.logsafe.Preconditions;
 import java.net.InetAddress;
+import java.util.Arrays;
 import java.util.Optional;
 import javax.annotation.Nullable;
 
-public final class TargetUri {
+public final class TargetUri implements Comparable<TargetUri> {
 
     private final String uri;
     private final Optional<InetAddress> resolvedAddress;
@@ -43,6 +44,23 @@ public final class TargetUri {
     }
 
     @Override
+    public int compareTo(TargetUri other) {
+        int result = uri.compareTo(other.uri);
+        if (result != 0) {
+            return result;
+        }
+
+        result = Arrays.compare(
+                resolvedAddress.map(InetAddress::getAddress).orElse(null),
+                other.resolvedAddress.map(InetAddress::getAddress).orElse(null));
+        if (result != 0) {
+            return result;
+        }
+
+        return 0;
+    }
+
+    @Override
     public String toString() {
         return "TargetUri{uri='" + uri + "', resolvedAddress=" + resolvedAddress + '}';
     }
@@ -56,10 +74,7 @@ public final class TargetUri {
             return false;
         }
         TargetUri targetUri = (TargetUri) other;
-        if (!uri.equals(targetUri.uri)) {
-            return false;
-        }
-        return resolvedAddress.equals(targetUri.resolvedAddress);
+        return uri.equals(targetUri.uri) && resolvedAddress.equals(targetUri.resolvedAddress);
     }
 
     @Override

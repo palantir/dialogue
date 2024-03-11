@@ -17,6 +17,7 @@
 package com.palantir.dialogue.clients;
 
 import com.google.common.annotations.Beta;
+import com.google.common.collect.ImmutableList;
 import com.google.errorprone.annotations.CheckReturnValue;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
@@ -29,6 +30,7 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.refreshable.Refreshable;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -154,10 +156,25 @@ public final class DialogueClients {
 
     public interface PerHostClientFactory {
 
-        /** Single-uri channels. */
-        Refreshable<List<Channel>> getPerHostChannels();
+        /**
+         * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
+         * returns some 429s.
+         */
+        default Refreshable<List<Channel>> getPerHostChannels() {
+            return getNamedPerHostChannels().map(channels -> ImmutableList.copyOf(channels.values()));
+        }
 
-        <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface);
+        default <T> Refreshable<List<T>> getPerHost(Class<T> clientInterface) {
+            return getNamedPerHost(clientInterface).map(channels -> ImmutableList.copyOf(channels.values()));
+        }
+
+        /**
+         * Returns a list of channels where each channel will route requests to a single, unique host, even if that host
+         * returns some 429s. The channels are uniquely identified by a stable, opaque key.
+         */
+        Refreshable<Map<PerHostTarget, Channel>> getNamedPerHostChannels();
+
+        <T> Refreshable<Map<PerHostTarget, T>> getNamedPerHost(Class<T> clientInterface);
     }
 
     public interface ReloadingFactory

@@ -1,0 +1,7 @@
+type: feature
+feature:
+  description: |-
+    `PerHostClientFactory` now provides methods to obtain per-host clients keyed by a target identifier.
+    Add methods to obtain named per-host clients.
+  links:
+  - https://github.com/palantir/dialogue/pull/2192
