@@ -67,8 +67,11 @@ final class ChannelCache {
      */
     private final Map<String, ApacheCacheEntry> apacheCache = new ConcurrentHashMap<>();
 
-    private final LoadingCache<ChannelCacheKey, DialogueChannel> channelCache =
-            Caffeine.newBuilder().maximumSize(MAX_CACHED_CHANNELS).build(this::createNonLiveReloadingChannel);
+    private final LoadingCache<ChannelCacheKey, DialogueChannel> channelCache = Caffeine.newBuilder()
+            .maximumSize(MAX_CACHED_CHANNELS)
+            // Avoid holding onto old targets, which is now more common as we bind to resolved IP addresses
+            .weakValues()
+            .build(this::createNonLiveReloadingChannel);
     private final int instanceNumber;
 
     private ChannelCache() {
@@ -106,8 +109,15 @@ final class ChannelCache {
             List<TargetUri> uris,
             @Safe String channelName,
             OptionalInt overrideHostIndex) {
-        if (log.isWarnEnabled() && channelCache.estimatedSize() >= MAX_CACHED_CHANNELS * 0.75) {
-            log.warn("channelCache nearing capacity - possible bug? {}", SafeArg.of("cache", this));
+        if (log.isWarnEnabled()) {
+            long estimatedSize = channelCache.estimatedSize();
+            if (estimatedSize >= MAX_CACHED_CHANNELS * 0.75) {
+                log.warn(
+                        "channelCache nearing capacity - possible bug? {} {} {}",
+                        SafeArg.of("estimatedSize", estimatedSize),
+                        SafeArg.of("maxSize", MAX_CACHED_CHANNELS),
+                        SafeArg.of("cache", this));
+            }
         }
 
         return channelCache.get(ImmutableChannelCacheKey.builder()
@@ -199,6 +209,7 @@ final class ChannelCache {
                 .build();
     }
 
+    @Safe
     @Override
     public String toString() {
         return "ChannelCache{"
