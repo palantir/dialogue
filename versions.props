@@ -1,6 +1,6 @@
 com.fasterxml.jackson.core:jackson-databind = 2.15.3
 com.google.code.findbugs:jsr305 = 3.0.2
-com.google.guava:guava = 33.0.0-jre
+com.google.guava:guava = 33.1.0-jre
 com.google.testing.compile:compile-testing = 0.21.0
 com.palantir.common:streams = 2.2.0
 com.palantir.conjure:conjure = 4.40.0
