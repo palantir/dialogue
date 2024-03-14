@@ -32,9 +32,7 @@ import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
-import org.immutables.value.Value;
 
-@Value.Enclosing
 final class StickyEndpointChannels2 implements Supplier<Channel> {
 
     private final Supplier<EndpointChannelFactory> delegate;
