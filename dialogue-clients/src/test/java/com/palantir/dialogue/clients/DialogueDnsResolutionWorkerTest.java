@@ -72,13 +72,8 @@ class DialogueDnsResolutionWorkerTest {
                 assertThat(receiverRefreshable.get()).isNotNull();
                 assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                         .isTrue();
-                assertThat(receiverRefreshable
-                                .get()
-                                .resolvedHosts()
-                                .get()
-                                .get("foo.com")
-                                .size())
-                        .isEqualTo(1);
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
+                        .hasSize(1);
                 assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .allMatch(address1::equals);
                 assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
@@ -92,13 +87,8 @@ class DialogueDnsResolutionWorkerTest {
                 assertThat(receiverRefreshable.get()).isNotNull();
                 assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                         .isTrue();
-                assertThat(receiverRefreshable
-                                .get()
-                                .resolvedHosts()
-                                .get()
-                                .get("foo.com")
-                                .size())
-                        .isEqualTo(1);
+                assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
+                        .hasSize(1);
                 assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
                         .allMatch(address2::equals);
                 assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
@@ -138,8 +128,7 @@ class DialogueDnsResolutionWorkerTest {
             assertThat(receiverRefreshable.get()).isNotNull();
 
             assertThat(receiverRefreshable.get().config()).isEqualTo(initialState);
-            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet().size())
-                    .isEqualTo(1);
+            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet()).hasSize(1);
             assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("foo.com"))
                     .isTrue();
             assertThat(receiverRefreshable.get().resolvedHosts().get().get("foo.com"))
@@ -161,8 +150,7 @@ class DialogueDnsResolutionWorkerTest {
                     .untilAsserted(
                             () -> assertThat(receiverRefreshable.get().config()).isEqualTo(newState));
 
-            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet().size())
-                    .isEqualTo(2);
+            assertThat(receiverRefreshable.get().resolvedHosts().get().keySet()).hasSize(2);
             assertThat(receiverRefreshable.get().resolvedHosts().get().containsKey("bar.com"))
                     .isTrue();
             assertThat(receiverRefreshable.get().resolvedHosts().get().get("bar.com"))
