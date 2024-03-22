@@ -16,6 +16,7 @@
 
 package com.palantir.dialogue;
 
+import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import java.lang.reflect.ParameterizedType;
@@ -45,6 +46,10 @@ public abstract class TypeMarker<T> {
         }
     }
 
+    private TypeMarker(Type type) {
+        this.type = Preconditions.checkNotNull(type, "Type is required");
+    }
+
     public final Type getType() {
         return type;
     }
@@ -69,5 +74,16 @@ public abstract class TypeMarker<T> {
     @Override
     public final String toString() {
         return "TypeMarker{type=" + type + '}';
+    }
+
+    /** Create a new {@link TypeMarker} instance wrapping the provided {@link Type}. */
+    public static TypeMarker<?> of(Type type) {
+        return new WrappingTypeMarker(type);
+    }
+
+    private static final class WrappingTypeMarker extends TypeMarker<Object> {
+        private WrappingTypeMarker(Type type) {
+            super(type);
+        }
     }
 }

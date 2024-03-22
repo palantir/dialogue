@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Expose a TypeMarker factory to wrap an arbitrary Type
+  links:
+  - https://github.com/palantir/dialogue/pull/2221

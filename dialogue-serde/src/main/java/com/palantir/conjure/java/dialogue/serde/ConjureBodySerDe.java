@@ -40,6 +40,7 @@ import com.palantir.logsafe.logger.SafeLoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -56,8 +57,8 @@ final class ConjureBodySerDe implements BodySerDe {
     private final Deserializer<InputStream> binaryInputStreamDeserializer;
     private final Deserializer<Optional<InputStream>> optionalBinaryInputStreamDeserializer;
     private final Deserializer<Void> emptyBodyDeserializer;
-    private final LoadingCache<TypeMarker<?>, Serializer<?>> serializers;
-    private final LoadingCache<TypeMarker<?>, Deserializer<?>> deserializers;
+    private final LoadingCache<Type, Serializer<?>> serializers;
+    private final LoadingCache<Type, Deserializer<?>> deserializers;
 
     /**
      * Selects the first (based on input order) of the provided encodings that
@@ -86,11 +87,11 @@ final class ConjureBodySerDe implements BodySerDe {
         this.emptyBodyDeserializer = new EmptyBodyDeserializer(errorDecoder);
         // Class unloading: Not supported, Jackson keeps strong references to the types
         // it sees: https://github.com/FasterXML/jackson-databind/issues/489
-        this.serializers =
-                Caffeine.from(cacheSpec).build(token -> new EncodingSerializerRegistry<>(defaultEncoding, token));
+        this.serializers = Caffeine.from(cacheSpec)
+                .build(type -> new EncodingSerializerRegistry<>(defaultEncoding, TypeMarker.of(type)));
         this.deserializers = Caffeine.from(cacheSpec)
-                .build(token -> new EncodingDeserializerRegistry<>(
-                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, token));
+                .build(type -> new EncodingDeserializerRegistry<>(
+                        encodingsSortedByWeight, errorDecoder, emptyContainerDeserializer, TypeMarker.of(type)));
     }
 
     private static List<WeightedEncoding> decorateEncodings(List<WeightedEncoding> input) {
@@ -112,13 +113,13 @@ final class ConjureBodySerDe implements BodySerDe {
     @Override
     @SuppressWarnings("unchecked")
     public <T> Serializer<T> serializer(TypeMarker<T> token) {
-        return (Serializer<T>) serializers.get(token);
+        return (Serializer<T>) serializers.get(token.getType());
     }
 
     @Override
     @SuppressWarnings("unchecked")
     public <T> Deserializer<T> deserializer(TypeMarker<T> token) {
-        return (Deserializer<T>) deserializers.get(token);
+        return (Deserializer<T>) deserializers.get(token.getType());
     }
 
     @Override
