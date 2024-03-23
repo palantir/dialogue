@@ -4,13 +4,13 @@ apply plugin: 'com.palantir.metric-schema'
 apply plugin: 'com.palantir.metric-schema-markdown'
 
 dependencies {
-    api 'com.palantir.refreshable:refreshable'
-    api 'com.palantir.conjure.java.api:service-config'
+    api project(':dialogue-core') // TargetUri
     api project(':dialogue-target') // users might want to provide a ConjureRuntime
+    api 'com.palantir.conjure.java.api:service-config'
     api 'com.palantir.conjure.java.runtime:client-config' // NodeSelectionStrategy etc
+    api 'com.palantir.refreshable:refreshable'
 
     implementation project(':dialogue-apache-hc5-client')
-    implementation project(':dialogue-core')
     implementation project(':dialogue-serde')
     implementation 'com.github.ben-manes.caffeine:caffeine'
     implementation 'com.google.code.findbugs:jsr305'
