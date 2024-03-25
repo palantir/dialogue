@@ -101,8 +101,7 @@ public final class MyServiceIntegrationTest {
                 .connectTimeout(Duration.ofSeconds(1))
                 .build();
 
-        DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                        Refreshable.only(ServicesConfigBlock.builder().build()))
+        DialogueClients.ReloadingFactory factory = DialogueClients.create(Refreshable.only(ServicesConfigBlock.empty()))
                 .withUserAgent(TestConfigurations.AGENT);
         myServiceDialogue = factory.getNonReloading(MyService.class, config);
     }

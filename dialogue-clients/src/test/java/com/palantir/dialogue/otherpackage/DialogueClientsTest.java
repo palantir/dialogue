@@ -190,8 +190,7 @@ class DialogueClientsTest {
                 .hostEventsSink(Optional.empty())
                 .userAgent(Optional.empty())
                 .build();
-        ReloadingFactory factory = DialogueClients.create(
-                        Refreshable.only(ServicesConfigBlock.builder().build()))
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(ServicesConfigBlock.empty()))
                 .withUserAgent(TestConfigurations.AGENT);
         assertThatCode(() -> factory.getNonReloading(SampleServiceBlocking.class, minimalConfiguration))
                 .doesNotThrowAnyException();

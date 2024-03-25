@@ -51,8 +51,7 @@ public final class VerificationServerExtension implements BeforeAllCallback, Aft
     private Process process;
 
     public <T> T client(Class<T> service) {
-        return DialogueClients.create(
-                        Refreshable.only(ServicesConfigBlock.builder().build()))
+        return DialogueClients.create(Refreshable.only(ServicesConfigBlock.empty()))
                 .withUserAgent(USER_AGENT)
                 .getNonReloading(
                         service,

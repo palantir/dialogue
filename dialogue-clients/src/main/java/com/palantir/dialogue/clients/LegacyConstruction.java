@@ -25,7 +25,7 @@ import com.palantir.refreshable.Refreshable;
 /** Utility functionality supporting client creation using the {@link ClientConfiguration} type. */
 final class LegacyConstruction {
     private static final ReloadingFactory FACTORY = DialogueClients.create(
-                    Refreshable.only(ServicesConfigBlock.builder().build()))
+                    Refreshable.only(ServicesConfigBlock.empty()))
             .withHostEventsSink(NoOpHostEventsSink.INSTANCE);
 
     @SuppressWarnings("deprecation")
