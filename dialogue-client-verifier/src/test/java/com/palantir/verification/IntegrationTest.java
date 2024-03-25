@@ -87,8 +87,7 @@ public class IntegrationTest {
                 .writeTimeout(Duration.ofSeconds(1))
                 .connectTimeout(Duration.ofSeconds(1))
                 .build();
-        ReloadingFactory factory = DialogueClients.create(
-                        Refreshable.only(ServicesConfigBlock.builder().build()))
+        ReloadingFactory factory = DialogueClients.create(Refreshable.only(ServicesConfigBlock.empty()))
                 .withUserAgent(USER_AGENT);
 
         blocking = factory.getNonReloading(SampleServiceBlocking.class, config);

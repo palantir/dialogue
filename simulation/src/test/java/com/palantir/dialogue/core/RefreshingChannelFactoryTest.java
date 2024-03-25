@@ -49,8 +49,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 public final class RefreshingChannelFactoryTest {
     private static final String SERVICE_A = "serviceA";
-    private static final ServicesConfigBlock EMPTY_CONFIG =
-            ServicesConfigBlock.builder().build();
     private static final String URI_1 = "uri-1";
     private static final ServicesConfigBlock SERVICE_A_CONFIG_1 = ServicesConfigBlock.builder()
             .putServices(
@@ -88,7 +86,7 @@ public final class RefreshingChannelFactoryTest {
     @Mock
     private Channel channel2;
 
-    private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(EMPTY_CONFIG);
+    private AtomicReference<ServicesConfigBlock> conf = new AtomicReference<>(ServicesConfigBlock.empty());
     private RefreshingChannelFactory clientFactory;
     private Channel channelA;
 

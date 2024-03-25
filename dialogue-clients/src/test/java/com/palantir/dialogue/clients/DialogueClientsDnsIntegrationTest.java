@@ -488,7 +488,7 @@ public class DialogueClientsDnsIntegrationTest {
         undertow.start();
         try {
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder().build()))
+                            Refreshable.only(ServicesConfigBlock.empty()))
                     .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
@@ -566,7 +566,7 @@ public class DialogueClientsDnsIntegrationTest {
         undertow.start();
         try {
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder().build()))
+                            Refreshable.only(ServicesConfigBlock.empty()))
                     .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
