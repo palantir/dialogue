@@ -80,7 +80,7 @@ public class NoEndpointLimitTest {
 
         @Override
         public Set<String> tags() {
-            return ImmutableSet.of("dialogue-no-endpoint-limit");
+            return ImmutableSet.of("dialogue-disable-endpoint-concurrency-limiting");
         }
     };
 

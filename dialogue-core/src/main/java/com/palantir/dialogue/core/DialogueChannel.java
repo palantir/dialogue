@@ -165,7 +165,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         new TraceEnrichingChannel(channel, DialogueTracing.tracingTags(cf, uriIndexForInstrumentation));
                 channel = cf.isConcurrencyLimitingEnabled()
                         ? new ChannelToEndpointChannel(endpoint -> {
-                            if (endpoint.tags().contains("dialogue-no-endpoint-limit")) {
+                            if (endpoint.tags().contains("dialogue-disable-endpoint-concurrency-limiting")) {
                                 return tracingChannel;
                             }
                             LimitedChannel limited = ConcurrencyLimitedChannel.createForEndpoint(

@@ -261,7 +261,7 @@ This means there is a potential for many low-bandwidth sticky channels to compet
 
 ## Supported Per-Endpoint Conjure Tags
 
-* `dialogue-no-endpoint-limit`: Opts a single endpoint out of per-endpoint concurrency limiting, however per-host concurrency limiting continues to apply!
+* `dialogue-disable-endpoint-concurrency-limiting`: Opts a single endpoint out of per-endpoint concurrency limiting, however per-host concurrency limiting continues to apply!
 * `prefer-compressed-response`: Forces requests to always include `Accept-Encoding: gzip`, rather than attempting to opt out of response compression for in-environment requests. This usually shouldn't be used because compression can be much more expensive than network transfer.
 * `compress-request`: Request bodies are gzip compressed. This requires prior knowledge that the receiving server handles `Content-Encoding: gzip` request bodies.
 
