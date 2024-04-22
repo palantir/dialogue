@@ -259,6 +259,12 @@ Sticky Request +-->+Per Sticky Channel queue+-->+Per Sticky Channel Limiter+-->+
 Each sticky channel gets its own queue. If a sticky channel has no requests in-flight, ``Host Limiter`` is sidestepped (the request is let through regardless of current concurrency limits).
 This means there is a potential for many low-bandwidth sticky channels to compete with regular channels.
 
+## Supported Per-Endpoint Conjure Tags
+
+* `dialogue-disable-endpoint-concurrency-limiting`: Opts a single endpoint out of per-endpoint concurrency limiting, however per-host concurrency limiting continues to apply!
+* `prefer-compressed-response`: Forces requests to always include `Accept-Encoding: gzip`, rather than attempting to opt out of response compression for in-environment requests. This usually shouldn't be used because compression can be much more expensive than network transfer.
+* `compress-request`: Request bodies are gzip compressed. This requires prior knowledge that the receiving server handles `Content-Encoding: gzip` request bodies.
+
 ## Alternative HTTP clients
 
 Dialogue is not coupled to a single HTTP client library - this repo contains implementations based on [OkHttp](https://square.github.io/okhttp/), Java's [HttpURLConnection](https://docs.oracle.com/javase/8/docs/api/java/net/HttpURLConnection.html), the new Java11 HttpClient as well as the aforementioned [Apache HttpClient](https://hc.apache.org/httpcomponents-client-ga/).  We endorse the Apache client because as it performed best in our benchmarks and affords granular control over connection pools.

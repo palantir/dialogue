@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Implement a tag to opt out of per-endpoint limits
+  links:
+  - https://github.com/palantir/dialogue/pull/2252
