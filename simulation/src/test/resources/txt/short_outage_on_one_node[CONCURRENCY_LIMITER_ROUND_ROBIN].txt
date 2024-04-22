@@ -1,2 +1,2 @@
-success=99.4%	client_mean=PT4.35103125S  	server_cpu=PT53M0.0000001S	client_received=1600/1600	server_resps=1600	codes={200=1590, 500=10}
-client=0 endpoint	client_mean=PT4.35103125S  
+success=99.4%	client_mean=PT3.973875S    	server_cpu=PT53M0.0000001S	client_received=1600/1600	server_resps=1600	codes={200=1590, 500=10}
+client=0 endpoint	client_mean=PT3.973875S    
