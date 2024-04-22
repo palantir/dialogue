@@ -83,7 +83,7 @@ public class CautiousIncreaseAggressiveDecreaseConcurrencyLimiterTest {
         }
 
         latestPermit.get().success();
-        assertThat(limiter.getLimit()).isEqualTo(20.05);
+        assertThat(limiter.getLimit()).isEqualTo(behavior.initialLimit() + 1D / behavior.initialLimit());
 
         // Now we can only acquire one extra permit, not 2
         assertThat(limiter.acquire(LimitEnforcement.DEFAULT_ENABLED)).isPresent();

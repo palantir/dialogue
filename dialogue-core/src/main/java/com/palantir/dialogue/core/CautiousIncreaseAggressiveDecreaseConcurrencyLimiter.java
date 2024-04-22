@@ -36,7 +36,7 @@ import java.util.function.DoubleBinaryOperator;
  * This limiter uses an algorithm similar to additive increase multiplicative decrease (AIMD) with
  * greater restriction on the increase component, requiring more successful requests to increase the limit
  * as the limit grows.
- *
+ * <p>
  * This class loosely based on the
  * <a href="https://github.com/Netflix/concurrency-limits">Netflix AIMD library</a>.
  */
@@ -44,18 +44,18 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
 
     private static final SafeLogger log =
             SafeLoggerFactory.get(CautiousIncreaseAggressiveDecreaseConcurrencyLimiter.class);
-    private static final double INITIAL_LIMIT = 20;
     private static final double BACKOFF_RATIO = .9D;
     private static final double MIN_LIMIT = 1;
     private static final double MAX_LIMIT = 1_000_000D;
 
-    private final AtomicDouble limit = new AtomicDouble(INITIAL_LIMIT);
+    private final AtomicDouble limit;
     private final AtomicInteger inFlight = new AtomicInteger();
 
     private final Behavior behavior;
 
     CautiousIncreaseAggressiveDecreaseConcurrencyLimiter(Behavior behavior) {
         this.behavior = behavior;
+        this.limit = new AtomicDouble(behavior.initialLimit());
     }
 
     /**
@@ -63,13 +63,13 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
      * current {@link #getLimit upper limit} of allowed concurrent permits. The caller is responsible for
      * eventually releasing the permit by calling exactly one of the {@link Permit#ignore}, {@link Permit#dropped},
      * or {@link Permit#success} methods.
-     *
+     * <p>
      * If the permit
      * is used in the context of a {@link Response Future&lt;Response&gt;} object, then passing the {@link Permit} as a
      * {@link FutureCallback callback} to the future will invoke either {@link Permit#onSuccess} or
      * {@link Permit#onFailure} which delegate to
      * ignore/dropped/success depending on the success or failure state of the response.
-     * */
+     */
     Optional<Permit> acquire(LimitEnforcement limitEnforcement) {
 
         // Capture the limit field reference once to avoid work in a tight loop. The JIT cannot
@@ -117,6 +117,11 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
                     control.ignore();
                 }
             }
+
+            @Override
+            double initialLimit() {
+                return 20D;
+            }
         },
         ENDPOINT_LEVEL() {
             @Override
@@ -134,6 +139,14 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
+
+            @Override
+            double initialLimit() {
+                // Endpoints use a larger limit than channels, since they may not be exercised as readily.
+                // When things go south, the limit may drop as needed, but it shouldn't provide much
+                // backpressure in isolation.
+                return 50D;
+            }
         },
         STICKY() {
             @Override
@@ -145,11 +158,18 @@ final class CautiousIncreaseAggressiveDecreaseConcurrencyLimiter {
             void onFailure(Throwable _throwable, PermitControl control) {
                 control.ignore();
             }
+
+            @Override
+            double initialLimit() {
+                return 20D;
+            }
         };
 
         abstract void onSuccess(Response result, PermitControl control);
 
         abstract void onFailure(Throwable throwable, PermitControl control);
+
+        abstract double initialLimit();
     }
 
     interface PermitControl {
