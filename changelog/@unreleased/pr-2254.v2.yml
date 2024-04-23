@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Provide a consistent exception when no dns records are resolved
+  links:
+  - https://github.com/palantir/dialogue/pull/2254
