@@ -74,7 +74,11 @@ final class NodeSelectionStrategyChannel implements LimitedChannel {
 
     static LimitedChannel create(Config cf, ImmutableList<LimitedChannel> channels) {
         if (channels.isEmpty()) {
-            return new StickyChannelHandler(new ZeroUriNodeSelectionChannel(cf.channelName()));
+            return new StickyChannelHandler(new ZeroUriNodeSelectionChannel(
+                    cf.channelName(),
+                    cf.rawConfig().uris().isEmpty()
+                            ? "There are no URIs configured to handle requests"
+                            : "Service not available (no addresses via DNS)"));
         }
 
         if (channels.size() == 1) {

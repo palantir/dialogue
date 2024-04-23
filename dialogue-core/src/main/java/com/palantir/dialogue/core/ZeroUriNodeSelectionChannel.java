@@ -18,29 +18,38 @@ package com.palantir.dialogue.core;
 
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.errorprone.annotations.CompileTimeConstant;
+import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Preconditions;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import java.util.Optional;
 
 /** When we have zero URIs, no request can get out the door. */
 final class ZeroUriNodeSelectionChannel implements LimitedChannel {
+    @Safe
     private final String channelName;
 
-    ZeroUriNodeSelectionChannel(String channelName) {
+    @CompileTimeConstant
+    private final String exceptionMessage;
+
+    ZeroUriNodeSelectionChannel(@Safe String channelName, @CompileTimeConstant String exceptionMessage) {
+        Preconditions.checkNotNull(exceptionMessage, "Exception message is required");
         this.channelName = Preconditions.checkNotNull(channelName, "Channel name is required");
+        this.exceptionMessage = exceptionMessage;
     }
 
     @Override
     public Optional<ListenableFuture<Response>> maybeExecute(
             Endpoint endpoint, Request _request, LimitEnforcement _limitEnforcement) {
-        return Optional.of(Futures.immediateFailedFuture(new SafeIllegalStateException(
-                "There are no URIs configured to handle requests",
+        return Optional.of(Futures.immediateFailedFuture(new DialogueException(new SafeIllegalStateException(
+                exceptionMessage,
                 SafeArg.of("channel", channelName),
                 SafeArg.of("service", endpoint.serviceName()),
-                SafeArg.of("endpoint", endpoint.endpointName()))));
+                SafeArg.of("endpoint", endpoint.endpointName())))));
     }
 }
