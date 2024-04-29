@@ -71,6 +71,7 @@ public class QueuedChannelTest {
         queuedChannel = new QueuedChannel(
                 delegate,
                 "my-channel",
+                "queue-type",
                 QueuedChannel.channelInstrumentation(
                         DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "my-channel"),
                 100_000);
@@ -181,6 +182,7 @@ public class QueuedChannelTest {
         queuedChannel = new QueuedChannel(
                 delegate,
                 "my-channel",
+                "queue-type",
                 QueuedChannel.channelInstrumentation(
                         DialogueClientMetrics.of(new DefaultTaggedMetricRegistry()), "my-channel"),
                 1);
@@ -196,8 +198,8 @@ public class QueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel =
-                new QueuedChannel(delegate, channelName, QueuedChannel.channelInstrumentation(metrics, channelName), 1);
+        queuedChannel = new QueuedChannel(
+                delegate, channelName, "queue-type", QueuedChannel.channelInstrumentation(metrics, channelName), 1);
 
         mockNoCapacity();
         queuedChannel.maybeExecute(endpoint, request);
@@ -211,8 +213,8 @@ public class QueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel =
-                new QueuedChannel(delegate, channelName, QueuedChannel.channelInstrumentation(metrics, channelName), 1);
+        queuedChannel = new QueuedChannel(
+                delegate, channelName, "queue-type", QueuedChannel.channelInstrumentation(metrics, channelName), 1);
 
         mockNoCapacity();
         assertThat(queuedChannel.maybeExecute(endpoint, request))
@@ -231,8 +233,8 @@ public class QueuedChannelTest {
         DialogueClientMetrics metrics = DialogueClientMetrics.of(new DefaultTaggedMetricRegistry());
         String channelName = "my-channel";
 
-        queuedChannel =
-                new QueuedChannel(delegate, channelName, QueuedChannel.channelInstrumentation(metrics, channelName), 1);
+        queuedChannel = new QueuedChannel(
+                delegate, channelName, "queue-type", QueuedChannel.channelInstrumentation(metrics, channelName), 1);
 
         mockNoCapacity();
         Optional<ListenableFuture<Response>> result = queuedChannel.maybeExecute(endpoint, request);
