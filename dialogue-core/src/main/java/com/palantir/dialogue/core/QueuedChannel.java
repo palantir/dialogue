@@ -30,12 +30,14 @@ import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.dialogue.core.LimitedChannel.LimitEnforcement;
 import com.palantir.dialogue.futures.DialogueFutures;
+import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.tracing.CloseableSpan;
 import com.palantir.tracing.DetachedSpan;
+import com.palantir.tracing.TagTranslator;
 import java.util.Deque;
 import java.util.Optional;
 import java.util.concurrent.CancellationException;
@@ -67,7 +69,12 @@ final class QueuedChannel implements Channel {
 
     private final Deque<DeferredCall> queuedCalls;
     private final NeverThrowLimitedChannel delegate;
+
+    @Safe
     private final String channelName;
+
+    @Safe
+    private final String queueType;
     // Tracks requests that are current executing in delegate and are not tracked in queuedCalls
     private final AtomicInteger queueSizeEstimate = new AtomicInteger(0);
     private final int maxQueueSize;
@@ -78,9 +85,15 @@ final class QueuedChannel implements Channel {
     // avoid creating unnecessary data.
     private volatile boolean shouldRecordQueueMetrics;
 
-    QueuedChannel(LimitedChannel delegate, String channelName, QueuedChannelInstrumentation metrics, int maxQueueSize) {
+    QueuedChannel(
+            LimitedChannel delegate,
+            @Safe String channelName,
+            @Safe String queueType,
+            QueuedChannelInstrumentation metrics,
+            int maxQueueSize) {
         this.delegate = new NeverThrowLimitedChannel(delegate);
         this.channelName = channelName;
+        this.queueType = queueType;
         // Do _not_ call size on a ConcurrentLinkedDeque. Unlike other collections, size is an O(n) operation.
         this.queuedCalls = new ProtectedConcurrentLinkedDeque<>();
         this.maxQueueSize = maxQueueSize;
@@ -98,13 +111,14 @@ final class QueuedChannel implements Channel {
             int maxQueueSize,
             QueuedChannelInstrumentation queuedChannelInstrumentation,
             LimitedChannel delegate) {
-        return new QueuedChannel(delegate, channelName, queuedChannelInstrumentation, maxQueueSize);
+        return new QueuedChannel(delegate, channelName, "sticky", queuedChannelInstrumentation, maxQueueSize);
     }
 
     static QueuedChannel create(Config cf, LimitedChannel delegate) {
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
+                "channel",
                 channelInstrumentation(
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()), cf.channelName()),
                 cf.maxQueueSize());
@@ -114,6 +128,7 @@ final class QueuedChannel implements Channel {
         return new QueuedChannel(
                 delegate,
                 cf.channelName(),
+                "endpoint",
                 endpointInstrumentation(
                         DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry()),
                         cf.channelName(),
@@ -231,7 +246,7 @@ final class QueuedChannel implements Channel {
         // request will be quickly cancelled in that case.
         if (queuedResponse.isDone()) {
             decrementQueueSize();
-            queueHead.span().complete();
+            queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
             queueHead.timer().stop();
             return true;
         }
@@ -243,7 +258,7 @@ final class QueuedChannel implements Channel {
             if (maybeResponse.isPresent()) {
                 decrementQueueSize();
                 ListenableFuture<Response> response = maybeResponse.get();
-                queueHead.span().complete();
+                queueHead.span().complete(QueuedChannelTagTranslator.INSTANCE, this);
                 queueHead.timer().stop();
                 DialogueFutures.addDirectCallback(response, new ForwardAndSchedule(queuedResponse));
                 DialogueFutures.addDirectListener(queuedResponse, () -> {
@@ -435,6 +450,16 @@ final class QueuedChannel implements Channel {
         @Override
         public Timer requestQueuedTime() {
             return requestQueuedTimeSupplier.get();
+        }
+    }
+
+    private enum QueuedChannelTagTranslator implements TagTranslator<QueuedChannel> {
+        INSTANCE;
+
+        @Override
+        public <T> void translate(TagAdapter<T> adapter, T target, QueuedChannel data) {
+            adapter.tag(target, "queue", data.queueType);
+            adapter.tag(target, "channel", data.channelName);
         }
     }
 }
