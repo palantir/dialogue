@@ -182,7 +182,8 @@ public final class ApacheHttpClientChannels {
                 InstrumentedPoolingHttpClientConnectionManager pool,
                 ScheduledFuture<?> connectionEvictorFuture,
                 ClientConfiguration clientConfiguration,
-                @Nullable ExecutorService executor) {
+                @Nullable ExecutorService executor,
+                Optional<DialogueDnsResolver> dnsResolver) {
             ResponseLeakDetector leakDetector =
                     ResponseLeakDetector.of(clientName, clientConfiguration.taggedMetricRegistry());
             CloseableClientImpl newInstance = new CloseableClientImpl(
@@ -192,7 +193,8 @@ public final class ApacheHttpClientChannels {
                     connectionEvictorFuture,
                     leakDetector,
                     executor,
-                    clientConfiguration);
+                    clientConfiguration,
+                    dnsResolver);
             if (log.isDebugEnabled()) {
                 // If debug is enabled, log the stack trace.
                 log.debug(
@@ -226,6 +228,8 @@ public final class ApacheHttpClientChannels {
         abstract ExecutorService executor();
 
         abstract ResponseLeakDetector leakDetector();
+
+        abstract Optional<DialogueDnsResolver> dnsResolver();
     }
 
     private static final class CloseableClientWrapper extends CloseableClient {
@@ -263,6 +267,11 @@ public final class ApacheHttpClientChannels {
         }
 
         @Override
+        Optional<DialogueDnsResolver> dnsResolver() {
+            return delegate.dnsResolver();
+        }
+
+        @Override
         public void close() throws IOException {
             delegate.close();
         }
@@ -281,6 +290,7 @@ public final class ApacheHttpClientChannels {
         private final InstrumentedPoolingHttpClientConnectionManager pool;
         private final ResponseLeakDetector leakDetector;
         private final ClientConfiguration clientConfiguration;
+        private final Optional<DialogueDnsResolver> dnsResolver;
 
         @Nullable
         private final ExecutorService executor;
@@ -294,13 +304,15 @@ public final class ApacheHttpClientChannels {
                 ScheduledFuture<?> connectionEvictorFuture,
                 ResponseLeakDetector leakDetector,
                 @Nullable ExecutorService executor,
-                ClientConfiguration clientConfiguration) {
+                ClientConfiguration clientConfiguration,
+                Optional<DialogueDnsResolver> dnsResolver) {
             this.clientName = clientName;
             this.apacheClient = apacheClient;
             this.pool = pool;
             this.leakDetector = leakDetector;
             this.executor = executor;
             this.clientConfiguration = clientConfiguration;
+            this.dnsResolver = dnsResolver;
             closer.register(() -> connectionEvictorFuture.cancel(true));
             closer.register(apacheClient);
             closer.register(pool::closeUnderlyingConnectionManager);
@@ -332,6 +344,11 @@ public final class ApacheHttpClientChannels {
         @Override
         ResponseLeakDetector leakDetector() {
             return leakDetector;
+        }
+
+        @Override
+        Optional<DialogueDnsResolver> dnsResolver() {
+            return dnsResolver;
         }
 
         @Override
@@ -586,7 +603,8 @@ public final class ApacheHttpClientChannels {
             CloseableHttpClient apacheClient = builder.build();
             ScheduledFuture<?> connectionEvictorFuture =
                     ScheduledIdleConnectionEvictor.schedule(connectionManager, Duration.ofSeconds(5));
-            return CloseableClient.wrap(apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor);
+            return CloseableClient.wrap(
+                    apacheClient, name, connectionManager, connectionEvictorFuture, conf, executor, dnsResolver);
         }
     }
 
