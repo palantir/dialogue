@@ -15,6 +15,7 @@
  */
 package com.palantir.dialogue.hc5;
 
+import com.codahale.metrics.Meter;
 import com.google.common.base.Strings;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
@@ -88,6 +89,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private final ResponseLeakDetector responseLeakDetector;
     private final OptionalInt uriIndexForInstrumentation;
     private final BooleanSupplier isValidTarget;
+    private final Meter shortCircuitMeter;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client,
@@ -100,10 +102,14 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         this.resolvedHost = resolvedHost;
         this.responseLeakDetector = responseLeakDetector;
         this.uriIndexForInstrumentation = uriIndexForInstrumentation;
+        this.shortCircuitMeter = DialogueClientMetrics.of(
+                        client.clientConfiguration().taggedMetricRegistry())
+                .shortCircuitUnresolvableTarget(client.name());
         if (resolvedHost.isPresent() && client.dnsResolver().isPresent()) {
+            InetAddress target = resolvedHost.get();
+            DialogueDnsResolver dnsResolver = client.dnsResolver().get();
             BooleanSupplier validTargetPredicate = Suppliers.memoizeWithExpiration(
-                            () -> isTargetValid(client.dnsResolver().get(), baseUrl, resolvedHost.get()),
-                            Duration.ofSeconds(1))::get;
+                    () -> isTargetValid(dnsResolver, baseUrl, target), Duration.ofSeconds(1))::get;
             // If the bound address is not initially resolvable, this predicate will be ignored.
             isValidTarget = validTargetPredicate.getAsBoolean() ? validTargetPredicate : () -> true;
         } else {
@@ -123,6 +129,7 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
         if (!isValidTarget.getAsBoolean()) {
+            shortCircuitMeter.mark();
             throw new SafeConnectException("Target address can no longer be resolved");
         }
 
