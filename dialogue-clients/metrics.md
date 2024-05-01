@@ -48,6 +48,9 @@ Dialogue client response metrics provided by the Apache client channel.
   - `client-name`
   - `client-type` values (`apache-hc5`)
   - `cipher`: The insecure cipher used to connect to this server
+- `dialogue.client.short.circuit.unresolvable.target` (meter): Rate that requests are immediately rejected due to an unresolvable target address.
+  - `client-name`
+  - `client-type` values (`apache-hc5`)
 
 ### dialogue.client.pool
 Connection pool metrics from the dialogue Apache client.
