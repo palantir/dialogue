@@ -30,6 +30,7 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -148,8 +149,32 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
+            Refreshable<ImmutableList<LimitedChannel>> channels = Refreshable.only(createHostChannels(cf, cf.uris()));
+
+            LimitedChannel nodeSelectionChannel = new SupplierLimitedChannel(
+                    channels.map(current -> NodeSelectionStrategyChannel.create(cf, current)));
+
+            LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
+
+            Channel multiHostQueuedChannel = QueuedChannel.create(cf, stickyValidationChannel);
+            EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
+
+            Supplier<Channel> stickyChannelSupplier =
+                    StickyEndpointChannels2.create(cf, stickyValidationChannel, channelFactory);
+
+            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+                    .create()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+            createMeter.mark();
+
+            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+        }
+
+        private static ImmutableList<LimitedChannel> createHostChannels(Config cf, List<TargetUri> targetUris) {
             ImmutableList.Builder<LimitedChannel> perUriChannels = ImmutableList.builder();
-            for (int uriIndex = 0; uriIndex < cf.uris().size(); uriIndex++) {
+            for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
                 TargetUri targetUri = cf.uris().get(uriIndex);
@@ -178,25 +203,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                         : new ChannelToLimitedChannelAdapter(channel);
                 perUriChannels.add(limitedChannel);
             }
-            ImmutableList<LimitedChannel> channels = perUriChannels.build();
-
-            LimitedChannel nodeSelectionChannel =
-                    new StickyValidationChannel(NodeSelectionStrategyChannel.create(cf, channels));
-
-            Channel multiHostQueuedChannel = QueuedChannel.create(cf, nodeSelectionChannel);
-            EndpointChannelFactory channelFactory = createEndpointChannelFactory(multiHostQueuedChannel, cf);
-
-            Supplier<Channel> stickyChannelSupplier =
-                    StickyEndpointChannels2.create(cf, nodeSelectionChannel, channelFactory);
-
-            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
-                    .create()
-                    .clientName(cf.channelName())
-                    .clientType("dialogue-channel-non-reloading")
-                    .build();
-            createMeter.mark();
-
-            return new DialogueChannel(cf, channelFactory, stickyChannelSupplier);
+            return perUriChannels.build();
         }
 
         private static EndpointChannelFactory createEndpointChannelFactory(Channel multiHostQueuedChannel, Config cf) {
