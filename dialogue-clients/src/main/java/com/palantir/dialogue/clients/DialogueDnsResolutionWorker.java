@@ -130,6 +130,7 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
                     ImmutableDnsResolutionResults.of(inputState, Optional.of(resolvedHosts));
             SettableRefreshable<DnsResolutionResults<INPUT>> refreshable = receiver.get();
             if (refreshable != null) {
+                logResolvedStateChange(refreshable.get(), newResolvedState);
                 refreshable.update(newResolvedState);
             } else {
                 log.info(
@@ -138,6 +139,36 @@ final class DialogueDnsResolutionWorker<INPUT> implements Runnable {
             }
             long end = System.nanoTime();
             updateTimer.update(end - start, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private void logResolvedStateChange(
+            DnsResolutionResults<INPUT> currentResolvedState, DnsResolutionResults<INPUT> newResolvedState) {
+        if (currentResolvedState == null && newResolvedState == null) {
+            return;
+        }
+
+        if (currentResolvedState == null || newResolvedState == null) {
+            log.info("One or more resolved host addresses have changed");
+            return;
+        }
+
+        if (currentResolvedState.resolvedHosts().isEmpty()
+                && newResolvedState.resolvedHosts().isEmpty()) {
+            return;
+        }
+
+        if (currentResolvedState.resolvedHosts().isEmpty()
+                || newResolvedState.resolvedHosts().isEmpty()) {
+            log.info("One or more resolved host addresses have changed");
+            return;
+        }
+
+        if (!currentResolvedState
+                .resolvedHosts()
+                .get()
+                .equals(newResolvedState.resolvedHosts().get())) {
+            log.info("One or more resolved host addresses have changed");
         }
     }
 
