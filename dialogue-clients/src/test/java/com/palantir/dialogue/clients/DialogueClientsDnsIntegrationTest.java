@@ -177,6 +177,8 @@ public class DialogueClientsDnsIntegrationTest {
         }
     }
 
+    // getNonReloading overload with ClientConfiguration is deprecated
+    @SuppressWarnings("deprecation")
     @Test
     void dns_refresh_updates_in_flight_requests() throws UnknownHostException {
         Duration dnsRefreshInterval = Duration.ofMillis(50);
@@ -190,7 +192,9 @@ public class DialogueClientsDnsIntegrationTest {
         dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 2}));
 
         TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
-        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+        Counter activeTasks = ClientDnsMetrics.of(metrics)
+                .tasks(DnsPollingSpec.clientConfig("dialogue-nonreloading-" + SampleServiceAsync.class.getSimpleName())
+                        .kind());
 
         List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
         Undertow undertow = Undertow.builder()
@@ -202,21 +206,19 @@ public class DialogueClientsDnsIntegrationTest {
         undertow.start();
         try {
             DialogueClients.ReloadingFactory factory = DialogueClients.create(
-                            Refreshable.only(ServicesConfigBlock.builder()
-                                    .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                                    .putServices(
-                                            "foo",
-                                            PartialServiceConfiguration.builder()
-                                                    .addUris(getUri(undertow, hostOne) + "/one")
-                                                    .build())
-                                    .build()))
+                            Refreshable.only(ServicesConfigBlock.empty()))
                     .withDnsNodeDiscovery(true)
                     .withDnsResolver(dnsResolver)
                     .withDnsRefreshInterval(dnsRefreshInterval)
                     .withUserAgent(TestConfigurations.AGENT)
                     .withTaggedMetrics(metrics);
 
-            SampleServiceAsync asyncClient = factory.get(SampleServiceAsync.class, "foo");
+            SampleServiceAsync asyncClient = factory.getNonReloading(
+                    SampleServiceAsync.class,
+                    ClientConfigurations.of(
+                            ImmutableList.of(getUri(undertow, hostOne) + "/one"),
+                            SslSocketFactories.createSslSocketFactory(TestConfigurations.SSL_CONFIG),
+                            SslSocketFactories.createX509TrustManager(TestConfigurations.SSL_CONFIG)));
             ListenableFuture<Void> requestFuture = asyncClient.voidToVoid();
 
             assertThat(requestFuture.isDone()).isFalse();
