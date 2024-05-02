@@ -79,7 +79,9 @@ final class ContentDecodingChannel implements EndpointChannel {
         // compression should not be used in a service mesh, nor when load balancing
         // is handled by the client. Note that this will also opt out of response
         // compression when the target host resolves to multiple IP addresses.
-        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.uris().size() == 1;
+        // TODO(blaub): fixme - probably don't want get() here, maybe need to change this method to Supplier<Boolean>
+        // instead
+        return cf.mesh() == MeshMode.DEFAULT_NO_MESH && cf.uris().get().size() == 1;
     }
 
     @Override

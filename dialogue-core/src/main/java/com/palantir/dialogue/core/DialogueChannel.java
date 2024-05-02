@@ -92,7 +92,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
-        public Builder uris(List<TargetUri> value) {
+        public Builder uris(Refreshable<List<TargetUri>> value) {
             builder.uris(value);
             return this;
         }
@@ -149,7 +149,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            Refreshable<ImmutableList<LimitedChannel>> channels = Refreshable.only(createHostChannels(cf, cf.uris()));
+            Refreshable<ImmutableList<LimitedChannel>> channels =
+                    cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
 
             LimitedChannel nodeSelectionChannel = new SupplierLimitedChannel(
                     channels.map(current -> NodeSelectionStrategyChannel.create(cf, current)));
@@ -177,7 +178,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             for (int uriIndex = 0; uriIndex < targetUris.size(); uriIndex++) {
                 final int uriIndexForInstrumentation =
                         cf.overrideSingleHostIndex().orElse(uriIndex);
-                TargetUri targetUri = cf.uris().get(uriIndex);
+                TargetUri targetUri = targetUris.get(uriIndex);
                 Channel channel = cf.channelFactory()
                         .create(DialogueChannelFactory.ChannelArgs.builder()
                                 .uri(targetUri.uri())

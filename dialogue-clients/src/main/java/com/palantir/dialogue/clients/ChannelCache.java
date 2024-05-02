@@ -32,6 +32,7 @@ import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
+import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
@@ -148,7 +149,8 @@ final class ChannelCache {
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
-                .uris(channelCacheRequest.uris())
+                // TODO(blaub): need to figure out a way to make refreshable target uris part of the cache key
+                .uris(Refreshable.only(channelCacheRequest.uris()))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
                 .overrideHostIndex(channelCacheRequest.overrideHostIndex())
                 .build();

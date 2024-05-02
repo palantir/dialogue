@@ -24,6 +24,7 @@ import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalArgumentException;
 import com.palantir.random.SafeThreadLocalRandom;
+import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.OptionalInt;
 import java.util.Random;
@@ -43,15 +44,15 @@ interface Config {
     ClientConfiguration rawConfig();
 
     @Value.Default
-    default List<TargetUri> uris() {
-        return rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toList());
+    default Refreshable<List<TargetUri>> uris() {
+        return Refreshable.only(rawConfig().uris().stream().map(TargetUri::of).collect(Collectors.toList()));
     }
 
     @Value.Derived
     default ClientConfiguration clientConf() {
         return ClientConfiguration.builder()
                 .from(rawConfig())
-                .uris(uris().stream().map(TargetUri::uri).collect(Collectors.toList()))
+                .uris(uris().get().stream().map(TargetUri::uri).collect(Collectors.toList()))
                 .taggedMetricRegistry(rawConfig().taggedMetricRegistry())
                 .build();
     }
@@ -96,7 +97,7 @@ interface Config {
                 rawConfig().retryOnSocketException() == ClientConfiguration.RetryOnSocketException.ENABLED,
                 "Retries on socket exceptions cannot be disabled without disabling retries entirely.");
 
-        if (uris().size() > 1 && overrideSingleHostIndex().isPresent()) {
+        if (uris().get().size() > 1 && overrideSingleHostIndex().isPresent()) {
             throw new SafeIllegalArgumentException(
                     "overrideHostIndex is only permitted when there is a single uri",
                     SafeArg.of("numUris", rawConfig().uris().size()));

@@ -106,28 +106,23 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                 .dnsResolver(params.dnsResolver());
         params.blockingExecutor().ifPresent(clientBuilder::executor);
         ApacheHttpClientChannels.CloseableClient apacheClient = clientBuilder.build();
-        return new LiveReloadingChannel(
-                DnsSupport.pollForChanges(
+        return DialogueChannel.builder()
+                .channelName(channelName)
+                .clientConfiguration(clientConf)
+                .uris(DnsSupport.pollForChanges(
                                 params.dnsNodeDiscovery(),
                                 DnsPollingSpec.clientConfig(channelName),
                                 params.dnsResolver(),
                                 params.dnsRefreshInterval(),
                                 params.taggedMetrics(),
                                 Refreshable.only(clientConf))
-                        .map(dnsResult -> {
-                            ImmutableList<TargetUri> targets = getTargetUris(
-                                    channelName,
-                                    dnsResult.config().uris(),
-                                    dnsResult.config().proxy(),
-                                    dnsResult.resolvedHosts());
-                            return DialogueChannel.builder()
-                                    .channelName(channelName)
-                                    .clientConfiguration(dnsResult.config())
-                                    .uris(targets)
-                                    .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
-                                    .build();
-                        }),
-                params.runtime().clients());
+                        .map(dnsResult -> getTargetUris(
+                                channelName,
+                                dnsResult.config().uris(),
+                                dnsResult.config().proxy(),
+                                dnsResult.resolvedHosts())))
+                .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
+                .build();
     }
 
     @Value.Immutable
