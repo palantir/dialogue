@@ -38,12 +38,12 @@ import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
 import com.palantir.dialogue.Channel;
 import com.palantir.dialogue.Clients;
 import com.palantir.dialogue.ConjureRuntime;
-import com.palantir.dialogue.DialogueException;
 import com.palantir.dialogue.Endpoint;
 import com.palantir.dialogue.EndpointChannel;
 import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
+import com.palantir.dialogue.clients.ChannelCache.OverrideHostIndex;
 import com.palantir.dialogue.clients.DialogueClients.PerHostClientFactory;
 import com.palantir.dialogue.clients.DialogueClients.ReloadingFactory;
 import com.palantir.dialogue.clients.DialogueClients.StickyChannelFactory;
@@ -78,7 +78,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
@@ -180,24 +179,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     @Override
     public <T> T getNonReloading(Class<T> clazz, ServiceConfiguration serviceConf) {
         String channelName = ChannelNames.nonReloading(clazz, params);
-        Channel channel = new LiveReloadingChannel(
-                DnsSupport.pollForChanges(
-                                params.dnsNodeDiscovery(),
-                                DnsPollingSpec.serviceConfig(channelName),
-                                params.dnsResolver(),
-                                params.dnsRefreshInterval(),
-                                params.taggedMetrics(),
-                                Refreshable.only(serviceConf))
-                        .map(dnsResult -> {
-                            ImmutableList<TargetUri> targets = getTargetUris(
-                                    channelName,
-                                    dnsResult.config().uris(),
-                                    proxySelector(dnsResult.config().proxy()),
-                                    dnsResult.resolvedHosts());
-                            return cache.getNonReloadingChannel(
-                                    params, dnsResult.config(), targets, channelName, OptionalInt.empty());
-                        }),
-                params.runtime().clients());
+        Channel channel = cache.getNonReloadingChannel(params, serviceConf, channelName);
         return Reflection.callStaticFactoryMethod(clazz, channel, params.runtime());
     }
 
@@ -254,9 +236,8 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 cache.getNonReloadingChannel(
                                         params,
                                         singleUriServiceConf,
-                                        ImmutableList.of(targetUri),
                                         channelName,
-                                        OptionalInt.of(i)));
+                                        Optional.of(OverrideHostIndex.of(i, targetUri))));
                     }
                     return map.buildKeepingLast();
                 });
@@ -495,16 +476,25 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
     }
 
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
     private ImmutableList<TargetUri> getTargetUris(
             @Safe String serviceNameForLogging,
             Collection<String> uris,
             ProxySelector proxySelector,
             Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts) {
+        return getTargetUris(serviceNameForLogging, uris, proxySelector, resolvedHosts, params.taggedMetrics());
+    }
+
+    @SuppressWarnings("checkstyle:CyclomaticComplexity")
+    static ImmutableList<TargetUri> getTargetUris(
+            @Safe String serviceNameForLogging,
+            Collection<String> uris,
+            ProxySelector proxySelector,
+            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts,
+            TaggedMetricRegistry metrics) {
         List<TargetUri> targetUris = new ArrayList<>();
         boolean failedToParse = false;
         for (String uri : uris) {
-            URI parsed = tryParseUri(params.taggedMetrics(), serviceNameForLogging, uri);
+            URI parsed = tryParseUri(metrics, serviceNameForLogging, uri);
             if (parsed == null || parsed.getHost() == null) {
                 failedToParse = true;
                 continue;
@@ -543,7 +533,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return ImmutableSet.copyOf(targetUris).asList();
     }
 
-    private static ProxySelector proxySelector(Optional<ProxyConfiguration> proxyConfiguration) {
+    static ProxySelector proxySelector(Optional<ProxyConfiguration> proxyConfiguration) {
         return proxyConfiguration.map(ClientConfigurations::createProxySelector).orElseGet(ProxySelector::getDefault);
     }
 
@@ -551,40 +541,29 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return configurationForService(serviceName).map(conf -> {
-            Preconditions.checkNotNull(
-                    conf, "Refreshable must not provide a null InternalDialogueChannelConfiguration");
+        return configurationForService(serviceName)
+                .map(InternalDialogueChannelConfiguration::serviceConfiguration)
+                .map(maybeServiceConf -> {
+                    Preconditions.checkNotNull(
+                            maybeServiceConf, "Refreshable must not provide a null ServiceConfiguration");
 
-            Optional<ServiceConfiguration> maybeServiceConf = conf.serviceConfiguration();
+                    if (maybeServiceConf.isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured (config block not present)",
+                                SafeArg.of("serviceName", serviceName)));
+                    }
 
-            if (maybeServiceConf.isEmpty()) {
-                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (config block not present)", SafeArg.of("serviceName", serviceName)));
-            }
+                    ServiceConfiguration serviceConf = maybeServiceConf.get();
 
-            ServiceConfiguration serviceConf = maybeServiceConf.get();
+                    // Verify URIs are present (regardless of whether they can be DNS resolved)
+                    if (serviceConf.uris().isEmpty()) {
+                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                                "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
+                    }
 
-            // Verify URIs are present (regardless of whether they can be DNS resolved)
-            if (serviceConf.uris().isEmpty()) {
-                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                        "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
-            }
-
-            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts = conf.resolvedHosts();
-            List<TargetUri> targetUris =
-                    getTargetUris(serviceName, serviceConf.uris(), proxySelector(serviceConf.proxy()), resolvedHosts);
-
-            if (targetUris.isEmpty()) {
-                return new EmptyInternalDialogueChannel(() -> new DialogueException(new SafeUnknownHostException(
-                        "Service not available (no addresses via DNS)",
-                        SafeArg.of("serviceName", serviceName),
-                        UnsafeArg.of("uris", serviceConf.uris()))));
-            }
-
-            DialogueChannel dialogueChannel =
-                    cache.getNonReloadingChannel(params, serviceConf, targetUris, channelName, OptionalInt.empty());
-            return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
-        });
+                    DialogueChannel dialogueChannel = cache.getNonReloadingChannel(params, serviceConf, channelName);
+                    return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
+                });
     }
 
     private static boolean usesProxy(ProxySelector proxySelector, URI uri) {

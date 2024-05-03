@@ -29,16 +29,17 @@ import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.Unsafe;
 import com.palantir.logsafe.exceptions.SafeRuntimeException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -107,9 +108,15 @@ final class ChannelCache {
     DialogueChannel getNonReloadingChannel(
             ReloadingClientFactory.ReloadingParams reloadingParams,
             ServiceConfiguration serviceConf,
-            List<TargetUri> uris,
+            @Safe String channelName) {
+        return getNonReloadingChannel(reloadingParams, serviceConf, channelName, Optional.empty());
+    }
+
+    DialogueChannel getNonReloadingChannel(
+            ReloadingClientFactory.ReloadingParams reloadingParams,
+            ServiceConfiguration serviceConf,
             @Safe String channelName,
-            OptionalInt overrideHostIndex) {
+            Optional<OverrideHostIndex> overrideHostIndex) {
         if (log.isWarnEnabled()) {
             long estimatedSize = channelCache.estimatedSize();
             if (estimatedSize >= MAX_CACHED_CHANNELS * 0.75) {
@@ -125,10 +132,11 @@ final class ChannelCache {
                 .from(reloadingParams)
                 .blockingExecutor(reloadingParams.blockingExecutor())
                 .serviceConf(serviceConf)
-                .uris(uris)
                 .channelName(channelName)
                 .overrideHostIndex(overrideHostIndex)
                 .dnsResolver(reloadingParams.dnsResolver())
+                .dnsRefreshInterval(reloadingParams.dnsRefreshInterval())
+                .dnsNodeDiscovery(overrideHostIndex.isEmpty() && reloadingParams.dnsNodeDiscovery())
                 .build());
     }
 
@@ -143,16 +151,38 @@ final class ChannelCache {
 
         ApacheCacheEntry apacheClient = getApacheClient(request);
 
+        Refreshable<List<TargetUri>> targets;
+        if (channelCacheRequest.overrideHostIndex().isPresent()) {
+            targets = Refreshable.only(
+                    List.of(channelCacheRequest.overrideHostIndex().get().target()));
+        } else {
+            DnsPollingSpec<ServiceConfiguration> spec = DnsPollingSpec.serviceConfig(channelCacheRequest.channelName());
+            targets = DnsSupport.pollForChanges(
+                            channelCacheRequest.dnsNodeDiscovery(),
+                            spec,
+                            channelCacheRequest.dnsResolver(),
+                            channelCacheRequest.dnsRefreshInterval(),
+                            channelCacheRequest.taggedMetrics(),
+                            Refreshable.only(channelCacheRequest.serviceConf()))
+                    .map(dnsResolutionResults -> ReloadingClientFactory.getTargetUris(
+                            channelCacheRequest.channelName(),
+                            channelCacheRequest.serviceConf().uris(),
+                            ReloadingClientFactory.proxySelector(
+                                    channelCacheRequest.serviceConf().proxy()),
+                            dnsResolutionResults.resolvedHosts(),
+                            channelCacheRequest.taggedMetrics()));
+        }
         return DialogueChannel.builder()
                 .channelName(channelCacheRequest.channelName())
                 .clientConfiguration(ClientConfiguration.builder()
                         .from(apacheClient.conf())
                         .uris(channelCacheRequest.serviceConf().uris()) // restore uris
                         .build())
-                // TODO(blaub): need to figure out a way to make refreshable target uris part of the cache key
-                .uris(Refreshable.only(channelCacheRequest.uris()))
+                .uris(targets)
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient.client()))
-                .overrideHostIndex(channelCacheRequest.overrideHostIndex())
+                .overrideHostIndex(channelCacheRequest.overrideHostIndex().stream()
+                        .mapToInt(OverrideHostIndex::index)
+                        .findAny())
                 .build();
     }
 
@@ -233,15 +263,31 @@ final class ChannelCache {
     interface ChannelCacheKey extends AugmentClientConfig {
         ServiceConfiguration serviceConf();
 
-        List<TargetUri> uris();
-
         Optional<ExecutorService> blockingExecutor();
 
         String channelName();
 
-        OptionalInt overrideHostIndex();
+        Optional<OverrideHostIndex> overrideHostIndex();
 
         DialogueDnsResolver dnsResolver();
+
+        Duration dnsRefreshInterval();
+
+        boolean dnsNodeDiscovery();
+    }
+
+    @Unsafe
+    @Value.Immutable
+    interface OverrideHostIndex {
+        @Value.Parameter(order = 0)
+        int index();
+
+        @Value.Parameter(order = 1)
+        TargetUri target();
+
+        static OverrideHostIndex of(int index, TargetUri target) {
+            return ImmutableOverrideHostIndex.of(index, target);
+        }
     }
 
     @DoNotLog
