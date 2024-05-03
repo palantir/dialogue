@@ -20,17 +20,13 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.conjure.java.api.config.service.ServiceConfigurationFactory;
 import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
 import com.palantir.conjure.java.api.config.service.UserAgent;
 import com.palantir.conjure.java.client.config.ClientConfiguration;
-import com.palantir.conjure.java.client.config.ClientConfigurations;
 import com.palantir.conjure.java.client.config.HostEventsSink;
 import com.palantir.conjure.java.client.config.NodeSelectionStrategy;
 import com.palantir.conjure.java.dialogue.serde.DefaultConjureRuntime;
@@ -55,33 +51,22 @@ import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
 import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
-import com.palantir.logsafe.Safe;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
-import com.palantir.logsafe.UnsafeArg;
 import com.palantir.logsafe.exceptions.SafeIllegalStateException;
 import com.palantir.logsafe.logger.SafeLogger;
 import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import com.palantir.tritium.metrics.registry.TaggedMetricRegistry;
-import java.net.InetAddress;
-import java.net.Proxy;
-import java.net.ProxySelector;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.security.Provider;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import javax.annotation.Nullable;
 import org.immutables.value.Value;
 
 final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
@@ -113,11 +98,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                                 params.dnsRefreshInterval(),
                                 params.taggedMetrics(),
                                 Refreshable.only(clientConf))
-                        .map(dnsResult -> getTargetUris(
+                        .map(dnsResult -> DnsSupport.getTargetUris(
                                 channelName,
                                 dnsResult.config().uris(),
                                 dnsResult.config().proxy(),
-                                dnsResult.resolvedHosts())))
+                                dnsResult.resolvedHosts(),
+                                params.taggedMetrics())))
                 .factory(args -> ApacheHttpClientChannels.createSingleUri(args, apacheClient))
                 .build();
     }
@@ -198,11 +184,12 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     if (serviceConfiguration == null) {
                         return ImmutableMap.of();
                     }
-                    List<TargetUri> targetUris = getTargetUris(
+                    List<TargetUri> targetUris = DnsSupport.getTargetUris(
                             channelName,
                             serviceConfiguration.uris(),
-                            proxySelector(serviceConfiguration.proxy()),
-                            block.resolvedHosts());
+                            DnsSupport.proxySelector(serviceConfiguration.proxy()),
+                            block.resolvedHosts(),
+                            params.taggedMetrics());
 
                     if (targetUris.isEmpty()) {
                         return ImmutableMap.of();
@@ -450,67 +437,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         });
     }
 
-    private ImmutableList<TargetUri> getTargetUris(
-            @Safe String serviceNameForLogging,
-            Collection<String> uris,
-            ProxySelector proxySelector,
-            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts) {
-        return getTargetUris(serviceNameForLogging, uris, proxySelector, resolvedHosts, params.taggedMetrics());
-    }
-
-    @SuppressWarnings("checkstyle:CyclomaticComplexity")
-    static ImmutableList<TargetUri> getTargetUris(
-            @Safe String serviceNameForLogging,
-            Collection<String> uris,
-            ProxySelector proxySelector,
-            Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts,
-            TaggedMetricRegistry metrics) {
-        List<TargetUri> targetUris = new ArrayList<>();
-        boolean failedToParse = false;
-        for (String uri : uris) {
-            URI parsed = tryParseUri(metrics, serviceNameForLogging, uri);
-            if (parsed == null || parsed.getHost() == null) {
-                failedToParse = true;
-                continue;
-            }
-            // When resolvedHosts is an empty optional, dns-based discovery is not supported.
-            // Mesh mode does not require any form of dns updating because all dns results
-            // are considered equivalent.
-            // When a proxy is used, pre-resolved IP addresses have no impact. In many cases the
-            // proxy handles DNS resolution.
-            if (resolvedHosts.isEmpty() || DnsSupport.isMeshMode(uri) || usesProxy(proxySelector, parsed)) {
-                targetUris.add(TargetUri.of(uri));
-            } else {
-                String host = parsed.getHost();
-                Set<InetAddress> resolvedAddresses = resolvedHosts.get().get(host);
-                if (resolvedAddresses.isEmpty()) {
-                    log.info(
-                            "Resolved no addresses for host '{}' of service '{}'",
-                            UnsafeArg.of("host", host),
-                            SafeArg.of("service", serviceNameForLogging));
-                }
-                for (InetAddress addr : resolvedAddresses) {
-                    targetUris.add(
-                            TargetUri.builder().uri(uri).resolvedAddress(addr).build());
-                }
-            }
-        }
-        if (targetUris.isEmpty() && failedToParse) {
-            // Handle cases like "host:-1", but only when _all_ uris are invalid
-            log.warn(
-                    "Failed to parse all URIs, falling back to legacy DNS approach for service '{}'",
-                    SafeArg.of("service", serviceNameForLogging));
-            for (String uri : uris) {
-                targetUris.add(TargetUri.of(uri));
-            }
-        }
-        return ImmutableSet.copyOf(targetUris).asList();
-    }
-
-    static ProxySelector proxySelector(Optional<ProxyConfiguration> proxyConfiguration) {
-        return proxyConfiguration.map(ClientConfigurations::createProxySelector).orElseGet(ProxySelector::getDefault);
-    }
-
     private Refreshable<InternalDialogueChannel> getInternalDialogueChannel(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
@@ -538,41 +464,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                     DialogueChannel dialogueChannel = cache.getNonReloadingChannel(params, serviceConf, channelName);
                     return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
                 });
-    }
-
-    private static boolean usesProxy(ProxySelector proxySelector, URI uri) {
-        try {
-            List<Proxy> proxies = proxySelector.select(uri);
-            return !proxies.stream().allMatch(proxy -> Proxy.Type.DIRECT.equals(proxy.type()));
-        } catch (RuntimeException e) {
-            // Fall back to the simple path without scheduling recurring DNS resolution.
-            return true;
-        }
-    }
-
-    @Nullable
-    private static URI tryParseUri(TaggedMetricRegistry metrics, @Safe String serviceName, @Unsafe String uri) {
-        try {
-            URI result = new URI(uri);
-            if (result.getHost() == null) {
-                log.error(
-                        "Failed to correctly parse URI {} for service {} due to null host component. "
-                                + "This usually occurs due to invalid characters causing information to be "
-                                + "parsed in the wrong uri component, often the host info lands in the authority.",
-                        UnsafeArg.of("uri", uri),
-                        SafeArg.of("service", serviceName));
-                ClientUriMetrics.of(metrics).invalid(serviceName).mark();
-            }
-            return result;
-        } catch (URISyntaxException | RuntimeException e) {
-            log.error(
-                    "Failed to parse URI {} for service {}",
-                    UnsafeArg.of("uri", uri),
-                    SafeArg.of("service", serviceName),
-                    e);
-            ClientUriMetrics.of(metrics).invalid(serviceName).mark();
-            return null;
-        }
     }
 
     @Unsafe
