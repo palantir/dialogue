@@ -22,7 +22,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSetMultimap;
-import com.google.common.collect.Multimaps;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.palantir.conjure.java.api.config.service.ProxyConfiguration;
@@ -76,7 +75,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -128,21 +126,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     interface ReloadingParams extends AugmentClientConfig {
 
         Refreshable<ServicesConfigBlock> scb();
-
-        /**
-         * We use a lazy field here in order to avoid scheduling background work for each stage of
-         * ReloadingClientFactory configuration, e.g. {@code factory.withUserAgent(agent).withTaggedMetrics(registry)}.
-         */
-        @Value.Lazy
-        default Refreshable<DnsResolutionResults<ServicesConfigBlock>> resolvedConfig() {
-            return DnsSupport.pollForChanges(
-                    dnsNodeDiscovery(),
-                    DnsPollingSpec.RELOADING_FACTORY,
-                    dnsResolver(),
-                    dnsRefreshInterval(),
-                    taggedMetrics(),
-                    scb());
-        }
 
         @Value.Default
         default ConjureRuntime runtime() {
@@ -202,20 +185,24 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = configurationForService(serviceName)
+        Refreshable<Map<PerHostTarget, Channel>> perHostChannels = DnsSupport.pollForChanges(
+                        params.dnsNodeDiscovery(),
+                        DnsPollingSpec.optionalServiceConfig(channelName),
+                        params.dnsResolver(),
+                        params.dnsRefreshInterval(),
+                        params.taggedMetrics(),
+                        configurationForService(serviceName)
+                                .map(InternalDialogueChannelConfiguration::serviceConfiguration))
                 .map(block -> {
-                    ServiceConfiguration serviceConfiguration =
-                            block.serviceConfiguration().orElse(null);
+                    ServiceConfiguration serviceConfiguration = block.config().orElse(null);
                     if (serviceConfiguration == null) {
                         return ImmutableMap.of();
                     }
-
-                    Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts = block.resolvedHosts();
-                    ImmutableList<TargetUri> targetUris = getTargetUris(
-                            serviceName,
+                    List<TargetUri> targetUris = getTargetUris(
+                            channelName,
                             serviceConfiguration.uris(),
                             proxySelector(serviceConfiguration.proxy()),
-                            resolvedHosts);
+                            block.resolvedHosts());
 
                     if (targetUris.isEmpty()) {
                         return ImmutableMap.of();
@@ -442,36 +429,23 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
     private Refreshable<InternalDialogueChannelConfiguration> configurationForService(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
-        return params.resolvedConfig().map(block -> {
-            Preconditions.checkNotNull(block, "Refreshable must not provide a null ServicesConfigBlock");
-            if (!block.config().services().containsKey(serviceName)) {
-                return ImmutableInternalDialogueChannelConfiguration.of(
-                        Optional.empty(),
-                        params.dnsNodeDiscovery() ? Optional.of(ImmutableSetMultimap.of()) : Optional.empty());
+        return params.scb().map(config -> {
+            Preconditions.checkNotNull(config, "Refreshable must not provide a null ServicesConfigBlock");
+            if (!config.services().containsKey(serviceName)) {
+                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty());
             }
-
-            ServicesConfigBlock scb = block.config();
-            ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(scb);
+            ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(config);
             try {
                 // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
                 // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
                 ServiceConfiguration serviceConf = factory.get(serviceName);
-                ImmutableSet<String> hosts = extractHosts(params.taggedMetrics(), serviceName, serviceConf);
-                Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHostsForService = block.resolvedHosts()
-                        .map(resolvedHosts ->
-                                ImmutableSetMultimap.copyOf(Multimaps.filterKeys(resolvedHosts, hosts::contains)));
-                return ImmutableInternalDialogueChannelConfiguration.of(
-                        Optional.of(serviceConf), resolvedHostsForService);
+                return ImmutableInternalDialogueChannelConfiguration.of(Optional.of(serviceConf));
             } catch (RuntimeException e) {
                 log.warn(
                         "Failed to produce a ServiceConfigurationFactory for service {}",
                         SafeArg.of("service", serviceName),
                         e);
-                return ImmutableInternalDialogueChannelConfiguration.of(
-                        Optional.empty(),
-                        params.dnsNodeDiscovery()
-                                ? Optional.of(ImmutableSetMultimap.of())
-                                : Optional.<ImmutableSetMultimap<String, InetAddress>>empty());
+                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty());
             }
         });
     }
@@ -599,16 +573,6 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
             ClientUriMetrics.of(metrics).invalid(serviceName).mark();
             return null;
         }
-    }
-
-    private static ImmutableSet<String> extractHosts(
-            TaggedMetricRegistry metrics, @Safe String serviceName, ServiceConfiguration configuration) {
-        return configuration.uris().stream()
-                .map(uri -> tryParseUri(metrics, serviceName, uri))
-                .filter(Objects::nonNull)
-                .map(URI::getHost)
-                .filter(Objects::nonNull)
-                .collect(ImmutableSet.toImmutableSet());
     }
 
     @Unsafe
@@ -741,8 +705,5 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
     interface InternalDialogueChannelConfiguration {
         @Value.Parameter
         Optional<ServiceConfiguration> serviceConfiguration();
-
-        @Value.Parameter
-        Optional<ImmutableSetMultimap<String, InetAddress>> resolvedHosts();
     }
 }
