@@ -23,8 +23,7 @@ import com.google.common.collect.ImmutableSetMultimap;
 import com.google.common.collect.LinkedHashMultimap;
 import com.google.common.collect.SetMultimap;
 import com.google.common.util.concurrent.MoreExecutors;
-import com.palantir.conjure.java.api.config.service.PartialServiceConfiguration;
-import com.palantir.conjure.java.api.config.service.ServicesConfigBlock;
+import com.palantir.conjure.java.api.config.service.ServiceConfiguration;
 import com.palantir.dialogue.TestConfigurations;
 import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.util.MapBasedDnsResolver;
@@ -51,17 +50,15 @@ class DialogueDnsResolutionWorkerTest {
         DialogueDnsResolver resolver = new MapBasedDnsResolver(resolvedAddresses);
 
         String fooUri = "https://foo.com:12345/foo";
-        ServicesConfigBlock initialState = ServicesConfigBlock.builder()
-                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                .putServices(
-                        "foo",
-                        PartialServiceConfiguration.builder().addUris(fooUri).build())
+        ServiceConfiguration initialState = ServiceConfiguration.builder()
+                .security(TestConfigurations.SSL_CONFIG)
+                .addUris(fooUri)
                 .build();
-        SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
+        SettableRefreshable<ServiceConfiguration> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-        Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
+        Refreshable<DnsResolutionResults<ServiceConfiguration>> receiverRefreshable = DnsSupport.pollForChanges(
                 true,
-                DnsPollingSpec.RELOADING_FACTORY,
+                DnsPollingSpec.serviceConfig("foo"),
                 executorService,
                 resolver,
                 Duration.ofMillis(500),
@@ -108,17 +105,15 @@ class DialogueDnsResolutionWorkerTest {
                 .build());
 
         String fooUri = "https://foo.com:12345/foo";
-        ServicesConfigBlock initialState = ServicesConfigBlock.builder()
-                .defaultSecurity(TestConfigurations.SSL_CONFIG)
-                .putServices(
-                        "foo",
-                        PartialServiceConfiguration.builder().addUris(fooUri).build())
+        ServiceConfiguration initialState = ServiceConfiguration.builder()
+                .security(TestConfigurations.SSL_CONFIG)
+                .addUris(fooUri)
                 .build();
-        SettableRefreshable<ServicesConfigBlock> inputRefreshable = Refreshable.create(initialState);
+        SettableRefreshable<ServiceConfiguration> inputRefreshable = Refreshable.create(initialState);
         ScheduledExecutorService executorService = Executors.newSingleThreadScheduledExecutor();
-        Refreshable<DnsResolutionResults<ServicesConfigBlock>> receiverRefreshable = DnsSupport.pollForChanges(
+        Refreshable<DnsResolutionResults<ServiceConfiguration>> receiverRefreshable = DnsSupport.pollForChanges(
                 true,
-                DnsPollingSpec.RELOADING_FACTORY,
+                DnsPollingSpec.serviceConfig("service"),
                 executorService,
                 resolver,
                 Duration.ofMillis(500),
@@ -135,13 +130,9 @@ class DialogueDnsResolutionWorkerTest {
                     .anyMatch(InetAddress::isLoopbackAddress);
 
             String barUri = "https://bar.com:12345/bar";
-            ServicesConfigBlock newState = ServicesConfigBlock.builder()
+            ServiceConfiguration newState = ServiceConfiguration.builder()
                     .from(initialState)
-                    .putServices(
-                            "bar",
-                            PartialServiceConfiguration.builder()
-                                    .addUris(barUri)
-                                    .build())
+                    .addUris(barUri)
                     .build();
 
             inputRefreshable.update(newState);
