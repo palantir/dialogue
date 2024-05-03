@@ -177,10 +177,87 @@ public class DialogueClientsDnsIntegrationTest {
         }
     }
 
+    @Test
+    void dns_refresh_updates_in_flight_requests_reloading_channel() throws UnknownHostException {
+        Duration dnsRefreshInterval = Duration.ofMillis(50);
+        String hostOne = "hostone";
+
+        SetMultimap<String, InetAddress> dnsEntries =
+                SetMultimapBuilder.linkedHashKeys().linkedHashSetValues().build();
+        DialogueDnsResolver dnsResolver = new MapBasedDnsResolver(dnsEntries);
+
+        // bad address
+        dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 2}));
+
+        TaggedMetricRegistry metrics = new DefaultTaggedMetricRegistry();
+        Counter activeTasks = ClientDnsMetrics.of(metrics).tasks(DnsPollingSpec.RELOADING_FACTORY.kind());
+
+        List<String> requestPaths = Collections.synchronizedList(new ArrayList<>());
+        Undertow undertow = Undertow.builder()
+                .addHttpListener(0, "localhost", new BlockingHandler(exchange -> {
+                    requestPaths.add(exchange.getRequestPath());
+                    exchange.setStatusCode(200);
+                }))
+                .build();
+        undertow.start();
+        try {
+            DialogueClients.ReloadingFactory factory = DialogueClients.create(
+                            Refreshable.only(ServicesConfigBlock.builder()
+                                    .defaultSecurity(TestConfigurations.SSL_CONFIG)
+                                    .putServices(
+                                            "foo",
+                                            PartialServiceConfiguration.builder()
+                                                    .addUris(getUri(undertow, hostOne) + "/one")
+                                                    .build())
+                                    .build()))
+                    .withDnsNodeDiscovery(true)
+                    .withDnsResolver(dnsResolver)
+                    .withDnsRefreshInterval(dnsRefreshInterval)
+                    .withUserAgent(TestConfigurations.AGENT)
+                    .withTaggedMetrics(metrics);
+
+            SampleServiceAsync asyncClient = factory.get(SampleServiceAsync.class, "foo");
+            ListenableFuture<Void> requestFuture = asyncClient.voidToVoid();
+
+            assertThat(requestFuture.isDone()).isFalse();
+
+            assertThat(activeTasks.getCount()).isEqualTo(1);
+
+            // Ensure the dns update thread sticks around after a GC
+            System.gc();
+
+            // good address
+            dnsEntries.removeAll(hostOne);
+            dnsEntries.put(hostOne, InetAddress.getByAddress(hostOne, new byte[] {127, 0, 0, 1}));
+
+            // Ensure the subsequent code has a chance to push updates after waiting for
+            // a dns refresh task to begin.
+            Uninterruptibles.sleepUninterruptibly(dnsRefreshInterval.plus(Duration.ofMillis(100)));
+
+            // don't make another request, we want the first one to eventually succeed
+            try {
+                requestFuture.get();
+            } catch (ExecutionException | InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+
+            assertThat(requestFuture.isDone()).isTrue();
+            assertThat(requestPaths).containsExactly("/one/voidToVoid");
+
+            // Ensure the dns update task sticks around after a GC
+            System.gc();
+            assertThat(activeTasks.getCount())
+                    .as("Background refresh task should still be polling")
+                    .isEqualTo(1);
+        } finally {
+            undertow.stop();
+        }
+    }
+
     // getNonReloading overload with ClientConfiguration is deprecated
     @SuppressWarnings("deprecation")
     @Test
-    void dns_refresh_updates_in_flight_requests() throws UnknownHostException {
+    void dns_refresh_updates_in_flight_requests_nonreloading_channel() throws UnknownHostException {
         Duration dnsRefreshInterval = Duration.ofMillis(50);
         String hostOne = "hostone";
 
@@ -240,7 +317,6 @@ public class DialogueClientsDnsIntegrationTest {
             try {
                 requestFuture.get();
             } catch (ExecutionException | InterruptedException e) {
-                // TODO(blaub): wat
                 throw new RuntimeException(e);
             }
 
