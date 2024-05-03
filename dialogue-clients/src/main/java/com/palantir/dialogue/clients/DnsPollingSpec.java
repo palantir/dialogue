@@ -65,42 +65,94 @@ interface DnsPollingSpec<INPUT> {
     };
 
     static DnsPollingSpec<ClientConfiguration> clientConfig(@Safe String channelName) {
-        return new DnsPollingSpec<>() {
-
-            @Override
-            public String kind() {
-                return channelName;
-            }
-
-            @Override
-            public Stream<String> extractUris(ClientConfiguration input) {
-                return input.uris().stream();
-            }
-
-            @Override
-            public List<@Safe String> describeHostname(ClientConfiguration _configuration, String _uri) {
-                return ImmutableList.of(kind());
-            }
-        };
+        return new ClientConfigurationDnsPollingSpec(channelName);
     }
 
     static DnsPollingSpec<ServiceConfiguration> serviceConfig(@Safe String channelName) {
-        return new DnsPollingSpec<>() {
+        return new ServiceConfigurationDnsPollingSpec(channelName);
+    }
 
-            @Override
-            public String kind() {
-                return channelName;
+    final class ClientConfigurationDnsPollingSpec implements DnsPollingSpec<ClientConfiguration> {
+
+        private final @Safe String channelName;
+
+        ClientConfigurationDnsPollingSpec(@Safe String channelName) {
+            this.channelName = channelName;
+        }
+
+        @Override
+        public String kind() {
+            return channelName;
+        }
+
+        @Override
+        public Stream<String> extractUris(ClientConfiguration input) {
+            return input.uris().stream();
+        }
+
+        @Override
+        public List<@Safe String> describeHostname(ClientConfiguration _configuration, String _uri) {
+            return ImmutableList.of(kind());
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
             }
 
-            @Override
-            public Stream<String> extractUris(ServiceConfiguration input) {
-                return input.uris().stream();
+            ClientConfigurationDnsPollingSpec that = (ClientConfigurationDnsPollingSpec) other;
+            return channelName.equals(that.channelName);
+        }
+
+        @Override
+        public int hashCode() {
+            return channelName.hashCode();
+        }
+    }
+
+    final class ServiceConfigurationDnsPollingSpec implements DnsPollingSpec<ServiceConfiguration> {
+
+        private final @Safe String channelName;
+
+        ServiceConfigurationDnsPollingSpec(@Safe String channelName) {
+            this.channelName = channelName;
+        }
+
+        @Override
+        public String kind() {
+            return channelName;
+        }
+
+        @Override
+        public Stream<String> extractUris(ServiceConfiguration input) {
+            return input.uris().stream();
+        }
+
+        @Override
+        public List<@Safe String> describeHostname(ServiceConfiguration _configuration, String _uri) {
+            return ImmutableList.of(kind());
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) {
+                return true;
+            }
+            if (other == null || getClass() != other.getClass()) {
+                return false;
             }
 
-            @Override
-            public List<@Safe String> describeHostname(ServiceConfiguration _configuration, String _uri) {
-                return ImmutableList.of(kind());
-            }
-        };
+            ServiceConfigurationDnsPollingSpec that = (ServiceConfigurationDnsPollingSpec) other;
+            return channelName.equals(that.channelName);
+        }
+
+        @Override
+        public int hashCode() {
+            return channelName.hashCode();
+        }
     }
 }
