@@ -92,6 +92,15 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             return this;
         }
 
+        /**
+         * Exists for backcompat, prefer {@link #uris( Refreshable)}.
+         * @deprecated prefer {@link #uris( Refreshable)}.
+         */
+        @Deprecated
+        public Builder uris(List<TargetUri> value) {
+            return uris(Refreshable.only(value));
+        }
+
         public Builder uris(Refreshable<List<TargetUri>> value) {
             builder.uris(value);
             return this;
