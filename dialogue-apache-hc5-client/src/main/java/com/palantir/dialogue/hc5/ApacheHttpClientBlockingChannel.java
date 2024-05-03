@@ -15,9 +15,6 @@
  */
 package com.palantir.dialogue.hc5;
 
-import com.codahale.metrics.Meter;
-import com.google.common.base.Strings;
-import com.google.common.base.Suppliers;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ListMultimap;
 import com.google.common.collect.MultimapBuilder;
@@ -32,7 +29,6 @@ import com.palantir.dialogue.Response;
 import com.palantir.dialogue.ResponseAttachments;
 import com.palantir.dialogue.blocking.BlockingChannel;
 import com.palantir.dialogue.core.BaseUrl;
-import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.logsafe.Arg;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
@@ -50,7 +46,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.URL;
-import java.time.Duration;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -61,7 +56,6 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BooleanSupplier;
 import javax.annotation.Nullable;
 import org.apache.hc.client5.http.ConnectTimeoutException;
 import org.apache.hc.client5.http.classic.ExecRuntime;
@@ -88,8 +82,6 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
     private final Optional<InetAddress> resolvedHost;
     private final ResponseLeakDetector responseLeakDetector;
     private final OptionalInt uriIndexForInstrumentation;
-    private final BooleanSupplier isValidTarget;
-    private final Meter shortCircuitMeter;
 
     ApacheHttpClientBlockingChannel(
             ApacheHttpClientChannels.CloseableClient client,
@@ -102,37 +94,10 @@ final class ApacheHttpClientBlockingChannel implements BlockingChannel {
         this.resolvedHost = resolvedHost;
         this.responseLeakDetector = responseLeakDetector;
         this.uriIndexForInstrumentation = uriIndexForInstrumentation;
-        this.shortCircuitMeter = DialogueClientMetrics.of(
-                        client.clientConfiguration().taggedMetricRegistry())
-                .shortCircuitUnresolvableTarget(client.name());
-        if (resolvedHost.isPresent() && client.dnsResolver().isPresent()) {
-            InetAddress target = resolvedHost.get();
-            DialogueDnsResolver dnsResolver = client.dnsResolver().get();
-            BooleanSupplier validTargetPredicate = Suppliers.memoizeWithExpiration(
-                    () -> isTargetValid(dnsResolver, baseUrl, target), Duration.ofSeconds(1))::get;
-            // If the bound address is not initially resolvable, this predicate will be ignored.
-            isValidTarget = validTargetPredicate.getAsBoolean() ? validTargetPredicate : () -> true;
-        } else {
-            isValidTarget = () -> true;
-        }
-    }
-
-    private static boolean isTargetValid(DialogueDnsResolver dnsResolver, URL baseUrl, InetAddress resolvedHost) {
-        String host = baseUrl.getHost();
-        if (Strings.isNullOrEmpty(host)) {
-            // we don't have enough confidence to prevent requests from flowing.
-            return true;
-        }
-        return dnsResolver.resolve(host).contains(resolvedHost);
     }
 
     @Override
     public Response execute(Endpoint endpoint, Request request) throws IOException {
-        if (!isValidTarget.getAsBoolean()) {
-            shortCircuitMeter.mark();
-            throw new SafeConnectException("Target address can no longer be resolved");
-        }
-
         // Create base request given the URL
         URL target = baseUrl.render(endpoint, request);
         ClassicRequestBuilder builder =
