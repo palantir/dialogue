@@ -164,10 +164,10 @@ final class ChannelCache {
                             channelCacheRequest.dnsRefreshInterval(),
                             channelCacheRequest.taggedMetrics(),
                             Refreshable.only(channelCacheRequest.serviceConf()))
-                    .map(dnsResolutionResults -> ReloadingClientFactory.getTargetUris(
+                    .map(dnsResolutionResults -> DnsSupport.getTargetUris(
                             channelCacheRequest.channelName(),
                             channelCacheRequest.serviceConf().uris(),
-                            ReloadingClientFactory.proxySelector(
+                            DnsSupport.proxySelector(
                                     channelCacheRequest.serviceConf().proxy()),
                             dnsResolutionResults.resolvedHosts(),
                             channelCacheRequest.taggedMetrics()));
