@@ -161,8 +161,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             Refreshable<ImmutableList<LimitedChannel>> channels =
                     cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
 
-            LimitedChannel nodeSelectionChannel = new SupplierLimitedChannel(
-                    channels.map(current -> NodeSelectionStrategyChannel.create(cf, current)));
+            LimitedChannel nodeSelectionChannel =
+                    new SupplierChannel(channels.map(current -> NodeSelectionStrategyChannel.create(cf, current)));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
