@@ -49,7 +49,6 @@ import com.palantir.dialogue.core.DialogueDnsResolver;
 import com.palantir.dialogue.core.StickyEndpointChannels;
 import com.palantir.dialogue.core.TargetUri;
 import com.palantir.dialogue.hc5.ApacheHttpClientChannels;
-import com.palantir.logsafe.DoNotLog;
 import com.palantir.logsafe.Preconditions;
 import com.palantir.logsafe.SafeArg;
 import com.palantir.logsafe.Unsafe;
@@ -176,8 +175,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
                         params.dnsResolver(),
                         params.dnsRefreshInterval(),
                         params.taggedMetrics(),
-                        configurationForService(serviceName)
-                                .map(InternalDialogueChannelConfiguration::serviceConfiguration))
+                        configurationForService(serviceName))
                 .map(block -> {
                     ServiceConfiguration serviceConfiguration = block.config().orElse(null);
                     if (serviceConfiguration == null) {
@@ -413,25 +411,24 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         return configuration;
     }
 
-    private Refreshable<InternalDialogueChannelConfiguration> configurationForService(String serviceName) {
+    private Refreshable<Optional<ServiceConfiguration>> configurationForService(String serviceName) {
         Preconditions.checkNotNull(serviceName, "serviceName");
         return params.scb().map(config -> {
             Preconditions.checkNotNull(config, "Refreshable must not provide a null ServicesConfigBlock");
             if (!config.services().containsKey(serviceName)) {
-                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty());
+                return Optional.empty();
             }
             ServiceConfigurationFactory factory = ServiceConfigurationFactory.of(config);
             try {
                 // ServiceConfigurationFactory.get(serviceName) may throw when certain values are not present
                 // in either the PartialServiceConfiguration or ServicesConfigBlock defaults.
-                ServiceConfiguration serviceConf = factory.get(serviceName);
-                return ImmutableInternalDialogueChannelConfiguration.of(Optional.of(serviceConf));
+                return Optional.of(factory.get(serviceName));
             } catch (RuntimeException e) {
                 log.warn(
                         "Failed to produce a ServiceConfigurationFactory for service {}",
                         SafeArg.of("service", serviceName),
                         e);
-                return ImmutableInternalDialogueChannelConfiguration.of(Optional.empty());
+                return Optional.empty();
             }
         });
     }
@@ -440,29 +437,25 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         Preconditions.checkNotNull(serviceName, "serviceName");
         String channelName = ChannelNames.reloading(serviceName, params);
 
-        return configurationForService(serviceName)
-                .map(InternalDialogueChannelConfiguration::serviceConfiguration)
-                .map(maybeServiceConf -> {
-                    Preconditions.checkNotNull(
-                            maybeServiceConf, "Refreshable must not provide a null ServiceConfiguration");
+        return configurationForService(serviceName).map(maybeServiceConf -> {
+            Preconditions.checkNotNull(maybeServiceConf, "Refreshable must not provide a null ServiceConfiguration");
 
-                    if (maybeServiceConf.isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (config block not present)",
-                                SafeArg.of("serviceName", serviceName)));
-                    }
+            if (maybeServiceConf.isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (config block not present)", SafeArg.of("serviceName", serviceName)));
+            }
 
-                    ServiceConfiguration serviceConf = maybeServiceConf.get();
+            ServiceConfiguration serviceConf = maybeServiceConf.get();
 
-                    // Verify URIs are present (regardless of whether they can be DNS resolved)
-                    if (serviceConf.uris().isEmpty()) {
-                        return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
-                                "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
-                    }
+            // Verify URIs are present (regardless of whether they can be DNS resolved)
+            if (serviceConf.uris().isEmpty()) {
+                return new EmptyInternalDialogueChannel(() -> new SafeIllegalStateException(
+                        "Service not configured (no URIs)", SafeArg.of("serviceName", serviceName)));
+            }
 
-                    DialogueChannel dialogueChannel = cache.getNonReloadingChannel(params, serviceConf, channelName);
-                    return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
-                });
+            DialogueChannel dialogueChannel = cache.getNonReloadingChannel(params, serviceConf, channelName);
+            return new InternalDialogueChannelFromDialogueChannel(dialogueChannel);
+        });
     }
 
     @Unsafe
@@ -588,12 +581,5 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         public String toString() {
             return "LazilyMappedRefreshable{" + delegate + '}';
         }
-    }
-
-    @DoNotLog
-    @Value.Immutable
-    interface InternalDialogueChannelConfiguration {
-        @Value.Parameter
-        Optional<ServiceConfiguration> serviceConfiguration();
     }
 }
