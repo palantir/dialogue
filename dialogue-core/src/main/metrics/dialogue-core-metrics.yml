@@ -70,6 +70,10 @@ namespaces:
         type: meter
         tags: [client-name, client-type]
         docs: Marked every time a new client is created.
+      reload:
+        type: meter
+        tags: [ client-name, client-type ]
+        docs: Marked every time a clients URIs are reloaded, including initial creation.
 
   dialogue.concurrencylimiter:
     docs: Instrumentation for the ConcurrencyLimitedChannel

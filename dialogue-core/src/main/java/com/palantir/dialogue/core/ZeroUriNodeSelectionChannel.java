@@ -29,11 +29,6 @@ import java.util.function.Function;
 final class ZeroUriNodeSelectionChannel implements LimitedChannel {
     private final Function<Endpoint, Throwable> throwableFactory;
 
-    ZeroUriNodeSelectionChannel(String channelName) {
-        this();
-        Preconditions.checkNotNull(channelName, "Channel name is required");
-    }
-
     ZeroUriNodeSelectionChannel(Function<Endpoint, Throwable> throwableFactory) {
         this.throwableFactory = Preconditions.checkNotNull(throwableFactory, "Throwable supplier is required");
     }

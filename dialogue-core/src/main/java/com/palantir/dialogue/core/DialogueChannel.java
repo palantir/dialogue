@@ -30,6 +30,10 @@ import com.palantir.dialogue.EndpointChannelFactory;
 import com.palantir.dialogue.Request;
 import com.palantir.dialogue.Response;
 import com.palantir.logsafe.Safe;
+import com.palantir.logsafe.SafeArg;
+import com.palantir.logsafe.UnsafeArg;
+import com.palantir.logsafe.logger.SafeLogger;
+import com.palantir.logsafe.logger.SafeLoggerFactory;
 import com.palantir.refreshable.Refreshable;
 import java.util.List;
 import java.util.OptionalInt;
@@ -38,6 +42,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Supplier;
 
 public final class DialogueChannel implements Channel, EndpointChannelFactory {
+    private static final SafeLogger log = SafeLoggerFactory.get(DialogueChannel.class);
     private final EndpointChannelFactory delegate;
     private final Config cf;
     private final Supplier<Channel> stickyChannelSupplier;
@@ -164,8 +169,26 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             Refreshable<ImmutableList<LimitedChannel>> channels =
                     cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
 
-            LimitedChannel nodeSelectionChannel =
-                    new SupplierChannel(channels.map(current -> NodeSelectionStrategyChannel.create(cf, current)));
+            DialogueClientMetrics clientMetrics =
+                    DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry());
+
+            Meter reloadMeter = clientMetrics
+                    .reload()
+                    .clientName(cf.channelName())
+                    .clientType("dialogue-channel-non-reloading")
+                    .build();
+
+            LimitedChannel nodeSelectionChannel = new SupplierChannel(channels.map(current -> {
+                reloadMeter.mark();
+                log.info(
+                        "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
+                        SafeArg.of("channel", cf.channelName()),
+                        UnsafeArg.of("uris", cf.rawConfig().uris()),
+                        SafeArg.of("numUris", cf.rawConfig().uris().size()),
+                        UnsafeArg.of("targets", current),
+                        SafeArg.of("numTargets", current.size()));
+                return NodeSelectionStrategyChannel.create(cf, current);
+            }));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);
 
@@ -175,7 +198,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
             Supplier<Channel> stickyChannelSupplier =
                     StickyEndpointChannels2.create(cf, stickyValidationChannel, channelFactory);
 
-            Meter createMeter = DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry())
+            Meter createMeter = clientMetrics
                     .create()
                     .clientName(cf.channelName())
                     .clientType("dialogue-channel-non-reloading")
