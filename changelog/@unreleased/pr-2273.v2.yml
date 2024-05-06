@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Reduce the default DNS poll interval from 5 seconds to 1
+  links:
+  - https://github.com/palantir/dialogue/pull/2273
