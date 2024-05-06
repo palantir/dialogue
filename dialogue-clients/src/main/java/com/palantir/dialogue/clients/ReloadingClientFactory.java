@@ -164,7 +164,7 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
 
         @Value.Default
         default Duration dnsRefreshInterval() {
-            return Duration.ofSeconds(5);
+            return Duration.ofSeconds(1);
         }
 
         @Value.Default
