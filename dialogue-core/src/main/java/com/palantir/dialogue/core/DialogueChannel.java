@@ -163,12 +163,6 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         public DialogueChannel build() {
             Config cf = builder.build();
 
-            // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
-            // In a future change we should attempt to retain this state for channels that are retained between
-            // updates.
-            Refreshable<ImmutableList<LimitedChannel>> channels =
-                    cf.uris().map(targetUris -> createHostChannels(cf, targetUris));
-
             DialogueClientMetrics clientMetrics =
                     DialogueClientMetrics.of(cf.clientConf().taggedMetricRegistry());
 
@@ -178,16 +172,20 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                     .clientType("dialogue-channel-non-reloading")
                     .build();
 
-            LimitedChannel nodeSelectionChannel = new SupplierChannel(channels.map(current -> {
+            // Reloading currently forgets channel state (pinned target, channel scores, concurrency limits, etc...)
+            // In a future change we should attempt to retain this state for channels that are retained between
+            // updates.
+            LimitedChannel nodeSelectionChannel = new SupplierChannel(cf.uris().map(targetUris -> {
                 reloadMeter.mark();
                 log.info(
                         "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
                         SafeArg.of("channel", cf.channelName()),
                         UnsafeArg.of("uris", cf.clientConf().uris()),
                         SafeArg.of("numUris", cf.clientConf().uris().size()),
-                        UnsafeArg.of("targets", current),
-                        SafeArg.of("numTargets", current.size()));
-                return NodeSelectionStrategyChannel.create(cf, current);
+                        UnsafeArg.of("targets", targetUris),
+                        SafeArg.of("numTargets", targetUris.size()));
+                ImmutableList<LimitedChannel> targetChannels = createHostChannels(cf, targetUris);
+                return NodeSelectionStrategyChannel.create(cf, targetChannels);
             }));
 
             LimitedChannel stickyValidationChannel = new StickyValidationChannel(nodeSelectionChannel);

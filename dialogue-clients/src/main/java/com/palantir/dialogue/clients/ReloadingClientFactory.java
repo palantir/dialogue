@@ -482,10 +482,15 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         public Supplier<Channel> stickyChannels() {
             return () -> this;
         }
+
+        @Override
+        public EndpointChannel endpoint(Endpoint _endpoint) {
+            return _request -> Futures.immediateFailedFuture(exceptionSupplier.get());
+        }
     }
 
     /* Abstracts away DialogueChannel so that we can handle no-service/no-uri case in #getInternalDialogueChannel. */
-    private interface InternalDialogueChannel extends Channel {
+    private interface InternalDialogueChannel extends Channel, EndpointChannelFactory {
         Supplier<Channel> stickyChannels();
     }
 
@@ -500,6 +505,11 @@ final class ReloadingClientFactory implements DialogueClients.ReloadingFactory {
         @Override
         public ListenableFuture<Response> execute(Endpoint endpoint, Request request) {
             return dialogueChannel.execute(endpoint, request);
+        }
+
+        @Override
+        public EndpointChannel endpoint(Endpoint endpoint) {
+            return dialogueChannel.endpoint(endpoint);
         }
 
         @Override

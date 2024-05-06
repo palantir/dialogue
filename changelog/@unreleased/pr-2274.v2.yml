@@ -1,0 +1,5 @@
+type: improvement
+improvement:
+  description: Avoid expensive refreshable creation in a potentially hot path
+  links:
+  - https://github.com/palantir/dialogue/pull/2274

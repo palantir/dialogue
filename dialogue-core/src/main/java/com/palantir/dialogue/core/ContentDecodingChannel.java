@@ -81,7 +81,9 @@ final class ContentDecodingChannel implements EndpointChannel {
         // is handled by the client. Note that this will also opt out of response
         // compression when the target host resolves to multiple IP addresses.
         if (cf.mesh() == MeshMode.DEFAULT_NO_MESH) {
-            return cf.uris().map(targets -> targets.size() == 1)::get;
+            // Avoid using refreshable here, as this can be called very frequently, and
+            // refreshable.map can be expensive.
+            return () -> cf.uris().get().size() == 1;
         }
 
         return () -> false;
