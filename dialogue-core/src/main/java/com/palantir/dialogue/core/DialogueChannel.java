@@ -93,7 +93,7 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
         }
 
         public Builder clientConfiguration(ClientConfiguration value) {
-            builder.rawConfig(value);
+            builder.clientConf(value);
             return this;
         }
 
@@ -183,8 +183,8 @@ public final class DialogueChannel implements Channel, EndpointChannelFactory {
                 log.info(
                         "Reloaded channel '{}' targets. (uris: {}, numUris: {}, targets: {}, numTargets: {})",
                         SafeArg.of("channel", cf.channelName()),
-                        UnsafeArg.of("uris", cf.rawConfig().uris()),
-                        SafeArg.of("numUris", cf.rawConfig().uris().size()),
+                        UnsafeArg.of("uris", cf.clientConf().uris()),
+                        SafeArg.of("numUris", cf.clientConf().uris().size()),
                         UnsafeArg.of("targets", current),
                         SafeArg.of("numTargets", current.size()));
                 return NodeSelectionStrategyChannel.create(cf, current);
